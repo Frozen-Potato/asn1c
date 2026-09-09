@@ -63,6 +63,16 @@ ssize_t aper_get_nslength(asn_per_data_t *pd);
 ssize_t uper_get_nsnnwn(asn_per_data_t *pd);
 ssize_t aper_get_nsnnwn(asn_per_data_t *pd, int range);
 
+/*
+ * X.691 (08/2015) #10.6 "Encoding of a normally small non-negative
+ * whole number"
+ * Range-independent variant, for use where the value has no
+ * associated range (e.g. CHOICE extension-alternative index).
+ * Distinct from aper_get_nsnnwn() above, which is range-aware and
+ * used for constrained length determinants (#10.9.3).
+ */
+ssize_t aper_get_nsnnwn_ext(asn_per_data_t *pd);
+
 /* X.691-2008/11, #11.5.6 */
 int uper_get_constrained_whole_number(asn_per_data_t *pd, unsigned long *v, int nbits);
 
@@ -119,6 +129,16 @@ int aper_put_nslength(asn_per_outp_t *po, size_t length);
 int uper_put_nsnnwn(asn_per_outp_t *po, int n);
 
 int aper_put_nsnnwn(asn_per_outp_t *po, int range, int number);
+
+/*
+ * X.691 (08/2015) #10.6 "Encoding of a normally small non-negative
+ * whole number"
+ * Range-independent variant, for use where the value has no
+ * associated range (e.g. CHOICE extension-alternative index).
+ * Distinct from aper_put_nsnnwn() above, which is range-aware and
+ * used for constrained length determinants (#10.9.3).
+ */
+int aper_put_nsnnwn_ext(asn_per_outp_t *po, int number);
 
 #ifdef __cplusplus
 }

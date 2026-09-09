@@ -490,3 +490,39 @@ aper_put_nsnnwn(asn_per_outp_t *po, int range, int number) {
 */
     return per_put_few_bits(po, number, 8 * bytes);
 }
+
+/* True X.691 §10.6 nsnnwn — range-independent. For CHOICE extension indices only. */
+int
+aper_put_nsnnwn_ext(asn_per_outp_t *po, int number) {
+    int bytes;
+    if(number < 0) return -1;
+
+    if(number <= 63)
+        return per_put_few_bits(po, number, 7);   /* '0' + 6 bits */
+
+    if(number < 256)           bytes = 1;
+    else if(number < 65536)    bytes = 2;
+    else if(number < 16777216) bytes = 3;
+    else return -1;
+
+    if(per_put_few_bits(po, 1, 1))         return -1;
+    if(aper_put_align(po) < 0)             return -1;
+    if(aper_put_length(po, -1, bytes) < 0) return -1;
+    return per_put_few_bits(po, number, 8 * bytes);
+}
+
+ssize_t
+aper_get_nsnnwn_ext(asn_per_data_t *pd) {
+    ssize_t flagbit = per_get_few_bits(pd, 1);
+    if(flagbit < 0) return -1;
+
+    if(flagbit == 0)
+        return per_get_few_bits(pd, 6);           /* short form */
+
+    if(aper_get_align(pd) < 0) return -1;
+    int ebits = 0;
+    int repeat = 0;
+    ssize_t len = aper_get_length(pd, -1, ebits, &repeat);
+    if(len < 0 || len > 3) return -1;
+    return per_get_few_bits(pd, 8 * (int)len);
+}
