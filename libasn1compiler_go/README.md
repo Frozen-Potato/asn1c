@@ -273,3 +273,9 @@ republish the pair together.
   after a full final 16K fragment. Wires that exercise these boundaries
   round-trip byte-identically on this fork's runtime and fail decode on an
   unfixed one.
+
+**End-to-end test.** `tests/run-e2e.sh` generates Go from
+`tests/e2e/ex.asn` with the built `asn1c/asn1c`, builds it with cgo
+(no manual `CGO_CFLAGS`) and runs `tests/e2e/main_test.go`, an APER
+round-trip check, once with `-no-gen-OER` and once with OER enabled. It
+exits 77 (skip) when `go`, cgo or linux/amd64 is unavailable.
