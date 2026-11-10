@@ -303,8 +303,15 @@ republish the pair together.
   round-trip byte-identically on this fork's runtime and fail decode on an
   unfixed one.
 
-**End-to-end test.** `tests/run-e2e.sh` generates Go from
-`tests/e2e/ex.asn` with the built `asn1c/asn1c`, builds it with cgo
-(no manual `CGO_CFLAGS`) and runs `tests/e2e/main_test.go`, an APER
-round-trip check, once with `-no-gen-OER` and once with OER enabled. It
-exits 77 (skip) when `go`, cgo or linux/amd64 is unavailable.
+**Tests.** `tests/run-e2e.sh` generates Go from `tests/e2e/ex.asn` and
+`tests/e2e/ioc.asn` with the built `asn1c/asn1c`, builds it with cgo (no
+manual `CGO_CFLAGS`) and runs `tests/e2e/main_test.go`: an APER round-trip
+check plus one negative test per error code reachable from caller input
+(the unreachable codes are listed at the top of that file), once with
+`-no-gen-OER` and once with OER enabled. It also runs
+`tests/e2e/faults_test.go` with `-tags asn1cgo_faults`, an allocation-fault
+sweep that fails each runtime allocation in turn and requires `ErrAlloc`
+and a zero `ArenaBalance`. `tests/run-c-invariance.sh` checks that adding
+`-Fgo=` leaves the generated C byte-identical (apart from the stamped
+command line). Both scripts exit 77 (skip) when a prerequisite (`go`, cgo,
+linux/amd64, or the built `asn1c`) is unavailable.

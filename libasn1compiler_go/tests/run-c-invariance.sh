@@ -1,0 +1,98 @@
+#!/bin/sh
+# Adding -Fgo=<dir> must not change the C that asn1c writes. For each spec,
+# run asn1c twice into fresh -D dirs (second run adds -Fgo) and compare the
+# two trees file by file. Only the stamped command line is normalised: the
+# "-Fgo=<anything>" word is dropped from the " * \t`asn1c ..." header lines of
+# generated .c/.h files and from Makefile.am.asn1convert / converter-example.mk.
+# Exit codes: 0 pass, 77 skipped (automake SKIP), anything else failure.
+set -eu
+
+here=$(cd "$(dirname "$0")" && pwd)
+repo=$(cd "$here/../.." && pwd)
+asn1c="$repo/asn1c/asn1c"
+
+if [ ! -x "$asn1c" ]; then
+    echo "run-c-invariance: SKIP: $asn1c not found" >&2
+    exit 77
+fi
+
+tmp=$(mktemp -d)
+cleanup() { rm -rf "${tmp:?}"; }
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# normalise <file>: print the file with "-Fgo=<anything>" dropped from the
+# stamped asn1c command lines (and from nothing else).
+normalise() {
+    case $1 in
+    */Makefile.am.asn1convert|*/converter-example.mk)
+        sed -e '/asn1c /s/ -Fgo=[^ `]*//' "$1" ;;
+    *.c|*.h)
+        sed -e "/^ \\* "'	`asn1c /s/ -Fgo=[^ `]*//' "$1" ;;
+    *)
+        cat "$1" ;;
+    esac
+}
+
+# check <label> <expected-go-exit> <spec-path>...
+check() {
+    label=$1; want_rc=$2; shift 2
+    work="$tmp/$label"
+    mkdir -p "$work"
+    echo "== run-c-invariance: $label =="
+    flags="-S $repo/skeletons -fincludes-quoted -fcompound-names -findirect-choice -fno-include-deps -gen-PER -no-gen-OER -pdu=auto"
+    # Both runs use the same -D path (the path is stamped into the generated
+    # Makefiles), one after the other; the first tree is moved aside.
+    mkdir "$work/c"
+    rc=0
+    # shellcheck disable=SC2086
+    "$asn1c" $flags -D "$work/c" "$@" >"$work/plain.log" 2>&1 || rc=$?
+    if [ "$rc" != 0 ]; then
+        cat "$work/plain.log" >&2
+        echo "run-c-invariance: $label: plain run exited $rc" >&2
+        return 1
+    fi
+    mv "$work/c" "$work/plain"
+    mkdir "$work/c"
+    rc=0
+    # shellcheck disable=SC2086
+    "$asn1c" $flags -D "$work/c" -Fgo="$work/go" "$@" >"$work/withgo.log" 2>&1 || rc=$?
+    if [ "$rc" != "$want_rc" ]; then
+        cat "$work/withgo.log" >&2
+        echo "run-c-invariance: $label: -Fgo run exited $rc, want $want_rc" >&2
+        return 1
+    fi
+
+    mv "$work/c" "$work/withgo"
+    fail=0
+    list_a="$work/list.a"; list_b="$work/list.b"
+    (cd "$work/plain" && find . -type f | LC_ALL=C sort) >"$list_a"
+    (cd "$work/withgo" && find . -type f | LC_ALL=C sort) >"$list_b"
+    if ! diff "$list_a" "$list_b" >&2; then
+        echo "run-c-invariance: $label: file lists differ" >&2
+        fail=1
+    fi
+    while IFS= read -r f; do
+        [ -f "$work/withgo/$f" ] || continue
+        normalise "$work/plain/$f" >"$work/n.a"
+        normalise "$work/withgo/$f" >"$work/n.b"
+        if ! cmp -s "$work/n.a" "$work/n.b"; then
+            echo "run-c-invariance: $label: $f differs:" >&2
+            diff -u "$work/n.a" "$work/n.b" >&2 || true
+            fail=1
+        fi
+    done <"$list_a"
+    if [ "$fail" != 0 ]; then
+        return 1
+    fi
+    echo "   $(wc -l <"$list_a" | tr -d ' ') files identical"
+}
+
+e2e="$here/e2e"
+check ex 0 "$e2e/ex.asn"
+check ioc 0 "$e2e/ioc.asn"
+# rrc-7.1.0 has DEFAULT members: the Go pass rejects it (exit 70), but the C
+# output must still be identical to the run without -Fgo.
+check rrc 70 "$repo/examples/rrc-7.1.0.asn1"
+echo "run-c-invariance: PASS"

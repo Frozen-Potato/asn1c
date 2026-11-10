@@ -1,6 +1,7 @@
 #!/bin/sh
-# End-to-end test of the Go backend: generate Go from tests/e2e/ex.asn,
-# build it with cgo (no manual CGO_CFLAGS) and check an APER round-trip.
+# End-to-end test of the Go backend: generate Go from tests/e2e/ex.asn and
+# tests/e2e/ioc.asn, build it with cgo (no manual CGO_CFLAGS), check an APER
+# round-trip, every reachable error code, and an allocation-fault sweep.
 # Runs twice: with -no-gen-OER and with OER enabled.
 # Exit codes: 0 pass, 77 skipped (automake SKIP), anything else failure.
 set -eu
@@ -44,18 +45,22 @@ run_one() {
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
     cp -R "$repo/libasn1compiler_go/rt/go" "$work/asn1cgo-rt"
     sed 's|^module .*|module asn1cgo.test/asn1cgo-rt|' "$work/asn1cgo-rt/go.mod" >"$work/go.mod.new"
     mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
 
-    cp "$here/e2e/main_test.go" "$work/go/main_test.go"
+    cp "$here/e2e/main_test.go" "$here/e2e/faults_test.go" "$work/go/"
     (
         cd "$work/go"
         unset CGO_CFLAGS
         go test -count=1 ./...
+        # Allocation-fault sweep (needs the injection hooks compiled in).
+        # -v so the per-direction N and the "no injectable allocations" note
+        # for encode are visible.
+        go test -count=1 -v -tags asn1cgo_faults -run TestAllocFaultSweep .
     )
 }
 

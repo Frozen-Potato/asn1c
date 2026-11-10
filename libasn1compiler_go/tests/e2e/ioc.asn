@@ -1,0 +1,21 @@
+Deep DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+Tree ::= SEQUENCE { root Node }
+Node ::= SEQUENCE { val INTEGER (0..255), next Node OPTIONAL }
+IOC-Msg ::= SEQUENCE { ies SEQUENCE (SIZE(0..16)) OF Field }
+Criticality ::= ENUMERATED { reject, ignore, notify }
+ProtocolIE-ID ::= INTEGER (0..65535)
+IE-CLASS ::= CLASS { &id ProtocolIE-ID UNIQUE, &criticality Criticality, &Value }
+  WITH SYNTAX { ID &id CRITICALITY &criticality TYPE &Value }
+id-a ProtocolIE-ID ::= 1
+id-b ProtocolIE-ID ::= 2
+Msg-IEs IE-CLASS ::= { { ID id-a CRITICALITY reject TYPE IntVal } |
+                       { ID id-b CRITICALITY ignore TYPE BoolVal }, ... }
+IntVal ::= INTEGER (0..255)
+BoolVal ::= INTEGER (0..1)
+Field ::= SEQUENCE {
+  id          IE-CLASS.&id ({Msg-IEs}),
+  criticality IE-CLASS.&criticality ({Msg-IEs}{@id}),
+  value       IE-CLASS.&Value ({Msg-IEs}{@id})
+}
+END
