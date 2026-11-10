@@ -56,6 +56,8 @@
  * `failed` lives in the bag defined below; a one-bit out-of-line cell keeps
  * the helpers_compilable before the bag's definition.
  * ------------------------------------------------------------------------ */
+extern int go_oer_disabled(void);
+
 static int g_flat_failed_;
 
 #define g_flat_failed_set() do { g_flat_failed_ = 1; } while(0)
@@ -1699,7 +1701,9 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
                 lg = fa(lg, "\n\n");
                 char *fh = malloc(strlen(prefix) + strlen(pu->pkg) + 16);
                 sprintf(fh, "%s%s_flat.h", prefix, pu->pkg);
-                lg = fa(lg, "/*\n#cgo CFLAGS: -I${SRCDIR}/../internal/cspec -I${SRCDIR}/../internal/cspec/rt\n");
+                lg = fa(lg, "/*\n#cgo CFLAGS: -I${SRCDIR}/../internal/cspec -I${SRCDIR}/../internal/cspec/rt");
+                if(go_oer_disabled()) lg = fa(lg, " -DASN_DISABLE_OER_SUPPORT");
+                lg = fa(lg, "\n");
                 lg = fa(lg, "#include \"");
                 lg = fa(lg, fh);
                 lg = fa(lg, "\"\n#include <stddef.h>\n");

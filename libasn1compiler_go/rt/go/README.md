@@ -13,9 +13,15 @@ It contains:
   `err.c`, `buf.c`, and their headers): the arena allocator that owns
   all flat-memory for one call, the error struct, and the encode
   buffer;
-- the asn1c skeleton runtime (`rt/*.c`, `rt/*.h`) — the APER/XER codec
-  the generated code drives. It is Free software; its license is in
-  the `LICENSE` file beside this README.
+- a copy of the asn1c skeleton runtime (every `skeletons/*.c`/`*.h` of the
+  fork except `converter-example.c`, in `rt/`) — the APER/XER codec the
+  generated code drives. It is refreshed from the fork by
+  `libasn1compiler_go/rt/sync-skeletons.sh`; do not edit the copies. Its
+  license is in the `LICENSE` file beside this README.
+- OER: the module defines `ASN_DISABLE_OER_SUPPORT` by default (matching
+  trees generated with `-no-gen-OER`, and keeping the OER-only sources out of
+  the build). For trees generated with OER enabled, build with
+  `-tags asn1cgo_oer`.
 
 ## Requirements
 
@@ -39,13 +45,13 @@ Match failures with `errors.Is` against the sentinels; a sentinel
 matches an `*Error` returned by ANY spec package:
 
 ```go
-_, err := e2ap_pdu_descriptions.DecodeE2APPDU(buf)
+_, err := example.DecodeExamplePDU(buf)
 switch {
-case errors.Is(err, asn1cgort.ErrDecode):
+case errors.Is(err, rt.ErrDecode):
     // malformed bytes; a structure the codec rejected
-case errors.Is(err, asn1cgort.ErrTrailing):
+case errors.Is(err, rt.ErrTrailing):
     // valid PDU, bytes left after it
-case errors.Is(err, asn1cgort.ErrConstraint):
+case errors.Is(err, rt.ErrConstraint):
     // value outside a declared range/size bound
 case err != nil:
     // anything else (see Error.Code)
@@ -78,7 +84,7 @@ asn1cgo-rt/
     err.c/.h      the C error struct and codes
     buf.c         the encode-buffer free routine
     types.h       shared flat-type declarations
-    ...           the asn1c skeleton runtime subset
+    ...           the asn1c skeleton runtime (copied from skeletons/)
 ```
 
 ## Versioning

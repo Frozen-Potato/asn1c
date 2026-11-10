@@ -1242,6 +1242,13 @@ mark_bitstring_module(struct name_bag *b, const char *module) {
  * Static here: one process runs one generation. */
 static enum asn1c_flags go_compiler_flags;
 
+/* go_oer_disabled: nonzero when this run was started without OER support
+ * (-no-gen-OER, i.e. A1C_GEN_OER clear). The generated cgo preambles then
+ * carry -DASN_DISABLE_OER_SUPPORT, matching what the C backend writes into
+ * its own Makefile.am.example (asn1c_save.c). */
+int go_oer_disabled(void);
+int go_oer_disabled(void) { return (go_compiler_flags & A1C_GEN_OER) == 0; }
+
 /* -------------------------------------------------------------------------
  * leaf-kind classification. The INTEGER class comes from asn1c's own
  * decision function (asn1c_type_fits_long, asn1c_misc.c:408 — note:

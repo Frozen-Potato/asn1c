@@ -28,9 +28,29 @@ asn1c sources are otherwise untouched.
 
 ```sh
 asn1c -S <fork>/skeletons -fincludes-quoted -fcompound-names \
-      -findirect-choice -fno-include-deps -gen-PER -pdu=auto \
+      -findirect-choice -fno-include-deps -gen-PER -no-gen-OER -pdu=auto \
       -D <c-outdir> -Fgo=<go-outdir> <spec.asn...>
 ```
+
+`-no-gen-OER` is the supported configuration. When OER is off the generator
+writes `-DASN_DISABLE_OER_SUPPORT` into the `#cgo CFLAGS` lines of the
+generated cgo files, and the runtime module defines it by default, so no
+`CGO_CFLAGS` is needed. If you generate with OER on (omit `-no-gen-OER`),
+build with `-tags asn1cgo_oer` so the runtime compiles its OER sources too.
+
+**Module path.** The Go module path is
+`<ASN1CGO_GO_MODULE_PREFIX>/<basename of the -Fgo dir>`; with no prefix it is
+just the basename. `-Fgo=out/go` with prefix `your.prefix` yields module
+`your.prefix/go`, and packages are imported as `your.prefix/go/<package>`.
+
+**Workspace layout.** The generated `go.mod` sets `go 1.27.1`, requires the
+runtime (`asn1cgo-rt`, or `<prefix>/asn1cgo-rt`) at the generator's embedded
+version, and has `replace <rt> => ../asn1cgo-rt`. So the runtime is expected
+at `../asn1cgo-rt`, next to the `-Fgo` dir. When `-Fgo` has a parent
+directory component (e.g. `out/go`), the generator also writes a `go.work`
+in that parent (`out/`) listing `./asn1cgo-rt` and the generated module,
+creating it if absent and appending to it otherwise. A bare `-Fgo=go` has no
+parent component, so no `go.work` is written and the `replace` does the work.
 
 `-Fgo=<dir>` emits the Go module rooted at `<dir>`: `go.mod`, one Go
 package per ASN.1 module (`<module>_dir`, lowercased, `-`→`_`), the C
@@ -101,8 +121,9 @@ type ExamplePayload struct {
 }
 ```
 
-and round-tripping a value is (the exact block a harness check compiles
-against this module's generated tree, so it cannot drift):
+and round-tripping a value is (with `-Fgo=<dir>/go` and
+`ASN1CGO_GO_MODULE_PREFIX=your.prefix`; the import path follows the module
+path rule above):
 
 ```go readme-example
 package main
@@ -110,7 +131,7 @@ package main
 import (
     "fmt"
 
-    ex "your.prefix/synth-example/synth_example"
+    ex "your.prefix/go/synth_example"
 )
 
 func main() {
@@ -178,7 +199,7 @@ the spec.
 units per call: one unit per entry into a recursive type's conversion,
 so a recursive ASN.1 level nested through several types typically costs
 several units. Past the bound the call fails with an error that matches
-`errors.Is(err, asn1cgort.ErrDepth)`; the value is rejected rather than
+`errors.Is(err, rt.ErrDepth)`; the value is rejected rather than
 allowed to overflow the stack. The bound is compile-time: 64 is
 `ASN1CGO_MAX_DEPTH` in the runtime's `rt/err.h`, mirrored by the
 `maxEncodeDepth` constant the generator writes into every package — to
@@ -190,7 +211,11 @@ value).
 
 Generated code imports the runtime module `asn1cgo-rt` (error model +
 arena + the asn1c skeleton codec). The generator does not emit it; you
-supply it beside your generated trees. Its source lives in this fork at
+supply it beside your generated trees (at `../asn1cgo-rt` relative to the
+`-Fgo` dir; copying `libasn1compiler_go/rt/go` there is enough, it is
+self-contained). The skeleton files in `rt/go/rt` are copies of
+`skeletons/`; refresh them with `libasn1compiler_go/rt/sync-skeletons.sh`
+after changing the skeletons. Its source lives in this fork at
 `libasn1compiler_go/rt/go`. Two supported forms:
 
 1. **A `replace` to the local copy** — point your module at the rt
@@ -198,7 +223,7 @@ supply it beside your generated trees. Its source lives in this fork at
    output layout):
 
    ```
-   require asn1cgo-rt v0.1.2
+   require asn1cgo-rt v0.1.3
    replace asn1cgo-rt => /path/to/asn1c-fork/libasn1compiler_go/rt/go
    ```
 

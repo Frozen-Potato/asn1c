@@ -3131,6 +3131,8 @@ static const char *GLUE_READ_BITS =
  * package flat header, `pdu_externs` the entry-point extern decls text,
  * `flat_externs` extra flat includes, `rt_module` the runtime module's path
  * (asn1cgo-rt or <prefix>/asn1cgo-rt). */
+extern int go_oer_disabled(void);
+
 static char *
 pkg_header(const char *module, const char *pkg, const char *flat_hdr,
            const char *flat_includes, const char *pdu_externs,
@@ -3146,7 +3148,9 @@ pkg_header(const char *module, const char *pkg, const char *flat_hdr,
     s = ga(s, "package ");
     s = ga(s, pkg);
     s = ga(s, "\n\n/*\n");
-    s = ga(s, "#cgo CFLAGS: -I${SRCDIR}/../internal/cspec -I${SRCDIR}/../internal/cspec/rt\n");
+    s = ga(s, "#cgo CFLAGS: -I${SRCDIR}/../internal/cspec -I${SRCDIR}/../internal/cspec/rt");
+    if(go_oer_disabled()) s = ga(s, " -DASN_DISABLE_OER_SUPPORT");
+    s = ga(s, "\n");
     s = ga(s, "#include \"rt/arena.h\"\n");
     s = ga(s, "#include \"rt/err.h\"\n");
     s = ga(s, "#include \"rt/types.h\"\n");

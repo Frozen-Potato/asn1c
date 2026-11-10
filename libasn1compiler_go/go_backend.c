@@ -20,15 +20,6 @@
 #include "go_constructs.h"      /* go_walk_asts */
 
 /*
- * The Go backend splits into two passes, both implemented after the support
- * gate (go_walk_asts):
- *   - go_generate  (go_names.c): resolve every Go name, write the name dump,
- *     then call go_emit_files on a clean pass. This is the entry that turns
- *     `-Fgo=<dir>` into output on disk.
- * go_emit_files is, in turn, declared extern inside go_names.c (flat surface,
- * no header churn — same style as the driver's own asn1cgo_generate extern).
- */
-/*
  * The Go backend splits into two passes, both run after the support gate
  * (go_walk_asts):
  *   - go_generate  (go_names.c): resolve every Go name, write the name dump

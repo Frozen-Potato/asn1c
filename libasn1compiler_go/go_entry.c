@@ -276,9 +276,12 @@ conv_module_pkg(const char *module_name) {
 
 
 /* cspec cgo.go text (the import path is parameterized by the rt module). */
-static const char *
+extern int go_oer_disabled(void);
+
+static char *
 cspec_cgo_go_text(void) {
-    return
+    const char *oer_def = go_oer_disabled() ? " -DASN_DISABLE_OER_SUPPORT" : "";
+    return cfmt(
         GO_GENERATED_BANNER
         "//go:build amd64\n"
         "\n"
@@ -297,10 +300,10 @@ cspec_cgo_go_text(void) {
         // at the final link from the rt package's cgo objects; NO include
         // path may cross the module boundary (the file-proxy consumer leg
         // gates this).
-        "#cgo CFLAGS: -I${SRCDIR} -I${SRCDIR}/rt -Wall -Wextra -Wno-unused-parameter -Wno-deprecated-declarations\n"
+        "#cgo CFLAGS: -I${SRCDIR} -I${SRCDIR}/rt%s -Wall -Wextra -Wno-unused-parameter -Wno-deprecated-declarations\n"
         "*/\n"
         "import \"C\"\n"
-        "\n";
+        "\n", oer_def);
     /* the asn1cgo-rt import line is appended by the caller, gated on
      * the rt module actually being emitted (ASN1CGO_FORK_SKEL) — a dangling
      * module reference breaks every go build of the tree. */
@@ -970,7 +973,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
     {
         char *p = conv_path(cspec, "cgo.go");
         {
-            const char *base = cspec_cgo_go_text();
+            char *base = cspec_cgo_go_text();
             const char *rtm = (go_rt_module && *go_rt_module)
                                   ? go_rt_module : "asn1cgo-rt";
             char *imp = cfmt(
@@ -978,7 +981,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 "// this package (cross-package C symbols resolve through Go static\n"
                 "// linking).\n"
                 "import _ \"%s/rt\"\n", rtm);
-            char *txt = cstrdup(base);
+            char *txt = base;
             if(getenv("ASN1CGO_FORK_SKEL"))
                 txt = ca(txt, imp);
             if(conv_fwrite_all(p, txt) < 0) { free(txt); free(p); return -1; }

@@ -93,4 +93,7 @@ doc/docsrc/*.xdv
 
 #code coverage
 *.gcno
-*.gcda
+*.gcda 
+
+
+.*/

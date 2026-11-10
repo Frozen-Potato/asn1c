@@ -17,10 +17,16 @@
 // what consumers need — the include path, the libs the skeleton subset
 // links, and the headers. Compile strictness for consumers comes from
 // CGO_CFLAGS in the consumer's environment, not from this file.
+//
+// OER: generated trees made with -no-gen-OER compile their C with
+// -DASN_DISABLE_OER_SUPPORT, and this module's skeleton C must see the same
+// define. It is on by default; build with `-tags asn1cgo_oer` when the trees
+// were generated with OER enabled (the asn1c default).
 package rt
 
 /*
 #cgo CFLAGS: -I${SRCDIR}
+#cgo !asn1cgo_oer CFLAGS: -DASN_DISABLE_OER_SUPPORT
 #cgo LDFLAGS: -lm -lpthread
 #include "arena.h"
 #include "err.h"
