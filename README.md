@@ -71,11 +71,11 @@ The runtime module (**asn1cgo-rt**) must be placed next to the generated
 module, and a C compiler is required to build the generated Go code
 (CGO_ENABLED=1).
 
--- [Frozen-Potato](https://github.com/Frozen-Potato)
-
 See [libasn1compiler_go/README.md](libasn1compiler_go/README.md) for the
 build instructions, the module layout, usage examples and the list of
 supported constructs.
+
+-- [Frozen-Potato](https://github.com/Frozen-Potato)
 
 # Build and Install
 
