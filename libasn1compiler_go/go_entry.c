@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <unistd.h>
 #include <dirent.h>
 #include <stdint.h>
 
@@ -166,16 +167,27 @@ static int
 conv_mkdir_p(const char *path) {
     char buf[4096];
     size_t n = strlen(path);
-    if(n == 0 || n >= sizeof buf) return -1;
+    if(n == 0 || n >= sizeof buf) {
+        fprintf(stderr, "asn1cgo: conv: bad directory path (empty or too long): '%s'\n", path);
+        return -1;
+    }
     memcpy(buf, path, n + 1);
     for(size_t i = 1; i < n; i++) {
         if(buf[i] == '/') {
             buf[i] = '\0';
-            if(mkdir(buf, 0777) < 0 && errno != EEXIST) return -1;
+            if(mkdir(buf, 0777) < 0 && errno != EEXIST) {
+                fprintf(stderr, "asn1cgo: conv: cannot create directory: %s: %s\n",
+                        buf, strerror(errno));
+                return -1;
+            }
             buf[i] = '/';
         }
     }
-    if(mkdir(buf, 0777) < 0 && errno != EEXIST) return -1;
+    if(mkdir(buf, 0777) < 0 && errno != EEXIST) {
+                fprintf(stderr, "asn1cgo: conv: cannot create directory: %s: %s\n",
+                        buf, strerror(errno));
+                return -1;
+            }
     return 0;
 }
 
@@ -1091,154 +1103,246 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                                       ? go_rt_module : "asn1cgo-rt";
                 /* rewrite with the require/replace appended */
                 FILE *o = fopen(gm, "w");
-                if(o) {
-                    fprintf(o, "%s", txt);
-                    fprintf(o, "\nrequire %s %s\n", rtm, ASN1CGO_RT_VERSION);
-                    fprintf(o, "replace %s => ../asn1cgo-rt\n", rtm);
-                    fclose(o);
+                if(!o) {
+                    fprintf(stderr, "asn1cgo: conv: cannot write '%s': %s\n",
+                            gm, strerror(errno));
+                    conv_failed_set();
+                } else {
+                    int ok = fprintf(o, "%s", txt) >= 0
+                        && fprintf(o, "\nrequire %s %s\n", rtm,
+                                   ASN1CGO_RT_VERSION) >= 0
+                        && fprintf(o, "replace %s => ../asn1cgo-rt\n", rtm) >= 0;
+                    if(fclose(o) != 0) ok = 0;
+                    if(!ok) {
+                        fprintf(stderr, "asn1cgo: conv: write failed: %s: %s\n",
+                                gm, strerror(errno));
+                        conv_failed_set();
+                    }
                 }
             }
             free(txt);
         } else {
             fprintf(stderr, "asn1cgo: conv: go.mod not found under '%s' "
                     "(go_emit_files writes it first)\n", go_outdir);
+            conv_failed_set();
         }
         free(gm);
     }
-    {
-        /* go.work at the PARENT of go_outdir (beside asn1cgo-rt): the
-         * first spec run mints it, later runs append? NO — one go.work per
-         * workspace; write when absent, never rewrite. The ./asn1cgo-rt
-         * entry refers to the module the build stages from the single
-         * source (go.work/replace may point elsewhere; a dead entry is
-         * pruned by the rewrite arm below only when its dir is gone). */
-        if(!go_skel_dir()) goto no_gowork;
-        const char *slash = strrchr(go_outdir, '/');
-        char *parent = NULL;
-        if(slash) {
-            parent = malloc((size_t)(slash - go_outdir) + 1);
-            if(parent) {
-                memcpy(parent, go_outdir, (size_t)(slash - go_outdir));
-                parent[slash - go_outdir] = '\0';
-            }
-        }
-        if(parent && *parent) {
-            char *gw = conv_path(parent, "go.work");
-            const char *base = slash + 1;
-            /* one workspace: the parent hosts MULTIPLE group modules
-             * (the gt cache's go/ holds kpm+rc+e2ap side by side) plus the
-             * shared asn1cgo-rt. Mint the work file when absent; when it
-             * exists, APPEND this module to `use` if not already listed —
-             * a sibling group's earlier run must not leave this module
-             * outside the workspace (its `./...` builds then fail with
-             * "directory prefix . does not contain modules listed in
-             * go.work"). Never rewrite anything else. */
-            FILE *f = fopen(gw, "r");
-            char *cur = NULL;
-            if(f) {
-                size_t cap = 0, n = 0;
-                int c2;
-                while((c2 = fgetc(f)) != EOF) {
-                    if(n + 2 > cap) {
-                        cap = cap ? cap * 2 : 256;
-                        cur = realloc(cur, cap);
-                        if(!cur) break;
-                    }
-                    if(cur) cur[n] = (char)c2;
-                    n++;
-                }
-                if(cur) cur[n] = '\0';
-                fclose(f);
-            }
-            char *needle = cfmt("\t./%s\n", base);
-            if(!cur) {
-                FILE *o = fopen(gw, "w");
-                if(o) {
-                    fprintf(o, "go " GO_MOD_GO_VERSION "\n\nuse (\n\t./asn1cgo-rt\n\t./%s\n)\n", base);
-                    fclose(o);
-                }
-            } else {
-                /* APPEND this module AND prune dead `use` entries: throwaway
-                 * go_outdir parents (/tmp scratch dirs from defeats and
-                 * probes) accumulate entries whose dirs are long gone — a
-                 * stale go.work then breaks EVERY later go build under that
-                 * parent (the /tmp/go.work pollution trap, caught live:
-                 * "cannot load module ../tmp.XXXX listed in go.work").
-                 * Rewrite = re-emit the `use (...)` lines, keeping
-                 * ./asn1cgo-rt, every entry whose dir still exists, and
-                 * ./<base> (ensured present); other lines untouched. */
-                char *rp = strrchr(cur, ')');
-                char *ub = strstr(cur, "use (");
-                if(rp && ub && ub < rp) {
-                    /* head = everything through "use (" + newline; then the
-                     * kept entries; then from the closing paren onward. */
-                    const char *hl = ub + 5;
-                    const char *head_end = strchr(hl, '\n');
-                    if(!head_end || head_end > (const char *)rp)
-                        head_end = (const char *)rp;
-                    size_t off = (size_t)(head_end - cur) + 1;
-                    char *base_path = cfmt("./%s", base);
-                    FILE *o = fopen(gw, "w");
-                    if(o) {
-                        fwrite(cur, 1, off, o);
-                        int wrote_base = 0;
-                        {
-                            const char *l = ub + 5;
-                            while(l < (const char *)rp) {
-                                const char *eol2 = strchr(l, '\n');
-                                if(!eol2 || eol2 > (const char *)rp)
-                                    eol2 = (const char *)rp;
-                                if(eol2 > l + 1 && l[0] == '\t' && l[1] == '.') {
-                                    size_t el0 = (size_t)(eol2 - l) - 1;
-                                    char *entry = malloc(el0 + 1);
-                                    if(entry) {
-                                        memcpy(entry, l + 1, el0);
-                                        entry[el0] = 0;
-                                        int keep;
-                                        if(strcmp(entry, "./asn1cgo-rt") == 0) {
-                                            keep = 1;
-                                        } else {
-                                            char *dirp = cfmt("%s/%s", parent,
-                                                              entry + 2);
-                                            struct stat st3;
-                                            keep = stat(dirp, &st3) == 0;
-                                            free(dirp);
-                                        }
-                                        if(keep) {
-                                            fwrite(l, 1,
-                                                   (size_t)(eol2 - l), o);
-                                            fputc('\n', o);
-                                            char *nl2 = strchr(entry, '\n');
-                                            if(nl2) *nl2 = 0;
-                                            if(strcmp(entry, base_path) == 0)
-                                                wrote_base = 1;
-                                        }
-                                        free(entry);
-                                    }
-                                }
-                                if(!eol2 || eol2 >= (const char *)rp) break;
-                                l = eol2 + 1;
-                            }
-                        }
-                        if(!wrote_base)
-                            fprintf(o, "\t./%s\n", base);
-                        free(base_path);
-                        fwrite(rp, 1, strlen(rp), o);
-                        fclose(o);
-                    }
-                }
-            }
-            free(cur);
-            free(needle);
-            free(gw);
-        }
-        free(parent);
-    }
-no_gowork:;
+    /* go.work (parent of the -Fgo dir) is NOT touched here: go_generate
+     * updates it via go_workfile_plan/go_workfile_write only after the whole
+     * tree was staged and published, so a failed run never modifies it. */
 
     for(int j = 0; j < n_mods; j++) free(mods[j]);
     free(mods);
     free(cspec);
     if(g_conv_failed_) return -1;
     return 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * go.work maintenance, split in two so a failed run never modifies it:
+ *   go_workfile_plan  — read <parent>/go.work, compute the new text (pure);
+ *                       *new_text = NULL when nothing needs writing.
+ *   go_workfile_write — replace the file atomically (temp file + rename).
+ * Semantics (unchanged from the in-place version): only when the fork
+ * skeleton dir is known and go_outdir has a parent component; absent/empty
+ * file -> minted with ./asn1cgo-rt and ./<base>; otherwise the `use (...)`
+ * block is re-emitted keeping ./asn1cgo-rt and every entry whose dir still
+ * exists (dead ones pruned), each entry once, and ./<base> ensured.
+ * ------------------------------------------------------------------------- */
+int go_workfile_plan(const char *go_outdir, char **new_text);
+int go_workfile_write(const char *go_outdir, const char *new_text);
+
+static char *
+workfile_parent(const char *go_outdir) {
+    const char *slash = strrchr(go_outdir, '/');
+    if(!slash || slash == go_outdir) return NULL;
+    char *p = malloc((size_t)(slash - go_outdir) + 1);
+    if(!p) return NULL;
+    memcpy(p, go_outdir, (size_t)(slash - go_outdir));
+    p[slash - go_outdir] = '\0';
+    return p;
+}
+
+int
+go_workfile_plan(const char *go_outdir, char **new_text) {
+    *new_text = NULL;
+    if(!go_skel_dir()) return 0;
+    char *parent = workfile_parent(go_outdir);
+    if(!parent) return 0;
+    const char *base = strrchr(go_outdir, '/') + 1;
+    char *gw = conv_path(parent, "go.work");
+    int rc = 0;
+    char *cur = NULL;
+    size_t n = 0;
+
+    FILE *f = fopen(gw, "r");
+    if(f) {
+        size_t cap = 0;
+        int c2;
+        while((c2 = fgetc(f)) != EOF) {
+            if(n + 2 > cap) {
+                char *nc = realloc(cur, cap ? cap * 2 : 256);
+                if(!nc) { free(cur); cur = NULL; n = 0; rc = -1; break; }
+                cur = nc;
+                cap = cap ? cap * 2 : 256;
+            }
+            cur[n++] = (char)c2;
+        }
+        if(rc == 0 && ferror(f)) {
+            fprintf(stderr, "asn1cgo: cannot read '%s': %s\n", gw,
+                    strerror(errno));
+            rc = -1;
+        } else if(rc < 0) {
+            fprintf(stderr, "asn1cgo: out of memory reading '%s'\n", gw);
+        }
+        if(cur) cur[n] = '\0';
+        fclose(f);
+    } else if(errno != ENOENT) {
+        fprintf(stderr, "asn1cgo: cannot read '%s': %s\n", gw,
+                strerror(errno));
+        rc = -1;
+    }
+    if(rc < 0) { free(cur); free(gw); free(parent); return -1; }
+
+    if(n == 0) {                       /* absent or empty: mint */
+        *new_text = cfmt("go " GO_MOD_GO_VERSION
+                         "\n\nuse (\n\t./asn1cgo-rt\n\t./%s\n)\n", base);
+    } else {
+        char *rp = strrchr(cur, ')');
+        char *ub = strstr(cur, "use (");
+        if(rp && ub && ub < rp) {
+            const char *head_end = strchr(ub + 5, '\n');
+            if(!head_end || head_end > (const char *)rp)
+                head_end = (const char *)rp;
+            size_t off = (size_t)(head_end - cur) + 1;
+            char *out = NULL;
+            size_t on = 0, ocap = 0;
+#define GW_APPEND(p, len) do { \
+                size_t l__ = (len); \
+                if(on + l__ + 1 > ocap) { \
+                    size_t nc__ = (on + l__ + 1) * 2; \
+                    char *r__ = realloc(out, nc__); \
+                    if(!r__) { rc = -1; break; } \
+                    out = r__; ocap = nc__; \
+                } \
+                memcpy(out + on, (p), l__); on += l__; out[on] = '\0'; \
+            } while(0)
+            GW_APPEND(cur, off);
+            char *base_path = cfmt("./%s", base);
+            char **seen = NULL;
+            int n_seen = 0;
+            const char *l = ub + 5;
+            while(rc == 0 && l < (const char *)rp) {
+                const char *eol2 = strchr(l, '\n');
+                if(!eol2 || eol2 > (const char *)rp) eol2 = (const char *)rp;
+                if(eol2 > l + 1 && l[0] == '\t' && l[1] == '.') {
+                    size_t el0 = (size_t)(eol2 - l) - 1;
+                    char *entry = malloc(el0 + 1);
+                    if(!entry) { rc = -1; break; }
+                    memcpy(entry, l + 1, el0);
+                    entry[el0] = 0;
+                    int keep;
+                    if(strcmp(entry, "./asn1cgo-rt") == 0) {
+                        keep = 1;
+                    } else {
+                        char *dirp = cfmt("%s/%s", parent, entry + 2);
+                        struct stat st3;
+                        keep = stat(dirp, &st3) == 0;
+                        free(dirp);
+                    }
+                    for(int i = 0; keep && i < n_seen; i++)
+                        if(strcmp(seen[i], entry) == 0) keep = 0;   /* dedupe */
+                    if(keep) {
+                        char **ns = realloc(seen, (size_t)(n_seen + 1) * sizeof *seen);
+                        if(!ns) { free(entry); rc = -1; break; }
+                        seen = ns;
+                        seen[n_seen++] = entry;     /* owned, freed below */
+                        GW_APPEND(l, (size_t)(eol2 - l));
+                        GW_APPEND("\n", 1);
+                    } else {
+                        free(entry);
+                    }
+                }
+                if(eol2 >= (const char *)rp) break;
+                l = eol2 + 1;
+            }
+            if(rc == 0) {
+                int have_base = 0;
+                for(int i = 0; i < n_seen; i++)
+                    if(strcmp(seen[i], base_path) == 0) have_base = 1;
+                if(!have_base) {
+                    char *ln = cfmt("\t./%s\n", base);
+                    GW_APPEND(ln, strlen(ln));
+                    free(ln);
+                }
+                GW_APPEND(rp, strlen(rp));
+            }
+            for(int i = 0; i < n_seen; i++) free(seen[i]);
+            free(seen);
+            free(base_path);
+#undef GW_APPEND
+            if(rc < 0) {
+                fprintf(stderr, "asn1cgo: out of memory updating '%s'\n", gw);
+                free(out);
+            } else if(strcmp(out, cur) != 0) {
+                *new_text = out;       /* changed */
+            } else {
+                free(out);             /* identical: leave the file alone */
+            }
+        }
+        /* no `use (` block (e.g. single-line form): left untouched, as before */
+    }
+    free(cur); free(gw); free(parent);
+    return rc;
+}
+
+int
+go_workfile_write(const char *go_outdir, const char *new_text) {
+    char *parent = workfile_parent(go_outdir);
+    if(!parent) return 0;
+    char *gw = conv_path(parent, "go.work");
+    char *tmp = conv_path(parent, ".go.work.asn1cgo-tmp-XXXXXX");
+    int rc = -1;
+    struct stat st;
+    mode_t mode;
+    if(stat(gw, &st) == 0) {
+        mode = st.st_mode & 0777;
+    } else {
+        mode_t um = umask(0);
+        umask(um);
+        mode = 0666 & ~um;
+    }
+    int fd = mkstemp(tmp);
+    if(fd < 0) {
+        fprintf(stderr, "asn1cgo: cannot create temp file: %s: %s\n", tmp,
+                strerror(errno));
+    } else {
+        size_t len = strlen(new_text);
+        FILE *o = fdopen(fd, "w");
+        if(!o) {
+            fprintf(stderr, "asn1cgo: cannot write '%s': %s\n", tmp,
+                    strerror(errno));
+            close(fd);
+            unlink(tmp);
+        } else {
+            int ok = fwrite(new_text, 1, len, o) == len;
+            if(fflush(o) != 0) ok = 0;
+            if(ok && fchmod(fd, mode) != 0) ok = 0;
+            if(fclose(o) != 0) ok = 0;
+            if(!ok) {
+                fprintf(stderr, "asn1cgo: write failed: %s: %s\n", tmp,
+                        strerror(errno));
+                unlink(tmp);
+            } else if(rename(tmp, gw) != 0) {
+                fprintf(stderr, "asn1cgo: cannot rename %s -> %s: %s\n", tmp,
+                        gw, strerror(errno));
+                unlink(tmp);
+            } else {
+                rc = 0;
+            }
+        }
+    }
+    free(tmp); free(gw); free(parent);
+    return rc;
 }

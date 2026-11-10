@@ -51,8 +51,37 @@ version, and has `replace <rt> => ../asn1cgo-rt`. So the runtime is expected
 at `../asn1cgo-rt`, next to the `-Fgo` dir. When `-Fgo` has a parent
 directory component (e.g. `out/go`), the generator also writes a `go.work`
 in that parent (`out/`) listing `./asn1cgo-rt` and the generated module,
-creating it if absent and appending to it otherwise. A bare `-Fgo=go` has no
-parent component, so no `go.work` is written and the `replace` does the work.
+creating it if absent and otherwise adding the module to its `use ( … )`
+block (each entry once; entries whose directory is gone are pruned). It is
+rewritten atomically and only after the whole tree was generated, so a failed
+run never modifies it and a rerun never adds a duplicate `use` line. A bare
+`-Fgo=go` has no parent component, so no `go.work` is written and the
+`replace` does the work.
+
+**All-or-nothing output.** The Go tree is generated into a staging directory
+next to the target (`<parent>/.<basename>.asn1cgo-tmp-XXXXXX`, same
+filesystem) and only swapped into place when every stage succeeded:
+
+- target absent: the staging dir is renamed to `<dir>`;
+- target present: it is renamed aside to `<parent>/.<basename>.asn1cgo-old-XXXXXX`,
+  the staging dir is renamed to `<dir>`, then the old tree is deleted (if the
+  second rename or the `go.work` update fails, the old tree is renamed back).
+
+On any failure the staging dir is removed, `<dir>` is left exactly as it was,
+and asn1c prints `asn1cgo: …: <path>: <reason>` lines to stderr plus a final
+`asn1cgo: Go generation failed; <dir> left unchanged` and exits 70. A `-Fgo`
+path that exists but is not a directory is refused.
+
+Because `<dir>` is **replaced as a whole**, every regeneration removes files
+that are no longer produced (a renamed type leaves no stale `.c`/`.h`
+behind), and **anything you keep inside `<dir>` is deleted** — do not put
+hand-written files there (keep them in a separate package/module that
+imports the generated one). The `-D <c-outdir>` C output is written by the C
+pass *before* the Go pass starts and is not part of this scheme: when the Go
+pass fails (exit 70), the C files in `-D` have already been updated while the
+`-Fgo` tree is unchanged. If asn1c is killed by a signal, a hidden
+`.<basename>.asn1cgo-tmp-*` directory may remain next to `<dir>`; it is safe
+to delete.
 
 `-Fgo=<dir>` emits the Go module rooted at `<dir>`: `go.mod`, one Go
 package per ASN.1 module (`<module>_dir`, lowercased, `-`→`_`), the C

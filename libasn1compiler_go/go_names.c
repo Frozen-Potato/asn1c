@@ -120,6 +120,16 @@ int go_glue_emit(const char *go_outdir, const char *go_module_basename,
  * go_generate (flat-extern style; reads the name rows + go_ioc tables). */
 int go_ctor_emit(const char *go_outdir);
 
+/* go.work maintenance (go_entry.c) + all-or-nothing -Fgo publication
+ * (go_emit.c); see go_generate. */
+int go_workfile_plan(const char *go_outdir, char **new_text);
+int go_workfile_write(const char *go_outdir, const char *new_text);
+int go_outdir_stage(const char *go_outdir, char **tmp_out);
+int go_outdir_publish(const char *go_outdir, const char *tmp, char **old_out);
+void go_outdir_rollback(const char *go_outdir, const char *tmp, char *old);
+int go_outdir_commit(char *old);
+void go_outdir_discard(const char *tmp);
+
 /* ------------------------------------------------------------------------- */
 /* Name kinds. A row's kind_tag is the closed string set below; a produced
  * name must map to exactly one. Unknown -> dump failure. */
@@ -1621,25 +1631,33 @@ done:
                 bag.failed = 1;
                 rc = -1;
             }
+            /* All-or-nothing: every stage writes into a staging dir next to
+             * the target; the target itself is replaced only when all stages
+             * (and the go.work plan) succeeded. `stage` stands in for
+             * go_outdir in every emitter; module paths were composed from the
+             * REAL go_outdir above. */
+            char *stage = NULL;
+            if(rc == 0 && go_outdir_stage(go_outdir, &stage) != 0)
+                rc = -1;
             if(rc == 0)
-                rc = go_emit_files(asn, go_outdir);
+                rc = go_emit_files(asn, stage);
             g_emit_bag = NULL;
             /* Flat: compute every size/align/offset under
              * x86-64 SysV (no compiler), then write the per-package
              * <P><pkg>_flat.h + <P><pkg>_layout_check.c under
-             * <go_outdir>/c/ and the per-package layout.go beside types.go
+             * <stage>/c/ and the per-package layout.go beside types.go
              * (basename still live here; NULLed below). */
             if(rc == 0) {
                 go_flat_layout_all();
-                rc = go_flat_emit(go_outdir, g_go_module_path);
+                rc = go_flat_emit(stage, g_go_module_path);
             }
             /* Conv/entry (the conv/entry stages): emit the per-type conversion
-             * functions + the PDU entry points into <go_outdir>/internal/
+             * functions + the PDU entry points into <stage>/internal/
              * cspec/ (the asn1c C copy rides ASN1C_DESTDIR; the asn1cgo-rt
              * skeleton rides ASN1CGO_FORK_SKEL; see go_conv.h). The rt
              * import line writes g_go_rt_module_path (prefix-aware). */
             if(rc == 0) {
-                rc = go_conv_emit(go_outdir, g_go_rt_module_path);
+                rc = go_conv_emit(stage, g_go_rt_module_path);
                 if(rc < 0) bag.failed = 1;
             }
             /* Glue (App. G): emit the per-package glue.go
@@ -1649,7 +1667,7 @@ done:
              * bag is still alive here; torn down below). */
             if(rc == 0) {
                 g_emit_bag = &bag;   /* go_glue_emit reads this */
-                rc = go_glue_emit(go_outdir, g_go_module_path,
+                rc = go_glue_emit(stage, g_go_module_path,
                                   g_go_rt_module_path);
                 g_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
@@ -1659,10 +1677,38 @@ done:
              * surface + the go_ioc tables; no hook change). */
             if(rc == 0) {
                 g_emit_bag = &bag;   /* go_ctor_emit reads this */
-                rc = go_ctor_emit(go_outdir);
+                rc = go_ctor_emit(stage);
                 g_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
             }
+            /* Publish: compute the new go.work text (no write), swap the
+             * tree in, write go.work (atomic replace); a go.work failure
+             * rolls the swap back. Nothing outside the staging dir changes
+             * before this point. */
+            if(rc == 0) {
+                char *gw_text = NULL, *old = NULL;
+                if(go_workfile_plan(go_outdir, &gw_text) != 0) {
+                    rc = -1;
+                } else if(go_outdir_publish(go_outdir, stage, &old) != 0) {
+                    rc = -1;
+                } else if(gw_text
+                          && go_workfile_write(go_outdir, gw_text) != 0) {
+                    go_outdir_rollback(go_outdir, stage, old);
+                    rc = -1;
+                } else {
+                    go_outdir_commit(old);   /* leftover = warning only */
+                    free(stage);
+                    stage = NULL;            /* published: nothing to discard */
+                }
+                free(gw_text);
+            }
+            if(rc != 0) {
+                bag.failed = 1;
+                if(stage) go_outdir_discard(stage);
+                fprintf(stderr, "asn1cgo: Go generation failed; %s left "
+                        "unchanged\n", go_outdir);
+            }
+            free(stage);
             clear_go_module_paths();
         }
 

@@ -855,16 +855,27 @@ static int
 flat_mkdir_p(const char *path) {
     char buf[4096];
     size_t n = strlen(path);
-    if(n == 0 || n >= sizeof buf) return -1;
+    if(n == 0 || n >= sizeof buf) {
+        fprintf(stderr, "asn1cgo: flat: bad directory path (empty or too long): '%s'\n", path);
+        return -1;
+    }
     memcpy(buf, path, n + 1);
     for(size_t i = 1; i < n; i++) {
         if(buf[i] == '/') {
             buf[i] = '\0';
-            if(mkdir(buf, 0777) < 0 && errno != EEXIST) return -1;
+            if(mkdir(buf, 0777) < 0 && errno != EEXIST) {
+                fprintf(stderr, "asn1cgo: flat: cannot create directory: %s: %s\n",
+                        buf, strerror(errno));
+                return -1;
+            }
             buf[i] = '/';
         }
     }
-    if(mkdir(buf, 0777) < 0 && errno != EEXIST) return -1;
+    if(mkdir(buf, 0777) < 0 && errno != EEXIST) {
+                fprintf(stderr, "asn1cgo: flat: cannot create directory: %s: %s\n",
+                        buf, strerror(errno));
+                return -1;
+            }
     return 0;
 }
 
@@ -1399,7 +1410,7 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
                 g_flat.n_types, n_pkgs, g_flat_failed_);
     /* output dirs */
     char *cdir = fpath(go_outdir, "c");
-    if(flat_mkdir_p(cdir) < 0) { /* set failed + fallthrough to error below */ }
+    if(flat_mkdir_p(cdir) < 0) g_flat_failed_set();   /* diag printed; fail below */
 
     int rc = -1;
     char *hdr = NULL, *lc = NULL, *fwd = NULL;
@@ -1740,7 +1751,7 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
             char *lname = malloc(strlen(pu->pkg) + 12);
             sprintf(lname, "%s/layout.go", pu->pkg);
             char *pkgdir = fpath(go_outdir, pu->pkg);
-            if(flat_mkdir_p(pkgdir) < 0) { /* types.go already made it */ }
+            if(flat_mkdir_p(pkgdir) < 0) g_flat_failed_set();
             while(strlen(lg) > 1 && lg[strlen(lg)-1] == '\n' && lg[strlen(lg)-2] == '\n')
                 lg[strlen(lg)-1] = '\0';   /* gofmt: exactly one trailing \n */
             char *lpath2 = fpath(pkgdir, "layout.go");

@@ -45,6 +45,7 @@
  * X's module via the spec-key row's module (placement rule — the row table
  * key cid is prefix-stripped; the row lookup finds the module directly).
  */
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -254,6 +255,12 @@ go_ctor_qualify(const char *name, const char *sk_module, int *qualified) {
 /* Self-prototype (the flat-extern convention the sibling emitters use;
  * the extern in go_names.c is the same spelling). */
 int go_ctor_emit(const char *go_outdir);
+
+/* write-failure diagnostic for the constructors.go being emitted (needs
+ * `fpath` in scope). */
+#define CTOR_WERR() \
+    fprintf(stderr, "asn1cgo: ctor: write failed: %s: %s\n", fpath, \
+            strerror(errno))
 
 int
 go_ctor_emit(const char *go_outdir) {
@@ -526,7 +533,11 @@ go_ctor_emit(const char *go_outdir) {
         if(earlier) continue;   /* module file already written */
 
         char *pkg = go_ctor_pkg_of(ct[k].module);
-        if(!pkg || !*pkg) { free(pkg); rc = -1; goto out; }
+        if(!pkg || !*pkg) {
+            fprintf(stderr, "asn1cgo: ctor: no Go package for module %s\n",
+                    ct[k].module);
+            free(pkg); rc = -1; goto out;
+        }
         char *pkgdir = join_path(go_outdir, pkg);
         if(!pkgdir) { free(pkg); rc = -1; goto out; }
         char *fpath = join_path(pkgdir, "constructors.go");
@@ -534,19 +545,19 @@ go_ctor_emit(const char *go_outdir) {
         if(!fpath) { free(pkg); rc = -1; goto out; }
         FILE *f = fopen(fpath, "w");
         if(!f) {
-            fprintf(stderr, "asn1cgo: ctor: cannot write '%s'\n", fpath);
+            fprintf(stderr, "asn1cgo: ctor: cannot write '%s': %s\n",
+                    fpath, strerror(errno));
             free(fpath); free(pkg);
             rc = -1;
             goto out;
         }
-        free(fpath);
         /* every generated package file opens with the generated-file
          * banner, then carries the amd64 build tag (the emitted-tree
          * convention; a missing tag breaks the build on non-amd64 hosts,
          * so it is mandatory on every file). */
         if(fputs(GO_GENERATED_BANNER, f) < 0
            || fputs("//go:build amd64\n\n", f) < 0
-           || fprintf(f, "package %s\n", pkg) < 0) { fclose(f); free(pkg); rc = -1; goto out; }
+           || fprintf(f, "package %s\n", pkg) < 0) { CTOR_WERR(); fclose(f); free(fpath); free(pkg); rc = -1; goto out; }
         /* Cross-module payload types (alt T defined in another package)
          * arrive package-qualified in field_type (qualification ran before
          * the emit passes); the constructor file mirrors types.go's
@@ -592,23 +603,23 @@ go_ctor_emit(const char *go_outdir) {
             if(n_imps > 0) {
                 if(fputs("\nimport (\n", f) < 0) {
                     for(int q = 0; q < n_imps; q++) free(imps[q]);
-                    fclose(f); free(pkg); rc = -1; goto out;
+                    CTOR_WERR(); fclose(f); free(fpath); free(pkg); rc = -1; goto out;
                 }
                 for(int q = 0; q < n_imps; q++) {
                     if(fprintf(f, "\t\"%s/%s\"\n",
                                mpath ? mpath : "", imps[q]) < 0) {
                         for(int q2 = q; q2 < n_imps; q2++) free(imps[q2]);
-                        fclose(f); free(pkg); rc = -1; goto out;
+                        CTOR_WERR(); fclose(f); free(fpath); free(pkg); rc = -1; goto out;
                     }
                     free(imps[q]);
                 }
-                if(fputs(")\n", f) < 0) { fclose(f); free(pkg); rc = -1; goto out; }
+                if(fputs(")\n", f) < 0) { CTOR_WERR(); fclose(f); free(fpath); free(pkg); rc = -1; goto out; }
             }
         }
         int first = 1;
         for(int j = k; j < n_ct; j++) {
             if(strcmp(ct[j].module, ct[k].module) != 0) continue;
-            if(first && fputs("\n", f) < 0) { fclose(f); free(pkg); rc = -1; goto out; }
+            if(first && fputs("\n", f) < 0) { CTOR_WERR(); fclose(f); free(fpath); free(pkg); rc = -1; goto out; }
             first = 0;
             int crit_on = (ct[j].crit_const != NULL);
             if(crit_on) {
@@ -636,7 +647,9 @@ go_ctor_emit(const char *go_outdir) {
                        ct[j].x_go,
                        ct[j].present,
                        ct[j].alt_field) < 0) {
+                CTOR_WERR();
                 fclose(f);
+                free(fpath);
                 free(pkg);
                 rc = -1;
                 goto out;
@@ -666,14 +679,23 @@ go_ctor_emit(const char *go_outdir) {
                        ct[j].x_go,
                        ct[j].present,
                        ct[j].alt_field) < 0) {
+                CTOR_WERR();
                 fclose(f);
+                free(fpath);
                 free(pkg);
                 rc = -1;
                 goto out;
               }
             }
         }
-        fclose(f);
+        if(fclose(f) != 0) {
+            fprintf(stderr, "asn1cgo: ctor: write failed: %s: %s\n",
+                    fpath, strerror(errno));
+            free(fpath); free(pkg);
+            rc = -1;
+            goto out;
+        }
+        free(fpath);
         free(pkg);
     }
 
