@@ -3,12 +3,16 @@
 AM_CFLAGS = @ADD_CFLAGS@
 AM_CPPFLAGS =                       \
     -I${top_srcdir}/libasn1compiler \
+    -I${top_srcdir}/libasn1compiler_go \
     -I${top_srcdir}/libasn1common   \
     -I${top_srcdir}/libasn1parser   \
     -I${top_srcdir}/libasn1print    \
     -I${top_srcdir}/libasn1fix      \
     -I${top_srcdir}/skeletons       \
     -DDATADIR=\"$(pkgdatadir)\"
+
+asn1c_SOURCES = asn1c.c
+include $(top_srcdir)/libasn1compiler_go/sources.am
 
 asn1c_LDADD =                                           \
     $(top_builddir)/libasn1common/libasn1common.la      \

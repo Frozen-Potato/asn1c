@@ -52,6 +52,11 @@
 static void usage(const char *av0); /* Print the Usage screen and exit */
 static int importStandardModules(asn1p_t *asn, const char *skeletons_dir);
 
+/* Go backend entry — libasn1compiler_go/. Local extern
+ * (asn1compiler.h stays unedited). Runs after asn1_compile, same AST. */
+extern int asn1cgo_generate(asn1p_t *asn, const char *go_outdir,
+                            enum asn1c_flags flags);
+
 int
 main(int ac, char **av) {
     enum asn1p_flags asn1_parser_flags = A1P_NOFLAGS;
@@ -64,6 +69,8 @@ main(int ac, char **av) {
     int warnings_as_errors = 0;     /* Treat warnings as errors */
     char *skeletons_dir = NULL;     /* Directory with supplementary stuff */
     char *destdir = NULL;           /* Destination for generated files */
+    char *go_outdir = NULL;         /* -Fgo=<dir>: Go backend output dir */
+    int go_requested = 0;           /* -Fgo saw "o=<dir>" (bundling-proof) */
     char **debug_type_names = 0;    /* Debug stuff */
     size_t debug_type_names_count = 0;
     asn1p_t *asn = 0;               /* An ASN.1 parsed tree */
@@ -151,6 +158,14 @@ main(int ac, char **av) {
             }
             break;
         case 'g':
+            if(strncmp(optarg, "o=", 2) == 0) {
+                /* -Fgo=<dir>: getopt splits "-Fgo=DIR" into 'F'
+                 * (boolean) + this 'g' optarg "o=DIR" (cf. -pdu= at :188).
+                 * Bundling-proof; -go=<dir> is an accepted alias. */
+                go_outdir = optarg + 2;
+                go_requested = 1;
+                break;
+            }
             if(strcmp(optarg, "en-PER") == 0) {
                 asn1_compiler_flags |= A1C_GEN_PER;
             } else if(strcmp(optarg, "en-OER") == 0) {
@@ -253,6 +268,16 @@ main(int ac, char **av) {
     /*
      * Validate the options combination.
      */
+    if(go_requested) {
+        /* Go runs after asn1_compile (compile path); -E selects the print path
+         * that returns before compiling — no annotated AST. Reject, don't skip. */
+        if(print_arg__print_out) {
+            fprintf(stderr, "Error: -Fgo=<dir> is incompatible with -E\n");
+            exit(EX_USAGE);
+        }
+        /* Drop the stray 'F' the -Fgo bundle set (don't trip "-F requires -E"). */
+        print_arg__fix_n_print = 0;
+    }
     if(print_arg__print_out) {
         if((asn1_printer_flags & APF_PRINT_CONSTRAINTS)
            && !print_arg__fix_n_print) {
@@ -418,6 +443,13 @@ main(int ac, char **av) {
     if(asn1_compile(asn, skeletons_dir, destdir ? destdir : "",
                     asn1_compiler_flags, ac + optind, optind, av - optind)) {
         exit_code = EX_SOFTWARE;
+    }
+
+    /* Go backend: only after asn1_compile succeeds, since it
+     * reads the EM_INDIRECT markers the C pass stamps. */
+    if(go_outdir && !exit_code) {
+        if(asn1cgo_generate(asn, go_outdir, asn1_compiler_flags) != 0)
+            exit_code = EX_SOFTWARE;
     }
 
 cleanup:

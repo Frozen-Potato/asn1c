@@ -1794,7 +1794,6 @@ OCTET_STRING_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 			raw_len = aper_get_length(pd, -1, csiz->effective_bits, &repeat);
 		else
 			raw_len = aper_get_length(pd, csiz->upper_bound - csiz->lower_bound + 1, csiz->effective_bits, &repeat);
-		repeat = 0;
 		if(raw_len < 0) RETURN(RC_WMORE);
 		raw_len += csiz->lower_bound;
 
@@ -2006,6 +2005,14 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 			buf += maySave >> 3;
 		sizeinunits -= maySave;
 		assert(!(maySave & 0x07) || !sizeinunits);
+
+		/* Exact multiple of 16K: #10.9.3.8 chunks only end at a short
+		 * chunk, so append the terminating zero-length chunk here.
+		 * Fragment-form determinant covers up to 4*16K in one go, so
+		 * any full final fragment (>=16K), not just 16384. */
+		if(sizeinunits == 0 && maySave >= 16384) {
+			if(aper_put_length(po, -1, 0) < 0) ASN__ENCODE_FAILED;
+		}
 	}
 
 	ASN__ENCODED_OK(er);

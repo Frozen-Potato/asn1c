@@ -492,6 +492,12 @@ aper_open_type_put(const asn_TYPE_descriptor_t *td,
 		if(per_put_many_bits(po, bptr, maySave * 8)) break;
 		bptr = (char *)bptr + maySave;
 		toGo -= maySave;
+		/* #10.9.3.8: a >=16K fragment is only terminated by a following
+		 * determinant; a full final fragment (exact multiple of 16K,
+		 * single 0xC1..0xC4 included) needs a zero-length terminator. */
+		if(!toGo && maySave >= 16384) {
+			if(aper_put_length(po, -1, 0) < 0) break;
+		}
 	}
 
 	FREEMEM(buf);

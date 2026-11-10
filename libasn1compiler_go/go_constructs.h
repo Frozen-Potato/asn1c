@@ -1,0 +1,127 @@
+/*
+ * go_constructs.h — classification of ASN.1 constructs for the Go backend.
+ *
+ * This is the generator's own vocabulary: an enum of the construct kinds it
+ * recognizes, plus the runtime helpers that classify an ASN.1 expression into
+ * one of them. Anything that does not map onto a supported kind is reported as
+ * GO_CONSTR_UNSUPPORTED, which the walker turns into a loud, non-zero failure
+ * naming the module, type and member.
+ */
+#ifndef	GO_CONSTRUCTS_H
+#define	GO_CONSTRUCTS_H
+
+#include <stddef.h>             /* size_t (needed before asn1_*.h headers) */
+#include <stdio.h>              /* FILE (go_types_emit_* prototypes below) */
+#include <asn1parser.h>     /* asn1p_expr_t, asn1p_t */
+
+/*
+ * Walk the AST, classify every construct, write optional coverage. Implemented
+ * in go_walk.c; declared here so go_backend.c sees a prototype (avoids
+ * -Wmissing-prototypes at definition).
+ */
+int go_walk_asts(asn1p_t *asn);
+
+typedef enum go_construct {
+    GO_CONSTR_SEQUENCE,         /* SEQUENCE (record)            asn1p_expr.h ASN_CONSTR_SEQUENCE  */
+    GO_CONSTR_CHOICE,           /* CHOICE                        ASN_CONSTR_CHOICE  */
+    GO_CONSTR_SEQUENCE_OF,      /* SEQUENCE OF                   ASN_CONSTR_SEQUENCE_OF  */
+    GO_CONSTR_ENUMERATED,       /* ENUMERATED                    ASN_BASIC_ENUMERATED  */
+    GO_CONSTR_OPTIONAL,         /* OPTIONAL member (marker)      EM_OPTIONAL  */
+    GO_CONSTR_DEFAULT,          /* DEFAULT member (marker)       EM_DEFAULT  */
+    GO_CONSTR_EXTMARK,          /* extension marker "..."        A1TC_EXTENSIBLE  */
+    GO_CONSTR_BIT_STRING,       /* BIT STRING                    ASN_BASIC_BIT_STRING  */
+    GO_CONSTR_OCTET_STRING,     /* OCTET STRING                  ASN_BASIC_OCTET_STRING  */
+    GO_CONSTR_INTEGER,          /* INTEGER (width resolved later) ASN_BASIC_INTEGER  */
+    GO_CONSTR_BOOLEAN,          /* BOOLEAN                       ASN_BASIC_BOOLEAN  */
+    GO_CONSTR_NULL,             /* NULL                          ASN_BASIC_NULL  */
+    GO_CONSTR_REAL,             /* REAL                          ASN_BASIC_REAL  */
+    GO_CONSTR_PRINTABLE,        /* PrintableString               ASN_STRING_PrintableString  */
+    GO_CONSTR_IOC_CLASS,        /* Information Object Class      AMT_OBJECTCLASS / A1TC_CLASSDEF  */
+    GO_CONSTR_IOC_OBJSET,       /* object-set {{ }} usage        AMT_VALUESET / AMT_OBJECT  */
+    GO_CONSTR_OPEN_TYPE,        /* open type class-field (&F)    lowercase &F reference (asn1c_C.c:305)  */
+    GO_CONSTR_RECURSIVE_REF,    /* recursive back-reference      marker EM_UNRECURSE (asn1c_C.c:3483)  */
+
+    GO_CONSTR_UNSUPPORTED,
+    GO_CONSTR__COUNT            /* sentinel: number of real kinds, excl. UNSUPPORTED */
+} go_construct_e;
+
+/*
+ * classify() returns the construct kind of an expression's *terminal* type
+ * (the caller is responsible for dereferencing). Markers (OPTIONAL / DEFAULT /
+ * RECURSIVE_REF) are NOT applied here — they annotate the terminal kind at the
+ * caller, they never replace it (see go_walk.c). classify() of a member's bare
+ * reference expression therefore first goes through the reference-shape path
+ * (open type / fixed-type class field) in the walker.
+ */
+go_construct_e go_construct_classify(const asn1p_expr_t *terminal);
+
+/* Short, stable tag for diagnostics + tooling. Never NULL. */
+const char *go_construct_name(go_construct_e);
+
+/*
+ * Reference-shape predicates. These read a member that is still an
+ * A1TC_REFERENCE and decide how to resolve it — BEFORE any terminal chase:
+ *
+ *   go_construct_is_open_type        — uppercase "&Value" open-type field.
+ *                                      Mirrors is_open_type() in asn1c_C.c:305.
+ *   go_construct_is_classfield_ref   — any 2-component "&field" class-field
+ *                                      reference (upper- or lowercase). The
+ *                                      caller distinguishes the two; lowercase
+ *                                      (&id/&criticality/&presence) is resolved
+ *                                      to the class's declared field type, the
+ *                                      way asn1c_C.c:2653-2655/2710-2720 do.
+ *   go_construct_is_classfield_fixedtype — lowercase "&field" only.
+ */
+int go_construct_is_open_type(const asn1p_expr_t *expr);
+int go_construct_is_classfield_ref(const asn1p_expr_t *expr);
+int go_construct_is_classfield_fixedtype(const asn1p_expr_t *expr);
+
+/*
+ * Deterministic rejection predicate (run against a member's terminal):
+ *
+ *   go_construct_is_namedbit_bitstring — BIT STRING with at least one
+ *      identifier child (the named-bit variant). Plain BIT STRING (SIZE(n))
+ *      has no such children (asn1p_y.y:1728 vs the NamedBit rule, :2292).
+ *
+ * No "[[ ... ]]" bracket-group predicate: the C emit pass mints `ext<N>` on the
+ * shared AST (asn1c_C.c:378-385/618-633) before this walker runs, leaving no
+ * discriminating trace, so a bracket-group reject cannot fire from the AST we
+ * receive. `[[` absence in the specs is a property of the spec corpus,
+ * checkable directly against specs/. See go_constructs.c.
+ */
+int go_construct_is_namedbit_bitstring(asn1p_expr_t *terminal);
+
+/*
+ * Leaf-type emission (go_types.c). Flat prototypes here (no new
+ * header): go_names.c drives them while it holds the per-module types.go
+ * FILE open.
+ */
+int go_types_emit_leaf(FILE *out, const char *go_name, int leaf_kind);
+int go_types_emit_slice(FILE *out, const char *go_name, const char *elem);
+int go_types_emit_bitstring(FILE *out);
+int go_types_emit_const(FILE *out, const char *name, const char *type,
+                        const char *value, int name_w, int type_w);
+int go_types_emit_const_open(FILE *out);
+int go_types_emit_const_close(FILE *out);
+
+/*
+ * Struct-body emission (go_types.c). The leaf-kind-to-Go-type mapping-table
+ * text for a
+ * leaf kind (NULL when the kind is not a bare primitive — GLEAF_ENUM's type
+ * is the ENUM assignment's own named type). Un-enumerated int return
+ * (the go_leaf_kind enum stays private to the two go TUs). go_names.c's
+ * member walk resolves each field's Go type through this same table.
+ */
+const char *go_types_leaf_underlying(int leaf_kind);
+
+/*
+ * Struct-body emission (go_types.c): open a `type X struct {` decl,
+ * write one column-aligned `Name Type` field line, close it. Column widths are
+ * the caller's (two-pass over the whole struct, like the const block).
+ */
+int go_types_emit_struct_open(FILE *out, const char *go_name);
+int go_types_emit_struct_field(FILE *out, const char *name, const char *type,
+                               int name_w, int type_w);
+int go_types_emit_struct_close(FILE *out);
+
+#endif	/* GO_CONSTRUCTS_H */

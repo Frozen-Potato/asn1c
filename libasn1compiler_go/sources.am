@@ -1,0 +1,17 @@
+# libasn1compiler_go/sources.am — included by asn1c/Makefile.am. Lists the
+# Go-back-end translation units linked into the asn1c binary. Same path form
+# as the original go_backend.c entry, so VPATH builds resolve the same way.
+asn1c_SOURCES += \
+    $(top_srcdir)/libasn1compiler_go/go_backend.c \
+    $(top_srcdir)/libasn1compiler_go/go_walk.c \
+    $(top_srcdir)/libasn1compiler_go/go_constructs.c \
+    $(top_srcdir)/libasn1compiler_go/go_names.c \
+    $(top_srcdir)/libasn1compiler_go/go_types.c \
+    $(top_srcdir)/libasn1compiler_go/go_flat.c \
+    $(top_srcdir)/libasn1compiler_go/go_conv_to.c \
+    $(top_srcdir)/libasn1compiler_go/go_conv_from.c \
+    $(top_srcdir)/libasn1compiler_go/go_ioc.c \
+    $(top_srcdir)/libasn1compiler_go/go_entry.c \
+    $(top_srcdir)/libasn1compiler_go/go_emit.c \
+    $(top_srcdir)/libasn1compiler_go/go_glue.c \
+    $(top_srcdir)/libasn1compiler_go/go_ctor.c
