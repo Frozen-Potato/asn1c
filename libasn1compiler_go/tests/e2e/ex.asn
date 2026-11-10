@@ -1,0 +1,14 @@
+Synth-Example DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+Example-PDU ::= SEQUENCE {
+    requestId INTEGER (0..65535),
+    payload   Example-Payload,
+    note      PrintableString (SIZE(1..32)) OPTIONAL,
+    ...
+}
+Example-Payload ::= CHOICE {
+    text   PrintableString (SIZE(1..32)),
+    number INTEGER (0..255),
+    ...
+}
+END
