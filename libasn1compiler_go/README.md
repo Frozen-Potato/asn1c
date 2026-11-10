@@ -225,7 +225,7 @@ after changing the skeletons. Its source lives in this fork at
    output layout):
 
    ```
-   require asn1cgo-rt v0.1.3
+   require asn1cgo-rt v0.2.0
    replace asn1cgo-rt => /path/to/asn1c-fork/libasn1compiler_go/rt/go
    ```
 
