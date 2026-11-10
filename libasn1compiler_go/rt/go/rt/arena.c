@@ -7,6 +7,7 @@
  */
 #include "arena.h"
 
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -49,37 +50,57 @@ static chunk *chunk_new(size_t cap, chunk *prev_link_into_next) {
 }
 
 
-/* Balance / fault-injection state (see arena.h). Not thread-safe by
- * design: the corpus checks are single-threaded; -race exercises the API's
- * cgo boundaries, not concurrent codec use. */
-static long arena_live = 0;
+/* Balance counter (see arena.h). Relaxed atomics: arenas are created and
+ * freed from many goroutines concurrently, so the counter must not race. The
+ * value is exact only when no new/free calls are in flight. */
+static _Atomic long arena_live = 0;
+
+/* Fault injection is TEST-ONLY and single-threaded, and compiled in only
+ * under ASN1CGO_ARENA_FAULTS (Go build tag asn1cgo_faults). Without it
+ * asn1cgo_arena_fail_at() is a no-op, asn1cgo_arena_events() returns 0 and
+ * no per-allocation counter exists on the hot path. */
+#ifdef ASN1CGO_ARENA_FAULTS
 static long arena_fail_ctr = 0;      /* allocation events since fail_at set */
 static long arena_fail_at_n = 0;     /* 0 = injection off (counting on) */
 static unsigned long arena_events_total = 0;  /* events since fail_at(0) arm */
 
 #define ARENA_EVENT_FAILS() (arena_fail_at_n > 0 && ++arena_fail_ctr >= arena_fail_at_n)
+#define ARENA_EVENT() (arena_events_total++)
 
 void asn1cgo_arena_fail_at(long n) { arena_fail_ctr = 0; arena_fail_at_n = n; arena_events_total = 0; }
-long asn1cgo_arena_balance(void) { return arena_live; }
 unsigned long asn1cgo_arena_events(void) { return arena_events_total; }
+#else
+#define ARENA_EVENT_FAILS() 0
+#define ARENA_EVENT() ((void)0)
+
+void asn1cgo_arena_fail_at(long n) { (void)n; }
+unsigned long asn1cgo_arena_events(void) { return 0; }
+#endif
+
+long asn1cgo_arena_balance(void) {
+    return atomic_load_explicit(&arena_live, memory_order_relaxed);
+}
 
 asn1cgo_arena *asn1cgo_arena_new(size_t first_chunk) {
-    arena_events_total++;
+    ARENA_EVENT();
     if (ARENA_EVENT_FAILS()) return NULL;
     asn1cgo_arena *a = (asn1cgo_arena *)calloc(1, sizeof(*a));
     if (!a) return NULL;
-    arena_live++;
     if (first_chunk == 0) first_chunk = ASN1CGO_ARENA_FIRST_DEFAULT;
-    a->head = a->tail = chunk_new(first_chunk, NULL);
+    ARENA_EVENT();                       /* the first chunk is an event too */
+    a->head = a->tail = ARENA_EVENT_FAILS() ? NULL : chunk_new(first_chunk, NULL);
     if (!a->head) { free(a); return NULL; }
     a->last_size = first_chunk;
+    /* Count the arena live only once it fully exists, so a failed
+     * construction never leaves the balance off by one. */
+    atomic_fetch_add_explicit(&arena_live, 1, memory_order_relaxed);
     return a;
 }
 
 void *asn1cgo_arena_alloc(asn1cgo_arena *a, size_t n, size_t align) {
     if (!a || n == 0) return NULL;
     if (align == 0) align = 1;
-    arena_events_total++;
+    ARENA_EVENT();
     if (ARENA_EVENT_FAILS()) return NULL;
 
     /* Relative offset of the payload base, usable for pointer math. */
@@ -114,7 +135,7 @@ void *asn1cgo_arena_alloc(asn1cgo_arena *a, size_t n, size_t align) {
 
 void asn1cgo_arena_free(asn1cgo_arena *a) {
     if (!a) return;
-    arena_live--;
+    atomic_fetch_sub_explicit(&arena_live, 1, memory_order_relaxed);
     chunk *c = a->tail;
     while (c) {
         chunk *nx = c->next;

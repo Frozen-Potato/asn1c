@@ -1,0 +1,8 @@
+Mod-B DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+IMPORTS A-Type FROM Mod-A;
+B-Type ::= SEQUENCE {
+    z INTEGER (0..255),
+    a A-Type OPTIONAL
+}
+END

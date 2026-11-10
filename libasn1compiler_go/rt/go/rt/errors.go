@@ -36,17 +36,20 @@ package rt
 import "C"
 
 // ArenaBalance reports the process-global live-arena count (arena.c's
-// balance counter): 0 == every arena created was freed. Tests assert
-// this after EVERY decode/error path.
+// balance counter): 0 == every arena created was freed. It may be read
+// concurrently with other calls but is exact only when no calls are in
+// flight. Tests assert this after EVERY decode/error path.
 func ArenaBalance() int64 { return int64(C.asn1cgo_arena_balance()) }
 
 // ArenaFailAt arms the deterministic allocation-fault hook
 // E_ALLOC injection (n-th rt allocation EVENT returns NULL, 1-based;
-// n<=0 disables injection but keeps counting events).
+// n<=0 disables injection but keeps counting events). Test-only and
+// single-threaded: it works only when built with -tags asn1cgo_faults
+// and is a no-op otherwise.
 func ArenaFailAt(n int64) { C.asn1cgo_arena_fail_at(C.long(n)) }
 
 // ArenaEvents reports the rt allocation-event count since the last
-// ArenaFailAt arm. The sweep reads it after an un-injected run
+// ArenaFailAt arm (always 0 without -tags asn1cgo_faults). The sweep reads it after an un-injected run
 // (ArenaFailAt(0)) to get that run's total N, then sweeps n = 1..N.
 func ArenaEvents() uint64 { return uint64(C.asn1cgo_arena_events()) }
 

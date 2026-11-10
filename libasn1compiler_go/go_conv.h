@@ -142,4 +142,7 @@ const char *go_conv_ir_member_label(const void *m);
  * Returns 0/-1. */
 int go_conv_emit(const char *go_outdir, const char *go_rt_module);
 
+/* Record the driver's -S / -D (ASN1CGO_FORK_SKEL / ASN1C_DESTDIR override). */
+int go_entry_set_dirs(const char *skeletons_dir, const char *destdir);
+
 #endif /* GO_CONV_H */

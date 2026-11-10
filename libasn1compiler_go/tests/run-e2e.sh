@@ -40,8 +40,7 @@ run_one() {
     echo "== run-e2e: $label =="
     (
         cd "$here/e2e"
-        env ASN1C_DESTDIR="$work/c" ASN1CGO_FORK_SKEL="$repo/skeletons" \
-            ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
+        env ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
@@ -62,4 +61,56 @@ run_one() {
 
 run_one aper-no-oer -no-gen-OER
 run_one aper-oer
+# Two modules importing each other must be rejected before any Go is written.
+run_cycle() {
+    work="$tmp/cycle"
+    mkdir -p "$work/c"
+    echo "== run-e2e: import cycle (expect exit 70) =="
+    rc=0
+    (
+        cd "$here/e2e/cycle"
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" mod-a.asn mod-b.asn
+    ) >"$work/asn1c.log" 2>&1 || rc=$?
+    if [ "$rc" != 70 ]; then
+        cat "$work/asn1c.log" >&2
+        echo "run-e2e: cycle case exited $rc, want 70" >&2
+        return 1
+    fi
+    if ! grep -q 'asn1cgo: Go package import cycle: mod_a -> mod_b -> mod_a' "$work/asn1c.log"; then
+        cat "$work/asn1c.log" >&2
+        echo "run-e2e: cycle message missing" >&2
+        return 1
+    fi
+    if [ -e "$work/go" ]; then
+        echo "run-e2e: cycle case wrote Go output" >&2
+        return 1
+    fi
+}
+
+# A one-way import between two modules still generates and builds.
+run_oneway() {
+    work="$tmp/oneway"
+    mkdir -p "$work/c"
+    echo "== run-e2e: one-way import =="
+    (
+        cd "$here/e2e/oneway"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" mod-a.asn mod-b.asn
+    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
+    cp -R "$repo/libasn1compiler_go/rt/go" "$work/asn1cgo-rt"
+    sed 's|^module .*|module asn1cgo.test/asn1cgo-rt|' "$work/asn1cgo-rt/go.mod" >"$work/go.mod.new"
+    mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
+    (
+        cd "$work/go"
+        unset CGO_CFLAGS
+        go build ./...
+    )
+}
+
+run_cycle
+run_oneway
 echo "run-e2e: PASS"

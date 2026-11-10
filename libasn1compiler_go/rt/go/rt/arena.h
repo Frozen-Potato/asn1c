@@ -27,17 +27,23 @@ size_t asn1cgo_arena_used(const asn1cgo_arena *);
 
 
 /* ---- Arena balance + fault injection ----
- * Balance: arena_new increments, arena_free decrements a process-global
- * live-arena counter; asn1cgo_arena_balance() == 0 means every arena
- * created was freed (asserted by tests after EVERY path, errors included).
- * Fault hook: asn1cgo_arena_fail_at(n) makes the n-th rt ALLOCATION EVENT
- * return NULL (process lifetime, 1-based; n<=0 disables injection but
- * keeps counting). An "event" is one arena_new call plus each
+ * Balance: arena_new increments (once the arena fully exists), arena_free
+ * decrements a process-global live-arena counter (relaxed atomics);
+ * asn1cgo_arena_balance() == 0 means every arena created was freed. It may
+ * be read concurrently with other calls but is EXACT only when no
+ * new/free calls are in flight (tests assert it after every path).
+ *
+ * Fault hook: TEST-ONLY and SINGLE-THREADED. Compiled in only when the rt
+ * is built with -DASN1CGO_ARENA_FAULTS (Go build tag asn1cgo_faults);
+ * otherwise asn1cgo_arena_fail_at() is a no-op and
+ * asn1cgo_arena_events() returns 0. With it,
+ * asn1cgo_arena_fail_at(n) makes the n-th rt ALLOCATION EVENT return NULL
+ * (1-based; n<=0 disables injection but keeps counting). An "event" is one
+ * arena_new call, the first-chunk allocation inside it, plus each
  * arena_alloc call that passes its !a/n==0 guard — i.e. every rt
  * allocation the E_ALLOC failure paths in the generated code can see.
- * Deterministic E_ALLOC fault injection: the sweep is
- * n = 1..asn1cgo_arena_events() (the event count of the un-injected run,
- * read after asn1cgo_arena_fail_at(0) + the call to survey). */
+ * The sweep is n = 1..asn1cgo_arena_events() (the event count of the
+ * un-injected run, read after asn1cgo_arena_fail_at(0) + the call). */
 long asn1cgo_arena_balance(void);
 void asn1cgo_arena_fail_at(long n);
 unsigned long asn1cgo_arena_events(void);

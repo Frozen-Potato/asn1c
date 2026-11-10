@@ -243,9 +243,9 @@ republish the pair together.
 
 | Variable | Effect |
 |---|---|
-| `ASN1C_DESTDIR` | Directory the C backend writes its `.c`/`.h` tree into. The Go pass copies the C output into `<go-outdir>/internal/cspec`; this names the source of that copy. |
+| `ASN1C_DESTDIR` | Optional override. By default the Go pass reads the C tree from the `-D` directory (`.` when absent) and copies it into `<go-outdir>/internal/cspec`; when set, this names the source of that copy instead. |
 | `ASN1C_PREFIX` | Per-run C symbol prefix (e.g. `EX_`). Prefixed runs keep Go names prefix-free (namespacing is per Go package). |
-| `ASN1CGO_FORK_SKEL` | The skeletons directory (`-S` path). Also locates this module's runtime source: `<parent>/libasn1compiler_go/rt/go/rt`. |
+| `ASN1CGO_FORK_SKEL` | Optional override of the skeletons directory (default: the `-S` path). The skeletons dir also locates this module's runtime source: `<parent>/libasn1compiler_go/rt/go/rt`. |
 | `ASN1CGO_RT_SRC` | Override for the runtime source directory (defaults to `<fork>/libasn1compiler_go/rt/go/rt`). Every generated tree carries copies of these rt files. |
 | `ASN1CGO_GO_MODULE_PREFIX` | Module path prefix. Set: each spec module becomes `<prefix>/<basename>` with prefixed imports and a matching `require`/`replace` for the rt module. Unset: bare-basename module paths. |
 | `ASN1CGO_DUMP_NAMES` | Write the identifier name rows (owning module, kind, C id, Go name) to the named file. |

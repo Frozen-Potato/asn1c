@@ -1907,16 +1907,6 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
          * fill/size and assign the read result pointer directly. */
         const char *sf2 = gf_field_type(E->owner_go, tok);
         int alt_ptr = sf2 && *sf2 == '*';
-        {
-            FILE *tf = fopen("/tmp/inl_trace.txt", "a");
-            if(tf) {
-                fprintf(tf, "inline-ref owner=%s tok=%s sf2=%s\n",
-                        E->owner_go ? E->owner_go : "?",
-                        tok ? tok : "?",
-                        sf2 ? sf2 : "(null)");
-                fclose(tf);
-            }
-        }
         if(!sf2 || !*sf2) {
             /* value-union inner fields' rows key on the DOTTED owner
              * (<IE>.Value): fall back to that spelling before concluding
@@ -3255,6 +3245,39 @@ emit_fn_text(gluefn *f, char **src) {
 /* go_glue_emit — the driver (called by go_generate after go_conv_emit).
  * go_module_basename = the go.mod module path (basename or
  * <prefix>/<basename>); go_rt_module = the runtime module's path. */
+/* Dry-run support: when g_dry_cb is set, go_glue_emit builds each package's
+ * glue exactly as for real but writes nothing, and reports every foreign
+ * package that glue.go would import through the callback. */
+static void (*g_dry_cb)(const char *mod, const char *foreign, void *ud) = NULL;
+static void *g_dry_ud = NULL;
+
+/* glue_foreign_modules — the ONE place that decides which sibling packages
+ * a package's glue.go imports: every module (other than `mod`) owning a
+ * type the registry holds a fn for. Returns the count; *out is a malloc'd
+ * array of borrowed names (caller frees the array), NULL when none. */
+static int glue_foreign_modules(const char *mod, const char ***out) {
+    const char **fmods = NULL;
+    int n_fm = 0, cap_fm = 0;
+    for(int i = 0; i < g_n_fns; i++) {
+        flat_type *ft_ = go_flat_ir_type(g_fns[i]->ix);
+        const char *fm = ft_ ? go_flat_ir_module(ft_) : NULL;
+        if(!fm || !*fm || strcmp(fm, mod) == 0) continue;
+        int seen = 0;
+        for(int j = 0; j < n_fm; j++)
+            if(strcmp(fmods[j], fm) == 0) { seen = 1; break; }
+        if(seen) continue;
+        if(n_fm == cap_fm) {
+            cap_fm = cap_fm ? cap_fm * 2 : 8;
+            const char **nf = realloc(fmods, (size_t)cap_fm * sizeof(char *));
+            if(!nf) { free(fmods); *out = NULL; return 0; }
+            fmods = nf;
+        }
+        fmods[n_fm++] = fm;
+    }
+    *out = fmods;
+    return n_fm;
+}
+
 int go_glue_emit(const char *go_outdir, const char *go_module_basename,
                  const char *go_rt_module);
 int
@@ -3559,23 +3582,10 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
          * import block pkg_header emitted. */
         {
             const char **fmods = NULL;
-            int n_fm = 0, cap_fm = 0;
-            for(int i = 0; i < g_n_fns; i++) {
-                flat_type *ft_ = go_flat_ir_type(g_fns[i]->ix);
-                const char *fm = ft_ ? go_flat_ir_module(ft_) : NULL;
-                if(!fm || !*fm || strcmp(fm, mod) == 0) continue;
-                int seen = 0;
+            int n_fm = glue_foreign_modules(mod, &fmods);
+            if(g_dry_cb)
                 for(int j = 0; j < n_fm; j++)
-                    if(strcmp(fmods[j], fm) == 0) { seen = 1; break; }
-                if(seen) continue;
-                if(n_fm == cap_fm) {
-                    cap_fm = cap_fm ? cap_fm * 2 : 8;
-                    const char **nf = realloc(fmods, (size_t)cap_fm * sizeof(char *));
-                    if(!nf) { free(fmods); fmods = NULL; n_fm = cap_fm = 0; break; }
-                    fmods = nf;
-                }
-                fmods[n_fm++] = fm;
-            }
+                    g_dry_cb(mod, fmods[j], g_dry_ud);
             if(n_fm > 0 && fmods) {
                 /* splice INTO the import block at the gofmt-sorted
                  * position: the block's lines come from pkg_header
@@ -3646,7 +3656,9 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         }
 
         if(glue_failed) { rc = -1; }
-        else {
+        else if(g_dry_cb) {
+            /* dry run: nothing is written */
+        } else {
             /* gofmt normalization: expand one-line ifs, then trailing
              * newline count. */
             src = reindent_case_blocks(src);
@@ -3673,4 +3685,25 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
     free(g_asserts); g_asserts = NULL;
     free(pdus); free(mods);
     return glue_failed ? -1 : rc;
+}
+
+/* go_glue_collect_imports — dry-run the glue emission for every package and
+ * report each (module, foreign module) glue.go import through cb, without
+ * writing any file. Used by the import-cycle check before emission starts.
+ * Returns 0/-1. */
+int go_glue_collect_imports(const char *go_module_basename,
+                            const char *go_rt_module,
+                            void (*cb)(const char *mod, const char *foreign,
+                                       void *ud),
+                            void *ud);
+int
+go_glue_collect_imports(const char *go_module_basename,
+                        const char *go_rt_module,
+                        void (*cb)(const char *mod, const char *foreign,
+                                   void *ud),
+                        void *ud) {
+    g_dry_cb = cb; g_dry_ud = ud;
+    int rc = go_glue_emit(".", go_module_basename, go_rt_module);
+    g_dry_cb = NULL; g_dry_ud = NULL;
+    return rc;
 }

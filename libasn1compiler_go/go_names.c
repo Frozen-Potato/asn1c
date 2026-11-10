@@ -697,6 +697,7 @@ row_set_is_struct(struct name_bag *b) {
 static void qualify_field_types(struct name_bag *b);
 static void qualify_slice_elems(struct name_bag *b);
 static int check_go_cycles(struct name_bag *b);
+static int check_go_import_cycles(struct name_bag *b);
 
 static struct name_bag *g_emit_bag;
 
@@ -863,10 +864,14 @@ qualify_foreign_const_types(struct name_bag *b, const char *module) {
  * ioc-container-subscription), which the same per-goType grouping
  * produces: their "owner row" is the governing type's own `type` row.
  */
-int
-go_emit_module_imports(FILE *out, const char *module) {
-    struct name_bag *b = g_emit_bag;
-    if(!b) return 0;
+/* collect_module_imports — the ONE place that decides which sibling
+ * packages a module's types.go imports (used by go_emit_module_imports for
+ * emission and by the import-cycle check, so they cannot drift). Fills
+ * imps[] (sorted, malloc'd package-dir names; caller frees) and returns the
+ * count. */
+static int
+collect_module_imports(struct name_bag *b, const char *module,
+                       char **imps, int max_imps) {
     qualify_foreign_const_types(b, module);
     /* Collect distinct qualified `pkg.` prefixes across this module's value
      * consts (governing types) AND its field types (the
@@ -875,7 +880,6 @@ go_emit_module_imports(FILE *out, const char *module) {
      * path form: <module_pkg> alone is NOT a full path — the
      * module root prefix is added by go_emit.c (it owns the basename); here
      * only the trailing package dir is known. */
-    char *imps[64];
     int n_imps = 0;
     /* note_import: dedup+sort-in one qualified prefix (the text before the
      * first '.'). from = the qualified text, plen = its prefix length. */
@@ -885,7 +889,7 @@ go_emit_module_imports(FILE *out, const char *module) {
             if(strncmp(imps[j_], (from), (plen)) == 0 \
                && strlen(imps[j_]) == (plen)) { seen_ = 1; break; } \
         } \
-        if(!seen_ && n_imps < 64) { \
+        if(!seen_ && n_imps < max_imps) { \
             char *p_ = malloc((plen) + 1); \
             if(p_) { \
                 memcpy(p_, (from), (plen)); \
@@ -916,6 +920,15 @@ go_emit_module_imports(FILE *out, const char *module) {
         }
     }
     #undef NOTE_IMPORT
+    return n_imps;
+}
+
+int
+go_emit_module_imports(FILE *out, const char *module) {
+    struct name_bag *b = g_emit_bag;
+    if(!b) return 0;
+    char *imps[64];
+    int n_imps = collect_module_imports(b, module, imps, 64);
     if(n_imps == 0) return 0;
     int rc = 0;
     if(fputs("\nimport (\n", out) >= 0) {
@@ -1601,7 +1614,15 @@ done:
                   row_cmp);
             g_emit_bag = &bag;   /* go_emit_module_decls reads this */
             set_go_module_paths(go_outdir);
-            rc = go_emit_files(asn, go_outdir);
+            /* Go package import cycles are detected BEFORE any file is
+             * written (the glue dry run needs the layout). */
+            go_flat_layout_all();
+            if(check_go_import_cycles(&bag) != 0) {
+                bag.failed = 1;
+                rc = -1;
+            }
+            if(rc == 0)
+                rc = go_emit_files(asn, go_outdir);
             g_emit_bag = NULL;
             /* Flat: compute every size/align/offset under
              * x86-64 SysV (no compiler), then write the per-package
@@ -3020,6 +3041,173 @@ qualify_slice_elems(struct name_bag *b) {
             free(q);
         }
     }
+}
+
+/* ========================================================================= *
+ * Go package import-cycle check (module -> module).
+ *
+ * Every ASN.1 module becomes one Go package; mutually importing modules would
+ * generate packages Go refuses to build ("import cycle not allowed"). The
+ * graph is built BEFORE any file is written from the two places a package
+ * imports siblings:
+ *   - types.go: collect_module_imports (the same helper emission uses),
+ *   - glue.go:  the foreign packages of the glue fn registry, via a dry run
+ *               of go_glue_emit (go_glue_collect_imports; same helper the
+ *               real emission uses).
+ * Any SCC of two or more modules is a hard error naming one cycle. Modules
+ * are NOT merged; detection only.
+ * ========================================================================= */
+extern int go_glue_collect_imports(const char *go_module_basename,
+                                   const char *go_rt_module,
+                                   void (*cb)(const char *mod,
+                                              const char *foreign, void *ud),
+                                   void *ud);
+
+struct impgraph {
+    int n;
+    const char **mod;     /* module names (distinct)           */
+    char **pkg;           /* Go package dir per module         */
+    unsigned char *adj;   /* n*n adjacency                     */
+};
+
+static int
+impgraph_index(struct impgraph *g, const char *module) {
+    for(int i = 0; i < g->n; i++)
+        if(strcmp(g->mod[i], module) == 0) return i;
+    return -1;
+}
+
+static void
+impgraph_glue_cb(const char *mod, const char *foreign, void *ud) {
+    struct impgraph *g = ud;
+    int a = impgraph_index(g, mod), b = impgraph_index(g, foreign);
+    if(a >= 0 && b >= 0 && a != b) g->adj[(size_t)a * g->n + b] = 1;
+}
+
+struct tj {
+    struct impgraph *g;
+    int *idx, *low, *on, *stk, sp, counter, *scc, n_scc;
+};
+
+static void
+tj_visit(struct tj *t, int v) {
+    int n = t->g->n;
+    t->idx[v] = t->low[v] = t->counter++;
+    t->stk[t->sp++] = v; t->on[v] = 1;
+    for(int w = 0; w < n; w++) {
+        if(!t->g->adj[(size_t)v * n + w]) continue;
+        if(t->idx[w] < 0) {
+            tj_visit(t, w);
+            if(t->low[w] < t->low[v]) t->low[v] = t->low[w];
+        } else if(t->on[w] && t->idx[w] < t->low[v]) {
+            t->low[v] = t->idx[w];
+        }
+    }
+    if(t->low[v] == t->idx[v]) {
+        int w;
+        do {
+            w = t->stk[--t->sp]; t->on[w] = 0; t->scc[w] = t->n_scc;
+        } while(w != v);
+        t->n_scc++;
+    }
+}
+
+/* Find a cycle through `start` staying inside SCC `c`; path[] gets the
+ * vertices start..last (last -> start closes it). Returns its length. */
+static int
+imp_find_cycle(struct impgraph *g, const int *scc, int c, int start,
+               int *path, int *seen, int v, int depth) {
+    path[depth] = v; seen[v] = 1;
+    for(int w = 0; w < g->n; w++) {
+        if(!g->adj[(size_t)v * g->n + w] || scc[w] != c) continue;
+        if(w == start) return depth + 1;
+        if(seen[w]) continue;
+        int r = imp_find_cycle(g, scc, c, start, path, seen, w, depth + 1);
+        if(r) return r;
+    }
+    return 0;
+}
+
+/* Returns 0 clean, -1 on an import cycle (diagnostic printed). */
+static int
+check_go_import_cycles(struct name_bag *b) {
+    struct impgraph g = {0};
+    const char **mods = NULL;
+    int n = 0, cap = 0;
+    for(int i = 0; i < b->n_rows; i++) {
+        const char *m = b->rows[i].module;
+        if(!m) continue;
+        int seen = 0;
+        for(int j = 0; j < n; j++) if(strcmp(mods[j], m) == 0) { seen = 1; break; }
+        if(seen) continue;
+        if(n == cap) {
+            cap = cap ? cap * 2 : 16;
+            const char **nm = xrealloc(mods, (size_t)cap * sizeof(char *));
+            if(!nm) { free(mods); return 0; }
+            mods = nm;
+        }
+        mods[n++] = m;
+    }
+    if(n < 2) { free(mods); return 0; }
+    g.n = n; g.mod = mods;
+    g.pkg = calloc((size_t)n, sizeof(char *));
+    g.adj = calloc((size_t)n * (size_t)n, 1);
+    if(!g.pkg || !g.adj) { free(g.pkg); free(g.adj); free(mods); return 0; }
+    for(int i = 0; i < n; i++) g.pkg[i] = module_pkg_go(mods[i]);
+
+    /* types.go edges */
+    for(int i = 0; i < n; i++) {
+        char *imps[64];
+        int ni = collect_module_imports(b, mods[i], imps, 64);
+        for(int k = 0; k < ni; k++) {
+            for(int j = 0; j < n; j++)
+                if(j != i && strcmp(g.pkg[j], imps[k]) == 0)
+                    g.adj[(size_t)i * n + j] = 1;
+            free(imps[k]);
+        }
+    }
+    /* glue.go edges (dry run; no files are written) */
+    int retval = 0;
+    if(go_glue_collect_imports(g_go_module_path, g_go_rt_module_path,
+                               impgraph_glue_cb, &g) < 0) {
+        fprintf(stderr, "asn1cgo: Go import-cycle check: glue dry run failed\n");
+        retval = -1;
+    }
+
+    if(retval == 0) {
+        struct tj t = {0};
+        t.g = &g;
+        t.idx = malloc((size_t)n * sizeof(int));
+        t.low = malloc((size_t)n * sizeof(int));
+        t.on = calloc((size_t)n, sizeof(int));
+        t.stk = malloc((size_t)n * sizeof(int));
+        t.scc = malloc((size_t)n * sizeof(int));
+        int *path = malloc((size_t)n * sizeof(int));
+        int *seen = malloc((size_t)n * sizeof(int));
+        if(t.idx && t.low && t.on && t.stk && t.scc && path && seen) {
+            for(int i = 0; i < n; i++) t.idx[i] = -1;
+            for(int i = 0; i < n; i++) if(t.idx[i] < 0) tj_visit(&t, i);
+            for(int c = 0; c < t.n_scc; c++) {
+                int start = -1, size = 0;
+                for(int i = 0; i < n; i++)
+                    if(t.scc[i] == c) { if(start < 0) start = i; size++; }
+                if(size < 2) continue;
+                for(int i = 0; i < n; i++) seen[i] = 0;
+                int len = imp_find_cycle(&g, t.scc, c, start, path, seen,
+                                         start, 0);
+                fprintf(stderr, "asn1cgo: Go package import cycle: ");
+                for(int i = 0; i < len; i++)
+                    fprintf(stderr, "%s -> ", g.pkg[path[i]]);
+                fprintf(stderr, "%s\n", g.pkg[start]);
+                retval = -1;
+            }
+        }
+        free(t.idx); free(t.low); free(t.on); free(t.stk); free(t.scc);
+        free(path); free(seen);
+    }
+    for(int i = 0; i < n; i++) free(g.pkg[i]);
+    free(g.pkg); free(g.adj); free(mods);
+    return retval;
 }
 
 /* ========================================================================= *

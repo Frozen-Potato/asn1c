@@ -6,6 +6,7 @@ package e2e
 import (
 	"bytes"
 	"errors"
+	"sync"
 	"testing"
 
 	rt "asn1cgo.test/asn1cgo-rt/rt"
@@ -89,5 +90,47 @@ func TestConstraintViolation(t *testing.T) {
 func TestDecodeGarbage(t *testing.T) {
 	if _, err := ex.DecodeExamplePDU([]byte{0xff}); !errors.Is(err, rt.ErrDecode) {
 		t.Fatalf("Decode(ff) err = %v, want rt.ErrDecode", err)
+	}
+}
+
+// TestConcurrentDecode decodes from many goroutines at once and checks the
+// process-global arena balance returns to exactly zero once all are done.
+func TestConcurrentDecode(t *testing.T) {
+	in := ex.ExamplePDU{
+		RequestId: 9,
+		Payload:   ex.ExamplePayload{Present: ex.ExamplePayloadPrText, Text: ptr("concurrent")},
+		Note:      ptr("n"),
+	}
+	b, err := in.Encode()
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	const workers, iters = 16, 200
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iters; i++ {
+				out, err := ex.DecodeExamplePDU(b)
+				if err != nil {
+					errs <- err
+					return
+				}
+				if out.RequestId != 9 || out.Payload.Text == nil || *out.Payload.Text != "concurrent" {
+					errs <- errors.New("decoded value mismatch")
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	if bal := rt.ArenaBalance(); bal != 0 {
+		t.Fatalf("ArenaBalance = %d after concurrent decode, want 0", bal)
 	}
 }

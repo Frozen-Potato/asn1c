@@ -379,10 +379,47 @@ conv_copy_flat_headers(const char *srcdir, const char *dstdir) {
     return rc;
 }
 
+/* Directories handed over by the driver (-S / -D). The ASN1CGO_FORK_SKEL and
+ * ASN1C_DESTDIR env vars remain optional overrides and win when set. */
+static char *g_skel_dir = NULL;
+static char *g_dest_dir = NULL;
+
+static char *dup_trim_slashes(const char *s) {
+    size_t n = strlen(s);
+    char *r = malloc(n + 1);
+    if(!r) return NULL;
+    memcpy(r, s, n + 1);
+    while(n > 1 && r[n - 1] == '/') r[--n] = '\0';
+    return r;
+}
+
+/* Record the driver's skeletons dir and C destdir (NULL/"" destdir => "."). */
+int go_entry_set_dirs(const char *skeletons_dir, const char *destdir) {
+    free(g_skel_dir); free(g_dest_dir);
+    g_skel_dir = (skeletons_dir && *skeletons_dir)
+                     ? dup_trim_slashes(skeletons_dir) : NULL;
+    g_dest_dir = dup_trim_slashes((destdir && *destdir) ? destdir : ".");
+    return g_dest_dir ? 0 : -1;
+}
+
+/* Effective skeletons dir: env override, else the driver's -S. */
+static const char *go_skel_dir(void) {
+    const char *e = getenv("ASN1CGO_FORK_SKEL");
+    if(e && *e) return e;
+    return g_skel_dir;
+}
+
+/* Effective C destdir: env override, else the driver's -D (default "."). */
+static const char *go_dest_dir(void) {
+    const char *e = getenv("ASN1C_DESTDIR");
+    if(e && *e) return e;
+    return g_dest_dir;
+}
+
 /* nm exists in the fork skeletons dir (a runtime file; the ASN1CGO_FORK_SKEL
  * env names it — NULL when unset, i.e. the caller then keeps the file). */
 static char *conv_path_sk_probe(const char *nm) {
-    const char *sk = getenv("ASN1CGO_FORK_SKEL");
+    const char *sk = go_skel_dir();
     if(!sk || !*sk) return NULL;
     char *p = malloc(strlen(sk) + 1 + strlen(nm) + 1);
     if(!p) return NULL;
@@ -404,15 +441,17 @@ static char *conv_path_sk_probe(const char *nm) {
 static char *rt_src_file(const char *name) {
     const char *o = getenv("ASN1CGO_RT_SRC");
     if(o && *o) return conv_path(o, name);
-    const char *sk = getenv("ASN1CGO_FORK_SKEL");
+    const char *sk = go_skel_dir();
     if(sk && *sk) {
         const char *slash = strrchr(sk, '/');
-        if(slash) {
-            size_t pl = (size_t)(slash - sk);   /* the fork root */
+        {
+            /* no slash: skeletons is a bare relative dir, parent is "." */
+            const char *par = slash ? sk : ".";
+            size_t pl = slash ? (size_t)(slash - sk) : 1;   /* the fork root */
             char *p = malloc(pl + 1 + strlen("libasn1compiler_go/rt/go/rt/")
                              + strlen(name) + 1);
             if(p) {
-                memcpy(p, sk, pl);
+                memcpy(p, par, pl);
                 sprintf(p + pl, "/libasn1compiler_go/rt/go/rt/%s", name);
                 struct stat st;
                 if(stat(p, &st) == 0 && S_ISREG(st.st_mode)) return p;
@@ -455,8 +494,8 @@ conv_copy_skel_header(const char *dstdir, const char *name) {
     if(!src) {
         fprintf(stderr,
                 "asn1cgo: conv: asn1c runtime header '%s' not found in the "
-                "fork skeletons — set ASN1CGO_FORK_SKEL to "
-                "<fork>/skeletons\n", name);
+                "fork skeletons — pass -S <fork>/skeletons "
+                "(or set ASN1CGO_FORK_SKEL)\n", name);
         return -1;
     }
     char *dst = conv_path(dstdir, name);
@@ -559,7 +598,7 @@ conv_copy_dir_files(const char *srcdir, const char *dstdir) {
  * text contains "} <base>_t;". Returns a malloc'd file name or NULL. */
 static char *
 conv_find_header(const char *base) {
-    const char *dd = getenv("ASN1C_DESTDIR");
+    const char *dd = go_dest_dir();
     if(!dd || !*dd || !base || !*base) return NULL;
     DIR *d = opendir(dd);
     if(!d) return NULL;
@@ -673,15 +712,15 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
 
     /* 1. the asn1c C copy from ASN1C_DESTDIR (prefixed files only) */
     {
-        const char *destdir = getenv("ASN1C_DESTDIR");
+        const char *destdir = go_dest_dir();
         if(destdir && *destdir) {
             if(conv_copy_prefixed_files(destdir, cspec) < 0)
                 return -1;
         } else {
             fprintf(stderr,
-                    "asn1cgo: conv: ASN1C_DESTDIR is not set — the cspec "
-                    "cspec copy of the asn1c C is skipped (the destdir "
-                    "rides the env channel; see go_conv.h)\n");
+                    "asn1cgo: conv: no C output directory (-D / "
+                    "ASN1C_DESTDIR) — cannot populate internal/cspec\n");
+            return -1;
         }
     }
 
@@ -810,7 +849,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                      * an inline/nested construct has NO own header (the .h
                      * nests it under its parent) — probe ASN1C_DESTDIR. */
                     {
-                        const char *dd = getenv("ASN1C_DESTDIR");
+                        const char *dd = go_dest_dir();
                         if(dd && *dd) {
                             char *probe = conv_path(dd, want[w]);
                             FILE *pf = fopen(probe, "r");
@@ -982,7 +1021,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 "// linking).\n"
                 "import _ \"%s/rt\"\n", rtm);
             char *txt = base;
-            if(getenv("ASN1CGO_FORK_SKEL"))
+            if(go_skel_dir())
                 txt = ca(txt, imp);
             if(conv_fwrite_all(p, txt) < 0) { free(txt); free(p); return -1; }
             free(txt); free(imp);
@@ -1073,7 +1112,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
          * entry refers to the module the build stages from the single
          * source (go.work/replace may point elsewhere; a dead entry is
          * pruned by the rewrite arm below only when its dir is gone). */
-        if(!getenv("ASN1CGO_FORK_SKEL")) goto no_gowork;
+        if(!go_skel_dir()) goto no_gowork;
         const char *slash = strrchr(go_outdir, '/');
         char *parent = NULL;
         if(slash) {

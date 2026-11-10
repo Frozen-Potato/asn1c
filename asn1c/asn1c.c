@@ -55,7 +55,8 @@ static int importStandardModules(asn1p_t *asn, const char *skeletons_dir);
 /* Go backend entry — libasn1compiler_go/. Local extern
  * (asn1compiler.h stays unedited). Runs after asn1_compile, same AST. */
 extern int asn1cgo_generate(asn1p_t *asn, const char *go_outdir,
-                            enum asn1c_flags flags);
+                            enum asn1c_flags flags,
+                            const char *skeletons_dir, const char *destdir);
 
 int
 main(int ac, char **av) {
@@ -448,7 +449,8 @@ main(int ac, char **av) {
     /* Go backend: only after asn1_compile succeeds, since it
      * reads the EM_INDIRECT markers the C pass stamps. */
     if(go_outdir && !exit_code) {
-        if(asn1cgo_generate(asn, go_outdir, asn1_compiler_flags) != 0)
+        if(asn1cgo_generate(asn, go_outdir, asn1_compiler_flags,
+                           skeletons_dir, destdir) != 0)
             exit_code = EX_SOFTWARE;
     }
 

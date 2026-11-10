@@ -37,10 +37,15 @@ extern int go_generate(asn1p_t *, const char *, enum asn1c_flags);
  * the driver declaration exactly.
  */
 extern int asn1cgo_generate(asn1p_t *asn, const char *go_outdir,
-                            enum asn1c_flags flags);
+                            enum asn1c_flags flags,
+                            const char *skeletons_dir, const char *destdir);
+/* go_entry.c: record the driver's -S / -D (env vars stay as overrides). */
+extern int go_entry_set_dirs(const char *skeletons_dir, const char *destdir);
 
 int
-asn1cgo_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
+asn1cgo_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags,
+                 const char *skeletons_dir, const char *destdir) {
+    if(go_entry_set_dirs(skeletons_dir, destdir) != 0) return -1;
     /* Support gate first: any off-table construct is a hard error before the
      * Go side touches the disk. */
     int rc = go_walk_asts(asn);

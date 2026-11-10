@@ -1,0 +1,11 @@
+Mod-A DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+IMPORTS B-Type FROM Mod-B;
+A-PDU ::= SEQUENCE {
+    x INTEGER (0..255),
+    b B-Type OPTIONAL
+}
+A-Type ::= SEQUENCE {
+    y INTEGER (0..255)
+}
+END
