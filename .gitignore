@@ -69,6 +69,7 @@ doc/docsrc/*.xdv
 
 # /examples/
 /examples/*.asn1
+!/examples/rrc-7.1.0.asn1
 
 # /examples/*/
 /examples/sample.source.*/*.c
@@ -81,6 +82,9 @@ doc/docsrc/*.xdv
 /examples/sample.source.*/converter-example.mk
 !/examples/sample.source.*/Makefile
 !/examples/sample.source.*/config.h
+
+# /tests/tests-c-compiler/
+!/tests/tests-c-compiler/data-62/Makefile
 
 # /libasn1compiler/
 /libasn1compiler/check_compiler
