@@ -29,6 +29,7 @@ fi
 tmp=$(mktemp -d)
 cleanup() { rm -rf "${tmp:?}"; }
 trap cleanup EXIT
+mkdir "$tmp/bin" && ln -s "$asn1c" "$tmp/bin/asn1c"
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
@@ -41,7 +42,7 @@ run_one() {
         cd "$here/e2e"
         env ASN1C_DESTDIR="$work/c" ASN1CGO_FORK_SKEL="$repo/skeletons" \
             ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
-        sh -c 'exec -a asn1c "$0" "$@"' "$asn1c" \
+        "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
             -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn

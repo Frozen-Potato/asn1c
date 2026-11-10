@@ -75,8 +75,6 @@ See [libasn1compiler_go/README.md](libasn1compiler_go/README.md) for the
 build instructions, the module layout, usage examples and the list of
 supported constructs.
 
--- [Frozen-Potato](https://github.com/Frozen-Potato)
-
 # Build and Install
 
 If you haven't installed the asn1c yet, read the [INSTALL.md](INSTALL.md) file
