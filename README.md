@@ -14,6 +14,11 @@ The ASN.1 family of standards is large and complex, and no open source
 compiler supports it in its entirety.
 The asn1c is arguably the most evolved open source ASN.1 compiler.
 
+> **About this fork.** This is a fork of [asn1c](https://github.com/vlm/asn1c)
+> that adds a Go backend (`-Fgo`) and aligned PER (APER) fixes.
+> Report issues for this fork at
+> <https://github.com/Frozen-Potato/asn1c/issues>.
+
 # ASN.1 Transfer Syntaxes
 <details>
 <summary>ASN.1 encodings interoperability table</summary>

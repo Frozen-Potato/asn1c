@@ -9,7 +9,7 @@ asn1c -- the ASN.1 Compiler
 # SYNOPSIS
 
 asn1c [**-E** [**-F**] | **-P** | **-R**] \
-      [**-S***dir*] [**-X**] \
+      [**-S***dir*] [**-X**] [**-Fgo**=*dir*] \
       [**-W***debug-*...] [**-f***option*] [**-gen-***option*] 
       [**-pdu**={**all**|**auto**|*Type*}] \
       [**-print-***option*] \
@@ -47,6 +47,11 @@ and other encoding rules.
 
 -X
 :   Generate an XML DTD schema for the specified ASN.1 files.
+
+-Fgo=*dir*
+:   Also generate Go code into the specified directory.
+    The Go packages call the generated C aligned PER (APER) codec through cgo.
+    Incompatible with **-E**.
 
 ## Warning Options
 

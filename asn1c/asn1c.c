@@ -578,6 +578,7 @@ usage(const char *av0) {
 "                        (Default is \"%s\")\n"
 "  -D <dir>              Destination directory for generated files (default current dir)\n"
 "  -X                    Generate and print the XML DTD\n"
+"  -Fgo=<dir>            Also generate Go code (cgo, APER) into <dir>; not with -E\n"
 "\n"
 
 "  -Werror               Treat warnings as errors; abort if any warning\n"

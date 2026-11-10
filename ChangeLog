@@ -1,3 +1,19 @@
+0.9.29-go.1:
+    FEATURES:
+    * Go backend: -Fgo=<dir> generates Go types and APER Encode/Decode
+      via cgo (libasn1compiler_go, runtime asn1cgo-rt v0.2.0).
+
+    FIXES:
+    * APER: fix CHOICE extension index encoding for extensible types
+      (normally small non-negative whole number, X.691 #10.6).
+    * PER: fix handling of SEQUENCE with length greater than 65535.
+    * APER: fix X.691 #16.11 condition in OCTET STRING decoding.
+    * APER: OCTET STRING encode/decode of 16K fragments now writes and
+      honours the zero-length terminator after a full final fragment.
+    * APER: open type encoder writes the zero-length terminator after a
+      full final 16K fragment (X.691 #10.9.3.8).
+    * APER: boundary checks and variable initializations (decoder hardening).
+
 
 0.9.??:
     FEATURES:
