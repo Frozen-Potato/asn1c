@@ -1,7 +1,7 @@
 0.9.29-go.1:
     FEATURES:
     * Go backend: -Fgo=<dir> generates Go types and APER Encode/Decode
-      via cgo (libasn1compiler_go, runtime asn1cgo-rt v0.2.0).
+      via cgo (libasn1compiler_go, runtime asn1cgo-rt v0.2.1).
 
     FIXES:
     * APER: fix CHOICE extension index encoding for extensible types
