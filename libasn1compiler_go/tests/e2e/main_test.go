@@ -134,3 +134,50 @@ func TestConcurrentDecode(t *testing.T) {
 		t.Fatalf("ArenaBalance = %d after concurrent decode, want 0", bal)
 	}
 }
+
+// A BOOLEAN used through a named type (Flag ::= BOOLEAN) must survive
+// Encode -> Decode for both values, as a plain member, an OPTIONAL member
+// (nil stays nil), a SEQUENCE OF element and a CHOICE alternative.
+func TestNamedBoolean(t *testing.T) {
+	for _, v := range []bool{true, false} {
+		in := ex.FlagPDU{
+			Enabled: ex.Flag(v),
+			Flags:   ex.FlagPDUFlags{true, false, ex.Flag(v)},
+			Sel:     ex.FlagChoice{Present: ex.FlagChoicePrFlag, Flag: ptr(ex.Flag(v))},
+		}
+		for _, withMaybe := range []bool{true, false} {
+			in.Maybe = nil
+			if withMaybe {
+				in.Maybe = ptr(ex.Flag(!v))
+			}
+			b, err := in.Encode()
+			if err != nil {
+				t.Fatalf("Encode(%v,%v): %v", v, withMaybe, err)
+			}
+			out, err := ex.DecodeFlagPDU(b)
+			if err != nil {
+				t.Fatalf("Decode(%v,%v): %v", v, withMaybe, err)
+			}
+			if bool(out.Enabled) != v {
+				t.Fatalf("Enabled = %v, want %v", out.Enabled, v)
+			}
+			if withMaybe != (out.Maybe != nil) || (withMaybe && bool(*out.Maybe) == v) {
+				t.Fatalf("Maybe = %v (withMaybe=%v, v=%v)", out.Maybe, withMaybe, v)
+			}
+			if len(out.Flags) != 3 || !bool(out.Flags[0]) || bool(out.Flags[1]) || bool(out.Flags[2]) != v {
+				t.Fatalf("Flags = %v", out.Flags)
+			}
+			if out.Sel.Present != ex.FlagChoicePrFlag || out.Sel.Flag == nil || bool(*out.Sel.Flag) != v {
+				t.Fatalf("Sel = %+v", out.Sel)
+			}
+		}
+	}
+	b, err := (&ex.FlagPDU{Sel: ex.FlagChoice{Present: ex.FlagChoicePrNum, Num: ptr(int64(5))}}).Encode()
+	if err != nil {
+		t.Fatalf("Encode num: %v", err)
+	}
+	out, err := ex.DecodeFlagPDU(b)
+	if err != nil || out.Sel.Present != ex.FlagChoicePrNum || out.Sel.Num == nil || *out.Sel.Num != 5 {
+		t.Fatalf("Decode num: %+v, %v", out, err)
+	}
+}

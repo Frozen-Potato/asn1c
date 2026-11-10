@@ -137,6 +137,9 @@ arm_prim_from(void *t, void *m, const char *in_acc, const char *out_acc) {
         { char *_cf = cfmt("    %s = (double)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "int32_t") == 0) {
         { char *_cf = cfmt("    %s = (int32_t)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+    } else if(prim && strcmp(prim, "_bool32") == 0) {
+        /* BOOLEAN Flat column is int32_t (0/1): canonicalize */
+        { char *_cf = cfmt("    %s = %s ? 1 : 0;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else {
         { char *_cf = cfmt("    %s = (int64_t)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     }

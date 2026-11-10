@@ -11,4 +11,16 @@ Example-Payload ::= CHOICE {
     number INTEGER (0..255),
     ...
 }
+Flag ::= BOOLEAN
+Flag-PDU ::= SEQUENCE {
+    enabled Flag,
+    maybe   Flag OPTIONAL,
+    flags   SEQUENCE (SIZE(0..4)) OF Flag,
+    sel     Flag-Choice
+}
+Flag-Choice ::= CHOICE {
+    flag Flag,
+    num  INTEGER (0..7),
+    ...
+}
 END

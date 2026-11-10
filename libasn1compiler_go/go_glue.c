@@ -626,6 +626,36 @@ static const char *gprim_go(const char *prim) {
     return "";
 }
 
+/* Go cast type of a prim for a NAMED-LEAF slot access: _bool32 is an int32
+ * in the flat layout (the Go side is a bool). */
+static const char *gprim_slot(const char *prim) {
+    if(prim && strcmp(prim, "_bool32") == 0) return "int32";
+    return gprim_go(prim);
+}
+
+/* the Go-side (member's own) type spelling of a prim: bool for _bool32. */
+static const char *gprim_own(const char *prim) {
+    if(prim && strcmp(prim, "_bool32") == 0) return "bool";
+    return gprim_go(prim);
+}
+
+/* Go expression storing VAL (a Go value of the member's own type) into a
+ * slot of raw type GT: _bool32 goes bool -> 0/1, everything else is a plain
+ * conversion to the RAW prim. Caller frees. */
+static char *gconv_store(const char *prim, const char *gt, const char *val) {
+    if(prim && strcmp(prim, "_bool32") == 0)
+        return gfmt("b32FromBool(bool(%s))", val);
+    return gfmt("%s(%s)", gt, val);
+}
+
+/* Go expression reading RAW (a slot of raw type GT) into the member's own
+ * type CAST: _bool32 goes int32 != 0 -> bool. Caller frees. */
+static char *gconv_load(const char *prim, const char *cast, const char *raw) {
+    if(prim && strcmp(prim, "_bool32") == 0)
+        return gfmt("%s(%s != 0)", cast, raw);
+    return gfmt("%s(%s)", cast, raw);
+}
+
 /* ---- name-row lookups ------------------------------------------------- */
 
 /* The Go type name of a package-scoped node: the row (type/inline/spec-key/
@@ -934,7 +964,7 @@ field_cast(flat_type *t, const char *owner_go, const char *tok,
          * of another package bare): qualify through its names row. */
         return qualify_alias(ft);
     }
-    return gown(prim ? gprim_go(prim) : "");
+    return gown(prim ? gprim_own(prim) : "");
 }
 
 /* qualify_alias — package-qualify a possibly-foreign alias spelling: find its
@@ -1594,7 +1624,7 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
         const char *ft = gf_field_type(E->owner_go, tok);
         char *castbase = NULL;
         if(ft && *ft) castbase = gown(ft);
-        else castbase = gown(prim ? gprim_go(prim) : "");
+        else castbase = gown(prim ? gprim_own(prim) : "");
         char *cast = *castbase == '*' ? castbase + 1 : castbase;
         /* the cast's alias may be FOREIGN (a leaf PDU named in another
          * package): re-spell it via the target's own module (gtype_q —
@@ -1800,7 +1830,7 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
                     "\tpayload += uintptr(len(%s.Bytes))\n", acc));
             }
         } else {
-            const char *gt = gprim_go(prim);
+            const char *gt = gprim_slot(prim);
             if(!gt || !*gt) {
                 char *m2 = gfmt("leaf ref %s.%s: prim %s unmapped",
                                 go_flat_ir_name(E->t), tok, prim ? prim : "?");
@@ -1811,16 +1841,21 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
                  * The alloc takes the PADDED width at alignInt64:
                  * a 4-byte leaf alloc between 8-aligned neighbors pads the
                  * next alloc by 4 — size now reserves the same 8). */
+                char *sv = gfmt("*%s", acc);
+                char *stx = gconv_store(prim, gt, sv);
+                char *rawp = gfmt("*(*%s)(unsafe.Pointer(p))", gt);
+                char *ldx = gconv_load(prim, cast, rawp);
                 (*E->fill) = gam((*E->fill), gfmt(
                     "\tif %s != nil {\n"
                     "\t\twv := fa.allocStruct(%s, alignInt64)\n"
-                    "\t\t*(*%s)(wv) = %s(*%s)\n"
+                    "\t\t*(*%s)(wv) = %s\n"
                     "\t\tstorePtr(%s, wv)\n\t}\n",
-                    acc, szexpr, gt, gt, acc, slot));
+                    acc, szexpr, gt, stx, slot));
                 (*E->read) = gam((*E->read), gfmt(
                     "\tif p := *(**byte)(%s); p != nil {\n"
-                    "\t\tsd := %s(*(*%s)(unsafe.Pointer(p)))\n"
-                    "\t\t%s = &sd\n\t}\n", slot, cast, gt, acc));
+                    "\t\tsd := %s\n"
+                    "\t\t%s = &sd\n\t}\n", slot, ldx, acc));
+                free(sv); free(stx); free(rawp); free(ldx);
                 (*E->szt) = gam((*E->szt), gfmt(
                     "\tif %s != nil {\n\t\tfixed += %s\n\t}\n", acc, szexpr));
             } else {
@@ -1832,18 +1867,22 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
                  * exemption needs a non-named side and predeclared
                  * uint64/int64 are NAMED (same trap as emit_prim). */
                 (void)fcast;
+                char *stx = gconv_store(prim, gt, ival);
+                char *rawv = gfmt("*(*%s)(%s)", gt, slot);
+                char *ldx = gconv_load(prim, cast, rawv);
                 (*E->fill) = gam((*E->fill), gfmt(
-                    "\t*(*%s)(%s) = %s(%s)\n", gt, slot, gt, ival));
+                    "\t*(*%s)(%s) = %s\n", gt, slot, stx));
                 if(ptr_ft) {
                     char *tn = gfmt("sd%d", g_tmpseq++);
-                    char *sdv = gfmt("\t%s := %s(*(*%s)(%s))\n\t%s = &%s\n",
-                                     tn, cast, gt, slot, acc, tn);
+                    char *sdv = gfmt("\t%s := %s\n\t%s = &%s\n",
+                                     tn, ldx, acc, tn);
                     (*E->read) = ga((*E->read), sdv);
                     free(sdv); free(tn);
                 } else {
                     (*E->read) = gam((*E->read), gfmt(
-                        "\t%s = %s(*(*%s)(%s))\n", acc, cast, gt, slot));
+                        "\t%s = %s\n", acc, ldx));
                 }
+                free(stx); free(rawv); free(ldx);
                 free(ival_o);
             }
         }
@@ -2595,7 +2634,7 @@ emit_items_helper(flat_type *er) {
     char *qt = gtype_q(er);
     char *stride = qconst(go_flat_ir_name(er), g_szconst(go_flat_ir_name(er)));
     const char *prim = go_flat_ir_prim(er);
-    const char *gt = prim ? gprim_go(prim) : NULL;
+    const char *gt = prim ? gprim_slot(prim) : NULL;
 
     /* ---- size<E>Items(&f, &p, items): nil/empty => nothing ----
      * A NODE element's per-item fn allocates BEYOND the stride (nested
@@ -2650,12 +2689,14 @@ emit_items_helper(flat_type *er) {
         "\tstorePtr(hdr, arr)\n",
         cam, qt, scc_elem ? ", depth int" : "");
     if(prim_elem) {
+        char *stx = gconv_store(prim, gt ? gt : "int64", "items[j]");
         fl = gam(fl, gfmt(
             "\tfor j := 0; j < n; j++ {\n"
             "\t\ts2 := unsafe.Pointer(uintptr(arr) + uintptr(j)*stride)\n"
-            "\t\t*(*%s)(s2) = %s(items[j])\n"
+            "\t\t*(*%s)(s2) = %s\n"
             "\t}\n",
-            gt ? gt : "int64", gt ? gt : "int64"));
+            gt ? gt : "int64", stx));
+        free(stx);
     } else {
         /* the element fn's depth arg when it threads depth (an SCC element):
         the helper is called from a host already holding depth; pass 0 at
@@ -2683,11 +2724,14 @@ emit_items_helper(flat_type *er) {
         "\tout := make([]%s, n, n)\n",
         cam, qt, qt);
     if(prim_elem) {
+        char *rawv = gfmt("*(*%s)(s2)", gt ? gt : "int64");
+        char *ldx = gconv_load(prim, prim && strcmp(prim, "_bool32") == 0 ? "bool" : (gt ? gt : "int64"), rawv);
         rd = gam(rd, gfmt(
             "\tfor j := 0; j < n; j++ {\n"
             "\t\ts2 := unsafe.Pointer(uintptr(arr) + uintptr(j)*stride)\n"
-            "\t\tout[j] = %s(*(*%s)(s2))\n\t}\n",
-            gt ? gt : "int64", gt ? gt : "int64"));
+            "\t\tout[j] = %s\n\t}\n",
+            ldx));
+        free(rawv); free(ldx);
     } else {
         rd = gam(rd, gfmt(
             "\tfor j := 0; j < n; j++ {\n"
@@ -2820,12 +2864,16 @@ emit_type_fn(flat_type *t) {
             free(lbs);
             (*E.szt) = ga((*E.szt), "\tpayload += uintptr(len((*v).Bytes))\n");
         } else {
-            const char *gt = gprim_go(prim);
+            const char *gt = gprim_slot(prim);
+            char *stx = gconv_store(prim, gt, "*v");
+            char *rawv = gfmt("*(*%s)(slot)", gt);
+            char *ldx = gconv_load(prim,
+                (alq && *alq) ? alq : gprim_own(prim), rawv);
             (*E.fill) = gam((*E.fill), gfmt(
-                "\t*(*%s)(slot) = %s(*v)\n", gt, gt));
+                "\t*(*%s)(slot) = %s\n", gt, stx));
             (*E.read) = gam((*E.read), gfmt(
-                "\tsd := %s(*(*%s)(slot))\n\t*v = sd\n",
-                (alq && *alq) ? alq : gt, gt));
+                "\tsd := %s\n\t*v = sd\n", ldx));
+            free(stx); free(rawv); free(ldx);
         }
         free(cast); free(alq);
     } else {
@@ -3053,6 +3101,7 @@ static const char *GLUE_STATICS =
      * type; a bits-carrying package gets them at their historical slots. */
     "//__GLUE_WRITEBITS__\n"
     "\n"
+    "func b32FromBool(b bool) int32 {\n\tif b {\n\t\treturn 1\n\t}\n\treturn 0\n}\n\n"
     "func readBytesField(recAddr unsafe.Pointer) []byte {\n"
     "\tn := *(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBytesFlatLen))\n"
     "\tif n == 0 {\n\t\treturn nil\n\t}\n"

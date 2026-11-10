@@ -381,7 +381,7 @@ gleaf_prim(int gleaf) {
         10 /* GLEAF_ENUM */
     };
     static const char *const prim[] = {
-        "int64_t", "uint64_t", "int32_t",
+        "int64_t", "uint64_t", "_bool32",
         NULL, "double", "asn1cgo_bytes_flat",
         "asn1cgo_bytes_flat", "asn1cgo_bytes_flat", "asn1cgo_bits_flat",
         "int32_t"
@@ -984,7 +984,8 @@ render_node(flat_type *t) {
     switch(t->kind) {
     case FLT_LEAF:
         s = fa(s, "typedef ");
-        s = fa(s, t->prim);
+        /* _bool32 is a Go-side marker (bool <-> 0/1); the C layout is int32_t */
+        s = fa(s, strcmp(t->prim, "_bool32") == 0 ? "int32_t" : t->prim);
         s = fa(s, " ");
         s = fa(s, t->name);
         s = fa(s, ";\n");
