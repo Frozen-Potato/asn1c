@@ -20,8 +20,10 @@ It contains:
   license is in the `LICENSE` file beside this README.
 - OER: the module defines `ASN_DISABLE_OER_SUPPORT` by default (matching
   trees generated with `-no-gen-OER`, and keeping the OER-only sources out of
-  the build). For trees generated with OER enabled, build with
-  `-tags asn1cgo_oer`.
+  the build). Trees generated with OER enabled also build and work for APER
+  without any tag. `-tags asn1cgo_oer` only compiles the runtime's OER codec
+  in; the generated Go API is APER-only, so this matters only if you call the
+  C OER functions yourself.
 
 ## Requirements
 

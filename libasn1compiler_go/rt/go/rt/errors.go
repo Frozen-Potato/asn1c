@@ -19,9 +19,11 @@
 // CGO_CFLAGS in the consumer's environment, not from this file.
 //
 // OER: generated trees made with -no-gen-OER compile their C with
-// -DASN_DISABLE_OER_SUPPORT, and this module's skeleton C must see the same
-// define. It is on by default; build with `-tags asn1cgo_oer` when the trees
-// were generated with OER enabled (the asn1c default).
+// -DASN_DISABLE_OER_SUPPORT; this module defines it by default too. Trees
+// generated with OER enabled also work for APER without any tag (the OER
+// codec pointers are just NULL). `-tags asn1cgo_oer` only compiles the
+// runtime's OER codec in; the generated Go API is APER-only, so it matters
+// only if you call the C OER functions yourself.
 package rt
 
 /*

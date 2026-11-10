@@ -35,8 +35,10 @@ asn1c -S <fork>/skeletons -fincludes-quoted -fcompound-names \
 `-no-gen-OER` is the supported configuration. When OER is off the generator
 writes `-DASN_DISABLE_OER_SUPPORT` into the `#cgo CFLAGS` lines of the
 generated cgo files, and the runtime module defines it by default, so no
-`CGO_CFLAGS` is needed. If you generate with OER on (omit `-no-gen-OER`),
-build with `-tags asn1cgo_oer` so the runtime compiles its OER sources too.
+`CGO_CFLAGS` is needed. Trees generated with OER on (omit `-no-gen-OER`) also
+build and work for APER without any tag. `-tags asn1cgo_oer` only compiles the
+runtime's OER codec in; the generated Go API is APER-only, so it matters only
+if you call the C OER functions yourself.
 
 **Module path.** The Go module path is
 `<ASN1CGO_GO_MODULE_PREFIX>/<basename of the -Fgo dir>`; with no prefix it is
