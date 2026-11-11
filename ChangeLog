@@ -22,6 +22,10 @@
     * Go backend: concurrent generators sharing a parent dir are
       serialised with flock on <parent>/.go.work.lock, so no go.work
       `use` entry is lost (advisory; local filesystems).
+    * libasn1fix: fix strict-aliasing undefined behaviour in
+      asn1f_fix_constr_ext (root/extension lists were accessed through a
+      pointer of a different anonymous struct type). With gcc 16 at -O2
+      this made asn1c crash (SIGSEGV) on some specifications.
     * Tests: 156-union-ios-OK -Pgen-PER expected output regenerated;
       new tests/run-gowork-race.sh.
 
