@@ -1,6 +1,6 @@
 #!/bin/sh
 # End-to-end test of the Go backend: generate Go from tests/e2e/ex.asn and
-# tests/e2e/ioc.asn, build it with cgo (no manual CGO_CFLAGS), check an APER
+# tests/e2e/ioc.asn, build it with cgo (CGO_CFLAGS with -Werror=incompatible-pointer-types), check an APER
 # round-trip, every reachable error code, and an allocation-fault sweep.
 # Runs twice: with -no-gen-OER and with OER enabled.
 # Exit codes: 0 pass, 77 skipped (automake SKIP), anything else failure.
@@ -55,7 +55,7 @@ run_one() {
     cp "$here/e2e/main_test.go" "$here/e2e/faults_test.go" "$work/go/"
     (
         cd "$work/go"
-        unset CGO_CFLAGS
+        export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
         go test -count=1 ./...
         # Allocation-fault sweep (needs the injection hooks compiled in).
         # -v so the per-direction N and the "no injectable allocations" note
@@ -111,7 +111,7 @@ run_oneway() {
     mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
     (
         cd "$work/go"
-        unset CGO_CFLAGS
+        export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
         go build ./...
     )
 }

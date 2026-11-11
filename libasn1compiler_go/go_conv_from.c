@@ -492,11 +492,11 @@ arm_nested_from(void *t, void *m, const char *in_acc, const char *out_acc) {
             if(conv_is_scc(t) && conv_is_scc(rt)) {
                 /* depth mirror: the loop edge re-enters the recursion SCC. */
                 { char *_cf = cfmt("                if (++err->depth > ASN1CGO_MAX_DEPTH) return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("                int itrc = %s_from_tree(ar, %s->list.array[i], &lo->items[i], err);\n", rb, in_sel); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("                int itrc = %s_from_tree(ar, (const %s_t *)%s->list.array[i], &lo->items[i], err);\n", rb, rb, in_sel); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "                err->depth--;\n");
                 s = ca(s, "                if (itrc) return err->code;\n");
             } else {
-                { char *_cf = cfmt("                if (%s_from_tree(ar, %s->list.array[i], &lo->items[i], err)) return err->code;\n", rb, in_sel); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("                if (%s_from_tree(ar, (const %s_t *)%s->list.array[i], &lo->items[i], err)) return err->code;\n", rb, rb, in_sel); s = ca(s, _cf); free(_cf); }
             }
             { char *_cf = cfmt("            }\n        }\n    }\n"); s = ca(s, _cf); free(_cf); }
         } else {
@@ -512,11 +512,11 @@ arm_nested_from(void *t, void *m, const char *in_acc, const char *out_acc) {
             if(conv_is_scc(t) && conv_is_scc(rt)) {
                 /* depth mirror: the loop edge re-enters the recursion SCC. */
                 { char *_cf = cfmt("                if (++err->depth > ASN1CGO_MAX_DEPTH) return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("                int itrc = %s_from_tree(ar, %s.list.array[i], &%s.items[i], err);\n", rb, in_sel, out_sel); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("                int itrc = %s_from_tree(ar, (const %s_t *)%s.list.array[i], &%s.items[i], err);\n", rb, rb, in_sel, out_sel); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "                err->depth--;\n");
                 s = ca(s, "                if (itrc) return err->code;\n");
             } else {
-                { char *_cf = cfmt("                if (%s_from_tree(ar, %s.list.array[i], &%s.items[i], err)) return err->code;\n", rb, in_sel, out_sel); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("                if (%s_from_tree(ar, (const %s_t *)%s.list.array[i], &%s.items[i], err)) return err->code;\n", rb, rb, in_sel, out_sel); s = ca(s, _cf); free(_cf); }
             }
             { char *_cf = cfmt("            }\n        }\n"); s = ca(s, _cf); free(_cf); }
         }
@@ -682,11 +682,11 @@ node_from_body(void *t) {
             /* depth mirror: the loop edge re-enters the recursion SCC —
              * guard each item (arena output: no ASN_STRUCT_FREE on error). */
             { char *_cf = cfmt("            if (++err->depth > ASN1CGO_MAX_DEPTH) return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", NULL, \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("            int itrc = %s_from_tree(ar, in->list.array[i], &out->items[i], err);\n", rb); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("            int itrc = %s_from_tree(ar, (const %s_t *)in->list.array[i], &out->items[i], err);\n", rb, rb); s = ca(s, _cf); free(_cf); }
             s = ca(s, "            err->depth--;\n");
             s = ca(s, "            if (itrc) return err->code;\n");
         } else {
-            { char *_cf = cfmt("            if (%s_from_tree(ar, in->list.array[i], &out->items[i], err)) return err->code;\n", rb); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("            if (%s_from_tree(ar, (const %s_t *)in->list.array[i], &out->items[i], err)) return err->code;\n", rb, rb); s = ca(s, _cf); free(_cf); }
         }
         { char *_cf = cfmt("        }\n    }\n"); s = ca(s, _cf); free(_cf); }
         free(rb);
