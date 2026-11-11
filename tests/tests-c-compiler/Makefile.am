@@ -66,6 +66,7 @@ if TEST_64BIT
 TESTS += check-src/check64-134.-gen-PER.c
 TESTS += check-src/check-161.-gen-PER.c
 TESTS += check-src/check-162.-gen-PER.c
+TESTS += check-src/check-163.-gen-PER.c
 TESTS += check-src/check64-136.-gen-OER.c
 endif
 

@@ -146,6 +146,8 @@ struct flat_member {
                         * as the member's td-name string, hyphens kept);
                         * NULL = unrecorded (emission uses the token).     */
     int stars;         /* 1 = a pointer slot                                */
+    int is_default;    /* DEFAULT member: Flat slot by value (stars=0)      */
+    int tree_ptr;      /* DEFAULT member: the C tree slot is a pointer      */
     unsigned long offset;  /* computed (x86-64 SysV layout rule)              */
 };
 
@@ -517,6 +519,14 @@ go_flat_label_last_member(const char *label) {
 }
 
 void
+go_flat_last_member_default(int tree_ptr) {
+    flat_type *t = flat_at(g_flat_last_member_owner);
+    if(!t || t->n_members <= 0) return;
+    t->members[t->n_members - 1].is_default = 1;
+    t->members[t->n_members - 1].tree_ptr = tree_ptr ? 1 : 0;
+}
+
+void
 go_flat_member_prim_on(int ix, const char *prim, const char *token, int stars) {
     if(ix < 0) ix = g_flat_last_nest;
     g_flat_last_member_owner = ix;
@@ -628,6 +638,8 @@ const char *go_flat_ir_member_token(flat_member *m) { return m ? m->token : NULL
 const char *go_flat_ir_member_label(flat_member *m) { return m ? m->label : NULL; }
 const char *go_flat_ir_type_label(flat_type *t) { return t ? t->label : NULL; }
 int go_flat_ir_member_stars(flat_member *m) { return m ? m->stars : 0; }
+int go_flat_ir_member_is_default(flat_member *m) { return m ? m->is_default : 0; }
+int go_flat_ir_member_tree_ptr(flat_member *m) { return m ? m->tree_ptr : 0; }
 int go_flat_ir_member_nested_ix(flat_member *m) { return m ? m->nested_ix : -1; }
 /* Glue scope: the computed layout VALUES behind the layout.go consts
  * (the glue's self-contained local copies of FOREIGN-type fns need the

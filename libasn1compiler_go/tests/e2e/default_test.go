@@ -1,0 +1,494 @@
+// DEFAULT members (tests/e2e/default.asn). Copied into the generated module
+// by tests/run-e2e.sh. A DEFAULT member is a plain value in Go: Decode always
+// yields the effective value, Encode always hands the value to the C codec,
+// which omits a member equal to its DEFAULT.
+//
+// The C converter (ASN1CGO_C_CONVERTER, built by run-e2e.sh from the same C
+// tree) is used as a cross-check for APER/UPER/XER; because it shares the
+// runtime with the Go codec, key cases also assert HAND-COMPUTED APER bytes.
+package e2e
+
+import (
+	"bytes"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	rt "asn1cgo.test/asn1cgo-rt/rt"
+	df "asn1cgo.test/go/defaults"
+)
+
+// dflt returns a DefaultsPDU with every DEFAULT member set to its generated
+// default constant (the Go zero value is NOT the default).
+func dflt() *df.DefaultsPDU {
+	return &df.DefaultsPDU{
+		Flag:    df.DefaultsPDUFlagDefault,
+		Small:   df.DefaultsPDUSmallDefault,
+		Signed:  df.DefaultsPDUSignedDefault,
+		Min32:   df.DefaultsPDUMin32Default,
+		Min64:   df.DefaultsPDUMin64Default,
+		Colour:  df.DefaultsPDUColourDefault,
+		Inl:     df.DefaultsPDUInlDefault,
+		Name:    df.DefaultsPDUNameDefault,
+		Octs:    append([]byte(nil), df.DefaultsPDUOctsDefault...),
+		Bits:    df.BitString{Bytes: append([]byte(nil), df.DefaultsPDUBitsDefault.Bytes...), BitsUnused: df.DefaultsPDUBitsDefault.BitsUnused},
+		Inner:   df.Inner{X: df.InnerXDefault, Y: df.InnerYDefault},
+	}
+}
+
+func extDflt() *df.ExtDefaults {
+	return &df.ExtDefaults{
+		A:       df.ExtDefaultsADefault,
+		ExtZero: df.ExtDefaultsExtZeroDefault,
+		ExtNon:  df.ExtDefaultsExtNonDefault,
+	}
+}
+
+func balanced(t *testing.T, what string) {
+	t.Helper()
+	if bal := rt.ArenaBalance(); bal != 0 {
+		t.Errorf("%s: ArenaBalance = %d, want 0", what, bal)
+	}
+}
+
+func TestDefaultConstants(t *testing.T) {
+	if df.DefaultsPDUFlagDefault != true || df.DefaultsPDUSmallDefault != 0 ||
+		df.DefaultsPDUSignedDefault != -1 ||
+		df.DefaultsPDUMin32Default != -2147483648 ||
+		df.DefaultsPDUMin64Default != -9223372036854775808 ||
+		df.DefaultsPDUColourDefault != df.ColourGreen ||
+		df.DefaultsPDUInlDefault != df.DefaultsPDUInlB ||
+		df.DefaultsPDUNameDefault != "hi" ||
+		!bytes.Equal(df.DefaultsPDUOctsDefault, []byte{0xAB}) ||
+		!reflect.DeepEqual(df.DefaultsPDUBitsDefault, df.BitString{Bytes: []byte{0xA0}, BitsUnused: 5}) ||
+		df.InnerXDefault != false || df.InnerYDefault != 200 ||
+		df.ExtDefaultsADefault != true ||
+		df.ExtDefaultsExtZeroDefault != 0 || df.ExtDefaultsExtNonDefault != 5 {
+		t.Fatal("generated DEFAULT constants have wrong values")
+	}
+	// The zero value is not the default.
+	if reflect.DeepEqual(&df.DefaultsPDU{}, dflt()) {
+		t.Fatal("zero value equals the default value")
+	}
+}
+
+// Hand-computed APER (X.691 aligned variant), see the comments per case.
+//
+// All defaults: preamble = ext bit (0) + 10 presence bits for the root DEFAULT
+// members (all 0) = 11 bits; Inner: ext 0 + x,y presence 00 = 3 bits;
+// 14 zero bits -> 00 00.
+var handCases = []struct {
+	name string
+	mut  func(*df.DefaultsPDU)
+	want []byte
+}{
+	{"all-default", func(*df.DefaultsPDU) {}, []byte{0x00, 0x00}},
+	// flag=FALSE: presence bit 1 (bit 1), value bit 0 (bit 10).
+	// bits: 0 | 1000000000 | 0 | 000 -> 0100 0000 0000 000(0)
+	{"flag-false", func(p *df.DefaultsPDU) { p.Flag = false }, []byte{0x40, 0x00}},
+	// small=3: presence bit 2; value '011' at bits 11..13 (0..7 -> 3 bits).
+	// bits: 0 | 0100000000 | 011 | 000 -> 0010 0000 0000 1100 0(0000000)
+	{"small-3", func(p *df.DefaultsPDU) { p.Small = 3 }, []byte{0x20, 0x0c, 0x00}},
+	// name="ab": presence bit 8; after the 11 preamble bits the string is
+	// octet-aligned: length 02, 'a','b'; then Inner (000).
+	{"name-ab", func(p *df.DefaultsPDU) { p.Name = "ab" }, []byte{0x00, 0x80, 0x02, 0x61, 0x62, 0x00}},
+}
+
+func TestDefaultHandAPER(t *testing.T) {
+	for _, c := range handCases {
+		p := dflt()
+		c.mut(p)
+		got, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if !bytes.Equal(got, c.want) {
+			t.Errorf("%s: APER = % x, want % x", c.name, got, c.want)
+		}
+		back, err := df.DecodeDefaultsPDU(c.want)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if !reflect.DeepEqual(back, p) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, back, p)
+		}
+		balanced(t, c.name)
+	}
+}
+
+// A value equal to the default clears the presence bits and the extension bit.
+func TestDefaultOmittedOnWire(t *testing.T) {
+	b, err := dflt().Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) != 2 || b[0] != 0 || b[1] != 0 {
+		t.Fatalf("all-default APER = % x, want 00 00 (ext bit and every presence bit clear)", b)
+	}
+	// Each root member in turn: equal to its default -> presence bit clear
+	// (the first byte pair stays 00 00 whatever else is set to default).
+	back, err := df.DecodeDefaultsPDU(b)
+	if err != nil || !reflect.DeepEqual(back, dflt()) {
+		t.Fatalf("decode: %+v, %v", back, err)
+	}
+	balanced(t, "omitted")
+}
+
+// Extension additions. The C runtime emits an extension addition whenever its
+// C slot is populated (the pointer form is non-NULL, the by-value form is
+// always there): it does NOT compare against the DEFAULT, so a default-equal
+// extension addition is still sent, with the extension bit set. The wire is
+// valid either way; this test pins down what we observe and checks
+// decoding of bytes in which the additions are absent.
+func TestDefaultExtensionAdditions(t *testing.T) {
+	// Hand-computed APER, ext bit 0 / additions absent: ext(0) + presence of
+	// `a` (0) = 00. The decoder must fill every DEFAULT with its default.
+	got, err := df.DecodeExtDefaults([]byte{0x00})
+	if err != nil || !reflect.DeepEqual(got, extDflt()) {
+		t.Fatalf("decode 00: %+v, %v (want %+v)", got, err, extDflt())
+	}
+	// ext(1) a(0) nslength(7 bits: 0|000001 = 2 additions) bitmap 01 (only
+	// extNon) -> 1000 0000 | 101(00000) = 80 a0; open type: 01 a0 (5='101').
+	got, err = df.DecodeExtDefaults([]byte{0x80, 0xa0, 0x01, 0xa0})
+	w := extDflt()
+	if err != nil || !reflect.DeepEqual(got, w) {
+		t.Fatalf("decode 80a001a0: %+v, %v (want %+v)", got, err, w)
+	}
+	// Only extNon present with 4 ('100' -> 80), extZero absent -> default 0.
+	got, err = df.DecodeExtDefaults([]byte{0x80, 0xa0, 0x01, 0x80})
+	w = extDflt()
+	w.ExtNon = 4
+	if err != nil || !reflect.DeepEqual(got, w) {
+		t.Fatalf("decode 80a00180: %+v, %v (want %+v)", got, err, w)
+	}
+	// Only extZero present (3 = '011' -> 60): bitmap 10 -> byte1 c0.
+	// extNon absent -> filled with 5 (APER decoder default fill).
+	got, err = df.DecodeExtDefaults([]byte{0x80, 0xc0, 0x01, 0x60})
+	w = extDflt()
+	w.ExtZero = 3
+	if err != nil || !reflect.DeepEqual(got, w) {
+		t.Fatalf("decode 80c00160: %+v, %v (want %+v)", got, err, w)
+	}
+	// Encode / decode round trips, both default-equal and not.
+	for _, c := range []struct {
+		name string
+		v    df.ExtDefaults
+	}{
+		{"defaults", *extDflt()},
+		{"zero", df.ExtDefaults{A: true, ExtZero: 0, ExtNon: 0}},
+		{"zero-5", df.ExtDefaults{A: false, ExtZero: 7, ExtNon: 5}},
+		{"both", df.ExtDefaults{A: true, ExtZero: 1, ExtNon: 6}},
+		{"a-false", df.ExtDefaults{A: false, ExtZero: 0, ExtNon: 5}},
+	} {
+		b, err := c.v.Encode()
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		back, err := df.DecodeExtDefaults(b)
+		if err != nil || !reflect.DeepEqual(*back, c.v) {
+			t.Errorf("%s: % x -> %+v, %v", c.name, b, back, err)
+		}
+		balanced(t, c.name)
+	}
+	// Hand-computed encodings of what this runtime emits (additions are
+	// sent even when equal to their DEFAULT):
+	// a=TRUE:  ext(1) a-presence(0) nslength(0|000001) bitmap(11), aligned,
+	//          then the open types 01 00 (extZero=0) and 01 a0 (extNon=5)
+	//          -> 1000 0000 | 1110 0000 | 01 00 01 a0
+	// a=FALSE: ext(1) a-presence(1) a-value(0) nslength bitmap(11)
+	//          -> 1100 0000 | 0111 0000 | 01 00 01 a0
+	for _, c := range []struct {
+		name string
+		a    bool
+		want []byte
+	}{
+		{"a-true", true, []byte{0x80, 0xe0, 0x01, 0x00, 0x01, 0xa0}},
+		{"a-false", false, []byte{0xc0, 0x70, 0x01, 0x00, 0x01, 0xa0}},
+	} {
+		v := extDflt()
+		v.A = c.a
+		b, err := v.Encode()
+		if err != nil || !bytes.Equal(b, c.want) {
+			t.Errorf("%s: APER = % x, %v; want % x", c.name, b, err, c.want)
+		}
+		balanced(t, c.name)
+	}
+}
+
+// Decoding bytes with a member absent yields the DEFAULT in the Go field.
+func TestDefaultDecodeAbsent(t *testing.T) {
+	got, err := df.DecodeDefaultsPDU([]byte{0x00, 0x00})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, dflt()) {
+		t.Fatalf("decoded %+v, want all defaults %+v", got, dflt())
+	}
+	balanced(t, "absent")
+}
+
+var nonDefault = []struct {
+	name string
+	mut  func(*df.DefaultsPDU)
+}{
+	{"flag", func(p *df.DefaultsPDU) { p.Flag = false }},
+	{"small", func(p *df.DefaultsPDU) { p.Small = 7 }},
+	{"signed", func(p *df.DefaultsPDU) { p.Signed = 10 }},
+	{"signed-0", func(p *df.DefaultsPDU) { p.Signed = 0 }},
+	{"min32", func(p *df.DefaultsPDU) { p.Min32 = -2147483647 }},
+	{"min32-0", func(p *df.DefaultsPDU) { p.Min32 = 0 }},
+	{"min64-0", func(p *df.DefaultsPDU) { p.Min64 = 0 }},
+	{"min64-max", func(p *df.DefaultsPDU) { p.Min64 = 9223372036854775807 }},
+	{"min64-min+1", func(p *df.DefaultsPDU) { p.Min64 = -9223372036854775807 }},
+	{"colour", func(p *df.DefaultsPDU) { p.Colour = df.ColourBlue }},
+	{"inl", func(p *df.DefaultsPDU) { p.Inl = df.DefaultsPDUInlC }},
+	// (digits only: this runtime's UPER codec garbles other PrintableString
+	// characters, which is unrelated to DEFAULT and only matters for the UPER
+	// cross-check below)
+	{"name", func(p *df.DefaultsPDU) { p.Name = "42" }},
+	{"octs", func(p *df.DefaultsPDU) { p.Octs = []byte{1, 2, 3} }},
+	{"octs-empty", func(p *df.DefaultsPDU) { p.Octs = []byte{} }},
+	{"bits-8", func(p *df.DefaultsPDU) { p.Bits = df.BitString{Bytes: []byte{0xFF}, BitsUnused: 0} }},
+	{"inner.x", func(p *df.DefaultsPDU) { p.Inner.X = true }},
+	{"inner.y", func(p *df.DefaultsPDU) { p.Inner.Y = 0 }},
+	{"everything", func(p *df.DefaultsPDU) {
+		p.Flag, p.Small, p.Signed, p.Min64 = false, 1, -10, 42
+		p.Colour, p.Inl, p.Name = df.ColourRed, df.DefaultsPDUInlA, "42"
+		p.Octs, p.Bits = []byte{0}, df.BitString{Bytes: []byte{0x80}, BitsUnused: 7}
+		p.Inner = df.Inner{X: true, Y: 255}
+	}},
+}
+
+func TestDefaultRoundTrip(t *testing.T) {
+	base, err := dflt().Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range nonDefault {
+		p := dflt()
+		c.mut(p)
+		b, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if bytes.Equal(b, base) {
+			t.Errorf("%s: non-default value encoded like the default", c.name)
+		}
+		back, err := df.DecodeDefaultsPDU(b)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if p.Octs != nil && len(p.Octs) == 0 {
+			back.Octs = []byte{} // empty vs nil is not a wire difference
+		}
+		if !reflect.DeepEqual(back, p) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, back, p)
+		}
+		balanced(t, c.name)
+	}
+}
+
+func TestDefaultErrors(t *testing.T) {
+	p := dflt()
+	p.Small = 8 // outside (0..7)
+	_, err := p.Encode()
+	wantErr(t, "constraint", err, rt.ErrConstraint)
+	p = dflt()
+	p.Inner.Y = 256
+	_, err = p.Encode()
+	wantErr(t, "nested constraint", err, rt.ErrConstraint)
+	var nilp *df.DefaultsPDU
+	_, err = nilp.Encode()
+	wantErr(t, "nil", err, rt.ErrArg)
+	_, err = df.DecodeDefaultsPDU([]byte{0xff, 0xff, 0xff})
+	wantErr(t, "garbage", err, rt.ErrDecode)
+	b, _ := dflt().Encode()
+	_, err = df.DecodeDefaultsPDU(append(b, 0))
+	wantErr(t, "trailing", err, rt.ErrTrailing)
+	_, err = df.DecodeDefaultsPDU([]byte{0x01})
+	wantErr(t, "truncated", err, rt.ErrDecode)
+}
+
+// ---- cross-check against the C converter ----
+
+func converter(t *testing.T) string {
+	t.Helper()
+	c := os.Getenv("ASN1CGO_C_CONVERTER")
+	if c == "" {
+		t.Skip("ASN1CGO_C_CONVERTER not set")
+	}
+	return c
+}
+
+// conv runs the C converter on data and returns stdout.
+func conv(t *testing.T, bin string, data []byte, args ...string) []byte {
+	return convPDU(t, bin, "DefaultsPDU", data, args...)
+}
+
+func convPDU(t *testing.T, bin, pdu string, data []byte, args ...string) []byte {
+	t.Helper()
+	f := filepath.Join(t.TempDir(), "in")
+	if err := os.WriteFile(f, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a := append(append([]string{}, args...), "-p", pdu, f)
+	out, err := exec.Command(bin, a...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("converter %v: %v\n%s", args, err, out)
+	}
+	return out
+}
+
+func TestDefaultCConverter(t *testing.T) {
+	bin := converter(t)
+	cases := append([]struct {
+		name string
+		mut  func(*df.DefaultsPDU)
+	}{{"all-default", func(*df.DefaultsPDU) {}}}, nonDefault...)
+	for _, c := range cases {
+		p := dflt()
+		c.mut(p)
+		aper, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		// C decodes the Go APER and re-encodes: APER round-trips bit-exact.
+		if re := conv(t, bin, aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: C APER re-encode % x != Go % x", c.name, re, aper)
+		}
+		// XER of the decoded value, then back through the C XER decoder.
+		xer := conv(t, bin, aper, "-iaper", "-oxer")
+		if re := conv(t, bin, xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: XER round trip -> APER % x != Go % x\n%s", c.name, re, aper, xer)
+		}
+		// UPER output decodes (as UPER) to the same APER.
+		uper := conv(t, bin, aper, "-iaper", "-oper")
+		if re := conv(t, bin, uper, "-iper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: UPER round trip -> APER % x != Go % x", c.name, re, aper)
+		}
+		if c.name == "all-default" {
+			// UPER of the all-default value: 15 zero bits -> 00 00.
+			if !bytes.Equal(uper, []byte{0x00, 0x00}) {
+				t.Errorf("all-default UPER = % x, want 00 00", uper)
+			}
+			// XER of an absent/default member contains the element with its default.
+			for _, el := range []string{
+				"<flag><true/></flag>", "<small>0</small>", "<signed>-1</signed>",
+				"<min32>-2147483648</min32>", "<min64>-9223372036854775808</min64>", "<colour><green/></colour>",
+				"<inl><b/></inl>", "<name>hi</name>", "<octs>AB</octs>",
+				"<bits>101</bits>", "<x><false/></x>", "<y>200</y>",
+			} {
+				if !strings.Contains(strings.Join(strings.Fields(string(xer)), ""), el) {
+					t.Errorf("XER lacks %s:\n%s", el, xer)
+				}
+			}
+		}
+	}
+	// Extension additions through the C converter (APER/UPER/XER).
+	for _, v := range []df.ExtDefaults{*extDflt(), {A: false, ExtZero: 2, ExtNon: 0}, {A: true, ExtZero: 0, ExtNon: 7}} {
+		aper, err := v.Encode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if re := convPDU(t, bin, "ExtDefaults", aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("ext %+v: C APER % x != Go % x", v, re, aper)
+		}
+		xer := convPDU(t, bin, "ExtDefaults", aper, "-iaper", "-oxer")
+		if re := convPDU(t, bin, "ExtDefaults", xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("ext %+v: XER round trip % x != Go % x\n%s", v, re, aper, xer)
+		}
+		uper := convPDU(t, bin, "ExtDefaults", aper, "-iaper", "-oper")
+		if re := convPDU(t, bin, "ExtDefaults", uper, "-iper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("ext %+v: UPER round trip % x != Go % x", v, re, aper)
+		}
+	}
+	// Absent additions (ext bit 0): XER shows the defaults.
+	x := string(convPDU(t, bin, "ExtDefaults", []byte{0x00}, "-iaper", "-oxer"))
+	x = strings.Join(strings.Fields(x), "")
+	for _, el := range []string{"<a><true/></a>", "<extZero>0</extZero>", "<extNon>5</extNon>"} {
+		if !strings.Contains(x, el) {
+			t.Errorf("XER of absent additions lacks %s: %s", el, x)
+		}
+	}
+	// A hand-written XER with every DEFAULT member spelled out as its
+	// default encodes to the all-absent APER (00 00); one with the members
+	// left out decodes to the same value.
+	full := `<DefaultsPDU><flag><true/></flag><small>0</small><signed>-1</signed>` +
+		`<min32>-2147483648</min32><min64>-9223372036854775808</min64><colour><green/></colour>` +
+		`<inl><b/></inl><name>hi</name><octs>AB</octs><bits>101</bits>` +
+		`<inner><x><false/></x><y>200</y></inner></DefaultsPDU>`
+	if got := conv(t, bin, []byte(full), "-ixer", "-oaper"); !bytes.Equal(got, []byte{0, 0}) {
+		t.Errorf("XER(all defaults spelled out) -> APER = % x, want 00 00", got)
+	}
+	sparse := `<DefaultsPDU><inner/></DefaultsPDU>`
+	if got := conv(t, bin, []byte(sparse), "-ixer", "-oaper"); !bytes.Equal(got, []byte{0, 0}) {
+		t.Errorf("XER(members absent) -> APER = % x, want 00 00", got)
+	}
+}
+
+func TestDefaultNoLeak(t *testing.T) {
+	// Repeated encode/decode keeps the arena balanced.
+	for i := 0; i < 50; i++ {
+		p := dflt()
+		p.Name = "n"
+		b, err := p.Encode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := df.DecodeDefaultsPDU(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	balanced(t, "loop")
+}
+
+// INTEGER_t storage (Big ::= INTEGER (0..2^40-1)): the C slot is a pointer to
+// INTEGER_t for the default 0 as well as for 5.
+func TestDefaultWideInteger(t *testing.T) {
+	if df.WideDefaultsW5Default != 5 || df.WideDefaultsW0Default != 0 {
+		t.Fatal("wide default constants")
+	}
+	d := df.WideDefaults{W5: df.WideDefaultsW5Default, W0: df.WideDefaultsW0Default}
+	b, err := d.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// ext(0) + two presence bits (0) = 000 -> 00
+	if !bytes.Equal(b, []byte{0x00}) {
+		t.Fatalf("all-default APER = % x, want 00", b)
+	}
+	back, err := df.DecodeWideDefaults(b)
+	if err != nil || *back != d {
+		t.Fatalf("decode: %+v, %v", back, err)
+	}
+	cases := []df.WideDefaults{
+		{W5: 6, W0: 0}, {W5: 5, W0: 1}, {W5: 0, W0: 0},
+		{W5: 1099511627775, W0: 1099511627775}, {W5: 4294967296, W0: 7},
+	}
+	for _, c := range cases {
+		b, err := c.Encode()
+		if err != nil {
+			t.Fatalf("%+v: %v", c, err)
+		}
+		back, err := df.DecodeWideDefaults(b)
+		if err != nil || *back != c {
+			t.Errorf("%+v: % x -> %+v, %v", c, b, back, err)
+		}
+		if bin := os.Getenv("ASN1CGO_C_CONVERTER"); bin != "" {
+			if re := convPDU(t, bin, "WideDefaults", b, "-iaper", "-oaper"); !bytes.Equal(re, b) {
+				t.Errorf("%+v: C re-encode % x != % x", c, re, b)
+			}
+			xer := convPDU(t, bin, "WideDefaults", b, "-iaper", "-oxer")
+			if re := convPDU(t, bin, "WideDefaults", xer, "-ixer", "-oaper"); !bytes.Equal(re, b) {
+				t.Errorf("%+v: XER round trip % x != % x", c, re, b)
+			}
+		}
+		balanced(t, "wide")
+	}
+	over := df.WideDefaults{W5: 1099511627776}
+	_, err = over.Encode()
+	wantErr(t, "wide constraint", err, rt.ErrConstraint)
+}

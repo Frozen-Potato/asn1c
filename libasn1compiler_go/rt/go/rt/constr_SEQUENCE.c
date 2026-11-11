@@ -1495,6 +1495,7 @@ SEQUENCE_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 	asn_per_data_t opmd;
 	asn_dec_rval_t rv;
 	size_t edx;
+	size_t i;
 
 	(void)constraints;
 
@@ -1698,10 +1699,13 @@ SEQUENCE_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 	}
 
 	/* Fill DEFAULT members in extensions */
-	for(edx = specs->roms_count; edx < specs->roms_count
-	        + specs->aoms_count; edx++) {
-		asn_TYPE_member_t *elm = &td->elements[edx];
+	for(i = specs->roms_count; i < specs->roms_count
+	        + specs->aoms_count; i++) {
+		asn_TYPE_member_t *elm;
 		void **memb_ptr2;	/* Pointer to member pointer */
+
+		edx = specs->oms[i];	/* oms[] maps the optional-member index */
+		elm = &td->elements[edx];
 
 		if(!elm->default_value_set) continue;
 
@@ -1834,8 +1838,10 @@ SEQUENCE_encode_aper(const asn_TYPE_descriptor_t *td,
 		}
 
 		/* Eliminate default values */
+		/* Eliminate default values (cmp returns 0 when equal to DEFAULT;
+		 * the callback takes the member itself, not its slot) */
 		if(present && elm->default_value_cmp
-		        && elm->default_value_cmp(memb_ptr2) == 1)
+		        && elm->default_value_cmp(*memb_ptr2) == 0)
 			present = 0;
 
 		ASN_DEBUG("Element %s %s %s->%s is %s",
@@ -1881,7 +1887,7 @@ SEQUENCE_encode_aper(const asn_TYPE_descriptor_t *td,
 		}
 
 		/* Eliminate default values */
-		if(elm->default_value_cmp && elm->default_value_cmp(memb_ptr2) == 1)
+		if(elm->default_value_cmp && elm->default_value_cmp(*memb_ptr2) == 0)
 			continue;
 
 		ASN_DEBUG("Encoding %s->%s", td->name, elm->name);

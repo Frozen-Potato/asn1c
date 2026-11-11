@@ -46,6 +46,13 @@ enum asn1c_fitslong_e {
 };
 enum asn1c_fitslong_e asn1c_type_fits_long(arg_t *arg, asn1p_expr_t *expr);
 
+/*
+ * 1 iff the C generator emits default_value_cmp/default_value_set for the
+ * member's DEFAULT (shared by asn1c_C.c and the Go backend pre-flight). Else 0
+ * and *why (optional) names the reason. Needs arg->asn and arg->ns only.
+ */
+int asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **why);
+
 enum asn1c_fitsfloat_e {
     RL_NOTFIT,
     RL_FITS_FLOAT32,

@@ -33,6 +33,8 @@
 #include <asn1_namespace.h>     /* asn1_namespace_t, asn1_namespace_* */
 #include <asn1_ref.h>           /* asn1p_ref_t, RLT_*, asn1p_ref_string */
 #include <asn1fix_export.h>     /* asn1f_find_terminal_type_ex */
+#include "asn1c_internal.h"     /* arg_t (required before asn1c_misc.h) */
+#include "asn1c_misc.h"         /* asn1c_default_callbacks_supported */
 
 #define HAS_FLAG(flags, bit)    (((flags) & (bit)) == (bit))
 #define DIM(a)                  (sizeof(a) / sizeof((a)[0]))
@@ -422,13 +424,26 @@ walk_child(struct walk_ctx *ctx, asn1p_expr_t *child,
      * the per-module Tarjan pass (go_walk_recursion), not from a member flag.
      */
     if(child->marker.flags & (EM_DEFAULT & ~EM_OPTIONAL)) {
+        /* A DEFAULT member is supported exactly when the C generator emits
+         * default_value_cmp/set for it (the shared predicate; it reads the
+         * AST only, nothing the C pass stamps). */
+        arg_t darg;
+        const char *why = NULL;
+        memset(&darg, 0, sizeof darg);
+        darg.asn = asn;
+        darg.ns = ns;
+        darg.expr = child;
         cov_note(GO_CONSTR_DEFAULT, ctx->module, ctx->toptype);
-        fprintf(stderr,
-                "asn1cgo: DEFAULT member in module %s: type %s, member %s, "
-                "construct DEFAULT\n",
-                ctx->module ? ctx->module : "?",
-                ctx->toptype ? ctx->toptype : "?", path);
-        return -1;
+        if(!asn1c_default_callbacks_supported(&darg, child, &why)) {
+            fprintf(stderr,
+                    "asn1cgo: DEFAULT member %s%s%s is out of model in module "
+                    "%s: %s\n",
+                    ctx->toptype ? ctx->toptype : "",
+                    ctx->toptype ? "." : "", path,
+                    ctx->module ? ctx->module : "?",
+                    why ? why : "unsupported DEFAULT form");
+            return -1;
+        }
     }
     if((child->marker.flags & EM_OPTIONAL) == EM_OPTIONAL)
         cov_note(GO_CONSTR_OPTIONAL, ctx->module, ctx->toptype);

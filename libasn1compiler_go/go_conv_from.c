@@ -572,7 +572,21 @@ struct_members_from(void *t, const char *in_acc, const char *out_acc) {
         char *ia = cfmt("%s%s", in_acc, tok);
         char *oa = cfmt("%s%s", out_acc, tok);
         char *body = NULL;
-        if(go_flat_ir_member_is_prim(m)) {
+        if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)) {
+            /* DEFAULT member whose C tree slot is a pointer: the C decoder
+             * fills an absent default, so NULL here is a runtime bug --
+             * report it, never substitute the Go zero value. */
+            char *ml = conv_member_label(m), *tl = conv_type_label(t);
+            char *pre = cfmt(
+                "    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"DEFAULT member is NULL after decode\");\n",
+                ia, tl, ml);
+            free(ia);
+            ia = cfmt("(*%s%s)", in_acc, tok);
+            body = go_flat_ir_member_is_prim(m) ? arm_prim_from(t, m, ia, oa)
+                                                : arm_ref_from(t, m, ia, oa);
+            { char *j = ca(pre, body); free(body); body = j; }
+            free(ml); free(tl);
+        } else if(go_flat_ir_member_is_prim(m)) {
             body = arm_prim_from(t, m, ia, oa);
         } else if(go_flat_ir_member_is_ref(m)) {
             body = arm_ref_from(t, m, ia, oa);

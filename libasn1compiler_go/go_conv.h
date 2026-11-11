@@ -108,6 +108,8 @@ const char *go_flat_ir_member_ref(flat_member *m);
 const char *go_flat_ir_member_token(flat_member *m);
 const char *go_flat_ir_member_label(flat_member *m);
 int go_flat_ir_member_stars(flat_member *m);
+int go_flat_ir_member_is_default(flat_member *m);
+int go_flat_ir_member_tree_ptr(flat_member *m);
 int go_flat_ir_member_nested_ix(flat_member *m);
 /* Glue scope: layout VALUES (foreign-offset local-const emission). */
 long go_flat_ir_member_offset(flat_member *m);

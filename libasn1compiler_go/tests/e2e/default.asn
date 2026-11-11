@@ -1,0 +1,48 @@
+Defaults DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- DEFAULT members: a plain value in Go, the C runtime decides omission.
+
+Colour ::= ENUMERATED { red, green, blue, ... }
+
+Inner ::= SEQUENCE {
+    x   BOOLEAN DEFAULT FALSE,
+    y   INTEGER (0..255) DEFAULT 200,
+    ...
+}
+
+DefaultsPDU ::= SEQUENCE {
+    flag    BOOLEAN DEFAULT TRUE,
+    small   INTEGER (0..7) DEFAULT 0,
+    signed  INTEGER (-10..10) DEFAULT -1,
+    min32   INTEGER (-2147483648..0) DEFAULT -2147483648,
+    min64   INTEGER DEFAULT -9223372036854775808,
+    colour  Colour DEFAULT green,
+    inl     ENUMERATED { a, b, c } DEFAULT b,
+    name    PrintableString DEFAULT "hi",
+    octs    OCTET STRING DEFAULT 'AB'H,
+    bits    BIT STRING DEFAULT '101'B,
+    inner   Inner,
+    ...
+}
+
+-- DEFAULT members as extension additions: one with default 0 (stored by value
+-- in C) and one with a non-zero default (stored behind a pointer).
+ExtDefaults ::= SEQUENCE {
+    a       BOOLEAN DEFAULT TRUE,
+    ...,
+    extZero INTEGER (0..7) DEFAULT 0,
+    extNon  INTEGER (0..7) DEFAULT 5
+}
+
+-- INTEGER_t storage (the range does not fit a C long): the C slot is a
+-- pointer to INTEGER_t even for the default 0.
+Big ::= INTEGER (0..1099511627775)
+
+WideDefaults ::= SEQUENCE {
+    w5  Big DEFAULT 5,
+    w0  Big DEFAULT 0,
+    ...
+}
+
+END

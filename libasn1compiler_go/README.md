@@ -87,7 +87,7 @@ path that exists but is not a directory is refused.
 straight into `-D` (stock behaviour) before the Go pass runs. Rejects that do
 not depend on the C pass run first, as a pre-flight, so those leave `-D`
 untouched and exit 70 with `no C output was written`: the construct rejects
-(DEFAULT members, `[[ ]]` version brackets, unsupported types such as SET /
+(unsupported DEFAULT forms, `[[ ]]` version brackets, unsupported types such as SET /
 SET OF / OID, named-bit BIT STRING, unresolvable references, CHOICE extension
 index >= 64) and an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`.
 The remaining Go-pass failures can only be detected after the C pass, because
@@ -217,6 +217,58 @@ func ptrTo[T any](v T) *T { return &v }
 position on one.) Every value is an ordinary Go struct tree: slices,
 pointers for OPTIONAL/CHOICE members, no handle types, nothing to free
 after use.
+
+**DEFAULT members.** A SEQUENCE member marked `DEFAULT` is supported when
+the C generator emits `default_value_cmp`/`default_value_set` for it (one
+shared predicate decides both, so the two can never disagree):
+
+- BOOLEAN, INTEGER and ENUMERATED with a plain integer / `TRUE` / `FALSE` /
+  enumerator-identifier value (including INTEGER types stored as `INTEGER_t`,
+  and references to such types);
+- the character string type this backend supports (PrintableString) with a
+  quoted-string value;
+- OCTET STRING with an `'..'H` / `'..'B` value that is a whole number of
+  octets, and BIT STRING (no named bits) with an `'..'H` / `'..'B` value.
+
+Anything else (REAL, NULL, SEQUENCE / CHOICE / SEQUENCE OF values, named-bit
+BIT STRING, values given in other forms, ...) fails generation before the C
+pass with `asn1cgo: DEFAULT member <Type>.<member> is out of model in module
+<M>: <reason>` and exit 70, because the C generator would silently treat such
+a member as OPTIONAL.
+
+A DEFAULT member is a **plain value** in the Go struct, never a pointer:
+
+```go
+type DefaultsPDU struct {
+    Flag  bool       // BOOLEAN DEFAULT TRUE
+    Small int64      // INTEGER (0..7) DEFAULT 0
+    Name  string     // PrintableString DEFAULT "hi"
+    Octs  []byte     // OCTET STRING DEFAULT 'AB'H
+    Bits  BitString  // BIT STRING DEFAULT '101'B
+}
+```
+
+- `Decode` always yields the effective value: an absent member (or an absent
+  extension addition) comes back holding its DEFAULT, filled in by the C
+  runtime.
+- `Encode` always hands the value to the C codec, which leaves out a root
+  member that equals its DEFAULT (presence bit 0). Go never distinguishes
+  "absent" from "equal to the default".
+- **The Go zero value is not the DEFAULT.** `T{}` gives `false` / `0` / `""` /
+  `nil`, even where the DEFAULT is `TRUE`, `5` or `"hi"`, and `Encode` sends
+  exactly what the field holds. Set DEFAULT fields explicitly. For this the
+  generator emits the DEFAULT of every such member as an exported
+  declaration next to the struct: a typed `const` named
+  `<StructGoName><FieldGoName>Default` (`DefaultsPDUFlagDefault`, typed with
+  the field's own type, so an ENUMERATED member gets its enum type), or a
+  `var` for slice / struct valued types (OCTET STRING, BIT STRING). Do not
+  modify those vars. The names take part in the generator's usual
+  package-level collision check, so a clash with another generated name
+  fails generation.
+- C runtime note: an *extension addition* with a DEFAULT is sent whenever its
+  C slot is populated, even when equal to the DEFAULT (the codec compares
+  against the DEFAULT for root members only). The wire is valid and decodes
+  to the same value.
 
 **Error handling** is uniform across every generated package: failures
 are `*rt.Error` values matching `errors.Is` against the sentinels —
@@ -363,7 +415,10 @@ republish the pair together.
   of your deepest recursive type.
 - **`[[ ]]` extension-addition groups**: rejected at generation (the
   post-parse AST cannot distinguish them from plain members).
-- **`DEFAULT` members**: rejected at generation (out of model).
+- **`DEFAULT` members**: supported for exactly the members the C generator
+  emits default callbacks for (see "DEFAULT members" under "Using the
+  generated code"); every other DEFAULT form is rejected at generation (out
+  of model).
 - **String types**: the string kinds this backend supports only (e.g.
   PrintableString); other string kinds are rejected at generation with
   the type, member and construct named.
@@ -373,6 +428,12 @@ republish the pair together.
   after a full final 16K fragment. Wires that exercise these boundaries
   round-trip byte-identically on this fork's runtime and fail decode on an
   unfixed one.
+  They also carry fixes for aPER SEQUENCE DEFAULT handling (the aPER encoder
+  passed the member slot instead of the member to `default_value_cmp` and
+  tested its result inverted, so it dropped every DEFAULT member regardless
+  of value; the aPER decoder filled absent extension-addition defaults from
+  the wrong member table). Without them DEFAULT members do not survive an
+  aPER round trip.
 
 **Tests.** `tests/run-e2e.sh` generates Go from `tests/e2e/ex.asn` and
 `tests/e2e/ioc.asn` with the built `asn1c/asn1c`, builds it with cgo (no

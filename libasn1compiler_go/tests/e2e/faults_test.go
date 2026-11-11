@@ -11,6 +11,7 @@ import (
 
 	rt "asn1cgo.test/asn1cgo-rt/rt"
 	deep "asn1cgo.test/go/deep"
+	df "asn1cgo.test/go/defaults"
 	ex "asn1cgo.test/go/synth_example"
 )
 
@@ -79,4 +80,32 @@ func TestAllocFaultSweepIOC(t *testing.T) {
 	}
 	sweep(t, "IOC Encode", func() error { _, err := in.Encode(); return err })
 	sweep(t, "IOC Decode", func() error { _, err := deep.DecodeIOCMsg(wire); return err })
+}
+
+// DEFAULT members: the pointer-form tree slots are allocated by the
+// conversion code on encode; every injected failure must report ErrAlloc and
+// leave nothing alive (also the C-side fill of absent defaults on decode).
+func TestAllocFaultSweepDefaults(t *testing.T) {
+	in := dflt()
+	in.Flag = false
+	in.Name = "42"
+	in.Octs = []byte{1, 2}
+	sweep(t, "Defaults Encode", func() error { _, err := in.Encode(); return err })
+	for _, wire := range [][]byte{{0x00, 0x00}, mustEncode(t, in)} {
+		w := wire
+		sweep(t, "Defaults Decode", func() error { _, err := df.DecodeDefaultsPDU(w); return err })
+	}
+	ext := extDflt()
+	ext.ExtNon = 1
+	sweep(t, "ExtDefaults Encode", func() error { _, err := ext.Encode(); return err })
+	sweep(t, "ExtDefaults Decode", func() error { _, err := df.DecodeExtDefaults([]byte{0x00}); return err })
+}
+
+func mustEncode(t *testing.T, p *df.DefaultsPDU) []byte {
+	t.Helper()
+	b, err := p.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

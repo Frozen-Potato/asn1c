@@ -65,6 +65,11 @@ int go_flat_leaf(const char *cid, const char *prim, const char *module);
 void go_flat_label_cur(const char *label);
 void go_flat_label_last_member(const char *label);
 
+/* Mark the LAST member row as a DEFAULT member: its Flat slot is by value
+ * (stars=0), while the C tree slot is a pointer iff tree_ptr (the
+ * post-C-pass EM_INDIRECT bit). The conv arms read both. */
+void go_flat_last_member_default(int tree_ptr);
+
 /* The same mint keyed by the walk's GLEAF_* kind (the SAME int the Go side
  * passed row_set_leaf — one classification, both columns; the C-prim token
  * derives from the identical table go_types.c maps to the Go column). */

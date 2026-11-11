@@ -2432,21 +2432,10 @@ try_inline_blob_default(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_type_e etype,
 	int is_bit = (etype == ASN_BASIC_BIT_STRING);
 	int bits, nbytes, unused, i;
 
-	if(!dv || dv->type != ATV_BITVECTOR)
-		return 0;
+	/* The caller has already checked asn1c_default_callbacks_supported(). */
 	bits = dv->value.binary_vector.size_in_bits;
-	if(bits < 0)
-		return 0;
-	if(is_bit) {
-		if(expr_elements_count(arg, expr))
-			return 0;
-	} else if(bits % 8) {
-		return 0;
-	}
 	nbytes = (bits + 7) / 8;
 	unused = (8 - bits % 8) % 8;
-	if(nbytes && !dv->value.binary_vector.bits)
-		return 0;
 
 	if(!out) {
 		const char *pv = asn1f_printable_value(dv);
@@ -2537,11 +2526,90 @@ try_inline_blob_default(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_type_e etype,
 	return 1;
 }
 
+/*
+ * The ONE decision "does the C generator emit default_value_cmp/default_value_set
+ * for this member's DEFAULT". try_inline_default() emits the callbacks iff this
+ * returns 1; the Go backend's pre-flight calls it too, so the two can never
+ * disagree. It reads only the parsed/fixed AST (marker, default_value, the
+ * terminal type, named-bit membership) -- nothing the C pass stamps.
+ * Returns 1 when callbacks are generated. Otherwise returns 0 and, when
+ * `why` is non-NULL, stores a static string naming the reason.
+ */
+int
+asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **why) {
+	asn1p_expr_type_e etype = expr_get_type(arg, expr);
+	asn1p_value_t *dv = expr->marker.default_value;
+	const char *dummy;
+	if(!why) why = &dummy;
+
+	switch(etype) {
+	case ASN_BASIC_BOOLEAN:
+	case ASN_BASIC_INTEGER:
+	case ASN_BASIC_ENUMERATED:
+		if(dv == NULL || (dv->type != ATV_INTEGER &&
+		    dv->type != ATV_TRUE && dv->type != ATV_FALSE)) {
+			*why = "the DEFAULT value is not a plain INTEGER/BOOLEAN/"
+			       "enumerator value (the C generator emits no default "
+			       "callbacks for it)";
+			return 0;
+		}
+		return 1;
+	case ASN_BASIC_NULL:
+		*why = "NULL DEFAULT has no default callbacks in the C generator";
+		return 0;
+	case ASN_BASIC_OCTET_STRING:
+	case ASN_BASIC_BIT_STRING: {
+		int is_bit = (etype == ASN_BASIC_BIT_STRING);
+		int bits;
+		if(!dv || dv->type != ATV_BITVECTOR) {
+			*why = "only an hstring/bstring DEFAULT value is supported "
+			       "for OCTET STRING / BIT STRING";
+			return 0;
+		}
+		bits = dv->value.binary_vector.size_in_bits;
+		if(bits < 0) {
+			*why = "malformed hstring/bstring DEFAULT value";
+			return 0;
+		}
+		if(is_bit) {
+			if(expr_elements_count(arg, expr)) {
+				*why = "DEFAULT of a named-bit BIT STRING is not supported";
+				return 0;
+			}
+		} else if(bits % 8) {
+			*why = "OCTET STRING DEFAULT must be a whole number of octets";
+			return 0;
+		}
+		if(((bits + 7) / 8) && !dv->value.binary_vector.bits) {
+			*why = "malformed hstring/bstring DEFAULT value";
+			return 0;
+		}
+		return 1;
+	}
+	default:
+		if(etype & ASN_STRING_KM_MASK) {
+			if(dv == NULL || dv->type != ATV_STRING) {
+				*why = "only a quoted-string DEFAULT value is supported "
+				       "for a character string type";
+				return 0;
+			}
+			return 1;
+		}
+		*why = "this type has no DEFAULT support in the C generator "
+		       "(only BOOLEAN, INTEGER, ENUMERATED, OCTET STRING, BIT "
+		       "STRING and character strings do)";
+		return 0;
+	}
+}
+
 static int
 try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	int save_target = arg->target->target;
 	asn1p_expr_type_e etype = expr_get_type(arg, expr);
 	int fits_long = 0;
+
+	if(!asn1c_default_callbacks_supported(arg, expr, NULL))
+		return 0;
 
 	switch(etype) {
 	case ASN_BASIC_BOOLEAN:
@@ -2549,11 +2617,6 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
         /* Fall through */
 	case ASN_BASIC_INTEGER:
 	case ASN_BASIC_ENUMERATED:
-		if(expr->marker.default_value == NULL
-		|| (expr->marker.default_value->type != ATV_INTEGER &&
-		    expr->marker.default_value->type != ATV_TRUE &&
-		    expr->marker.default_value->type != ATV_FALSE))
-			break;
 		if(!fits_long)
 			fits_long = asn1c_type_fits_long(arg, expr)!=FL_NOTFIT;
 		if(fits_long && !expr->marker.default_value->value.v_integer)
@@ -2636,9 +2699,6 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 		return try_inline_blob_default(arg, expr, etype, out);
 	default:
 	  if(etype & ASN_STRING_KM_MASK) {
-		if(expr->marker.default_value == NULL
-		|| expr->marker.default_value->type != ATV_STRING)
-			break;
 		if(!out) {
             if(C99_MODE) OUT(".default_value_cmp = ");
 			OUT("&asn_DFL_%d_cmp,\t/* Compare DEFAULT \"%s\" */\n",

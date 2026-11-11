@@ -92,9 +92,11 @@ check() {
 e2e="$here/e2e"
 check ex 0 "$e2e/ex.asn"
 check ioc 0 "$e2e/ioc.asn"
+check default 0 "$e2e/default.asn"
 
-# A spec the Go pass rejects (rrc-7.1.0 has DEFAULT members) must be refused by
-# the pre-flight BEFORE the C pass: exit non-zero and -D left untouched.
+# A spec the Go pass rejects (default-unsupported.asn: a SEQUENCE-valued
+# DEFAULT, which the C generator gives no default callbacks for) must be
+# refused by the pre-flight BEFORE the C pass: exit non-zero and -D untouched.
 reject_untouched() {
     work="$tmp/reject"
     mkdir -p "$work/c"
@@ -105,7 +107,7 @@ reject_untouched() {
     rc=0
     "$asn1c" -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
         -findirect-choice -fno-include-deps -gen-PER -no-gen-OER -pdu=auto \
-        -D "$work/c" -Fgo="$work/go" "$repo/examples/rrc-7.1.0.asn1" \
+        -D "$work/c" -Fgo="$work/go" "$e2e/default-unsupported.asn" \
         >"$work/log" 2>&1 || rc=$?
     if [ "$rc" = 0 ]; then
         echo "run-c-invariance: reject: expected non-zero exit" >&2; return 1

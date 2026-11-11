@@ -856,7 +856,23 @@ struct_members_to(void *t, const char *in_acc, const char *out_acc) {
         char *ia = cfmt("%s%s", in_acc, tok);
         char *oa = cfmt("%s%s", out_acc, tok);
         char *body = NULL;
-        if(go_flat_ir_member_is_prim(m)) {
+        if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)) {
+            /* DEFAULT member whose C tree slot is a pointer: the Flat slot
+             * is by value, so allocate the tree slot and fill it through the
+             * dereference (the decoder/encoder callbacks expect the pointer
+             * form; the C encoder decides whether to omit it). */
+            char *ml = conv_member_label(m), *tl = conv_type_label(t);
+            char *pre = cfmt(
+                "    %s = asn1cgo_calloc(1, sizeof(*%s));\n"
+                "    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n",
+                oa, oa, oa, tl, ml);
+            free(oa);
+            oa = cfmt("(*%s%s)", out_acc, tok);
+            body = go_flat_ir_member_is_prim(m) ? arm_prim_to(t, m, ia, oa)
+                                                : arm_ref_to(t, m, ia, oa);
+            { char *j = ca(pre, body); free(body); body = j; }
+            free(ml); free(tl);
+        } else if(go_flat_ir_member_is_prim(m)) {
             body = arm_prim_to(t, m, ia, oa);
         } else if(go_flat_ir_member_is_ref(m)) {
             body = arm_ref_to(t, m, ia, oa);

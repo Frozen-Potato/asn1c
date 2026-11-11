@@ -136,12 +136,13 @@ void go_outdir_discard(const char *tmp);
 typedef enum {
     GK_TYPE, GK_FIELD, GK_CHOICE_PR, GK_CHOICE_CONST, GK_ENUM_CONST,
     GK_VALUE_CONST, GK_INLINE, GK_SPEC_KEY, GK_SPEC_VALUE, GK_SPEC_PR,
-    GK_HELPER, GK_PKG_DIR, GK__COUNT
+    GK_HELPER, GK_PKG_DIR, GK_DEFAULT_VALUE, GK__COUNT
 } go_kind_e;
 
 static const char *const g_kind_tag[GK__COUNT] = {
     "type", "field", "choice-pr", "choice-const", "enum-const", "value-const",
     "inline", "spec-key", "spec-value", "spec-pr", "helper", "pkg-dir",
+    "default-value",
 };
 
 /* Kinds whose goName is package-scoped (collide within one module). field is
@@ -152,7 +153,7 @@ kind_is_package_scoped(go_kind_e k) {
     return k == GK_TYPE || k == GK_INLINE || k == GK_CHOICE_PR
         || k == GK_CHOICE_CONST || k == GK_ENUM_CONST || k == GK_VALUE_CONST
         || k == GK_SPEC_KEY || k == GK_SPEC_VALUE || k == GK_SPEC_PR
-        || k == GK_HELPER;
+        || k == GK_HELPER || k == GK_DEFAULT_VALUE;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -260,6 +261,15 @@ struct name_row {
      * added EM_INDIRECT/EM_UNRECURSE on an OPTIONAL member, e.g. 0x17).
      * Reported as a run-end stderr census; purely informational. */
     int opt_extra_bits;     /* extra marker bits beyond EM_OPTIONAL, or 0   */
+    /* GK_DEFAULT_VALUE rows: the exported Go declaration of one DEFAULT
+     * member's value. dflt_form: 1 = `const Name T = dflt_lit`, 2 =
+     * `var Name = T{dflt_lit}` (slice/struct valued). dflt_owner/dflt_field
+     * name the member's Go struct and field (the field row, found at emit
+     * time, supplies the final package-qualified Go type T). */
+    int dflt_form;
+    char *dflt_lit;
+    char *dflt_owner;
+    char *dflt_field;
     int ord;                /* insertion (WALK) order; dump sorting does
                              * not preserve it, but const-block ORDER inside
                              * one block must (PrNothing first, alts in
@@ -606,6 +616,10 @@ add_row(struct name_bag *b, const char *module,
     b->rows[b->n_rows].sf_owner = NULL;
     b->rows[b->n_rows].slice_elem = NULL;
     b->rows[b->n_rows].opt_extra_bits = 0;
+    b->rows[b->n_rows].dflt_form = 0;
+    b->rows[b->n_rows].dflt_lit = NULL;
+    b->rows[b->n_rows].dflt_owner = NULL;
+    b->rows[b->n_rows].dflt_field = NULL;
     b->rows[b->n_rows].ord = b->n_rows;
     b->n_rows++;
 }
@@ -1028,7 +1042,46 @@ go_emit_module_decls(FILE *out, const char *module) {
                 }
                 if(rc == 0)
                     rc = go_types_emit_struct_close(out);
-                prev_block = 0;
+                /* The DEFAULT values of this struct's DEFAULT members,
+                 * exported next to the type. */
+                int emitted_default = 0;
+                for(int d = 0; d < b->n_rows && rc == 0; d++) {
+                    struct name_row *dr = &b->rows[ordx[d]];
+                    if(dr->kind != GK_DEFAULT_VALUE || dr->module != module
+                       || !dr->dflt_owner
+                       || strcmp(dr->dflt_owner, r->goName) != 0)
+                        continue;
+                    const char *ft = NULL;
+                    for(int s2 = 0; s2 < b->n_rows; s2++) {
+                        struct name_row *f = &b->rows[s2];
+                        if(f->kind == GK_FIELD && f->sf_owner
+                           && f->module == module
+                           && strcmp(f->sf_owner, dr->dflt_owner) == 0
+                           && strcmp(f->goName, dr->dflt_field) == 0) {
+                            ft = f->field_type;
+                            break;
+                        }
+                    }
+                    if(!ft || !*ft) {
+                        fprintf(stderr, "asn1cgo: DEFAULT member %s has no Go "
+                                "type\n", dr->path);
+                        rc = -1;
+                        break;
+                    }
+                    emitted_default = 1;
+                    if(fprintf(out,
+                               "\n// %s is the ASN.1 DEFAULT of %s.%s. The Go zero value is not\n"
+                               "// the DEFAULT: set the field explicitly.\n",
+                               dr->goName, dr->dflt_owner, dr->dflt_field) < 0)
+                        rc = -1;
+                    else if(dr->dflt_form == 1)
+                        rc = fprintf(out, "const %s %s = %s\n", dr->goName, ft,
+                                     dr->dflt_lit) < 0 ? -1 : 0;
+                    else
+                        rc = fprintf(out, "var %s = %s{%s}\n", dr->goName, ft,
+                                     dr->dflt_lit) < 0 ? -1 : 0;
+                }
+                prev_block = emitted_default;
                 wrote_any = 1;
                 break;
             }
@@ -1741,6 +1794,9 @@ done:
             free(bag.rows[j].field_type);
             free(bag.rows[j].sf_owner);
             free(bag.rows[j].slice_elem);   /* owned copy (row_set_slice_elem) */
+            free(bag.rows[j].dflt_lit);
+            free(bag.rows[j].dflt_owner);
+            free(bag.rows[j].dflt_field);
         }
         free(bag.rows);
         for(int j = 0; j < bag.n_ps; j++) {
@@ -2896,6 +2952,17 @@ emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
     free(type_go);
 }
 
+/* member_is_default: asn1c's own DEFAULT-vs-OPTIONAL discriminator
+ * (asn1c_C.c:1351-1358): DEFAULT iff (flags & (EM_DEFAULT & ~EM_INDIRECT))
+ * == EM_DEFAULT & ~EM_INDIRECT -- an exact-mask test, NOT a bit test
+ * (EM_OPTIONAL 0x07 shares bits with EM_DEFAULT 0x0F; the C pass adds
+ * bits, so `flags == EM_DEFAULT` would miss). */
+static int
+member_is_default(const asn1p_expr_t *child) {
+    return (child->marker.flags & (EM_DEFAULT & ~EM_INDIRECT))
+           == (EM_DEFAULT & ~EM_INDIRECT);
+}
+
 /* member_stars: the Go pointer-star rule for a struct member (the struct-body pass).
  * Types.go stars a member iff it is OPTIONAL — nil = absent — with no
  * exception for slice-shaped members (an OPTIONAL SEQUENCE OF is a
@@ -2906,10 +2973,9 @@ emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
  * it — the Go side keeps the by-value inline shape there. Pointers come
  * from OPTIONAL only (CHOICE/value-union alt fields are pointers by
  * construction, not via this function).
- *   EM_DEFAULT — a real DEFAULT member: reject (fail loud, exit
- *                 70), NOT a pointer (there is no Go shape to pick — a
- *                 synthetic DEFAULT member must fail the run, never
- *                 silently emit).
+ *   EM_DEFAULT — a real DEFAULT member the C generator gives default
+ *                 callbacks for: a plain value (""); any other DEFAULT
+ *                 form fails the run (exit 70) naming the reason.
  * Returns "*" when the member is pointer-shaped, "" otherwise; sets failed on
  * the bag for the DEFAULT case (the caller's -1 return fails the run). */
 static const char *
@@ -2920,15 +2986,26 @@ member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path) {
      * shares bits with EM_DEFAULT 0x0F; a plain `& EM_DEFAULT` would
      * misread EM_UNRECURSE-composites). A real DEFAULT member is out of
      * model: fail loud, no Go shape is picked. */
-    if((child->marker.flags & (EM_DEFAULT & ~EM_INDIRECT))
-       == (EM_DEFAULT & ~EM_INDIRECT)) {
-        /* real DEFAULT members are out of model. `[[ ]]` groups
-         * are rejected at parse; this is the remaining DEFAULT shape. */
-        fprintf(stderr,
-                "asn1cgo: DEFAULT member %s is out of model in "
-                "module %s\n",
-                path ? path : "?", ctx->module ? ctx->module : "?");
-        ctx->bag->failed = 1;
+    if(member_is_default(child)) {
+        /* A supported DEFAULT member (the C generator emits default
+         * callbacks for it: the shared predicate) is a PLAIN VALUE in Go --
+         * never a pointer; the C runtime fills an absent default on decode.
+         * Anything else is out of model: fail loud, naming the reason. */
+        arg_t darg;
+        const char *why = NULL;
+        memset(&darg, 0, sizeof darg);
+        darg.asn = ctx->asn;
+        darg.ns = ctx->ns;
+        darg.expr = child;
+        if(!asn1c_default_callbacks_supported(&darg, child, &why)) {
+            fprintf(stderr,
+                    "asn1cgo: DEFAULT member %s is out of model in "
+                    "module %s: %s\n",
+                    path ? path : "?", ctx->module ? ctx->module : "?",
+                    why ? why : "unsupported DEFAULT form");
+            ctx->bag->failed = 1;
+        }
+        ctx->last_opt_extra = 0;
         return "";
     }
     /* Nested-mask test, NOT a bit test and NOT exact-equality. The marker
@@ -3628,14 +3705,100 @@ slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
     return go_r2(GO_MKID(terminal));
 }
 
+/* go_quote: a Go interpreted string literal for arbitrary bytes. */
+static char *
+go_quote(const unsigned char *b, size_t n) {
+    char *o = strdup("\"");
+    for(size_t i = 0; i < n; i++) {
+        char t[8];
+        if(b[i] == '"' || b[i] == '\\') snprintf(t, sizeof t, "\\%c", b[i]);
+        else if(b[i] >= 0x20 && b[i] < 0x7f) snprintf(t, sizeof t, "%c", b[i]);
+        else snprintf(t, sizeof t, "\\x%02x", b[i]);
+        o = str_append(o, t);
+    }
+    return str_append(o, "\"");
+}
+
+/* note_default_value: record the exported Go declaration of one supported
+ * DEFAULT member's value (a GK_DEFAULT_VALUE row, package-scoped so a clash
+ * with any other name fails the run like every other collision). The
+ * member's Go type is the field row's own (read at emit time). The row is
+ * named <OwnerStruct><Field>Default. */
+static void
+note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
+                   const char *member_path, int field_row_ix) {
+    asn1p_value_t *dv = child->marker.default_value;
+    asn1p_expr_t *term = child;
+    int form = 1;
+    char *lit = NULL;
+    if(!dv) return;
+    if(child->expr_type == A1TC_REFERENCE || child->meta_type == AMT_TYPEREF) {
+        term = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, child);
+        if(!term) term = child;
+    }
+    switch(term->expr_type) {
+    case ASN_BASIC_BOOLEAN:
+        lit = strdup(dv->type == ATV_TRUE ? "true"
+                     : dv->type == ATV_FALSE ? "false"
+                     : dv->value.v_integer ? "true" : "false");
+        break;
+    case ASN_BASIC_INTEGER:
+    case ASN_BASIC_ENUMERATED:
+        lit = strdup(asn1p_itoa(dv->value.v_integer));
+        break;
+    case ASN_BASIC_OCTET_STRING:
+    case ASN_BASIC_BIT_STRING: {
+        int bits = dv->value.binary_vector.size_in_bits;
+        int nb = (bits + 7) / 8, is_bit = term->expr_type == ASN_BASIC_BIT_STRING;
+        int unused = (8 - bits % 8) % 8;
+        char t[64];
+        form = 2;
+        lit = strdup(is_bit ? "Bytes: []byte{" : "");
+        for(int i = 0; i < nb; i++) {
+            unsigned v = dv->value.binary_vector.bits[i];
+            if(is_bit && i == nb - 1) v &= (0xffu << unused) & 0xffu;
+            snprintf(t, sizeof t, "%s0x%02x", i ? ", " : "", v);
+            lit = str_append(lit, t);
+        }
+        if(is_bit) {
+            snprintf(t, sizeof t, "}, BitsUnused: %d", unused);
+            lit = str_append(lit, t);
+        }
+        break;
+    }
+    default:
+        if(term->expr_type & ASN_STRING_KM_MASK) {
+            lit = go_quote(dv->value.string.buf, (size_t)dv->value.string.size);
+            break;
+        }
+        return;
+    }
+    if(!lit) { ctx->bag->failed = 1; return; }
+    const char *owner = ctx->bag->rows[field_row_ix].sf_owner;
+    const char *fgo = ctx->bag->rows[field_row_ix].goName;
+    if(!owner) { free(lit); return; }
+    char *name = str_append(str_append(strdup(owner), fgo), "Default");
+    char *raw = str_append(str_append(strdup(owner), "_"),
+                           child->Identifier ? child->Identifier : "?");
+    char *mpath = make_path(member_path, child->Identifier);
+    char *path = make_path(mpath, "DEFAULT");
+    free(mpath);
+    emit_name(ctx->bag, ctx->module, path, GK_DEFAULT_VALUE, raw, name);
+    struct name_row *r = &ctx->bag->rows[ctx->bag->n_rows - 1];
+    r->dflt_form = form;
+    r->dflt_lit = lit;
+    r->dflt_owner = strdup(owner);
+    r->dflt_field = strdup(fgo);
+}
+
 /* Walk one child member of a struct at path `parent_path` (dotted path that
  * already includes this member's name) under enclosing goName `parent_go` and
  * real C-ident prefix `parent_cid` (the latter from ctx->parent_cid at the call
  * site). */
 static int
-walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
-                 const char *parent_path, const char *parent_go,
-                 const char *parent_cid) {
+walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
+                       const char *parent_path, const char *parent_go,
+                       const char *parent_cid) {
     /* Defense-in-depth: the canonical ext-marker skip is in
      * walk_names_members (the SEQUENCE loop), but reject an A1TC_EXTENSIBLE
      * child here too so a future direct caller can't leak a blank-goName row. */
@@ -3661,6 +3824,11 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
         field_row_ix = ctx->bag->n_rows - 1;
         ctx->bag->rows[field_row_ix].opt_extra_bits = ctx->last_opt_extra;
     }
+    /* A supported DEFAULT member is a plain Go value; its Flat slot is by
+     * value too (the C tree slot is a pointer iff the C pass left
+     * EM_INDIRECT set: tree_ptr, handled by the conv arms). */
+    const int is_dflt = member_is_default(child);
+    const int tree_ptr = is_dflt && (child->marker.flags & EM_INDIRECT);
 
     /* Recurse into the child's OWN inline children only (mirrors go_walk.c
      * walk_child:420-425 plus inline ENUMERATED — see below). A reference child
@@ -3749,6 +3917,7 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
                 char *m = go_mk_member(child);
                 go_flat_member_prim("int32_t", m, stars && *stars == '*');
                 go_flat_label_last_member(child->Identifier);
+                if(is_dflt) go_flat_last_member_default(tree_ptr);
                 free(m);
             }
         } else if(child->expr_type == ASN_CONSTR_SEQUENCE_OF) {
@@ -3996,8 +4165,8 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
      * (EM_INDIRECT/EM_UNRECURSE, the recursion Flat-pointer rule: Flat pointer placement mirrors
      * asn1c's cycle-break, masked tests per the the marker-reading rule amendment) — the walk
      * prints it once here. */
-    int flat_star = (stars && *stars == '*')
-                    || (child->marker.flags & (EM_INDIRECT | EM_UNRECURSE));
+    int flat_star = !is_dflt && ((stars && *stars == '*')
+                    || (child->marker.flags & (EM_INDIRECT | EM_UNRECURSE)));
     /* struct-body stage: the field's Go type for a plain member, keyed on whether the
      * member is a REFERENCE (a member whose type references an
      * assignment — leaf OR constructed — is typed by that assignment's named
@@ -4058,6 +4227,7 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
             char *flat_mtok2 = go_mk_member(child);
             go_flat_member_ref(flat_tcid, flat_mtok2, flat_star);
             go_flat_label_last_member(child->Identifier);
+            if(is_dflt) go_flat_last_member_default(tree_ptr);
             free(flat_tcid); free(flat_mtok2);
         }
         free(tgo); free(ft);
@@ -4091,6 +4261,7 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
                     char *fpm = go_mk_member(child);
                     go_flat_member_prim(fprim, fpm, flat_star);
                     go_flat_label_last_member(child->Identifier);
+                    if(is_dflt) go_flat_last_member_default(tree_ptr);
                     free(fpm);
                 }
             }
@@ -4098,6 +4269,26 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
         }
     }
     return 0;
+}
+
+/* walk_names_child: the member walk, then (for a supported DEFAULT member) the
+ * exported default-value row. The row is emitted AFTER the member's rows are
+ * complete: row_set_field_type and friends address the last row appended, so
+ * nothing may be interleaved with them. The member's field row is the first
+ * row the inner walk appends. */
+static int
+walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
+                 const char *parent_path, const char *parent_go,
+                 const char *parent_cid) {
+    int first_row = ctx->bag->n_rows;
+    int rc = walk_names_child_inner(ctx, child, parent_path, parent_go,
+                                    parent_cid);
+    if(rc == 0 && child->expr_type != A1TC_EXTENSIBLE
+       && member_is_default(child) && ctx->bag->n_rows > first_row) {
+        note_default_value(ctx, child, parent_path, first_row);
+        if(ctx->bag->failed) return -1;
+    }
+    return rc;
 }
 
 /* field_shaped_element: a SEQ-OF element whose chased terminal is a SEQUENCE

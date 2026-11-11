@@ -1,0 +1,17 @@
+Default-Unsupported DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- A SEQUENCE-valued DEFAULT has no default callbacks in the C generator, so
+-- the Go backend refuses it before the C pass runs.
+
+Point ::= SEQUENCE {
+    x   INTEGER (0..255),
+    y   INTEGER (0..255)
+}
+
+Holder ::= SEQUENCE {
+    n   INTEGER (0..7),
+    p   Point DEFAULT { x 1, y 2 }
+}
+
+END
