@@ -32,6 +32,14 @@ size_t asn1cgo_arena_used(const asn1cgo_arena *);
  * event, so the fault sweep reaches the encode path. NULL on OOM/injection. */
 void *asn1cgo_calloc(size_t nmemb, size_t size);
 
+/* The Go encode side's single backing block (fixed structs + payloads).
+ * Plain malloc (NOT zeroed; the Go caller zero-fills it), NULL on OOM —
+ * unlike cgo's C.malloc, which aborts the process. Under
+ * ASN1CGO_ARENA_FAULTS each call is one counted allocation event. Release
+ * with asn1cgo_block_free (plain free). n == 0 is the caller's concern. */
+void *asn1cgo_block_alloc(size_t n);
+void asn1cgo_block_free(void *p);
+
 /* ---- Arena balance + fault injection ----
  * Balance: arena_new increments (once the arena fully exists), arena_free
  * decrements a process-global live-arena counter (relaxed atomics);

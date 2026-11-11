@@ -27,10 +27,10 @@
  * Go value rides the host's field (V.<Alt> where V's type is the minted
  * union struct).
  *
- * Ownership (the Go<->Flat ownership rule): Encode = one C.malloc'd block -> fill through
+ * Ownership (the Go<->Flat ownership rule): Encode = one asn1cgo_block_alloc block -> fill through
  * the two-region bump allocator (fixed structs from the front, variable
  * payloads from the rear) -> the C entry point -> C.GoBytes copy ->
- * asn1cgo_buf_free + C.free, deferred on every path; no Go pointer is
+ * asn1cgo_buf_free + asn1cgo_block_free, deferred on every path; no Go pointer is
  * stored in C memory, no runtime.Pinner. Decode = the C entry point (arena
  * owned C-side, handed to Go) -> read (every []byte/string a fresh Go
  * allocation; nothing aliases the arena) -> asn1cgo_arena_free on every
@@ -74,8 +74,8 @@
  * package's err.h-typed cgo preamble (the C struct type identity is by
  * declaration — the same C header the rt package includes).
  *
- * Cgo budget: Encode = C.malloc(1) + entry(1) + asn1cgo_buf_free(1)
- * + C.free(1) = 4; Decode = entry(1) + asn1cgo_arena_free(1) = 2. The
+ * Cgo budget: Encode = asn1cgo_block_alloc(1) + entry(1) +
+ * asn1cgo_buf_free(1) + asn1cgo_block_free(1) = 4; Decode = entry(1) + asn1cgo_arena_free(1) = 2. The
  * sizing/filling pass and C.GoBytes/GoStringN are Go-side only (GoBytes
  * linknames to runtime.gobytes on the pinned toolchain — not a cgocall).
  *
@@ -2936,9 +2936,9 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
         "\tif p == nil {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
         "\tfixed, payload, err := size%s(p%s)\n"
         "\tif err != nil { return nil, err }\n"
-        "\tfa, base := newBlockArena(fixed+uintptr(%s), payload)\n"
+        "\tfa, base := newBlockArena(fixed, uintptr(%s), payload)\n"
         "\tif fa == nil {\n\t\treturn nil, &rt.Error{Code: rt.CodeAlloc, TypeName: \"%s\"}\n\t}\n"
-        "\tdefer C.free(base)\n"
+        "\tdefer C.asn1cgo_block_free(base)\n"
         "\troot := fa.allocStruct(uintptr(%s), alignInt64)\n"
         "\tif err := fill%s(fa, root, p%s); err != nil {\n\t\treturn nil, err\n\t}\n"
         "\tfa.exact(\"%s\")   /* consumed == reserved, exactly */\n"
@@ -3041,16 +3041,22 @@ static const char *GLUE_STATICS =
     "\n"
     "// newBlockArena: fixed structs from the front, variable payloads from the\n"
     "// rear — a payload can never overlap a fixed struct's footprint (the\n"
-    "// two-region split).\n"
-    "func newBlockArena(fixedSize, payloadSize uintptr) (*blockArena, unsafe.Pointer) {\n"
-    "\tn := fixedSize + payloadSize\n"
-    "\tif n == 0 {\n\t\tn = 1\n\t}\n"
-    "\t// cgo's C.malloc never returns nil: it aborts the process on OOM, so\n"
-    "\t// there is no failure to check for here.\n"
-    "\tp := C.malloc(C.size_t(n))\n"
-    "\tmem := unsafe.Slice((*byte)(p), int(n))\n"
+    "// two-region split). The fixed region is fixedSize+rootSize (the PDU root\n"
+    "// Flat is reserved at the block base). Returns (nil, nil) — which the\n"
+    "// caller reports as E_ALLOC — if the total overflows uintptr, does not fit\n"
+    "// an int (unsafe.Slice), or the block allocation fails (asn1cgo_block_alloc\n"
+    "// is plain malloc returning NULL; cgo's C.malloc would abort on OOM).\n"
+    "func newBlockArena(fixedSize, rootSize, payloadSize uintptr) (*blockArena, unsafe.Pointer) {\n"
+    "	fixedSize2 := fixedSize + rootSize\n"
+    "	if fixedSize2 < fixedSize {\n\t\treturn nil, nil\n\t}\n"
+    "	n := fixedSize2 + payloadSize\n"
+    "	if n < fixedSize2 || n > uintptr(math.MaxInt) {\n\t\treturn nil, nil\n\t}\n"
+    "	if n == 0 {\n\t\tn = 1\n\t}\n"
+    "	p := C.asn1cgo_block_alloc(C.size_t(n))\n"
+    "	if p == nil {\n\t\treturn nil, nil\n\t}\n"
+    "	mem := unsafe.Slice((*byte)(p), int(n))\n"
     "\tfor i := range mem {\n\t\tmem[i] = 0\n\t}\n"
-    "\treturn &blockArena{mem: mem, fixedEnd: fixedSize, structCur: 0, payloadCur: fixedSize}, p\n"
+    "\treturn &blockArena{mem: mem, fixedEnd: fixedSize2, structCur: 0, payloadCur: fixedSize2}, p\n"
     "}\n"
     "\n"
     "func (a *blockArena) allocStruct(n, align uintptr) unsafe.Pointer {\n"
@@ -3224,6 +3230,7 @@ pkg_header(const char *module, const char *pkg, const char *flat_hdr,
     s = ga(s, "\trt \"");
     s = ga(s, rt_module ? rt_module : "asn1cgo-rt");
     s = ga(s, "/rt\"\n");
+    s = ga(s, "\t\"math\"\n");
     s = ga(s, "\t\"runtime\"\n");
     s = ga(s, "\t\"strconv\"\n");
     s = ga(s, "\t\"unsafe\"\n");
@@ -3653,7 +3660,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             if(n_fm > 0 && fmods) {
                 /* splice INTO the import block at the gofmt-sorted
                  * position: the block's lines come from pkg_header
-                 * (rt-alias first, then runtime/strconv/unsafe) — insert
+                 * (rt-alias first, then math/runtime/strconv/unsafe) — insert
                  * each foreign line before the first existing line that
                  * sorts AFTER it (gofmt order), else before the closing
                  * paren. */

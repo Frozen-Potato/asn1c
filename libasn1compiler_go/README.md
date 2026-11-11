@@ -241,7 +241,10 @@ alternative (`ErrIOCMismatch`).
 encoder runs out of memory while producing the output buffer, the
 failure surfaces as `ErrEncode`, not `ErrAlloc`: the encoder reports
 only that it failed. `ErrAlloc` covers the allocations made by the
-generated conversion code and the runtime arena.
+generated conversion code and the runtime arena, including Encode's
+backing block (plain `malloc`, NULL on failure — not cgo's aborting
+`C.malloc`) and a block size that overflows `uintptr` or does not fit an
+`int`; Encode returns it before any further cgo call.
 
 **IE constructors (specs with IOC-governed IE lists only).** Some
 protocol families — 3GPP-style ones in particular — dispatch
@@ -370,7 +373,8 @@ check plus one negative test per error code reachable from caller input
 (the unreachable codes are listed at the top of that file), once with
 `-no-gen-OER` and once with OER enabled. It also runs
 `tests/e2e/faults_test.go` with `-tags asn1cgo_faults`, an allocation-fault
-sweep that fails each runtime allocation in turn and requires `ErrAlloc`
+sweep that fails each runtime allocation in turn (Encode's backing block
+included) and requires `ErrAlloc`
 and a zero `ArenaBalance`. `tests/run-c-invariance.sh` checks that adding
 `-Fgo=` leaves the generated C byte-identical (apart from the stamped
 command line). Both scripts exit 77 (skip) when a prerequisite (`go`, cgo,

@@ -56,6 +56,17 @@ func TestAllocFaultSweep(t *testing.T) {
 		t.Fatalf("Encode: %v", err)
 	}
 	sweep(t, "Encode", func() error { _, err := in.Encode(); return err })
+	// Event 1 of Encode is the backing-block allocation (asn1cgo_block_alloc):
+	// it must surface as ErrAlloc before any further cgo call, with nothing leaked.
+	rt.ArenaFailAt(1)
+	_, err = in.Encode()
+	rt.ArenaFailAt(0)
+	if !errors.Is(err, rt.ErrAlloc) {
+		t.Errorf("Encode block alloc fail: err = %v, want rt.ErrAlloc", err)
+	}
+	if bal := rt.ArenaBalance(); bal != 0 {
+		t.Errorf("Encode block alloc fail: ArenaBalance = %d, want 0", bal)
+	}
 	sweep(t, "Decode", func() error { _, err := ex.DecodeExamplePDU(wire); return err })
 }
 

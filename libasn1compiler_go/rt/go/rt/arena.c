@@ -87,6 +87,17 @@ void *asn1cgo_calloc(size_t nmemb, size_t size) {
     return calloc(nmemb, size);
 }
 
+/* Encode-side backing block (see arena.h). Not part of ArenaBalance: that
+ * counts live arenas, and the block is freed by the same Go frame that
+ * allocated it (deferred), so the fault sweep's NULL-return check covers it. */
+void *asn1cgo_block_alloc(size_t n) {
+    ARENA_EVENT();
+    if (ARENA_EVENT_FAILS()) return NULL;
+    return malloc(n);
+}
+
+void asn1cgo_block_free(void *p) { free(p); }
+
 long asn1cgo_arena_balance(void) {
     return atomic_load_explicit(&arena_live, memory_order_relaxed);
 }
