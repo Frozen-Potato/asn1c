@@ -68,7 +68,7 @@ entry_encode(void *rt, const char *fbasename, const char *tbasename) {
                    tbasename, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!in || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    out->buf = NULL; out->len = 0;\n\n");
-    { char *_cf = cfmt("    %s_t *tree = (%s_t *)calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n\n", tbasename); s = ca(s, _cf); free(_cf); }
@@ -144,7 +144,7 @@ entry_xer(void *rt, const char *fbasename, const char *tbasename) {
                    tbasename, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!in || !xer_out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    xer_out->buf = NULL; xer_out->len = 0;\n\n");
-    { char *_cf = cfmt("    %s_t *tree = (%s_t *)calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n", tbasename); s = ca(s, _cf); free(_cf); }

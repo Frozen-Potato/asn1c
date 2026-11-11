@@ -26,6 +26,12 @@ void asn1cgo_arena_free(asn1cgo_arena *);
 size_t asn1cgo_arena_used(const asn1cgo_arena *);
 
 
+/* calloc() for the generated encode-side converters, which build the asn1c
+ * Tree on the heap (freed by ASN_STRUCT_FREE -> free()). Behaves exactly like
+ * calloc, but under ASN1CGO_ARENA_FAULTS each call is one counted allocation
+ * event, so the fault sweep reaches the encode path. NULL on OOM/injection. */
+void *asn1cgo_calloc(size_t nmemb, size_t size);
+
 /* ---- Arena balance + fault injection ----
  * Balance: arena_new increments (once the arena fully exists), arena_free
  * decrements a process-global live-arena counter (relaxed atomics);
@@ -40,8 +46,10 @@ size_t asn1cgo_arena_used(const asn1cgo_arena *);
  * asn1cgo_arena_fail_at(n) makes the n-th rt ALLOCATION EVENT return NULL
  * (1-based; n<=0 disables injection but keeps counting). An "event" is one
  * arena_new call, the first-chunk allocation inside it, plus each
- * arena_alloc call that passes its !a/n==0 guard — i.e. every rt
- * allocation the E_ALLOC failure paths in the generated code can see.
+ * arena_alloc call that passes its !a/n==0 guard, plus each
+ * asn1cgo_calloc call — i.e. every rt allocation the E_ALLOC failure paths
+ * in the generated code can see. (asn1c's own internal allocations inside
+ * the skeletons are not counted.)
  * The sweep is n = 1..asn1cgo_arena_events() (the event count of the
  * un-injected run, read after asn1cgo_arena_fail_at(0) + the call). */
 long asn1cgo_arena_balance(void);

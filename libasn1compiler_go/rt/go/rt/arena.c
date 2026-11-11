@@ -77,6 +77,16 @@ void asn1cgo_arena_fail_at(long n) { (void)n; }
 unsigned long asn1cgo_arena_events(void) { return 0; }
 #endif
 
+/* Counted allocation hook for the generated encode-side converters
+ * (Flat -> asn1c Tree). Plain calloc unless fault injection is compiled in,
+ * in which case each call is one allocation event. The Tree is freed by
+ * ASN_STRUCT_FREE (free()), so this must stay calloc-compatible. */
+void *asn1cgo_calloc(size_t nmemb, size_t size) {
+    ARENA_EVENT();
+    if (ARENA_EVENT_FAILS()) return NULL;
+    return calloc(nmemb, size);
+}
+
 long asn1cgo_arena_balance(void) {
     return atomic_load_explicit(&arena_live, memory_order_relaxed);
 }

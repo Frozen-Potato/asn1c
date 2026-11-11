@@ -531,7 +531,10 @@ arm_nested_from(void *t, void *m, const char *in_acc, const char *out_acc) {
             /* OPTIONAL nested wrapper pointer: allocate first, then inside */
             char *wrap = cstrdup("");
             { char *_cf = cfmt("    if (%s) {\n", in_sel); wrap = ca(wrap, _cf); free(_cf); }
-            { char *_cf = cfmt("        %s = calloc(1, sizeof(*%s));\n", out_sel, out_sel); wrap = ca(wrap, _cf); free(_cf); }
+            /* arena output (freed with the arena) — never plain calloc, which
+             * would leak and was unchecked */
+            { char *_cf = cfmt("        %s = asn1cgo_arena_alloc(ar, sizeof(*%s), _Alignof(max_align_t));\n", out_sel, out_sel); wrap = ca(wrap, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, label, mlab); wrap = ca(wrap, _cf); free(_cf); }
             s = ca(s, wrap);
             free(wrap);
             s = ca(s, b);

@@ -5,7 +5,7 @@
 // Error codes with a negative test below (TestErr*): ErrArg, ErrAlloc is
 // covered by faults_test.go (build tag asn1cgo_faults), ErrConstraint,
 // ErrDecode, ErrTrailing, ErrChoiceNothing, ErrChoiceBad, ErrDepth,
-// ErrIOCMismatch.
+// ErrIOCMismatch, ErrIOCUnknown.
 //
 // Codes NOT reachable from caller input, hence not tested here:
 //   - ErrAlloc outside fault injection: only a real malloc failure produces
@@ -16,9 +16,8 @@
 //     no public input reaches it.
 //   - ErrInternal: an "internal invariant violated" guard (e.g. the arena
 //     exact-fit accounting); reaching it would be a generator/runtime bug.
-//   - ErrIOCUnknown: the Go-side IOC check reports a wrong id as
-//     ErrIOCMismatch (see TestErrIOCMismatch), and decoding an unknown id
-//     surfaces as ErrDecode from the C decoder, so no input yields it today.
+//   - ErrIOCUnknown on DECODE: an unknown id surfaces as ErrDecode from the
+//     C decoder. (On encode it is tested in TestErrIOCMismatch.)
 package e2e
 
 import (
@@ -336,14 +335,15 @@ func TestErrIOCMismatch(t *testing.T) {
 	_, err := (&deep.IOCMsg{Ies: deep.IOCMsgIes{f}}).Encode()
 	wantErr(t, "id=A with BoolVal value", err, rt.ErrIOCMismatch)
 
-	// An id that is in no row of the set at all. Current behaviour: this is
-	// reported as ErrIOCMismatch, not ErrIOCUnknown. If the generator ever
-	// starts distinguishing the two, this assertion should move to
-	// ErrIOCUnknown.
+	// An id that is in no row of the set at all: ErrIOCUnknown (checked
+	// before the id-vs-alternative comparison), not ErrIOCMismatch.
 	f = deep.NewFieldIdA(5)
 	f.Id = 99
 	_, err = (&deep.IOCMsg{Ies: deep.IOCMsgIes{f}}).Encode()
-	wantErr(t, "id=99", err, rt.ErrIOCMismatch)
+	wantErr(t, "id=99", err, rt.ErrIOCUnknown)
+	if errors.Is(err, rt.ErrIOCMismatch) {
+		t.Errorf("id=99 must not also match ErrIOCMismatch: %v", err)
+	}
 }
 
 func TestIOCGoodAndUnknownIDDecode(t *testing.T) {

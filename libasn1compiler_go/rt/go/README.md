@@ -64,6 +64,35 @@ The codes: `ErrArg`, `ErrAlloc`, `ErrConstraint`, `ErrEncode`,
 `ErrDecode`, `ErrTrailing`, `ErrChoiceNothing`, `ErrChoiceBad`,
 `ErrIOCUnknown`, `ErrIOCMismatch`, `ErrDepth`, `ErrInternal`.
 
+**Which codes occur where.**
+
+| Code | Encode | Decode |
+|------|--------|--------|
+| `ErrArg` | nil receiver | **nil or empty input** (`Decode(nil)`, `Decode([]byte{})`) |
+| `ErrAlloc` | yes (see the encoder-OOM note below) | yes |
+| `ErrConstraint` | value outside a declared range/size/alphabet | decoded value violates a constraint |
+| `ErrEncode` | the APER encoder failed | never |
+| `ErrDecode` | never | malformed bytes, including an IE id the spec's object set does not list |
+| `ErrTrailing` | never | bytes left after the PDU |
+| `ErrChoiceNothing`, `ErrChoiceBad` | a CHOICE with no / an invalid `Present` | defensive only (the codec never yields these) |
+| `ErrIOCUnknown` | the IE id is not in the governing object set | defensive only; an unknown id is rejected earlier as `ErrDecode` |
+| `ErrIOCMismatch` | the id is known, but the value's `Present` is not the alternative that id governs | defensive only |
+| `ErrDepth` | recursion budget exceeded | recursion budget exceeded |
+| `ErrInternal` | a bug in the generator or runtime | same |
+
+`ErrInternal` is never caused by caller input: it means a generator
+invariant was violated at run time. Please report it, with the spec.
+
+On encode, the IE id is checked against the object set first
+(`ErrIOCUnknown`); only a known id is then compared with the selected
+alternative (`ErrIOCMismatch`).
+
+**Encoder out-of-memory is reported as `ErrEncode`.** If asn1c's own
+encoder runs out of memory while producing the output buffer, the
+failure surfaces as `ErrEncode`, not `ErrAlloc`: the encoder reports
+only that it failed. `ErrAlloc` covers the allocations made by the
+generated conversion code and the runtime arena.
+
 `errors.As(err, &e)` gives the full `*Error` (type, field, message)
 when the failure site matters.
 

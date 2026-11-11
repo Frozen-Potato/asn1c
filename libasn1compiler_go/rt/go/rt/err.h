@@ -19,8 +19,12 @@ typedef enum {
     ASN1CGO_E_TRAILING       = -6,   /* bytes left after the PDU */
     ASN1CGO_E_CHOICE_NOTHING = -7,
     ASN1CGO_E_CHOICE_BAD     = -8,
-    ASN1CGO_E_IOC_UNKNOWN    = -9,   /* IE id not in the governing IOC table (encode-side) */
-    ASN1CGO_E_IOC_MISMATCH   = -10,
+    ASN1CGO_E_IOC_UNKNOWN    = -9,   /* IE id not in the governing IOC object set.
+                                      * Encode: checked first. (Decode: asn1c's
+                                      * decoder already rejects unknown ids as
+                                      * E_DECODE, so it is defensive only.) */
+    ASN1CGO_E_IOC_MISMATCH   = -10,  /* known IE id, but the selected value
+                                      * alternative is not the one it governs */
     ASN1CGO_E_DEPTH          = -11,  /* recursion depth cap exceeded */
     ASN1CGO_E_INTERNAL       = -12   /* generator invariant violated at runtime */
 } asn1cgo_err_code;

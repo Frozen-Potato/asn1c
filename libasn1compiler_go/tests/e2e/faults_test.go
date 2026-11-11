@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	rt "asn1cgo.test/asn1cgo-rt/rt"
+	deep "asn1cgo.test/go/deep"
 	ex "asn1cgo.test/go/synth_example"
 )
 
@@ -26,7 +27,7 @@ func sweep(t *testing.T, name string, op func() error) {
 	n := rt.ArenaEvents()
 	t.Logf("%s: %d injectable allocation event(s)", name, n)
 	if n == 0 {
-		t.Logf("NOTE: %s has no injectable allocations (no rt allocation events), so nothing was swept", name)
+		t.Errorf("%s: no injectable allocation events; the sweep would be vacuous", name)
 	}
 	for i := int64(1); i <= int64(n); i++ {
 		rt.ArenaFailAt(i)
@@ -56,4 +57,15 @@ func TestAllocFaultSweep(t *testing.T) {
 	}
 	sweep(t, "Encode", func() error { _, err := in.Encode(); return err })
 	sweep(t, "Decode", func() error { _, err := ex.DecodeExamplePDU(wire); return err })
+}
+
+// The IOC spec exercises the SEQUENCE OF / IE-union conversion allocations.
+func TestAllocFaultSweepIOC(t *testing.T) {
+	in := &deep.IOCMsg{Ies: deep.IOCMsgIes{deep.NewFieldIdA(5), deep.NewFieldIdA(6)}}
+	wire, err := in.Encode()
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	sweep(t, "IOC Encode", func() error { _, err := in.Encode(); return err })
+	sweep(t, "IOC Decode", func() error { _, err := deep.DecodeIOCMsg(wire); return err })
 }
