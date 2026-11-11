@@ -92,7 +92,37 @@ check() {
 e2e="$here/e2e"
 check ex 0 "$e2e/ex.asn"
 check ioc 0 "$e2e/ioc.asn"
-# rrc-7.1.0 has DEFAULT members: the Go pass rejects it (exit 70), but the C
-# output must still be identical to the run without -Fgo.
-check rrc 70 "$repo/examples/rrc-7.1.0.asn1"
+
+# A spec the Go pass rejects (rrc-7.1.0 has DEFAULT members) must be refused by
+# the pre-flight BEFORE the C pass: exit non-zero and -D left untouched.
+reject_untouched() {
+    work="$tmp/reject"
+    mkdir -p "$work/c"
+    echo "== run-c-invariance: reject-leaves-D-untouched =="
+    printf 'sentinel\n' >"$work/c/keep.c"
+    touch -d '2001-01-01 00:00:00' "$work/c/keep.c"
+    m0=$(stat -c %Y "$work/c/keep.c")
+    rc=0
+    "$asn1c" -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
+        -findirect-choice -fno-include-deps -gen-PER -no-gen-OER -pdu=auto \
+        -D "$work/c" -Fgo="$work/go" "$repo/examples/rrc-7.1.0.asn1" \
+        >"$work/log" 2>&1 || rc=$?
+    if [ "$rc" = 0 ]; then
+        echo "run-c-invariance: reject: expected non-zero exit" >&2; return 1
+    fi
+    if [ "$(ls -A "$work/c" | tr '\n' ' ')" != "keep.c " ] \
+       || [ "$(cat "$work/c/keep.c")" != sentinel ] \
+       || [ "$(stat -c %Y "$work/c/keep.c")" != "$m0" ]; then
+        cat "$work/log" >&2
+        echo "run-c-invariance: reject: -D was modified" >&2; return 1
+    fi
+    if [ -e "$work/go" ]; then
+        echo "run-c-invariance: reject: Go tree was created" >&2; return 1
+    fi
+    grep -q "DEFAULT member" "$work/log" || {
+        cat "$work/log" >&2
+        echo "run-c-invariance: reject: no DEFAULT diagnostic" >&2; return 1; }
+    echo "   exit $rc, -D untouched"
+}
+reject_untouched
 echo "run-c-invariance: PASS"

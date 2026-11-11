@@ -42,14 +42,38 @@ extern int asn1cgo_generate(asn1p_t *asn, const char *go_outdir,
 /* go_entry.c: record the driver's -S / -D (env vars stay as overrides). */
 extern int go_entry_set_dirs(const char *skeletons_dir, const char *destdir);
 
+extern int go_check_outdir(const char *go_outdir);
+extern int asn1cgo_preflight(asn1p_t *asn, const char *go_outdir);
+
+/* Set once the construct walk has passed in asn1cgo_preflight, so
+ * asn1cgo_generate does not repeat it (and its diagnostics). */
+static int g_walk_done;
+
+/*
+ * Pre-flight: every Go-pass reject that does not depend on what the C pass
+ * stamps. Run by the driver BEFORE asn1_compile so a reject leaves -D
+ * untouched. The walk reads only expr_type/meta_type/Identifier/reference/
+ * members/_lineno/specializations and marker.flags bit 0x08 (DEFAULT-only);
+ * the C pass only ORs/clears EM_INDIRECT|EM_OMITABLE|EM_UNRECURSE
+ * (0x01|0x02|0x10) and sets _mark, so none of it is visible to the walk.
+ * The name pass (cycle check, pointer placement) reads EM_INDIRECT /
+ * EM_UNRECURSE and so cannot run here.
+ */
+int
+asn1cgo_preflight(asn1p_t *asn, const char *go_outdir) {
+    if(go_check_outdir(go_outdir) != 0) return -1;
+    if(go_walk_asts(asn)) return -1;
+    g_walk_done = 1;
+    return 0;
+}
+
 int
 asn1cgo_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags,
                  const char *skeletons_dir, const char *destdir) {
     if(go_entry_set_dirs(skeletons_dir, destdir) != 0) return -1;
     /* Support gate first: any off-table construct is a hard error before the
      * Go side touches the disk. */
-    int rc = go_walk_asts(asn);
-    if(rc) return -1;
+    if(!g_walk_done && go_walk_asts(asn)) return -1;
     /* go_generate is the name pass: it resolves every Go name, writes the name
      * dump when ASN1CGO_DUMP_NAMES names a file, and writes the package skeleton
      * when go_outdir is non-empty. The driver dispatches here only when -Fgo is

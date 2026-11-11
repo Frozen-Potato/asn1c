@@ -1429,14 +1429,11 @@ classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     return 0;
 }
 
-/* The public entry: declared extern in go_backend.c. Walks every module,
- * records all names, writes the dump if requested, then defers to go_emit
- * only on a clean pass. */
+/* Pre-flight checks that depend only on the command line / environment
+ * (not on the AST or on anything the C pass stamps): -Fgo basename and
+ * ASN1CGO_GO_MODULE_PREFIX. Callable before asn1_compile. 0 ok, -1 reject. */
 int
-go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
-    struct name_bag bag = {0};
-    go_compiler_flags = flags;   /* cached for classify_integer_leaf's arg_t */
-
+go_check_outdir(const char *go_outdir) {
     /* go_outdir basename must be a valid Go module path element: char class
      * [A-Za-z0-9._~-], no leading/trailing '.', not '.' or '..'. (A '/' cannot
      * occur in a basename by definition — it's the last path segment — so the
@@ -1471,6 +1468,19 @@ go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
         if(pfx && *pfx && check_go_module_prefix(pfx) < 0)
             return -1;          /* -> driver EX_SOFTWARE (70) */
     }
+    return 0;
+}
+
+/* The public entry: declared extern in go_backend.c. Walks every module,
+ * records all names, writes the dump if requested, then defers to go_emit
+ * only on a clean pass. */
+int
+go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
+    struct name_bag bag = {0};
+    go_compiler_flags = flags;   /* cached for classify_integer_leaf's arg_t */
+
+    if(go_check_outdir(go_outdir) != 0)
+        return -1;          /* -> driver EX_SOFTWARE (70) */
 
     asn1p_module_t *mod;
     TQ_FOR(mod, &(asn->modules), mod_next) {

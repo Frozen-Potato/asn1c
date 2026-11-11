@@ -75,6 +75,21 @@ and asn1c prints `asn1cgo: …: <path>: <reason>` lines to stderr plus a final
 `asn1cgo: Go generation failed; <dir> left unchanged` and exits 70. A `-Fgo`
 path that exists but is not a directory is refused.
 
+**Not atomic across the C and Go outputs.** `asn1c` writes the C code
+straight into `-D` (stock behaviour) before the Go pass runs. Rejects that do
+not depend on the C pass run first, as a pre-flight, so those leave `-D`
+untouched and exit 70 with `no C output was written`: the construct rejects
+(DEFAULT members, `[[ ]]` version brackets, unsupported types such as SET /
+SET OF / OID, named-bit BIT STRING, unresolvable references, CHOICE extension
+index >= 64) and an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`.
+The remaining Go-pass failures can only be detected after the C pass, because
+the name pass reads the `EM_INDIRECT` / `EM_UNRECURSE` markers it stamps: Go
+name collisions, by-value type cycles, and I/O errors while writing the Go tree.
+In that case `-D` holds the **new** C code while the Go tree (including its
+`internal/cspec` copy of the C sources) is still the **previous** generation.
+asn1c says so on stderr; fix the error and regenerate both together, and do not
+build the old Go tree against the new C output.
+
 Because `<dir>` is **replaced as a whole**, every regeneration removes files
 that are no longer produced (a renamed type leaves no stale `.c`/`.h`
 behind), and **anything you keep inside `<dir>` is deleted** — do not put

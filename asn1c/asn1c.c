@@ -54,6 +54,7 @@ static int importStandardModules(asn1p_t *asn, const char *skeletons_dir);
 
 /* Go backend entry — libasn1compiler_go/. Local extern
  * (asn1compiler.h stays unedited). Runs after asn1_compile, same AST. */
+extern int asn1cgo_preflight(asn1p_t *asn, const char *go_outdir);
 extern int asn1cgo_generate(asn1p_t *asn, const char *go_outdir,
                             enum asn1c_flags flags,
                             const char *skeletons_dir, const char *destdir);
@@ -438,6 +439,17 @@ main(int ac, char **av) {
     }
 
     /*
+     * Go backend pre-flight: rejects that do not depend on the C pass run
+     * before asn1_compile, so a rejected spec leaves -D untouched.
+     */
+    if(go_outdir && asn1cgo_preflight(asn, go_outdir) != 0) {
+        fprintf(stderr, "asn1c: Go backend rejected the specification; "
+                        "no C output was written\n");
+        exit_code = EX_SOFTWARE;
+        goto cleanup;
+    }
+
+    /*
      * Compile the ASN.1 tree into a set of source files
      * of another language.
      */
@@ -446,12 +458,19 @@ main(int ac, char **av) {
         exit_code = EX_SOFTWARE;
     }
 
-    /* Go backend: only after asn1_compile succeeds, since it
-     * reads the EM_INDIRECT markers the C pass stamps. */
+    /* Go backend: only after asn1_compile succeeds, since the name pass
+     * reads the EM_INDIRECT/EM_UNRECURSE markers the C pass stamps. */
     if(go_outdir && !exit_code) {
         if(asn1cgo_generate(asn, go_outdir, asn1_compiler_flags,
-                           skeletons_dir, destdir) != 0)
+                           skeletons_dir, destdir) != 0) {
+            fprintf(stderr,
+                "asn1c: Go generation failed AFTER the C pass: the C output "
+                "in %s was updated, but the Go tree %s was left at its "
+                "previous generation. Fix the error and regenerate both "
+                "together (C and Go must come from the same run).\n",
+                destdir && *destdir ? destdir : ".", go_outdir);
             exit_code = EX_SOFTWARE;
+        }
     }
 
 cleanup:
