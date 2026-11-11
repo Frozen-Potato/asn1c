@@ -162,6 +162,15 @@ select_TotalRegionExtension_value_type(const asn_TYPE_descriptor_t *parent_type,
 	size_t for_column = 1; /* &Type */
 	size_t row, presence_index = 0;
 	const long *constraining_value = (const long *)((const char *)parent_sptr + offsetof(struct TotalRegionExtension, id));
+	const int indexToPresence[7] = {
+		value_PR_NOTHING,
+		value_PR_INTEGER,
+		value_PR_BOOLEAN,
+		value_PR_OCTET_STRING,
+		value_PR_INTEGER,
+		value_PR_BOOLEAN,
+		value_PR_OCTET_STRING
+	};
 	
 	for(row=0; row < itable->rows_count; row++) {
 	    const asn_ioc_cell_t *constraining_cell = &itable->rows[row * itable->columns_count + constraining_column];
@@ -173,7 +182,7 @@ select_TotalRegionExtension_value_type(const asn_TYPE_descriptor_t *parent_type,
 	    presence_index++;
 	    if(constraining_cell->type_descriptor->op->compare_struct(constraining_cell->type_descriptor, constraining_value, constraining_cell->value_sptr) == 0) {
 	        result.type_descriptor = type_cell->type_descriptor;
-	        result.presence_index = presence_index;
+	        result.presence_index = indexToPresence[presence_index];
 	        break;
 	    }
 	}
