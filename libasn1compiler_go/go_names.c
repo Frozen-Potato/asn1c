@@ -120,6 +120,8 @@ int go_ctor_emit(const char *go_outdir);
  * (go_emit.c); see go_generate. */
 int go_workfile_plan(const char *go_outdir, char **new_text);
 int go_workfile_write(const char *go_outdir, const char *new_text);
+int go_workfile_lock(const char *go_outdir, int *fd);
+void go_workfile_unlock(int fd);
 int go_outdir_stage(const char *go_outdir, char **tmp_out);
 int go_outdir_publish(const char *go_outdir, const char *tmp, char **old_out);
 void go_outdir_rollback(const char *go_outdir, const char *tmp, char *old);
@@ -1693,7 +1695,15 @@ done:
              * before this point. */
             if(rc == 0) {
                 char *gw_text = NULL, *old = NULL;
-                if(go_workfile_plan(go_outdir, &gw_text) != 0) {
+                int lock_fd = -1;
+                /* Held from before the plan (go.work read) until after the
+                 * write/rollback, and across the publish, so a sibling
+                 * generator neither loses our `use` entry nor prunes our
+                 * dir while it is renamed aside. Advisory flock: see
+                 * go_workfile_lock. */
+                if(go_workfile_lock(go_outdir, &lock_fd) != 0) {
+                    rc = -1;
+                } else if(go_workfile_plan(go_outdir, &gw_text) != 0) {
                     rc = -1;
                 } else if(go_outdir_publish(go_outdir, stage, &old) != 0) {
                     rc = -1;
@@ -1707,6 +1717,7 @@ done:
                     stage = NULL;            /* published: nothing to discard */
                 }
                 free(gw_text);
+                go_workfile_unlock(lock_fd);
             }
             if(rc != 0) {
                 bag.failed = 1;

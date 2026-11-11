@@ -54,7 +54,15 @@ in that parent (`out/`) listing `./asn1cgo-rt` and the generated module,
 creating it if absent and otherwise adding the module to its `use ( … )`
 block (each entry once; entries whose directory is gone are pruned). It is
 rewritten atomically and only after the whole tree was generated, so a failed
-run never modifies it and a rerun never adds a duplicate `use` line. A bare
+run never modifies it and a rerun never adds a duplicate `use` line. Concurrent
+generators into sibling `-Fgo` dirs under one parent are serialised with an
+exclusive `flock(2)` on `<parent>/.go.work.lock` (a separate file, created if
+absent and left in place), held from before `go.work` is read until after it is
+written and across the tree swap, so no `use` entry is lost and no sibling is
+pruned while it is renamed aside. `flock` is advisory (it only coordinates
+asn1c processes) and may be unreliable or a no-op on some network filesystems;
+keep the parent on a local filesystem when generating in parallel. If the lock
+cannot be taken, generation fails and the tree is left unchanged. A bare
 `-Fgo=go` has no parent component, so no `go.work` is written and the
 `replace` does the work.
 

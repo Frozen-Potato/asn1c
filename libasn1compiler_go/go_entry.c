@@ -32,6 +32,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#include <sys/file.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -1154,6 +1156,8 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
  * ------------------------------------------------------------------------- */
 int go_workfile_plan(const char *go_outdir, char **new_text);
 int go_workfile_write(const char *go_outdir, const char *new_text);
+int go_workfile_lock(const char *go_outdir, int *fd);
+void go_workfile_unlock(int fd);
 
 static char *
 workfile_parent(const char *go_outdir) {
@@ -1164,6 +1168,49 @@ workfile_parent(const char *go_outdir) {
     memcpy(p, go_outdir, (size_t)(slash - go_outdir));
     p[slash - go_outdir] = '\0';
     return p;
+}
+
+/* Serialise the go.work read-modify-write (and the tree publish) between
+ * concurrent generators sharing a parent dir. Exclusive flock(2) on
+ * <parent>/.go.work.lock — a separate file, NOT go.work itself, because the
+ * atomic rename in go_workfile_write replaces go.work's inode. The lock file
+ * is created 0666&~umask if absent and deliberately left in place afterwards.
+ * Taken only when go_workfile_plan would touch go.work (same conditions:
+ * skeleton dir known and go_outdir has a parent component); otherwise
+ * *fd = -1 and nothing is locked. Returns 0 ok, -1 (message printed) on
+ * failure. NOTE: flock is advisory and may be a no-op or unreliable on some
+ * network filesystems (e.g. old NFS); it only protects cooperating
+ * asn1c processes. */
+int
+go_workfile_lock(const char *go_outdir, int *fd) {
+    *fd = -1;
+    if(!go_skel_dir()) return 0;
+    char *parent = workfile_parent(go_outdir);
+    if(!parent) return 0;
+    char *lk = conv_path(parent, ".go.work.lock");
+    int f = open(lk, O_RDWR | O_CREAT | O_CLOEXEC, 0666);
+    if(f < 0) {
+        fprintf(stderr, "asn1cgo: cannot open lock file '%s': %s\n", lk,
+                strerror(errno));
+    } else {
+        int r;
+        while((r = flock(f, LOCK_EX)) != 0 && errno == EINTR) { }
+        if(r != 0) {
+            fprintf(stderr, "asn1cgo: cannot lock '%s': %s\n", lk,
+                    strerror(errno));
+            close(f);
+            f = -1;
+        }
+    }
+    free(lk); free(parent);
+    if(f < 0) return -1;
+    *fd = f;
+    return 0;
+}
+
+void
+go_workfile_unlock(int fd) {
+    if(fd >= 0) close(fd);       /* closing drops the flock */
 }
 
 int
