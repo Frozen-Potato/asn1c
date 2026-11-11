@@ -23,4 +23,12 @@ Flag-Choice ::= CHOICE {
     num  INTEGER (0..7),
     ...
 }
+-- Regression: extensible CHOICE with two extension alternatives; the
+-- extension index is a X.691 #10.6 normally small number (not range-bits).
+Ext-Choice ::= CHOICE {
+    base INTEGER (0..7),
+    ...,
+    extNum  INTEGER (0..255),
+    extFlag BOOLEAN
+}
 END

@@ -1105,7 +1105,6 @@ CHOICE_encode_aper(const asn_TYPE_descriptor_t *td,
 	const asn_CHOICE_specifics_t *specs = (const asn_CHOICE_specifics_t *)td->specifics;
 	const asn_TYPE_member_t *elm; /* CHOICE's element */
 	const asn_per_constraint_t *ct = NULL;
-	const asn_per_constraint_t *ext_ct = NULL;
 	const void *memb_ptr;
 	unsigned present;
 	int present_enc;
@@ -1153,7 +1152,6 @@ CHOICE_encode_aper(const asn_TYPE_descriptor_t *td,
 	      ASN__ENCODE_FAILED;
 	    }
 	    // no more need of constraint.
-	    ext_ct = ct;
 	    ct = NULL;
 	  }
 	}
@@ -1190,7 +1188,7 @@ CHOICE_encode_aper(const asn_TYPE_descriptor_t *td,
 			ASN__ENCODE_FAILED;
 		// X691/23.8 normally encoded as a small non negative whole number
 		
-		if(ext_ct && aper_put_nsnnwn(po, ext_ct->range_bits, present_enc - specs->ext_start))
+		if(aper_put_nsnnwn_ext(po, present_enc - specs->ext_start))
 			ASN__ENCODE_FAILED;
 		if(aper_open_type_put(elm->type, elm->encoding_constraints.per_constraints,
 		                      memb_ptr, po))

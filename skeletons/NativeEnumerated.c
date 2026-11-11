@@ -282,7 +282,7 @@ NativeEnumerated_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 		/*
 		 * X.691, #10.6: normally small non-negative whole number;
 		 */
-		value = uper_get_nsnnwn(pd);
+		value = aper_get_nsnnwn_ext(pd);
 		if(value < 0) ASN__DECODE_STARVED;
 		value += specs->extension - 1;
 		if(value >= specs->map_count)
@@ -360,7 +360,7 @@ NativeEnumerated_encode_aper(const asn_TYPE_descriptor_t *td,
 	ASN_DEBUG("value = %ld, ext = %d, inext = %d, res = %ld",
 	          value, specs->extension, inext,
 	          value - (inext ? (specs->extension - 1) : 0));
-	if(uper_put_nsnnwn(po, value - (inext ? (specs->extension - 1) : 0)))
+	if(aper_put_nsnnwn_ext(po, value - (inext ? (specs->extension - 1) : 0)))
 		ASN__ENCODE_FAILED;
 
 	ASN__ENCODED_OK(er);

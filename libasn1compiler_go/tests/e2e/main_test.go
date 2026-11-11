@@ -23,6 +23,7 @@ package e2e
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -365,4 +366,37 @@ func TestIOCGoodAndUnknownIDDecode(t *testing.T) {
 	bad[2] = 0x63
 	_, err = deep.DecodeIOCMsg(bad)
 	wantErr(t, "unknown IE id 0x63", err, rt.ErrDecode)
+}
+
+// Regression: the APER encoder wrote the CHOICE extension index in the
+// range-bits form instead of X.691 #10.6 (normally small non-negative whole
+// number), so its own decoder rejected the output. Ext-Choice has two
+// extension alternatives; the 2nd (extFlag, ext index 1) must encode as
+// ext-bit 1, '0' + 6 bits (000001), then an open type.
+func TestChoiceExtensionIndex(t *testing.T) {
+	cases := []struct {
+		name string
+		in   ex.ExtChoice
+		want []byte
+	}{
+		{"root", ex.ExtChoice{Present: ex.ExtChoicePrBase, Base: ptr(int64(5))}, []byte{0x50}},
+		{"ext0", ex.ExtChoice{Present: ex.ExtChoicePrExtNum, ExtNum: ptr(int64(5))}, []byte{0x80, 0x01, 0x05}},
+		{"ext1", ex.ExtChoice{Present: ex.ExtChoicePrExtFlag, ExtFlag: ptr(true)}, []byte{0x81, 0x01, 0x80}},
+	}
+	for _, c := range cases {
+		got, err := c.in.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if !bytes.Equal(got, c.want) {
+			t.Fatalf("%s: encoding = % x, want % x", c.name, got, c.want)
+		}
+		out, err := ex.DecodeExtChoice(got)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if !reflect.DeepEqual(*out, c.in) {
+			t.Fatalf("%s: decoded %+v, want %+v", c.name, *out, c.in)
+		}
+	}
 }
