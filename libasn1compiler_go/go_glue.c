@@ -62,8 +62,11 @@
  *
  * Depth: types in a recursion SCC thread a depth counter through
  * size + fill; depth > ASN1CGO_MAX_DEPTH (64) -> E_DEPTH before any C
- * call. read does not thread depth (decoded data cannot exceed the C-side
- * guard the decoder already enforced).
+ * call. read does not thread depth: the C decoder's recursion is bounded
+ * by the ASN1CGO_C_STACK_MAX byte budget (asn1c's stack guard, armed in the
+ * decode entry), sized so any input within ASN1CGO_MAX_DEPTH fits; deeper
+ * input either trips that guard (E_DECODE) or is rejected by the depth check
+ * in *_from_tree (E_DEPTH) before any Go-side read.
  *
  * Errors: every returned error is *rt.Error (asn1cgo-rt/rt/errors.go
  * — the ONE Go error surface). Glue-originated errors construct rt.Error

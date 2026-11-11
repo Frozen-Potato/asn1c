@@ -329,6 +329,31 @@ func TestErrDepth(t *testing.T) {
 	}
 }
 
+// TestDecodeStackGuard: input nested far beyond ASN1CGO_MAX_DEPTH must be
+// refused by the C-side stack guard (ASN1CGO_C_STACK_MAX) while asn_decode
+// runs, not decoded in full: thousands of levels would cost MBs of C stack.
+// The guard's RC_FAIL maps to ErrDecode (indistinguishable from malformed
+// input); ErrDepth is also accepted. Must not crash or leak an arena.
+func TestDecodeStackGuard(t *testing.T) {
+	for _, n := range []int{2000, 5000, 50000} {
+		_, err := deep.DecodeTree(depthWire(n))
+		var re *rt.Error
+		if !errors.As(err, &re) {
+			t.Fatalf("Decode %d levels: err = %v (%T), want *rt.Error", n, err, err)
+		}
+		if re.Code != rt.CodeDecode && re.Code != rt.CodeDepth {
+			t.Errorf("Decode %d levels: code = %v, want E_DECODE or E_DEPTH", n, re.Code)
+		}
+		if bal := rt.ArenaBalance(); bal != 0 {
+			t.Errorf("Decode %d levels: ArenaBalance = %d, want 0", n, bal)
+		}
+	}
+	// The guard must not reject legal input: 64 levels still decode.
+	if _, err := deep.DecodeTree(depthWire(64)); err != nil {
+		t.Fatalf("Decode 64 levels: %v", err)
+	}
+}
+
 func TestErrIOCMismatch(t *testing.T) {
 	// id=1 (IntVal row) carrying the BoolVal alternative.
 	f := deep.NewFieldIdA(5)

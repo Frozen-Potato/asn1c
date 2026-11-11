@@ -9,6 +9,20 @@
 
 #define ASN1CGO_MAX_DEPTH 64   /* recursion cap */
 
+/* C-side stack budget for one asn_decode call, in bytes. The decode entry
+ * hands asn_decode a stack-local asn_codec_ctx_t with max_stack_size set to
+ * this, so asn1c's ASN__STACK_OVERFLOW_CHECK bounds how deep the C decoder
+ * recurses BEFORE the whole input is materialised (ASN1CGO_MAX_DEPTH is only
+ * checked afterwards, in *_from_tree). Measured (gcc -O2, x86-64): 64 depth
+ * units of the deepest recursive types cost 15.5-16.7 KB (68 units: 17.7 KB),
+ * so 96 KiB is >= 5.5x headroom: no input within ASN1CGO_MAX_DEPTH trips it,
+ * and it is far below a cgo thread stack (8 MiB glibc; 128 KiB musl).
+ * Override with -DASN1CGO_C_STACK_MAX=<bytes> (must be nonzero: 0 disables
+ * the guard). */
+#ifndef ASN1CGO_C_STACK_MAX
+#define ASN1CGO_C_STACK_MAX 98304
+#endif
+
 typedef enum {
     ASN1CGO_OK               =  0,
     ASN1CGO_E_ARG            = -1,   /* NULL argument */

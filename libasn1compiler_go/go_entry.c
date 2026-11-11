@@ -101,16 +101,21 @@ entry_decode(void *rt, const char *fbasename, const char *tbasename) {
     { char *_cf = cfmt("    if (!ar) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    %s_flat *flat = (%s_flat *)asn1cgo_arena_alloc(ar, sizeof(*flat), _Alignof(%s_flat));\n", fbasename, fbasename, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!flat) { asn1cgo_arena_free(ar); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n\n", label); s = ca(s, _cf); free(_cf); }
-    /* the decode-depth rule: decode depth is governed by ASN1CGO_MAX_DEPTH alone — hand
-     * asn_decode a ctx with max_stack_size = 0 so asn1c's byte-based stack
-     * guard stays OFF (per_decoder.c applies its own 30000-byte default
-     * only for a NULL ctx; a non-NULL ctx with max_stack_size == 0 is
-     * copied only when nonzero, so the guard never arms). */
-    s = ca(s, "    void *sptr = NULL;\n    asn_codec_ctx_t dctx = {0};   /* max_stack_size = 0: depth is governed by ASN1CGO_MAX_DEPTH alone */\n    asn_dec_rval_t dr = asn_decode(&dctx, ATS_ALIGNED_BASIC_PER,\n");
+    /* C-side stack guard: hand asn_decode a stack-local ctx with
+     * max_stack_size = ASN1CGO_C_STACK_MAX so asn1c's ASN__STACK_OVERFLOW_CHECK
+     * (measured from the ctx's address, hence dctx MUST stay a local here)
+     * bounds the C decoder's recursion before the input is fully decoded.
+     * per_decoder.c copies a non-NULL ctx only when max_stack_size != 0, and
+     * substitutes its own 30000-byte default only for a NULL ctx. Overrun
+     * surfaces as RC_FAIL, indistinguishable from other malformed input, so
+     * it maps to E_DECODE. ASN1CGO_MAX_DEPTH (64 units) is the separate,
+     * precise cap applied in *_from_tree; the default stack budget is sized
+     * so that no input within that cap trips the C guard. */
+    s = ca(s, "    void *sptr = NULL;\n    asn_codec_ctx_t dctx = {0};   /* stack local: the guard measures from its address */\n    dctx.max_stack_size = ASN1CGO_C_STACK_MAX;\n    asn_dec_rval_t dr = asn_decode(&dctx, ATS_ALIGNED_BASIC_PER,\n");
     { char *_cf = cfmt("                                   &asn_DEF_%s, (void **)&sptr, buf, len);\n", tbasename); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    if (dr.code != RC_OK) {\n");
     { char *_cf = cfmt("        if (sptr) ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"aper decode RC=%%d\", dr.code);\n    }\n", label); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"aper decode RC=%%d (malformed input, or C stack budget ASN1CGO_C_STACK_MAX exceeded)\", dr.code);\n    }\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    /* Trailing bytes after the PDU are an error. */\n");
     s = ca(s, "    if (dr.consumed < len) {\n");
     { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }

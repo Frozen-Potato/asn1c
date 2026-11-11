@@ -322,6 +322,19 @@ republish the pair together.
 - **CHOICE extension index ≥ 64**: refused by default (see above).
 - **Recursion depth**: bounded at 64 depth units per encode/decode
   (`ASN1CGO_MAX_DEPTH` in the rt error header).
+- **C-side stack budget**: each decode runs asn1c's `asn_decode` with a
+  stack guard of `ASN1CGO_C_STACK_MAX` bytes (default 98304 = 96 KiB, rt
+  error header; override with `-DASN1CGO_C_STACK_MAX=<bytes>`, nonzero),
+  so a hostile deeply nested input is rejected during C decoding instead of
+  being fully materialised and exhausting the thread stack. Measured at
+  gcc -O2: 64 depth units cost about 16–17 KB (68 units about 17.7 KB), so
+  the default leaves over 5x headroom and input within
+  `ASN1CGO_MAX_DEPTH` never trips it. The guard's failure is an ordinary
+  `RC_FAIL` from asn1c, indistinguishable from malformed input, so it
+  surfaces as `ErrDecode` (not `ErrDepth`); `ErrDepth` is reported for
+  trees that decode within the budget but exceed 64 units. Lower the budget
+  for small thread stacks (musl: 128 KiB), but not below the measured need
+  of your deepest recursive type.
 - **`[[ ]]` extension-addition groups**: rejected at generation (the
   post-parse AST cannot distinguish them from plain members).
 - **`DEFAULT` members**: rejected at generation (out of model).
