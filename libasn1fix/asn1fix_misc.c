@@ -87,7 +87,7 @@ asn1f_printable_value(asn1p_value_t *v) {
 			 * to represend the binary value.
 			 */
 			int bits = v->value.binary_vector.size_in_bits;
-			len = ((bits%8)?bits:(bits >> 2)) + sizeof("''H");
+			len = ((bits%8)?bits:(bits >> 2)) + sizeof("''H") - 1;
 			/*
 			 * Reallocate managed buffer
 			 */
@@ -120,7 +120,7 @@ asn1f_printable_value(asn1p_value_t *v) {
 			}
 			*ptr++ = '\'';
 			*ptr++ = (bits%8)?'B':'H';
-			*ptr++ = 'H';
+			*ptr = '\0';
 			assert(len == (size_t)(ptr - managedptr));
 			return managedptr;
 		}

@@ -2419,6 +2419,124 @@ default_c_literal(asn1c_integer_t v) {
 	return buf;
 }
 
+/*
+ * DEFAULT for OCTET STRING / BIT STRING given as a hstring or bstring
+ * (ATV_BITVECTOR). Returns 1 if callbacks are (to be) generated, 0 if not.
+ *  - OCTET STRING: only whole octets are representable.
+ *  - BIT STRING: only without named bits (those use ATV_UNPARSED etc).
+ */
+static int
+try_inline_blob_default(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_type_e etype, int out) {
+	int save_target = arg->target->target;
+	asn1p_value_t *dv = expr->marker.default_value;
+	int is_bit = (etype == ASN_BASIC_BIT_STRING);
+	int bits, nbytes, unused, i;
+
+	if(!dv || dv->type != ATV_BITVECTOR)
+		return 0;
+	bits = dv->value.binary_vector.size_in_bits;
+	if(bits < 0)
+		return 0;
+	if(is_bit) {
+		if(expr_elements_count(arg, expr))
+			return 0;
+	} else if(bits % 8) {
+		return 0;
+	}
+	nbytes = (bits + 7) / 8;
+	unused = (8 - bits % 8) % 8;
+	if(nbytes && !dv->value.binary_vector.bits)
+		return 0;
+
+	if(!out) {
+		const char *pv = asn1f_printable_value(dv);
+		if(C99_MODE) OUT(".default_value_cmp = ");
+		OUT("&asn_DFL_%d_cmp,\t/* Compare DEFAULT %s */\n",
+			expr->_type_unique_index, pv);
+		if(C99_MODE) OUT(".default_value_set = ");
+		OUT("&asn_DFL_%d_set,\t/* Set DEFAULT %s */\n",
+			expr->_type_unique_index, pv);
+		return 1;
+	}
+	REDIR(OT_STAT_DEFS);
+
+#define	EMIT_DEFV()	do {						\
+		OUT("static const uint8_t defv[] = { ");		\
+		for(i = 0; i < nbytes; i++) {				\
+			unsigned v = dv->value.binary_vector.bits[i];	\
+			if(is_bit && i == nbytes - 1)			\
+				v &= (0xff << unused) & 0xff;		\
+			OUT("0x%02x, ", v);				\
+		}							\
+		OUT("0 };\n");						\
+		OUT("const size_t defsz = %d;\n", nbytes);		\
+	} while(0)
+
+	OUT("static int asn_DFL_%d_cmp(const void *sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	EMIT_DEFV();
+	OUT("const %s *st = sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
+	OUT("\n");
+	OUT("if(!st) {\n");
+	OUT("\treturn -1; /* No value is not a default value */\n");
+	OUT("}\n");
+	OUT("\n");
+	OUT("if(st->size != defsz)\n");
+	OUT("\treturn 1;\n");
+	if(is_bit) {
+		OUT("if(st->bits_unused != %d)\n", unused);
+		OUT("\treturn 1;\n");
+	}
+	if(nbytes == 0) {
+		OUT("return 0;\n");
+	} else {
+		OUT("if(!st->buf)\n");
+		OUT("\treturn 1;\n");
+		if(is_bit) {
+			/* Unused bits are masked as the BIT STRING codec does */
+			OUT("if(memcmp(st->buf, defv, defsz - 1) != 0)\n");
+			OUT("\treturn 1;\n");
+			OUT("return ((st->buf[defsz - 1] & 0x%02x) != defv[defsz - 1]);\n",
+				(0xff << unused) & 0xff);
+		} else {
+			OUT("return (memcmp(st->buf, defv, defsz) != 0);\n");
+		}
+	}
+	INDENT(-1);
+	OUT("}\n");
+
+	OUT("static int asn_DFL_%d_set(void **sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	EMIT_DEFV();
+	OUT("%s *st = *sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
+	OUT("uint8_t *nstr = MALLOC(defsz + 1);\n");
+	OUT("\n");
+	OUT("if(!nstr) return -1;\n");
+	OUT("memcpy(nstr, defv, defsz);\n");
+	OUT("nstr[defsz] = 0;\n");
+	OUT("\n");
+	OUT("if(st) {\n");
+	OUT("\tFREEMEM(st->buf);\n");
+	OUT("} else {\n");
+	OUT("\tst = (*sptr = CALLOC(1, sizeof(*st)));\n");
+	OUT("\tif(!st) { FREEMEM(nstr); return -1; }\n");
+	OUT("}\n");
+	OUT("st->buf = nstr;\n");
+	OUT("st->size = defsz;\n");
+	if(is_bit)
+		OUT("st->bits_unused = %d;\n", unused);
+	OUT("\n");
+	OUT("return 0;\n");
+	INDENT(-1);
+	OUT("}\n");
+#undef	EMIT_DEFV
+
+	REDIR(save_target);
+	return 1;
+}
+
 static int
 try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	int save_target = arg->target->target;
@@ -2513,6 +2631,9 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	case ASN_BASIC_NULL:
 		//expr->marker.flags &= ~EM_INDIRECT;
 		return 0;
+	case ASN_BASIC_OCTET_STRING:
+	case ASN_BASIC_BIT_STRING:
+		return try_inline_blob_default(arg, expr, etype, out);
 	default:
 	  if(etype & ASN_STRING_KM_MASK) {
 		if(expr->marker.default_value == NULL
