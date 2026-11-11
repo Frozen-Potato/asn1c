@@ -41,7 +41,7 @@
 
 /* The rt runtime version every generated go.mod requires (single source:
  * the release script reads this same literal). */
-#define ASN1CGO_RT_VERSION "v0.2.2"
+#define ASN1CGO_RT_VERSION "v0.2.3"
 
 #include "asn1c_internal.h"
 #include "asn1c_misc.h"

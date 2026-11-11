@@ -1,3 +1,30 @@
+0.9.29-go.3:
+    FIXES:
+    * Go backend: runtime asn1cgo-rt v0.2.3 (generated code requires it;
+      regenerate and republish the Go tree and runtime together).
+    * Go backend: generated go.mod/go.work minimum Go version lowered from
+      1.27.1 to 1.21.0; existing go.work files keep their go line (the
+      generator only appends `use` entries).
+    * Go backend: APER decode now runs asn1c's C stack guard
+      (ASN1CGO_C_STACK_MAX, default 96 KiB, override with
+      -DASN1CGO_C_STACK_MAX=<bytes>). Very deeply nested input that
+      previously could exhaust the thread stack and crash the process is
+      now rejected with ErrDecode during C decoding; trees within the
+      budget but deeper than 64 units still get ErrDepth.
+    * Go backend: Encode returns ErrAlloc on out-of-memory or block-size
+      overflow instead of aborting the process (backing block no longer
+      uses cgo's C.malloc).
+    * Go backend: construct rejects (DEFAULT, [[ ]], unsupported types,
+      CHOICE extension index >= 64, invalid -Fgo basename or
+      ASN1CGO_GO_MODULE_PREFIX) now run before the C pass, so a rejected
+      spec leaves -D untouched; a Go failure after the C pass says that
+      -D was updated but the Go tree was not.
+    * Go backend: concurrent generators sharing a parent dir are
+      serialised with flock on <parent>/.go.work.lock, so no go.work
+      `use` entry is lost (advisory; local filesystems).
+    * Tests: 156-union-ios-OK -Pgen-PER expected output regenerated;
+      new tests/run-gowork-race.sh.
+
 0.9.29-go.2:
     FIXES:
     * APER: CHOICE and ENUMERATED extension index now encoded/decoded as a
