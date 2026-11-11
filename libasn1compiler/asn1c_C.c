@@ -2388,6 +2388,37 @@ emit_default_string_value(arg_t *arg, asn1p_value_t *v) {
 	}
 }
 
+/*
+ * Build the suffix used in generated DEFAULT callback names. A negative value
+ * would put '-' into a C identifier, so it is replaced with 'm' (-1 -> m1).
+ * Every place that emits asn_DFL_<idx>_{cmp,set}_<suffix> must use this.
+ */
+static const char *
+default_name_suffix(asn1c_integer_t v) {
+	static char buf[128];
+	const char *s = asn1p_itoa(v);
+	if(!s) s = "0";
+	snprintf(buf, sizeof(buf), "%s", s);
+	if(buf[0] == '-') buf[0] = 'm';
+	return buf;
+}
+
+/*
+ * C literal for a DEFAULT integer. The most negative 64-bit value cannot be
+ * written as a plain decimal literal in C (the magnitude overflows long).
+ */
+static const char *
+default_c_literal(asn1c_integer_t v) {
+	static char buf[128];
+	if(v == (asn1c_integer_t)(-9223372036854775807LL - 1))
+		return "(-9223372036854775807L - 1)";
+	if(v == (asn1c_integer_t)(-2147483647L - 1))
+		return "(-2147483647L - 1)";
+	const char *s = asn1p_itoa(v);
+	snprintf(buf, sizeof(buf), "%s", s ? s : "0");
+	return buf;
+}
+
 static int
 try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	int save_target = arg->target->target;
@@ -2413,13 +2444,13 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
             if(C99_MODE) OUT(".default_value_cmp = ");
 			OUT("&asn_DFL_%d_cmp_%s,",
 				expr->_type_unique_index,
-				asn1p_itoa(expr->marker.default_value->value.v_integer));
+				default_name_suffix(expr->marker.default_value->value.v_integer));
             OUT("\t/* Compare DEFAULT %s */\n",
 				asn1p_itoa(expr->marker.default_value->value.v_integer));
             if(C99_MODE) OUT(".default_value_set = ");
 			OUT("&asn_DFL_%d_set_%s,",
 				expr->_type_unique_index,
-				asn1p_itoa(expr->marker.default_value->value.v_integer));
+				default_name_suffix(expr->marker.default_value->value.v_integer));
             OUT("\t/* Set DEFAULT %s */\n",
 				asn1p_itoa(expr->marker.default_value->value.v_integer));
 			return 1;
@@ -2428,7 +2459,7 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 
 		OUT("static int asn_DFL_%d_cmp_%s(const void *sptr) {\n",
 			expr->_type_unique_index,
-			asn1p_itoa(expr->marker.default_value->value.v_integer));
+			default_name_suffix(expr->marker.default_value->value.v_integer));
 		INDENT(+1);
 		OUT("const %s *st = sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
 		OUT("\n");
@@ -2440,20 +2471,20 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 			asn1p_itoa(expr->marker.default_value->value.v_integer));
 		if(fits_long) {
 			OUT("return (*st != %s);\n",
-				asn1p_itoa(expr->marker.default_value->value.v_integer));
+				default_c_literal(expr->marker.default_value->value.v_integer));
 		} else {
 			OUT("long value;\n");
 			OUT("if(asn_INTEGER2long(st, &value))\n");
 			OUT("\treturn -1;\n");
 			OUT("return (value != %s);\n",
-				asn1p_itoa(expr->marker.default_value->value.v_integer));
+				default_c_literal(expr->marker.default_value->value.v_integer));
 		}
 		INDENT(-1);
 		OUT("}\n");
 
 		OUT("static int asn_DFL_%d_set_%s(void **sptr) {\n",
 			expr->_type_unique_index,
-			asn1p_itoa(expr->marker.default_value->value.v_integer));
+			default_name_suffix(expr->marker.default_value->value.v_integer));
 		INDENT(+1);
 		OUT("%s *st = *sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
 		OUT("\n");
@@ -2466,12 +2497,12 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 			asn1p_itoa(expr->marker.default_value->value.v_integer));
 		if(fits_long) {
 			OUT("*st = ");
-			OINT(expr->marker.default_value->value.v_integer);
+			OUT("%s", default_c_literal(expr->marker.default_value->value.v_integer));
 			OUT(";\n");
 			OUT("return 0;\n");
 		} else {
 			OUT("return asn_long2INTEGER(st, ");
-			OINT(expr->marker.default_value->value.v_integer);
+			OUT("%s", default_c_literal(expr->marker.default_value->value.v_integer));
 			OUT(");\n");
 		}
 		INDENT(-1);
