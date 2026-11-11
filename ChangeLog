@@ -1,3 +1,17 @@
+0.9.29-go.2:
+    FIXES:
+    * APER: CHOICE and ENUMERATED extension index now encoded/decoded as a
+      normally small non-negative whole number (X.691 #10.6); this changes
+      the APER wire encoding of extension alternatives/values.
+    * Go backend: runtime asn1cgo-rt v0.2.2.
+    * Go backend: -Fgo output is all-or-nothing (staging dir + atomic swap),
+      go.work updated atomically, every failure printed.
+    * Go backend: fix named BOOLEAN typedef conversion (bool <-> int32).
+    * Go backend: unknown IOC id reported as IOC_UNKNOWN; error codes
+      documented.
+    * Go backend: SEQUENCE OF elements cast to callee parameter type in
+      *_from_tree.
+
 0.9.29-go.1:
     FEATURES:
     * Go backend: -Fgo=<dir> generates Go types and APER Encode/Decode
