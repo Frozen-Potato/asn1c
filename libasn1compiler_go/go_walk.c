@@ -469,16 +469,9 @@ static int
 walk_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
              asn1_namespace_t *ns, asn1p_t *asn, const char *parent_path) {
     asn1p_expr_t *child;
-    /* CHOICE extension indices >= 64 refused by default.
-     *
-     * The APER extension-alternative index is a "normally small
-     * non-negative whole number" (X.691 #11.6): uper_put_nsnnwn
-     * (per_support.c:101) takes the short 7-bit form only for n <= 63; an
-     * index >= 64 falls to the multi-byte form, untested in this project
-     * (all three target specs' CHOICEs sit far below the boundary; the
-     * counts are in the construct tables). Override:
-     * ASN1CGO_ALLOW_CHOICE_EXT64=1 (generation proceeds; output identical
-     * to an unguarded run — the -D debug flag is untouched).
+    /* Track the CHOICE with the most alternatives (reported by
+     * choice_alts_report_maybe). CHOICE extension indices >= 64 are
+     * supported: the "normally small" encodings are X.691 #11.6.
      *
      * Index arithmetic mirrors asn1c_C.c's member-table walk (~:468): the
      * extension marker child ("...", A1TC_EXTENSIBLE) flips comp_mode;
@@ -489,7 +482,6 @@ walk_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
         asn1p_expr_t *v;
         int elements = 0, comp_mode = 0, first_extension = -1;
         int max_ext_index = -1;
-        const char *ovr = getenv("ASN1CGO_ALLOW_CHOICE_EXT64");
         TQ_FOR(v, &(parent->members), next) {
             if(v->expr_type == A1TC_EXTENSIBLE) {
                 if((++comp_mode) == 1)
@@ -512,23 +504,6 @@ walk_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
                          ctx->toptype ? ctx->toptype : "?");
             }
             choice_alts_report_maybe(ctx->module, ctx->toptype);
-        }
-        if(max_ext_index >= 64) {
-            if(ovr && *ovr) {
-                fprintf(stderr,
-                        "asn1cgo: CHOICE ext index %d >= 64 OVERRIDDEN via ASN1CGO_ALLOW_CHOICE_EXT64 (untested nsnnwn >= 64 path; output at caller's risk)\n",
-                        max_ext_index);
-            } else {
-                fprintf(stderr,
-                        "asn1cgo: CHOICE extension alternative index %d >= 64 (X.691 #11.6 short-form boundary; the >= 64 nsnnwn encoding is untested in this project) - REFUSED. Set ASN1CGO_ALLOW_CHOICE_EXT64=1 to override.\n",
-                        max_ext_index);
-                fprintf(stderr,
-                        "asn1cgo:   in module %s: type %s, CHOICE at %s\n",
-                        ctx->module ? ctx->module : "?",
-                        ctx->toptype ? ctx->toptype : "?",
-                        parent_path && *parent_path ? parent_path : "(top level)");
-                return -1;
-            }
         }
     }
     TQ_FOR(child, &(parent->members), next) {

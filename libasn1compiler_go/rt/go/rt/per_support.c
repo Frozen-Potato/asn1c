@@ -62,7 +62,7 @@ uper_get_nslength(asn_per_data_t *pd) {
 	} else {
 		int repeat;
 		length = uper_get_length(pd, -1, 0, &repeat);
-		if(length >= 0 && !repeat) return length;
+		if(length > 0 && !repeat) return length;
 		return -1; /* Error, or do not support >16K extensions */
 	}
 }
@@ -76,18 +76,19 @@ uper_get_nsnnwn(asn_per_data_t *pd) {
 	ssize_t value;
 
 	value = per_get_few_bits(pd, 7);
-	if(value & 64) {	/* implicit (value < 0) */
+	if(value < 0) return -1;
+	if(value & 64) {
+		/* '1' + 8-bit octet count (#11.6, #11.9.3.6) */
+		ssize_t extra;
 		value &= 63;
 		value <<= 2;
-		value |= per_get_few_bits(pd, 2);
-		if(value & 128)	/* implicit (value < 0) */
+		extra = per_get_few_bits(pd, 2);
+		if(extra < 0) return -1;
+		value |= extra;
+		/* Same octet-count range as uper_put_nsnnwn(): 1..3 */
+		if(value < 1 || value > 3)
 			return -1;
-		if(value == 0)
-			return 0;
-		if(value >= 3)
-			return -1;
-		value = per_get_few_bits(pd, 8 * value);
-		return value;
+		return per_get_few_bits(pd, 8 * value);
 	}
 
 	return value;
@@ -113,6 +114,9 @@ uper_put_nsnnwn(asn_per_outp_t *po, int n) {
 		bytes = 3;
 	else
 		return -1;	/* This is not a "normally small" value */
+	/* '1' flag, then octet count (#11.9.3.6), then the octets */
+	if(per_put_few_bits(po, 1, 1))
+		return -1;
 	if(per_put_few_bits(po, bytes, 8))
 		return -1;
 
@@ -205,6 +209,8 @@ uper_put_nslength(asn_per_outp_t *po, size_t length) {
         return per_put_few_bits(po, length - 1, 7) ? -1 : 0;
     } else {
         int need_eom = 0;
+        /* #11.9.3.4: '1' then the length determinant */
+        if(per_put_few_bits(po, 1, 1)) return -1;
         if(uper_put_length(po, length, &need_eom) != (ssize_t)length
            || need_eom) {
             /* This might happen in case of >16K extensions */
@@ -351,7 +357,7 @@ aper_get_nslength(asn_per_data_t *pd) {
 	} else {
 		int repeat;
 		length = aper_get_length(pd, -1, -1, &repeat);
-		if(length >= 0 && !repeat) return length;
+		if(length > 0 && !repeat) return length;
 		return -1; /* Error, or do not support >16K extensions */
 	}
 }
@@ -436,6 +442,8 @@ aper_put_nslength(asn_per_outp_t *po, size_t length) {
 		if(length == 0) return -1;
 		return per_put_few_bits(po, length-1, 7) ? -1 : 0;
 	} else {
+		/* #11.9.3.4: '1' then the (aligned) length determinant */
+		if(per_put_few_bits(po, 1, 1)) return -1;
 		if(aper_put_length(po, -1, length) != (ssize_t)length) {
 			/* This might happen in case of >16K extensions */
 			return -1;
@@ -519,10 +527,9 @@ aper_get_nsnnwn_ext(asn_per_data_t *pd) {
     if(flagbit == 0)
         return per_get_few_bits(pd, 6);           /* short form */
 
-    if(aper_get_align(pd) < 0) return -1;
-    int ebits = 0;
     int repeat = 0;
-    ssize_t len = aper_get_length(pd, -1, ebits, &repeat);
-    if(len < 0 || len > 3) return -1;
+    /* ebits = -1: unconstrained length determinant (aligns itself) */
+    ssize_t len = aper_get_length(pd, -1, -1, &repeat);
+    if(len < 1 || len > 3 || repeat) return -1;
     return per_get_few_bits(pd, 8 * (int)len);
 }

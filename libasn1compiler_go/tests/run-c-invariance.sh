@@ -93,6 +93,7 @@ e2e="$here/e2e"
 check ex 0 "$e2e/ex.asn"
 check ioc 0 "$e2e/ioc.asn"
 check default 0 "$e2e/default.asn"
+check nsmall 0 "$e2e/nsmall.asn"
 
 # A spec the Go pass rejects (default-unsupported.asn: a SEQUENCE-valued
 # DEFAULT, which the C generator gives no default callbacks for) must be

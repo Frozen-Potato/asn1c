@@ -88,8 +88,7 @@ straight into `-D` (stock behaviour) before the Go pass runs. Rejects that do
 not depend on the C pass run first, as a pre-flight, so those leave `-D`
 untouched and exit 70 with `no C output was written`: the construct rejects
 (unsupported DEFAULT forms, `[[ ]]` version brackets, unsupported types such as SET /
-SET OF / OID, named-bit BIT STRING, unresolvable references, CHOICE extension
-index >= 64) and an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`.
+SET OF / OID, named-bit BIT STRING, unresolvable references) and an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`.
 The remaining Go-pass failures can only be detected after the C pass, because
 the name pass reads the `EM_INDIRECT` / `EM_UNRECURSE` markers it stamps: Go
 name collisions, by-value type cycles, and I/O errors while writing the Go tree.
@@ -390,14 +389,12 @@ republish the pair together.
 | `ASN1CGO_DUMP_NAMES` | Write the identifier name rows (owning module, kind, C id, Go name) to the named file. |
 | `ASN1CGO_DUMP_COVERAGE` | Write the per-kind construct coverage tally to the named file. |
 | `ASN1CGO_DUMP_CHOICE_ALTS` | Print the running maximum CHOICE alternative/extension-index counts seen. |
-| `ASN1CGO_ALLOW_CHOICE_EXT64` | A CHOICE extension alternative at index ≥ 64 refuses generation by default (the nsnnwn short form only encodes n ≤ 63, and the ≥ 64 path is untested here). Set to permit generation. |
 | `ASN1CGO_FLATDBG` | Trace the Flat layout engine. |
 
 ## Platform and limits
 
 - **amd64-only**: the Flat C layout model mirrors the x86-64 SysV ABI;
   every generated `.go` file carries `//go:build amd64`.
-- **CHOICE extension index ≥ 64**: refused by default (see above).
 - **Recursion depth**: bounded at 64 depth units per encode/decode
   (`ASN1CGO_MAX_DEPTH` in the rt error header).
 - **C-side stack budget**: each decode runs asn1c's `asn_decode` with a
@@ -436,7 +433,7 @@ republish the pair together.
   aPER round trip.
 
 **Tests.** `tests/run-e2e.sh` generates Go from `tests/e2e/ex.asn` and
-`tests/e2e/ioc.asn` with the built `asn1c/asn1c`, builds it with cgo (no
+`tests/e2e/ioc.asn` (plus `default.asn` and `nsmall.asn`) with the built `asn1c/asn1c`, builds it with cgo (no
 manual `CGO_CFLAGS`) and runs `tests/e2e/main_test.go`: an APER round-trip
 check plus one negative test per error code reachable from caller input
 (the unreachable codes are listed at the top of that file), once with
@@ -444,7 +441,12 @@ check plus one negative test per error code reachable from caller input
 `tests/e2e/faults_test.go` with `-tags asn1cgo_faults`, an allocation-fault
 sweep that fails each runtime allocation in turn (Encode's backing block
 included) and requires `ErrAlloc`
-and a zero `ArenaBalance`. `tests/run-c-invariance.sh` checks that adding
+and a zero `ArenaBalance`. `tests/e2e/nsmall_test.go` covers "normally small"
+values >= 64 (a SEQUENCE with 70 extension additions, a CHOICE with 70
+extension alternatives, an ENUMERATED with 70 extension values): APER
+round-trips at indices 0, 63, 64, 65, 69, hand-computed APER/UPER bytes for
+index 64, truncated and zero-count inputs, and the C converter's APER/UPER/XER
+(mirrors C `check-164`). `tests/run-c-invariance.sh` checks that adding
 `-Fgo=` leaves the generated C byte-identical (apart from the stamped
 command line). Both scripts exit 77 (skip) when a prerequisite (`go`, cgo,
 linux/amd64, or the built `asn1c`) is unavailable.

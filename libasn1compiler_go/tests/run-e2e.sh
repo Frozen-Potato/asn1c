@@ -47,14 +47,14 @@ run_one() {
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
     cp -R "$repo/libasn1compiler_go/rt/go" "$work/asn1cgo-rt"
     sed 's|^module .*|module asn1cgo.test/asn1cgo-rt|' "$work/asn1cgo-rt/go.mod" >"$work/go.mod.new"
     mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
 
-    cp "$here/e2e/main_test.go" "$here/e2e/default_test.go" "$here/e2e/faults_test.go" "$work/go/"
+    cp "$here/e2e/main_test.go" "$here/e2e/default_test.go" "$here/e2e/nsmall_test.go" "$here/e2e/faults_test.go" "$work/go/"
     # The C converter built from the same C tree: the cross-check oracle for
     # APER/UPER/XER in default_test.go.
     (

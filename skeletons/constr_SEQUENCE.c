@@ -1633,8 +1633,10 @@ SEQUENCE_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 		if(!epres) ASN__DECODE_STARVED;
 
 		/* Get the extensions map */
-		if(per_get_many_bits(pd, epres, 0, bmlength))
+		if(per_get_many_bits(pd, epres, 0, bmlength)) {
+			FREEMEM(epres);
 			ASN__DECODE_STARVED;
+		}
 
 		memset(&epmd, 0, sizeof(epmd));
 		epmd.buffer = epres;
