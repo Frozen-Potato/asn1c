@@ -45,7 +45,7 @@ if you call the C OER functions yourself.
 just the basename. `-Fgo=out/go` with prefix `your.prefix` yields module
 `your.prefix/go`, and packages are imported as `your.prefix/go/<package>`.
 
-**Workspace layout.** The generated `go.mod` sets `go 1.27.1`, requires the
+**Workspace layout.** The generated `go.mod` sets `go 1.21.0`, requires the
 runtime (`asn1cgo-rt`, or `<prefix>/asn1cgo-rt`) at the generator's embedded
 version, and has `replace <rt> => ../asn1cgo-rt`. So the runtime is expected
 at `../asn1cgo-rt`, next to the `-Fgo` dir. When `-Fgo` has a parent
@@ -57,6 +57,9 @@ rewritten atomically and only after the whole tree was generated, so a failed
 run never modifies it and a rerun never adds a duplicate `use` line. A bare
 `-Fgo=go` has no parent component, so no `go.work` is written and the
 `replace` does the work.
+
+Go 1.21 or newer is required (cgo enabled). The e2e test can be run against
+the floor with `GOTOOLCHAIN=go1.21.13 sh libasn1compiler_go/tests/run-e2e.sh`.
 
 **All-or-nothing output.** The Go tree is generated into a staging directory
 next to the target (`<parent>/.<basename>.asn1cgo-tmp-XXXXXX`, same

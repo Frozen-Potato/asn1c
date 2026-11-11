@@ -99,10 +99,6 @@
  * exactly the symbol asn1c stamps into its .h, byte-for-byte. */
 #define GO_MKID(expr) (asn1c_make_identifier(AMI_USE_PREFIX, (expr), 0))
 
-/* Go version stamped into go.mod. PINNED.md is the sole authority; reproduced
- * verbatim with the PINNED.md line cited, never chosen independently. */
-#define GO_MOD_GO_VERSION "1.27.1"   /* PINNED.md: - Go: go1.27.1 */
-
 /* Forward decl for go_emit.c: it owns file emission; we call it once the name
  * pass is clean. Declared here (not in a header) to keep the hook surface flat
  * (the read-only rule: no edits beyond the pinned hook in libasn1compiler proper). */

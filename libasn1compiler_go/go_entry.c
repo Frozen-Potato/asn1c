@@ -37,9 +37,6 @@
 #include <dirent.h>
 #include <stdint.h>
 
-/* PINNED.md: - Go: go1.27.1 (same literal as go_emit.c) */
-#define GO_MOD_GO_VERSION "1.27.1"
-
 /* The rt runtime version every generated go.mod requires (single source:
  * the release script reads this same literal). */
 #define ASN1CGO_RT_VERSION "v0.2.2"

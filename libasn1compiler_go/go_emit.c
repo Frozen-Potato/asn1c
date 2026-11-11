@@ -65,10 +65,6 @@ int go_emit_files(asn1p_t *asn, const char *go_outdir);
 extern int go_emit_module_imports(FILE *out, const char *module);
 extern int go_emit_module_decls(FILE *out, const char *module);
 
-/* The go version, identical literal to go_names.c (both reproduce PINNED.md).
- * Cited at the definition so a future PINNED.md bump is a 2-place edit. */
-#define GO_MOD_GO_VERSION "1.27.1"   /* PINNED.md: - Go: go1.27.1 */
-
 /* last path segment of go_outdir (the module basename). Returns a pointer INTO
  * `path` (borrowed) or NULL if path is empty. */
 static const char *
