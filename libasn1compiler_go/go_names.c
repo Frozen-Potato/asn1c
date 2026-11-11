@@ -106,6 +106,8 @@ extern int go_emit_files(asn1p_t *asn, const char *go_outdir);
 /* Self-prototype so -Wmissing-prototypes is satisfied (same flat-extern style
  * as the driver's asn1cgo_generate forward decl in go_backend.c). */
 int go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags);
+/* Likewise for go_check_outdir (go_backend.c keeps its own extern). */
+int go_check_outdir(const char *go_outdir);
 
 /* Glue emission (go_glue.c), called by go_generate above after
  * go_conv_emit (flat-extern style: no header churn). */
