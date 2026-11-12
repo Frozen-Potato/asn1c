@@ -305,7 +305,7 @@ NativeEnumerated_encode_aper(const asn_TYPE_descriptor_t *td,
 	const asn_per_constraint_t *ct = NULL;
 	int inext = 0;
 	asn_INTEGER_enum_map_t key;
-	asn_INTEGER_enum_map_t *kf;
+	const asn_INTEGER_enum_map_t *kf;
 
 	if(!sptr) ASN__ENCODE_FAILED;
 	if(!specs) ASN__ENCODE_FAILED;
