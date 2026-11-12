@@ -1,0 +1,19 @@
+# Known issues
+
+Known bugs and limitations of the Go backend. New issues are appended with the
+next number; the Status column is updated when one is fixed.
+
+Status: `Open`, `Fixed (<version>)`, `Wontfix`.
+
+| # | Description | Status |
+|---|-------------|--------|
+| 1 | The C runtime cannot PER-encode a present value of `INTEGER (0..18446744073709551615)`: it keeps constraint bounds in a `long`, so even 0 fails ("aper encode failed"). `converter-example` fails identically, and the Go `Encode` returns the same error. Ranges that stay within `long` but exceed 32 bits (e.g. `0..1099511627775`) work. | Open (C runtime) |
+| 2 | The generated C constraint check for an `INTEGER_t` beyond `long` uses `asn_INTEGER2long`, so values >= 2^63 are rejected ("value too large"); it also triggers a `-Wsign-compare` warning. | Open (C generator) |
+| 3 | Type names that exist in several modules of one `-Fgo` run (the same name in two input files) make the generated conversion code refer to `struct <Name>` instead of the module-prefixed C name, so the cgo package fails to compile (`invalid application of 'sizeof' to incomplete type`). Workaround: give the types unique names. | Open |
+| 4 | `examples/rrc-7.1.0.asn1` stops at a name collision: `CompleteSIBList` from `SystemInformation-BCH.payload.lastAndCompleteAndFirst.completeSIB-List.completeSIB-List` and `SystemInformation-BCH.payload.completeSIB-List`. | Open |
+| 5 | `SEQUENCE OF` an inline unsigned `INTEGER` wider than 32 bits is not supported as an element (`INTEGER (0..4294967295)`): the C generator emits unusable C (`asn_DEF_Member_2` undeclared). | Open (C generator) |
+| 6 | `SEQUENCE OF SEQUENCE OF {SEQUENCE \| CHOICE}`: the C generator emits unusable C. | Open (C generator) |
+| 7 | `SEQUENCE OF` a reference to a NULL type fails with `asn1cgo: conv: unresolved seqof elem`. | Open |
+| 8 | `SEQUENCE OF` with a `SIZE` constraint on both the outer and inner list makes asn1c abort in the parser (`asn1p_y.y` assertion). | Open (parser) |
+| 9 | `ISO646String` makes asn1c abort (`asn1fix_constraint_compat.c`, `asn1constraint_default_alphabet` assertion). | Open (asn1fix) |
+| 10 | A top-level wide `INTEGER_t` leaf is always converted with the unsigned verbs, even when its Go type is `int64`. Only reachable with `-fwide-types`. | Open |
