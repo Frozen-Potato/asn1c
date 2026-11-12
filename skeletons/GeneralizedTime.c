@@ -2,9 +2,15 @@
  * Copyright (c) 2003-2017 Lev Walkin <vlm@lionet.info>. All rights reserved.
  * Redistribution and modifications are permitted subject to BSD license.
  */
+#ifndef _POSIX_PTHREAD_SEMANTICS
 #define	_POSIX_PTHREAD_SEMANTICS	/* for Sun */
+#endif
+#ifndef _REENTRANT
 #define	_REENTRANT			/* for Sun */
+#endif
+#ifndef __EXTENSIONS__
 #define __EXTENSIONS__                  /* for Sun */
+#endif
 #ifndef _BSD_SOURCE
 #define _BSD_SOURCE     /* for timegm(3) */
 #endif

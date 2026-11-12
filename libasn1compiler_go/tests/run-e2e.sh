@@ -237,10 +237,18 @@ run_rt_fetch() {
     [ "$rc" = 0 ] || [ "$rc" = 77 ] || { echo "run-e2e: rt fetch-mode test failed" >&2; return 1; }
 }
 
+# rt C files must match skeletons/ and compile warning-free under -pthread.
+run_rt_skeleton_sync() {
+    rc=0
+    sh "$here/run-rt-skeleton-sync.sh" || rc=$?
+    [ "$rc" = 0 ] || [ "$rc" = 77 ] || { echo "run-e2e: rt/skeleton sync check failed" >&2; return 1; }
+}
+
 run_cycle
 run_oneway
 run_unsupported_default
 run_stdlib_collision
 run_stdlib_names_drift
 run_rt_fetch
+run_rt_skeleton_sync
 echo "run-e2e: PASS"

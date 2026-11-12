@@ -1,3 +1,12 @@
+0.9.29-go.5 (unreleased)
+    FIXES:
+    * Go backend / runtime: no more `"_REENTRANT" redefined` cgo warning
+      (cgo's -pthread predefines it). The "for Sun" feature macros in
+      GeneralizedTime.c and _ISOC99_SOURCE in REAL.c are now #ifndef-guarded,
+      in skeletons/ and rt/go/rt alike. The fix reaches fetch-mode users
+      only once rt v0.3.1 is tagged. New tests/run-rt-skeleton-sync.sh
+      checks rt/skeleton identity and a -Werror=cpp compile of the rt.
+
 0.9.29-go.4:
     FIXES:
     * Go backend: runtime module renamed to

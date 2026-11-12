@@ -10,7 +10,9 @@
 #ifdef    HAVE_CONFIG_H
 #include <config.h>
 #endif
+#ifndef __EXTENSIONS__
 #define __EXTENSIONS__
+#endif
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>    /* for atoi(3) */
