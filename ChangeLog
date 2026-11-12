@@ -1,4 +1,4 @@
-0.9.29-go.3:
+0.9.29-go.4:
     FIXES:
     * Go backend: runtime module renamed to
       github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go, v0.3.0
@@ -7,6 +7,40 @@
       a local checkout via replace/go.work. ASN1CGO_GO_MODULE_PREFIX no
       longer applies to the runtime. `make install` ships the rt C files in
       <pkgdatadir>/go-rt.
+    * Go backend: DEFAULT members are supported. A member with a DEFAULT is
+      a plain value T (not a pointer); for each one a <Type><Field>Default
+      constant is generated. Supported forms: BOOLEAN / INTEGER /
+      ENUMERATED plain values, PrintableString quoted strings, OCTET STRING
+      and BIT STRING (no named bits) 'H / 'B values. Other forms are
+      rejected before the C pass (exit 70), so -D is left untouched.
+    * Go backend: CHOICE extension index >= 64 is no longer refused.
+    * C generator: callbacks for negative INTEGER DEFAULT values get valid
+      C names (asn_DFL_*_m1), and INT64_MIN is emitted as a valid literal.
+    * C generator: OCTET STRING / BIT STRING DEFAULT values given as
+      hstring/bstring now get comparison/set callbacks; 'HH printable
+      value fixed.
+    * Runtime (affects plain C users too): the APER SEQUENCE encoder
+      dropped DEFAULT members, and the APER decoder filled extension
+      defaults from the wrong member table; both fixed.
+    * Runtime (affects plain C users too): PER normally-small length and
+      normally-small non-negative number >= 64 fixed in APER and UPER
+      (SEQUENCE with > 64 extension additions, CHOICE extension index and
+      ENUMERATED extension value >= 64). Encodings of such values change.
+    * Runtime (affects plain C users too): extension additions equal to
+      their DEFAULT are omitted in PER (APER and UPER, canonical form).
+    * Runtime: fix a leak of the extension presence bitmap (epres) on the
+      bitmap error path.
+    * Name clashes: false positives for synthesized open-type names removed
+      from the clash finder.
+    * BREAKING: a real name clash under -fcompound-names now fails the run
+      (non-zero exit status) instead of only warning.
+    * Go backend: -Fgo basenames that collide with the Go standard library
+      are rejected unless ASN1CGO_GO_MODULE_PREFIX is set.
+
+0.9.29-go.3:
+    FIXES:
+    * Go backend: runtime asn1cgo-rt v0.2.3 (generated code requires it;
+      regenerate and republish the Go tree and runtime together).
     * Go backend: generated go.mod/go.work minimum Go version lowered from
       1.27.1 to 1.21.0; existing go.work files keep their go line (the
       generator only appends `use` entries).
