@@ -408,6 +408,36 @@ Not supported (the C generator itself emits unusable C for them):
 `SEQUENCE OF SEQUENCE OF {SEQUENCE | CHOICE}` and an inline unsigned INTEGER
 wider than `long` (`INTEGER (0..4294967295)`) as an element.
 
+### Inline SEQUENCE and CHOICE members and alternatives
+
+An anonymous SEQUENCE or CHOICE works as a SEQUENCE member (required or
+OPTIONAL), as a CHOICE alternative (in any position), nested inside another
+anonymous SEQUENCE or CHOICE, and as the element of an inline `SEQUENCE OF`.
+The Go type is named like every other inline type: `<Parent><Member>` for a
+member `a` of `T` (`TA`), `<Choice><Alt>` for an alternative (`TA` again), one
+more name segment per level (`TAB`):
+
+```asn1
+T ::= SEQUENCE { a SEQUENCE { x INTEGER (0..3) } OPTIONAL, b BOOLEAN }
+U ::= CHOICE { a CHOICE { x INTEGER (0..3), y BOOLEAN }, b BOOLEAN }
+```
+
+```go
+type T struct { A *TA; B bool }     // *TA: OPTIONAL
+type TA struct { X int64 }
+type U struct { Present UPr; A *UA; B *bool }   // every alternative is a pointer
+type UA struct { Present UAPr; X *int64; Y *bool }
+```
+
+A by-value inline member (required SEQUENCE or CHOICE) is an anonymous struct
+nested inside its parent's Flat struct. A pointer slot (an OPTIONAL member, or
+any CHOICE alternative under `-findirect-choice`) points at `struct <cid>`
+in the C tree, which has a tag but no typedef; there the construct is a
+package-scoped Flat node of its own, and the conv file aliases `<cid>_t` to the
+struct tag. `tests/e2e/inlconstr.asn` and `inlconstr_test.go` cover every
+shape (APER and XER round trips against the C converter, absent and present
+OPTIONALs, every alternative, `-race` and the allocation-fault sweep).
+
 ## Runtime module
 
 Generated code imports the runtime module (error model + arena + the asn1c

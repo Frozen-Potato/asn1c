@@ -175,6 +175,13 @@ static char *gown(const char *s) {
     return r ? r : strdup("");
 }
 
+/* the composite const prefix of member `tok` under prefix `pre` ("" = at the
+ * node top): one "_<tok>" segment per nesting level (g_offconst2 camel-cases
+ * the separators away). Malloc'd. */
+static char *cpre_chain(const char *pre, const char *tok) {
+    return (pre && *pre) ? gfmt("%s_%s", pre, tok) : gown(tok);
+}
+
 static char *gjoin(const char *dir, const char *leaf) {
     char *p = malloc(strlen(dir) + 1 + strlen(leaf) + 1);
     if(!p) return strdup("");
@@ -503,6 +510,51 @@ static void assert_add(const char *kind, const char *node_name,
     free(line);
 }
 
+/* The composite consts of the by-value nested wrapper member `m` of node
+ * `nm`, recursing through wrappers nested inside wrappers (the chain token
+ * grows by one "_<tok>" segment per level; g_offconst2's camel-casing drops
+ * the separators, so layout.go's spelling is reproduced). With `emit_assert`
+ * each const's typeof-sum _Static_assert is recorded; otherwise the const is
+ * re-declared glue-locally (a foreign node's set). `lhs`/`acc`: the C offset
+ * expression / member path of the wrapper under node `nm`; `abs`: the
+ * wrapper's offset from the node top. */
+static void nested_consts(const char *nm, const char *node_id,
+                          flat_member *m, const char *chain, const char *lhs,
+                          const char *acc, long abs, int emit_assert) {
+    int nix = go_flat_ir_member_nested_ix(m);
+    flat_type *n = nix >= 0 ? go_flat_ir_type(nix) : NULL;
+    if(!n) return;
+    for(int j = 0; j < go_flat_ir_members(n); j++) {
+        flat_member *im = go_flat_ir_member(n, j);
+        const char *itok = go_flat_ir_member_token(im);
+        if(!itok || !*itok) continue;
+        char *oc2 = g_offconst2(nm, chain, itok);
+        long ioff = abs + go_flat_ir_member_offset(im);
+        char *sub = gfmt("%s + offsetof(typeof(((%s *)0)->%s), %s)",
+                         lhs, node_id, acc, itok);
+        if(emit_assert) {
+            /* the typeof-sum designator form (offsetof(T,a) +
+             * offsetof(typeof(((T*)0)->a),b) == host+inner) */
+            char *line = gfmt("_Static_assert(%s == %ld, \"%s\");\n",
+                              sub, ioff, oc2);
+            if(!strstr(g_asserts ? g_asserts : "", line))
+                g_asserts = ga(g_asserts, line);
+            free(line);
+            free(oc2);
+        } else {
+            loconst_add(oc2, ioff);
+        }
+        if(go_flat_ir_member_is_nested(im) && !go_flat_ir_member_stars(im)) {
+            char *nchain = gfmt("%s_%s", chain, itok);
+            char *nacc = gfmt("%s.%s", acc, itok);
+            nested_consts(nm, node_id, im, nchain, sub, nacc, ioff,
+                          emit_assert);
+            free(nchain); free(nacc);
+        }
+        free(sub);
+    }
+}
+
 /* the assert block of one node's whole const set (sizeof + every member
  * offset + every nested composite offset), mirroring the local-const set
  * qconst declares for a foreign node and layout.go declares for an own
@@ -528,26 +580,11 @@ static void node_asserts(flat_type *t) {
         free(oc);
         if(!go_flat_ir_member_is_nested(m) || go_flat_ir_member_stars(m))
             continue;
-        flat_type *n = go_flat_ir_member_nested_ix(m) >= 0
-            ? go_flat_ir_type(go_flat_ir_member_nested_ix(m)) : NULL;
-        if(!n) continue;
-        for(int j = 0; j < go_flat_ir_members(n); j++) {
-            flat_member *im = go_flat_ir_member(n, j);
-            const char *itok = go_flat_ir_member_token(im);
-            if(!itok || !*itok) continue;
-            /* the composite const's assert: the typeof-sum designator form
-             * (offsetof(T,a)+offsetof(typeof(((T*)0)->a),b) == host+inner) */
-            char *oc2 = g_offconst2(nm, tok, itok);
-            char *line = gfmt(
-                "_Static_assert(offsetof(%s, %s) + "
-                "offsetof(typeof(((%s *)0)->%s), %s) == %ld, \"%s\");\n",
-                node_id, tok, node_id, tok, itok,
-                go_flat_ir_member_offset(m) + go_flat_ir_member_offset(im),
-                oc2);
-            if(!strstr(g_asserts ? g_asserts : "", line))
-                g_asserts = ga(g_asserts, line);
-            free(oc2);
-            free(line);
+        {
+            char *lhs = gfmt("offsetof(%s, %s)", node_id, tok);
+            nested_consts(nm, node_id, m, tok, lhs, tok,
+                          go_flat_ir_member_offset(m), 1);
+            free(lhs);
         }
     }
     free(node_id);
@@ -589,22 +626,20 @@ static char *qconst(const char *node_name, char *o) {
         char *oc = g_offconst(node_name, tok);
         loconst_add(oc, go_flat_ir_member_offset(m));
     }
-    /* nested inner offsets (the composite const form) */
-    for(int i = 0; i < go_flat_ir_members(t); i++) {
-        flat_member *m = go_flat_ir_member(t, i);
-        if(!go_flat_ir_member_is_nested(m) || go_flat_ir_member_stars(m))
-            continue;
-        flat_type *n = go_flat_ir_member_nested_ix(m) >= 0
-            ? go_flat_ir_type(go_flat_ir_member_nested_ix(m)) : NULL;
-        if(!n) continue;
-        for(int j = 0; j < go_flat_ir_members(n); j++) {
-            flat_member *im = go_flat_ir_member(n, j);
-            const char *itok = go_flat_ir_member_token(im);
-            if(!itok) continue;
-            char *oc2 = g_offconst2(node_name, go_flat_ir_member_token(m), itok);
-            loconst_add(oc2, go_flat_ir_member_offset(m)
-                              + go_flat_ir_member_offset(im));
+    /* nested inner offsets (the composite const form), at every depth */
+    {
+        char *node_id = gown(go_flat_ir_name(t));
+        for(int i = 0; i < go_flat_ir_members(t); i++) {
+            flat_member *m = go_flat_ir_member(t, i);
+            if(!go_flat_ir_member_is_nested(m) || go_flat_ir_member_stars(m))
+                continue;
+            const char *mtok = go_flat_ir_member_token(m);
+            char *lhs = gfmt("offsetof(%s, %s)", node_id, mtok);
+            nested_consts(node_name, node_id, m, mtok, lhs, mtok,
+                          go_flat_ir_member_offset(m), 0);
+            free(lhs);
         }
+        free(node_id);
     }
     return o;
 }
@@ -1409,6 +1444,25 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
     }
     char *rb = fnbase(r);
     char *tsz = qconst(go_flat_ir_name(r), g_szconst(go_flat_ir_name(r)));
+    {
+        /* The target struct is allocated behind a pointer slot with
+         * alignInt64 bump-pointer placement, so a node whose size is not a
+         * multiple of 8 (an inline SEQUENCE { z BOOLEAN } is 4 bytes) forces
+         * padding up to the next 8-aligned allocation that the narrow sizeof
+         * never reserves ("fixed-region undercounted by 4"). Alloc and size
+         * both use the padded footprint, so consumption stays exactly the
+         * reservation. Sizes that are multiples of 8 keep the const name.
+         * Limited to inline constructs (inline_elem nodes, new with this
+         * support): a NAMED 4-byte node behind a pointer keeps its narrow
+         * sizeof, which is exact only when it is the last allocation (a
+         * latent sizing bug the shipped E2SM-RC output depends on being
+         * byte-identical -- see the README follow-ups). */
+        long nsz = go_flat_ir_node_size(r);
+        if(go_flat_ir_inline_elem(r) && nsz % 8) {
+            free(tsz);
+            tsz = gfmt("%ld", nsz + 8 - nsz % 8);
+        }
+    }
     int scc = dep_is_scc(r);
     const char *dinc = scc ? ", depth+1" : "";   /* the target's own depth
                                                     arg inherits host depth */
@@ -2199,8 +2253,7 @@ emit_nested(ectx *E, flat_member *m) {
         A.t = n;
         A.owner_go = nowner;
         A.cbase = gown(E->cbase);
-        const char *host_pre = (E->cpre && *E->cpre) ? E->cpre : "";
-        A.cpre = gown(host_pre[0] ? gfmt("%s%s", host_pre, tok) : tok);
+        A.cpre = cpre_chain(E->cpre, tok);
         A.val = gown(acc);
         emit_choice_at(&A, n, E->cbase, pv);
         free(pv);
@@ -2222,12 +2275,12 @@ emit_nested(ectx *E, flat_member *m) {
          * Implemented by carrying (host node, inner token-prefix) in the
          * const formatter: cnode stays the HOST node and cpre carries M. */
         E2.cnode = E->cnode;
-        E2.cpre = tok;
+        E2.cpre = cpre_chain(E->cpre, tok);
         E2.val = gown(acc);
         for(int i = 0; i < go_flat_ir_members(n); i++)
             emit_member(&E2, go_flat_ir_member(n, i));
         (*E->szt) = (*E2.szt); (*E->fill) = (*E2.fill); (*E->read) = (*E2.read);   /* ga moved them */
-        free_const(E2.cbase); free_const(E2.val);
+        free_const(E2.cbase); free_const(E2.cpre); free_const(E2.val);
         /* nowner consumed by E2 (borrowed into rows lookups; still ours) */
         free(ft);
         free(offc); free(slot); free(acc); free(nowner); free(nb);

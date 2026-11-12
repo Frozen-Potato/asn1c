@@ -1124,6 +1124,120 @@ rtrim(char *s) {
     return s;
 }
 
+/* The inner-offset asserts of the by-value nested wrapper member `m` of node
+ * `t`, recursing through wrappers nested inside wrappers. `lhs` = the C
+ * offset expression of the wrapper from the top of t ("offsetof(T, a)", then
+ * "offsetof(T, a) + offsetof(typeof(((T *)0)->a), c)"); `acc` = its member
+ * access path ("a", "a.c"); `label` = the assert message prefix; `abs` = the
+ * wrapper's offset from the top of t. */
+static void
+render_nested_asserts(flat_type *t, flat_member *m, const char *lhs,
+                      const char *acc, const char *label, unsigned long abs,
+                      char **s) {
+    flat_type *n = flat_at(m->nested_ix);
+    if(!n) return;
+    for(int j = 0; j < n->n_members; j++) {
+        flat_member *im = &n->members[j];
+        char *sub = fstrdup(lhs);
+        sub = fa(sub, " + offsetof(typeof(((");
+        sub = fa(sub, t->name);
+        sub = fa(sub, " *)0)->");
+        sub = fa(sub, acc);
+        sub = fa(sub, "), ");
+        sub = fa(sub, im->token);
+        sub = fa(sub, ")");
+        char num[32];
+        *s = fa(*s, "_Static_assert(");
+        *s = fa(*s, sub);
+        snprintf(num, sizeof num, " == %lu, \"", abs + im->offset);
+        *s = fa(*s, num);
+        *s = fa(*s, label);
+        *s = fa(*s, ".");
+        *s = fa(*s, im->token);
+        snprintf(num, sizeof num, "@%lu", im->offset);
+        *s = fa(*s, num);
+        *s = fa(*s, "\");\n");
+        if(im->kind == FT_NESTED && !im->stars) {
+            char *nacc = fstrdup(acc);
+            nacc = fa(nacc, ".");
+            nacc = fa(nacc, im->token);
+            char *nlabel = fstrdup(label);
+            nlabel = fa(nlabel, ".");
+            nlabel = fa(nlabel, im->token);
+            render_nested_asserts(t, im, sub, nacc, nlabel,
+                                  abs + im->offset, s);
+            free(nacc); free(nlabel);
+        }
+        free(sub);
+    }
+}
+
+static char *go_off_const2(const char *node_name, const char *tok1,
+                           const char *tok2);
+
+/* layout.go consts + cgo probes of the inner members of the by-value nested
+ * wrapper member `m` of node `t`, recursing through wrappers nested inside
+ * wrappers. `chain` = the const-name token chain ("a", "a_c": the camel-casing
+ * of go_off_const2 drops the separators); `lhs`/`acc` = the C offset
+ * expression and member-access path of the wrapper under t (as in
+ * render_nested_asserts); `label` = the probe message path; `abs` = the
+ * wrapper's offset from the top of t. */
+static void
+layout_nested_consts(flat_type *t, flat_member *m, const char *chain,
+                     const char *lhs, const char *acc, const char *label,
+                     unsigned long abs, char **lconsts, char **probe_c,
+                     char **probe_go, size_t *probe_n) {
+    flat_type *n = flat_at(m->nested_ix);
+    if(!n) return;
+    for(int j = 0; j < n->n_members; j++) {
+        flat_member *im = &n->members[j];
+        char ob[32];
+        snprintf(ob, sizeof ob, "%lu", abs + im->offset);
+        char *oc = go_off_const2(t->name, chain, im->token);
+        *lconsts = fa(*lconsts, "const ");
+        *lconsts = fa(*lconsts, oc);
+        *lconsts = fa(*lconsts, " = ");
+        *lconsts = fa(*lconsts, ob);
+        *lconsts = fa(*lconsts, "\n");
+        /* probe: the composite accessor uses the typeof-sum form (an
+         * anonymous inline struct member has no named inner typedef to
+         * offsetof directly). */
+        char *sub = fstrdup(lhs);
+        sub = fa(sub, " + offsetof(typeof(((");
+        sub = fa(sub, t->name);
+        sub = fa(sub, " *)0)->");
+        sub = fa(sub, acc);
+        sub = fa(sub, "), ");
+        sub = fa(sub, im->token);
+        sub = fa(sub, ")");
+        char acs[64];
+        snprintf(acs, sizeof acs, "probe_%zu", (*probe_n)++);
+        *probe_c = fap(*probe_c,
+            "static inline unsigned long %s(void) "
+            "{ return (unsigned long)(%s); }\n", acs, sub);
+        *probe_go = fap(*probe_go,
+            "\tmust(\"off %s.%s.%s\", uintptr(%s), uintptr(C.%s()))\n",
+            t->name, label, im->token, oc, acs);
+        if(im->kind == FT_NESTED && !im->stars) {
+            char *nchain = fstrdup(chain);
+            nchain = fa(nchain, "_");
+            nchain = fa(nchain, im->token);
+            char *nacc = fstrdup(acc);
+            nacc = fa(nacc, ".");
+            nacc = fa(nacc, im->token);
+            char *nlabel = fstrdup(label);
+            nlabel = fa(nlabel, ".");
+            nlabel = fa(nlabel, im->token);
+            layout_nested_consts(t, im, nchain, sub, nacc, nlabel,
+                                 abs + im->offset, lconsts, probe_c,
+                                 probe_go, probe_n);
+            free(nchain); free(nacc); free(nlabel);
+        }
+        free(sub);
+        free(oc);
+    }
+}
+
 /* The asserts of one node (the sizeof + one offsetof per member, in member
  * order) appended to layout_check.c text. Nested members use the frozen units
  * typeof-sum forms: offsetof(T, tok) + offsetof(typeof(((T*)0)->tok), m). */
@@ -1159,38 +1273,21 @@ render_node_asserts(flat_type *t, char **s) {
         *s = fa(*s, "\");\n");
         (void)msize; (void)moff;
         /* a nested-by-value wrapper: also assert its inner offsets via the
-         * typeof-sum form (the frozen units' nested-assert grammar) */
+         * typeof-sum form (the frozen units' nested-assert grammar), at every
+         * nesting depth */
         if(m->kind == FT_NESTED && !m->stars) {
-            flat_type *n = flat_at(m->nested_ix);
-            for(int j = 0; j < n->n_members; j++) {
-                flat_member *im = &n->members[j];
-                snprintf(moff, sizeof moff, "%lu", im->offset);
-                *s = fa(*s, "_Static_assert(offsetof(");
-                *s = fa(*s, t->name);
-                *s = fa(*s, ", ");
-                *s = fa(*s, m->token);
-                *s = fa(*s, ") + offsetof(typeof(((");
-                *s = fa(*s, t->name);
-                *s = fa(*s, " *)0)->");
-                *s = fa(*s, m->token);
-                *s = fa(*s, "), ");
-                *s = fa(*s, im->token);
-                *s = fa(*s, ") == ");
-                {
-                    char sum[32];
-                    unsigned long tot = m->offset + im->offset;
-                    snprintf(sum, sizeof sum, "%lu", tot);
-                    *s = fa(*s, sum);
-                }
-                *s = fa(*s, ", \"");
-                *s = fa(*s, m->token);
-                *s = fa(*s, ".");
-                *s = fa(*s, im->token);
-                *s = fa(*s, "@");
-                *s = fa(*s, moff);
-                *s = fa(*s, "\");\n");
+            {
+                char *off = fstrdup("offsetof(");
+                off = fa(off, t->name);
+                off = fa(off, ", ");
+                off = fa(off, m->token);
+                off = fa(off, ")");
+                render_nested_asserts(t, m, off, m->token, m->token,
+                                      m->offset, s);
+                free(off);
             }
             /* the nested wrapper's own sizeof via typeof */
+            flat_type *n = flat_at(m->nested_ix);
             *s = fa(*s, "_Static_assert(sizeof(typeof(((");
             *s = fa(*s, t->name);
             *s = fa(*s, " *)0)->");
@@ -1695,43 +1792,20 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
                     }
                     free(oc);
                 }
-                /* nested member offsets: <Type>_<tok>_<inner> */
+                /* nested member offsets: off<Type><tok><inner>, and one name
+                 * segment per level for a wrapper nested in a wrapper */
                 for(int i = 0; i < t->n_members; i++) {
                     flat_member *m = &t->members[i];
                     if(m->kind != FT_NESTED || m->stars) continue;
-                    flat_type *n = flat_at(m->nested_ix);
-                    if(!n) continue;
-                    for(int j = 0; j < n->n_members; j++) {
-                        flat_member *im = &n->members[j];
-                        char ob[32];
-                        snprintf(ob, sizeof ob, "%lu", m->offset + im->offset);
-                        char *oc = go_off_const2(t->name, m->token, im->token);
-                        lconsts = fa(lconsts, "const ");
-                        lconsts = fa(lconsts, oc);
-                        lconsts = fa(lconsts, " = ");
-                        lconsts = fa(lconsts, ob);
-                        lconsts = fa(lconsts, "\n");
-                        /* probe: the composite accessor uses the typeof-sum
-                         * form (an anonymous inline struct member has no
-                         * named inner typedef to offsetof directly). */
-                        {
-                            char acc[64];
-                            snprintf(acc, sizeof acc, "probe_%zu", probe_n++);
-                            probe_c = fap(probe_c,
-                                "static inline unsigned long %s(void) "
-                                "{ return (unsigned long)(offsetof(%s, %s) + "
-                                "offsetof(typeof(((%s *)0)->%s), %s)); }\n",
-                                acc, t->name, m->token, t->name, m->token, im->token);
-                            char *cf = camel_flat(t->name);
-                            char *ct = camel_tok(m->token);
-                            char *ci = camel_tok(im->token);
-                            probe_go = fap(probe_go, "\tmust(\"off %s.%s.%s\", uintptr(off%s%s%s), uintptr(C.%s()))\n",
-                                          t->name, m->token, im->token,
-                                          cf ? cf : "", ct ? ct : "", ci ? ci : "", acc);
-                            free(cf); free(ct); free(ci);
-                        }
-                        free(oc);
-                    }
+                    char *lhs = fstrdup("offsetof(");
+                    lhs = fa(lhs, t->name);
+                    lhs = fa(lhs, ", ");
+                    lhs = fa(lhs, m->token);
+                    lhs = fa(lhs, ")");
+                    layout_nested_consts(t, m, m->token, lhs, m->token,
+                                         m->token, m->offset, &lconsts,
+                                         &probe_c, &probe_go, &probe_n);
+                    free(lhs);
                 }
                 lconsts = fa(lconsts, "\n");
             }

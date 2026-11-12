@@ -1,0 +1,138 @@
+InlConstr DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- Inline (anonymous) SEQUENCE / CHOICE types as SEQUENCE members and as CHOICE
+-- alternatives. Go names under -fcompound-names: <Parent><Member> for a
+-- member, <Choice><Alt> for an alternative.
+
+	-- ---- inline SEQUENCE as a SEQUENCE member ----
+	MemReq ::= SEQUENCE {
+		a	SEQUENCE { x INTEGER (0..3) },
+		b	BOOLEAN
+	}
+
+	MemOpt ::= SEQUENCE {
+		a	SEQUENCE { x INTEGER (0..3) } OPTIONAL,
+		b	BOOLEAN
+	}
+
+	-- own OPTIONAL and extension members
+	MemExt ::= SEQUENCE {
+		a	SEQUENCE {
+			x	INTEGER (0..3),
+			y	BOOLEAN OPTIONAL,
+			...,
+			z	INTEGER (0..7) OPTIONAL
+		},
+		b	SEQUENCE {
+			p	OCTET STRING (SIZE(1..3)) OPTIONAL,
+			q	BOOLEAN
+		} OPTIONAL,
+		c	BOOLEAN
+	}
+
+	-- nested two levels deep
+	MemDeep ::= SEQUENCE {
+		a	SEQUENCE {
+			b	SEQUENCE {
+				x	INTEGER (0..3),
+				y	BOOLEAN OPTIONAL
+			},
+			c	SEQUENCE {
+				d	SEQUENCE { z BOOLEAN } OPTIONAL
+			} OPTIONAL
+		},
+		e	BOOLEAN
+	}
+
+	-- inline SEQUENCE holding an inline CHOICE, and the other way around
+	MemMix ::= SEQUENCE {
+		a	SEQUENCE {
+			c	CHOICE { x INTEGER (0..3), y BOOLEAN },
+			d	BOOLEAN
+		},
+		e	CHOICE {
+			s	SEQUENCE { t INTEGER (0..3) },
+			u	BOOLEAN
+		} OPTIONAL
+	}
+
+	-- ---- inline SEQUENCE as a CHOICE alt ----
+	AltSeq ::= CHOICE {
+		a	SEQUENCE { x INTEGER (0..3) },
+		b	BOOLEAN
+	}
+
+	AltSeqMid ::= CHOICE {
+		b	BOOLEAN,
+		a	SEQUENCE { x INTEGER (0..3), y BOOLEAN OPTIONAL },
+		c	INTEGER (0..3)
+	}
+
+	AltSeqLast ::= CHOICE {
+		b	BOOLEAN,
+		a	SEQUENCE { x INTEGER (0..3) OPTIONAL, y OCTET STRING (SIZE(1..2)) }
+	}
+
+	-- ---- inline CHOICE as a CHOICE alt: first, middle, last ----
+	AltChoiceFirst ::= CHOICE {
+		a	CHOICE { x INTEGER (0..3), y BOOLEAN },
+		b	BOOLEAN
+	}
+
+	AltChoiceMid ::= CHOICE {
+		b	BOOLEAN,
+		a	CHOICE { x INTEGER (0..3), y BOOLEAN },
+		c	INTEGER (0..3)
+	}
+
+	AltChoiceLast ::= CHOICE {
+		b	BOOLEAN,
+		a	CHOICE { x INTEGER (0..3), y BOOLEAN }
+	}
+
+	-- nested two levels deep
+	AltChoiceDeep ::= CHOICE {
+		a	CHOICE {
+			b	CHOICE { x INTEGER (0..3), y BOOLEAN },
+			c	BOOLEAN
+		},
+		d	BOOLEAN
+	}
+
+	AltChoiceDeepSeq ::= CHOICE {
+		a	CHOICE {
+			b	SEQUENCE { x INTEGER (0..3), y BOOLEAN OPTIONAL },
+			c	BOOLEAN
+		},
+		d	SEQUENCE { e CHOICE { f BOOLEAN, g INTEGER (0..3) } }
+	}
+
+	-- ---- inline SEQUENCE / CHOICE inside an inline SEQUENCE OF element ----
+	SofSeq ::= SEQUENCE {
+		a	SEQUENCE (SIZE(0..3)) OF SEQUENCE {
+			x	INTEGER (0..3),
+			y	SEQUENCE { z BOOLEAN }
+		},
+		b	SEQUENCE (SIZE(0..3)) OF CHOICE {
+			x	INTEGER (0..3),
+			y	SEQUENCE { z BOOLEAN }
+		} OPTIONAL
+	}
+
+	SofSeqTop ::= SEQUENCE (SIZE(0..3)) OF SEQUENCE {
+		x	CHOICE { p BOOLEAN, q SEQUENCE { r INTEGER (0..3) } },
+		y	SEQUENCE { z BOOLEAN } OPTIONAL
+	}
+
+	SofChoiceTop ::= SEQUENCE (SIZE(0..3)) OF CHOICE {
+		x	SEQUENCE { z BOOLEAN },
+		y	CHOICE { p BOOLEAN, q INTEGER (0..3) }
+	}
+
+	SofAlt ::= CHOICE {
+		a	SEQUENCE { b SEQUENCE (SIZE(1..4)) OF INTEGER (0..3) },
+		c	BOOLEAN
+	}
+
+END

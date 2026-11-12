@@ -47,7 +47,7 @@ run_one() {
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn inlconstr.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
 
@@ -60,7 +60,7 @@ run_one() {
     # members) share this one -Fgo run with default.asn.
     cp "$here/e2e/main_test.go" "$here/e2e/default_test.go" "$here/e2e/nsmall_test.go" "$here/e2e/faults_test.go" \
        "$here/e2e/namedbit_test.go" "$here/e2e/bitstr_test.go" \
-       "$here/e2e/seqofinline_test.go" "$work/go/"
+       "$here/e2e/seqofinline_test.go" "$here/e2e/inlconstr_test.go" "$work/go/"
     # The C converter built from the same C tree: the cross-check oracle for
     # APER/UPER/XER in default_test.go.
     (
@@ -74,8 +74,9 @@ run_one() {
         export ASN1CGO_C_CONVERTER="$work/converter"
         export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
         go test -count=1 ./...
-        # The SEQUENCE OF inline-element cases under the race detector.
-        go test -race -count=1 -run 'SeqofInline' .
+        # The SEQUENCE OF inline-element and inline SEQUENCE/CHOICE cases
+        # under the race detector.
+        go test -race -count=1 -run 'SeqofInline|InlConstr' .
         # Allocation-fault sweep (needs the injection hooks compiled in).
         # -v so the per-direction N and the "no injectable allocations" note
         # for encode are visible.

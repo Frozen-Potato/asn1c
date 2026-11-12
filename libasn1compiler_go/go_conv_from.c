@@ -544,17 +544,26 @@ arm_nested_from(void *t, void *m, const char *in_acc, const char *out_acc) {
         }
         free(b);
     } else {
+        /* nested struct wrapper (an inline SEQUENCE): descend one accessor
+         * level over its members -- '.' into a by-value slot, '->' through a
+         * starred (OPTIONAL) one, which is a pointer on both the tree and the
+         * Flat side. */
         if(stars) {
             { char *_cf = cfmt("    if (%s) {\n", in_sel); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("        %s = (%s *)asn1cgo_arena_alloc(ar, sizeof(*%s), 8);\n", out_sel, "typeof(*out)", out_sel); s = ca(s, _cf); free(_cf); }
-            char *body = struct_members_from(n, in_sel, out_sel);
+            { char *_cf = cfmt("        %s = (typeof(%s))asn1cgo_arena_alloc(ar, sizeof(*%s), _Alignof(max_align_t));\n", out_sel, out_sel, out_sel); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, label, mlab); s = ca(s, _cf); free(_cf); }
+            char *ipfx = cfmt("%s->", in_sel);
+            char *opfx = cfmt("%s->", out_sel);
+            char *body = struct_members_from(n, ipfx, opfx);
             s = ca(s, body);
-            free(body);
-            s = ca(s, "    }\n");
+            free(body); free(ipfx); free(opfx);
+            { char *_cf = cfmt("    } else %s = NULL;\n", out_sel); s = ca(s, _cf); free(_cf); }
         } else {
-            char *body = struct_members_from(n, in_sel, out_sel);
+            char *ipfx = cfmt("%s.", in_sel);
+            char *opfx = cfmt("%s.", out_sel);
+            char *body = struct_members_from(n, ipfx, opfx);
             s = ca(s, body);
-            free(body);
+            free(body); free(ipfx); free(opfx);
         }
     }
     free(mlab); free(label); free(in_sel); free(out_sel);

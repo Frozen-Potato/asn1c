@@ -2370,20 +2370,41 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             }
             if(alt->expr_type == ASN_BASIC_ENUMERATED) {
                 emit_enum(ctx, inline_go, inline_cid, alt_path, alt);
-            } else if(alt->expr_type == ASN_CONSTR_CHOICE) {
-                emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
-            } else {   /* ASN_CONSTR_SEQUENCE: a struct with member fields */
-                const char *save_go = ctx->parent_go;
-                const char *save_cid = ctx->parent_cid;
-                ctx->parent_go = inline_go;
-                ctx->parent_cid = inline_cid;
-                reset_field_scope(ctx->bag);
-                row_set_is_struct(ctx->bag);
-                struct_scope_open(ctx->bag, inline_go);
-                (void)walk_names_members(ctx, alt, alt_path);
-                struct_scope_reset(ctx->bag);
-                ctx->parent_go = save_go;
-                ctx->parent_cid = save_cid;
+            } else {
+                /* An inline CHOICE / SEQUENCE alt is a package-scoped Flat
+                 * node of its own (the alt slot above is a ref to it; the C
+                 * tree has only the struct tag `struct <choice>__<alt>`, so
+                 * the conv file aliases `<cid>_t` to it: inline_elem
+                 * "struct"). Both the Flat cur register and the Go
+                 * struct-field scope belong to the ENCLOSING CHOICE again
+                 * once the alt is done — an alt AFTER it must land on this
+                 * CHOICE, not inside the inline one. */
+                char *save_sf = NULL;
+                if(ctx->bag->sf_cur_owner)
+                    save_sf = strdup(ctx->bag->sf_cur_owner);
+                int save_fcur = go_flat_cur_get();
+                if(alt->expr_type == ASN_CONSTR_CHOICE) {
+                    emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
+                    /* emit_choice minted the node and left it cur */
+                    go_flat_mark_inline_elem("struct", NULL);
+                } else {   /* ASN_CONSTR_SEQUENCE: a struct with member fields */
+                    const char *save_go = ctx->parent_go;
+                    const char *save_cid = ctx->parent_cid;
+                    go_flat_struct(inline_cid, ctx->module);
+                    go_flat_label_cur(alt->Identifier);   /* td->name label */
+                    go_flat_mark_inline_elem("struct", NULL);
+                    ctx->parent_go = inline_go;
+                    ctx->parent_cid = inline_cid;
+                    reset_field_scope(ctx->bag);
+                    row_set_is_struct(ctx->bag);
+                    struct_scope_open(ctx->bag, inline_go);
+                    (void)walk_names_members(ctx, alt, alt_path);
+                    struct_scope_reset(ctx->bag);
+                    ctx->parent_go = save_go;
+                    ctx->parent_cid = save_cid;
+                }
+                go_flat_cur_restore(save_fcur);
+                free(bag_sf_restore(ctx->bag, save_sf));
             }
             free(inline_go); free(inline_cid); free(alt_path);
         } else if(alt->expr_type == ASN_BASIC_BIT_STRING
@@ -4417,6 +4438,21 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * {items,count} behind the member star) — no pre-mint attach here
              * (a second attach duplicated the member token). */
             flat_nest_ix = -3;
+        } else if(stars && *stars == '*') {
+            /* OPTIONAL inline SEQUENCE / CHOICE: the tree slot is a pointer
+             * to `struct <cid>` (a tag only, no typedef), the same shape as
+             * a CHOICE alt. A pointer slot to an anonymous nested struct has
+             * no layout of its own to address, so — exactly as for an alt —
+             * the construct is a package-scoped Flat node and the member a
+             * starred ref to it (minted below; the conv file aliases
+             * `<cid>_t` to the struct tag). A by-value slot stays nested. */
+            flat_nest_ix = -4;
+            {
+                char *m = go_mk_member(child);
+                go_flat_member_ref(inline_cid, m, 1);
+                go_flat_label_last_member(child->Identifier);
+                free(m);
+            }
         } else {
             flat_nest_ix = go_flat_struct_nested(inline_cid, ctx->module);
             {
@@ -4460,6 +4496,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
             int save_fcur = go_flat_cur_get();
             emit_choice(ctx, inline_go, inline_cid, inline_path, child);
+            if(flat_nest_ix == -4) go_flat_mark_inline_elem("struct", NULL);
             go_flat_cur_restore(save_fcur);
             free(bag_sf_restore(ctx->bag, save_sf));
             free(inline_go); free(inline_cid); free(inline_path);
@@ -4479,6 +4516,18 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             row_set_is_struct(ctx->bag);
             struct_scope_open(ctx->bag, inline_go);
             int save_fcur = go_flat_cur_get();
+            /* bind cur to the construct's own node (the nested node minted
+             * above, or the package-scoped one of a pointer slot): the
+             * SEQUENCE branch has no emit_choice-style re-mint to do it, so
+             * without this the inline SEQUENCE's members landed on the
+             * ENCLOSING struct. */
+            if(flat_nest_ix == -4) {
+                go_flat_struct(inline_cid, ctx->module);
+                go_flat_label_cur(child->Identifier);   /* td->name label */
+                go_flat_mark_inline_elem("struct", NULL);
+            } else {
+                go_flat_cur_restore(flat_nest_ix);
+            }
             int rc = walk_names_members(ctx, child, inline_path);
             go_flat_cur_restore(save_fcur);
             struct_scope_reset(ctx->bag);

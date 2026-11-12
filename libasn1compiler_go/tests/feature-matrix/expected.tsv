@@ -19,11 +19,22 @@ ext-mandatory2	KNOWN-BROKEN	AC
 external	REFUSED	asn1cgo: EXTERNAL in module Probe
 extgroup	REFUSED	asn1cgo: Extension addition group [[ ]] in module Probe
 gentime	REFUSED	asn1cgo: GeneralizedTime in module Probe
-inl-choice-alt1	KNOWN-BROKEN	AB
-inl-choice-alt2	KNOWN-BROKEN	AB
-inl-seq-alt	KNOWN-BROKEN	AB
-inl-seq-mem	KNOWN-BROKEN	AB
-inl-seq-mem-opt	KNOWN-BROKEN	AB
+inl-choice-alt-deep	OK
+inl-choice-alt-mid	OK
+inl-choice-alt-seq-deep	OK
+inl-choice-alt1	OK
+inl-choice-alt2	OK
+inl-choice-alt3	OK
+inl-choice-mem-opt	OK
+inl-seq-alt	OK
+inl-seq-alt-last	OK
+inl-seq-alt-mid	OK
+inl-seq-mem	OK
+inl-seq-mem-choice	OK
+inl-seq-mem-deep	OK
+inl-seq-mem-deep-opt	OK
+inl-seq-mem-ext	OK
+inl-seq-mem-opt	OK
 int-u64-mem	KNOWN-BROKEN	AC
 int-u64-mem-opt	KNOWN-BROKEN	AC
 int-u64top	OK
@@ -62,7 +73,11 @@ sof-enum-mem	OK
 sof-enum-top	OK
 sof-ext-size	OK
 sof-ia5-top	REFUSED	asn1cgo: IA5String in module Probe
-sof-in-alt-seq	KNOWN-BROKEN	AB
+sof-in-alt-seq	OK
+sof-inl-choice-in-seq	OK
+sof-inl-seq-alt-choice	OK
+sof-inl-seq-in-seq	OK
+sof-inl-seq-mem-seq	OK
 sof-int-alt	OK
 sof-int-mem	OK
 sof-int-mem-opt	OK
