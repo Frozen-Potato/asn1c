@@ -1,4 +1,4 @@
-0.9.29-go.6 (unreleased):
+0.9.29-go.6:
     NEW:
     * Go backend: SEQUENCE OF with an inline element type (INTEGER, BOOLEAN,
       OCTET STRING, BIT STRING, REAL, PrintableString, NULL, ENUMERATED,
@@ -20,15 +20,6 @@
       is still <Choice>PrPresent). This was a "collision" refusal before.
 
     FIXES:
-    * Go backend: extension additions without OPTIONAL
-      (`SEQUENCE { a ..., ..., b BOOLEAN, c INTEGER }`) generated Go that
-      did not compile (types.go declared `B bool`, the glue tested
-      `v.B != nil`). Extension additions are now always pointers in Go,
-      OPTIONAL or not, like the C struct members. Not breaking: OPTIONAL
-      additions were already pointers, and mandatory ones did not compile.
-      Encode of a nil addition encodes it as absent (the C encoder's
-      behaviour for a NULL pointer); an addition with a DEFAULT remains a
-      plain value.
     * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region
       undercounted by N" when a struct whose C size is not a multiple of 8
       (e.g. a SEQUENCE holding one ENUMERATED, 4 bytes) is held through a
@@ -41,6 +32,17 @@
       Format4-Item (one item with logicalOR, or two items, panicked). All
       releases go.1 to go.5 are affected. Programs built from earlier output
       must be REGENERATED with the fixed asn1c; no runtime change is needed.
+    * Go backend: extension additions without OPTIONAL
+      (`SEQUENCE { a ..., ..., b BOOLEAN, c INTEGER }`) generated Go that
+      did not compile (types.go declared `B bool`, the glue tested
+      `v.B != nil`). Extension additions are now always pointers in Go,
+      OPTIONAL or not, like the C struct members. Not breaking: OPTIONAL
+      additions were already pointers, and mandatory ones did not compile.
+      Encode of a nil addition encodes it as absent (the C encoder's
+      behaviour for a NULL pointer); an addition with a DEFAULT remains a
+      plain value.
+    * Added libasn1compiler_go/KNOWN-ISSUES.md, which lists the known bugs
+      and limitations of the Go backend.
 
 0.9.29-go.5:
     NEW:
