@@ -119,6 +119,13 @@ int go_flat_ir_member_stars(flat_member *m);
 int go_flat_ir_member_is_default(flat_member *m);
 int go_flat_ir_member_tree_ptr(flat_member *m);
 int go_flat_ir_member_wide(flat_member *m);
+/* 0 = bytes as-is, 1 = BMPString (UCS-2), 2 = UniversalString (UCS-4) */
+int go_flat_ir_member_strk(flat_member *m);
+int go_flat_ir_strk(flat_type *t);
+/* 1 = a restricted string / time type (not PrintableString): its tree buffer
+ * must be non-NULL even when empty */
+int go_flat_ir_member_strz(flat_member *m);
+int go_flat_ir_strz(flat_type *t);
 const char *go_flat_ir_member_tree_token(flat_member *m);
 int go_flat_ir_member_nested_ix(flat_member *m);
 /* Glue scope: layout VALUES (foreign-offset local-const emission). */

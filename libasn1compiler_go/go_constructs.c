@@ -35,7 +35,7 @@ go_construct_name(go_construct_e k) {
     case GO_CONSTR_BOOLEAN:        return "BOOLEAN";
     case GO_CONSTR_NULL:           return "NULL";
     case GO_CONSTR_REAL:           return "REAL";
-    case GO_CONSTR_PRINTABLE:      return "PrintableString";
+    case GO_CONSTR_STRING:         return "string";
     case GO_CONSTR_IOC_CLASS:      return "IOC-CLASS";
     case GO_CONSTR_IOC_OBJSET:     return "IOC-OBJECTSET";
     case GO_CONSTR_OPEN_TYPE:      return "OPEN-TYPE";
@@ -43,6 +43,82 @@ go_construct_name(go_construct_e k) {
     case GO_CONSTR_UNSUPPORTED:    return "UNSUPPORTED";
     default:                       return "?";
     }
+}
+
+
+/* ------------------------------------------------------------------------- */
+/* Per-type facts for GO_CONSTR_STRING: the C typedef and the skeleton headers
+ * it needs beyond the always-copied PrintableString.h. */
+static const struct {
+    int expr_type;
+    const char *ctype;
+    unsigned hdrs;              /* bitmask over g_hdr_names */
+} g_string_info[] = {
+    { ASN_STRING_PrintableString,   "PrintableString_t",   0 },
+    { ASN_STRING_IA5String,         "IA5String_t",         1u << 0 },
+    { ASN_STRING_VisibleString,     "VisibleString_t",     1u << 1 },
+    { ASN_STRING_ISO646String,      "ISO646String_t",      (1u << 2) | (1u << 1) },
+    { ASN_STRING_NumericString,     "NumericString_t",     1u << 3 },
+    { ASN_STRING_UniversalString,   "UniversalString_t",   1u << 4 },
+    { ASN_STRING_BMPString,         "BMPString_t",         1u << 5 },
+    { ASN_STRING_UTF8String,        "UTF8String_t",        1u << 6 },
+    { ASN_STRING_GeneralString,     "GeneralString_t",     1u << 7 },
+    { ASN_STRING_GraphicString,     "GraphicString_t",     1u << 8 },
+    { ASN_STRING_TeletexString,     "TeletexString_t",     1u << 9 },
+    { ASN_STRING_T61String,         "T61String_t",         1u << 10 },
+    { ASN_STRING_VideotexString,    "VideotexString_t",    1u << 11 },
+    { ASN_STRING_ObjectDescriptor,  "ObjectDescriptor_t",  (1u << 12) | (1u << 8) },
+    { ASN_BASIC_UTCTime,            "UTCTime_t",           1u << 13 },
+    { ASN_BASIC_GeneralizedTime,    "GeneralizedTime_t",   1u << 14 },
+};
+static const char *const g_hdr_names[] = {
+    "IA5String.h", "VisibleString.h", "ISO646String.h", "NumericString.h",
+    "UniversalString.h", "BMPString.h", "UTF8String.h", "GeneralString.h",
+    "GraphicString.h", "TeletexString.h", "T61String.h", "VideotexString.h",
+    "ObjectDescriptor.h", "UTCTime.h", "GeneralizedTime.h",
+};
+static unsigned g_hdr_used;
+
+static void
+note_string_use(int expr_type) {
+    for(size_t i = 0; i < sizeof g_string_info / sizeof g_string_info[0]; i++)
+        if(g_string_info[i].expr_type == expr_type)
+            g_hdr_used |= g_string_info[i].hdrs;
+}
+
+unsigned go_string_hdr_mask(void) { return g_hdr_used; }
+
+const char *
+go_string_hdr_name(int idx) {
+    if(idx < 0 || (size_t)idx >= sizeof g_hdr_names / sizeof g_hdr_names[0])
+        return NULL;
+    return g_hdr_names[idx];
+}
+
+const char *
+go_string_ctype(const asn1p_expr_t *t) {
+    if(!t) return NULL;
+    for(size_t i = 0; i < sizeof g_string_info / sizeof g_string_info[0]; i++)
+        if(g_string_info[i].expr_type == (int)t->expr_type)
+            return g_string_info[i].ctype;
+    return NULL;
+}
+
+go_string_sub_e
+go_string_subkind(const asn1p_expr_t *t) {
+    if(t && t->expr_type == ASN_STRING_BMPString) return GO_STR_BMP;
+    if(t && t->expr_type == ASN_STRING_UniversalString) return GO_STR_UNIVERSAL;
+    return GO_STR_PLAIN;
+}
+
+const char *
+go_construct_name_of(const asn1p_expr_t *t) {
+    go_construct_e k = go_construct_classify(t);
+    if(k == GO_CONSTR_STRING) {
+        const char *n = ASN_EXPR_TYPE2STR(t->expr_type);
+        if(n) return n;
+    }
+    return go_construct_name(k);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -94,8 +170,12 @@ go_construct_classify(const asn1p_expr_t *t) {
      */
     case ASN_BASIC_BIT_STRING:   return GO_CONSTR_BIT_STRING;
 
-    /* PrintableString is the only supported restricted string type. */
-    case ASN_STRING_PrintableString: return GO_CONSTR_PRINTABLE;
+    /*
+     * Every restricted character string type and the two time types are
+     * OCTET STRING in C and `string` in Go (go_string_subkind says whether the
+     * glue converts the buffer).
+     */
+    case ASN_STRING_PrintableString:
     case ASN_STRING_IA5String:
     case ASN_STRING_VisibleString:
     case ASN_STRING_ISO646String:
@@ -109,7 +189,10 @@ go_construct_classify(const asn1p_expr_t *t) {
     case ASN_STRING_T61String:
     case ASN_STRING_VideotexString:
     case ASN_STRING_ObjectDescriptor:
-        return GO_CONSTR_UNSUPPORTED;
+    case ASN_BASIC_UTCTime:
+    case ASN_BASIC_GeneralizedTime:
+        note_string_use(t->expr_type);
+        return GO_CONSTR_STRING;
 
     /* ANY (deprecated) is not the same as a class open type; reject if seen. */
     case ASN_TYPE_ANY:           return GO_CONSTR_UNSUPPORTED;

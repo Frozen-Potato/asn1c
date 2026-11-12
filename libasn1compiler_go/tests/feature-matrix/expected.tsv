@@ -6,11 +6,15 @@ choice-ext-alts	OK
 choice-present	OK
 choice-seqof-ref-alt	OK
 components-of	OK
+dflt-bmp	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-enum-ok	OK
+dflt-ia5	OK
 dflt-namedbit	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-null	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-real	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-seq	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-universal	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-utf8	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 embedded	REFUSED	asn1cgo: EMBEDDED PDV in module Probe
 enum-ext	OK
 explicit	OK
@@ -18,7 +22,7 @@ ext-mandatory	OK
 ext-mandatory2	OK
 external	REFUSED	asn1cgo: EXTERNAL in module Probe
 extgroup	REFUSED	asn1cgo: Extension addition group [[ ]] in module Probe
-gentime	REFUSED	asn1cgo: GeneralizedTime in module Probe
+gentime	OK
 inl-choice-alt-deep	OK
 inl-choice-alt-mid	OK
 inl-choice-alt-seq-deep	OK
@@ -39,6 +43,8 @@ int-u64-mem	OK
 int-u64-mem-opt	OK
 int-u64top	OK
 int-unconstr	OK
+int-wide-refused	REFUSED	asn1cgo: INTEGER T.a range [-1..18446744073709551615] fits neither int64 nor uint64
+int-wide-refused-alt	REFUSED	fits neither int64 nor uint64
 null-alt	OK
 null-mem	OK
 null-top	OK
@@ -62,6 +68,7 @@ setof	REFUSED	asn1cgo: SET OF in module Probe
 setof-mem	REFUSED	asn1cgo: SET OF in module Probe
 sof-bitstr-mem	OK
 sof-bitstr-top	OK
+sof-bmpstring-top	OK
 sof-bool-mem	OK
 sof-bool-top	OK
 sof-bool-top-size	OK
@@ -72,7 +79,8 @@ sof-enum-alt	OK
 sof-enum-mem	OK
 sof-enum-top	OK
 sof-ext-size	OK
-sof-ia5-top	REFUSED	asn1cgo: IA5String in module Probe
+sof-ia5-mem	OK
+sof-ia5-top	OK
 sof-in-alt-seq	OK
 sof-inl-choice-in-seq	OK
 sof-inl-seq-alt-choice	OK
@@ -116,19 +124,42 @@ sof-sof-namedbit	OK
 sof-sof-seq-top	KNOWN-BROKEN	upstream-C
 sof-sof-size-both	KNOWN-BROKEN	upstream-parser
 sof-sof-top	OK
-str-bmpstring	REFUSED	asn1cgo: BMPString in module Probe
-str-generalstring	REFUSED	asn1cgo: GeneralString in module Probe
-str-graphicstring	REFUSED	asn1cgo: GraphicString in module Probe
-str-ia5string	REFUSED	asn1cgo: IA5String in module Probe
+sof-universalstring-top	OK
+sof-utctime-top	OK
+str-bmpstring	OK
+str-bmpstring-alt	OK
+str-bmpstring-mem	OK
+str-bmpstring-opt	OK
+str-bmpstring-ref	OK
+str-generalizedtime-mem	OK
+str-generalstring	OK
+str-generalstring-mem	OK
+str-graphicstring	OK
+str-graphicstring-mem	OK
+str-ia5string	OK
+str-ia5string-alt	OK
+str-ia5string-mem	OK
+str-ia5string-opt	OK
 str-iso646string	KNOWN-BROKEN	upstream-asn1fix
-str-numericstring	REFUSED	asn1cgo: NumericString in module Probe
-str-objectdescriptor	REFUSED	asn1cgo: ObjectDescriptor in module Probe
-str-t61string	REFUSED	asn1cgo: T61String in module Probe
-str-teletexstring	REFUSED	asn1cgo: TeletexString in module Probe
-str-universalstring	REFUSED	asn1cgo: UniversalString in module Probe
-str-utf8string	REFUSED	asn1cgo: UTF8String in module Probe
-str-videotexstring	REFUSED	asn1cgo: VideotexString in module Probe
-str-visiblestring	REFUSED	asn1cgo: VisibleString in module Probe
-utctime	REFUSED	asn1cgo: UTCTime in module Probe
-int-wide-refused	REFUSED	asn1cgo: INTEGER T.a range [-1..18446744073709551615] fits neither int64 nor uint64
-int-wide-refused-alt	REFUSED	fits neither int64 nor uint64
+str-numericstring	OK
+str-numericstring-mem	OK
+str-objectdescriptor	OK
+str-objectdescriptor-mem	OK
+str-t61string	OK
+str-t61string-mem	OK
+str-teletexstring	OK
+str-teletexstring-mem	OK
+str-universalstring	OK
+str-universalstring-alt	OK
+str-universalstring-mem	OK
+str-universalstring-opt	OK
+str-utctime-alt	OK
+str-utctime-mem	OK
+str-utctime-opt	OK
+str-utf8string	OK
+str-utf8string-mem	OK
+str-videotexstring	OK
+str-videotexstring-mem	OK
+str-visiblestring	OK
+str-visiblestring-mem	OK
+utctime	OK

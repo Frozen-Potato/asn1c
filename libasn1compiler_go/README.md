@@ -236,8 +236,10 @@ shared predicate decides both, so the two can never disagree):
 - BOOLEAN, INTEGER and ENUMERATED with a plain integer / `TRUE` / `FALSE` /
   enumerator-identifier value (including INTEGER types stored as `INTEGER_t`,
   and references to such types);
-- the character string type this backend supports (PrintableString) with a
-  quoted-string value;
+- the single-byte character string types (PrintableString, IA5String,
+  VisibleString, NumericString) with a quoted-string value (BMPString and
+  UniversalString defaults are refused: the C generator stores them as
+  single-byte characters);
 - OCTET STRING with an `'..'H` / `'..'B` value that is a whole number of
   octets, and BIT STRING (no named bits) with an `'..'H` / `'..'B` value.
 
@@ -389,7 +391,7 @@ SIZE lower bound. A DEFAULT of a named-bit type is refused.
 
 | ASN.1 element | Go |
 |---|---|
-| INTEGER, BOOLEAN, REAL, OCTET STRING, BIT STRING, PrintableString | the unnamed leaf mapping: `[]int64`, `[]bool`, `[]float64`, `[][]byte`, `[]BitString`, `[]string` |
+| INTEGER, BOOLEAN, REAL, OCTET STRING, BIT STRING, any restricted string or time type | the unnamed leaf mapping: `[]int64`, `[]bool`, `[]float64`, `[][]byte`, `[]BitString`, `[]string` |
 | NULL | `[]struct{}` (the NULL leaf mapping, `struct{}`; one entry per NULL) |
 | named-bit BIT STRING | `[]BitString`, plus the bit constants `<Owner>Member<Bit>` |
 | ENUMERATED | `type <Owner>Member int32` and its value constants |
@@ -606,9 +608,15 @@ Known bugs and open limitations are listed in [KNOWN-ISSUES.md](KNOWN-ISSUES.md)
   emits default callbacks for (see "DEFAULT members" under "Using the
   generated code"); every other DEFAULT form is rejected at generation (out
   of model).
-- **String types**: the string kinds this backend supports only (e.g.
-  PrintableString); other string kinds are rejected at generation with
-  the type, member and construct named.
+- **String types**: every restricted character string type and UTCTime /
+  GeneralizedTime is a Go `string`. BMPString (UCS-2) and UniversalString
+  (UCS-4) are converted to and from UTF-8 by the generated glue: a string
+  that is not valid UTF-8, or (BMPString) holds a character above U+FFFF,
+  makes `Encode` return an `rt.ErrConstraint`; a C buffer that is not valid
+  Unicode makes `Decode` return an `rt.ErrDecode`. The other types carry
+  the C buffer's bytes unchanged. SIZE, FROM, NumericString and time-syntax
+  checks are the C runtime's and surface from `Encode` as errors.
+  CHARACTER STRING is rejected at generation.
 - **Fork runtime fixes**: the skeletons in this fork carry two aPER
   fragmentation fixes vs upstream — the OCTET STRING 16K-chunk terminator
   handling and the open-type (IE value) encoder's zero-length terminator

@@ -35,7 +35,7 @@ typedef enum go_construct {
     GO_CONSTR_BOOLEAN,          /* BOOLEAN                       ASN_BASIC_BOOLEAN  */
     GO_CONSTR_NULL,             /* NULL                          ASN_BASIC_NULL  */
     GO_CONSTR_REAL,             /* REAL                          ASN_BASIC_REAL  */
-    GO_CONSTR_PRINTABLE,        /* PrintableString               ASN_STRING_PrintableString  */
+    GO_CONSTR_STRING,           /* every restricted string type + UTCTime/GeneralizedTime  ASN_STRING_* ASN_BASIC_UTCTime ASN_BASIC_GeneralizedTime  */
     GO_CONSTR_IOC_CLASS,        /* Information Object Class      AMT_OBJECTCLASS / A1TC_CLASSDEF  */
     GO_CONSTR_IOC_OBJSET,       /* object-set {{ }} usage        AMT_VALUESET / AMT_OBJECT  */
     GO_CONSTR_OPEN_TYPE,        /* open type class-field (&F)    lowercase &F reference (asn1c_C.c:305)  */
@@ -57,6 +57,34 @@ go_construct_e go_construct_classify(const asn1p_expr_t *terminal);
 
 /* Short, stable tag for diagnostics + tooling. Never NULL. */
 const char *go_construct_name(go_construct_e);
+
+/*
+ * GO_CONSTR_STRING covers every restricted character string type and both
+ * time types; they differ only in what the Go glue does with the C buffer.
+ * go_string_subkind picks that (plain: the same bytes; BMP: UCS-2 big-endian
+ * <-> UTF-8; Universal: UCS-4 big-endian <-> UTF-8). go_construct_name_of
+ * is go_construct_name for a classified terminal but prints the real ASN.1
+ * type name for a GO_CONSTR_STRING ("IA5String", "UTCTime", ...);
+ * go_string_ctype is the C typedef name of such a terminal ("IA5String_t").
+ */
+typedef enum go_string_sub {
+    GO_STR_PLAIN = 0,           /* bytes as-is (including UTF8String, times)  */
+    GO_STR_BMP,                 /* UCS-2 big-endian in C, UTF-8 in Go          */
+    GO_STR_UNIVERSAL            /* UCS-4 big-endian in C, UTF-8 in Go          */
+} go_string_sub_e;
+go_string_sub_e go_string_subkind(const asn1p_expr_t *terminal);
+const char *go_construct_name_of(const asn1p_expr_t *terminal);
+const char *go_string_ctype(const asn1p_expr_t *terminal);
+
+/*
+ * The skeleton headers (beyond the always-copied set) the string types
+ * classified so far need in internal/cspec/rt. A bitmask over
+ * go_string_hdr_name() indices; the entry copies exactly those. A tree
+ * without such a type copies none (byte-identical to the PrintableString-only
+ * output).
+ */
+unsigned go_string_hdr_mask(void);
+const char *go_string_hdr_name(int idx);   /* NULL past the end */
 
 /*
  * Reference-shape predicates. These read a member that is still an

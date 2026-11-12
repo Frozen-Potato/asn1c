@@ -1073,6 +1073,40 @@ qualify_alias(const char *alias_in) {
 }
 
 /* ---------------------------------------------------------------------------
+ * BMPString / UniversalString: the C buffer is UCS-2 / UCS-4 big-endian, the
+ * Go value UTF-8. strk 1 = BMP, 2 = Universal (the Flat member's / leaf's
+ * strk). The helpers (GLUE_STRCONV below) are emitted into a package only
+ * when its bodies use them:
+ *   bmpLen/univLen(s)      size pass: validates s, returns the C byte length
+ *   write<fn>Field(...)    fill, after the size pass accepted s
+ *   read<fn>Field(rec)     (string, error): rejects odd lengths / non-scalars
+ * ------------------------------------------------------------------------- */
+static const char *
+strk_fn(int strk) { return strk == 1 ? "BMP" : "Univ"; }
+
+/* size-pass statements adding the converted payload of Go string expression
+ * `e` (a failing validation aborts the size pass with the error). `ind` is
+ * the extra indentation of the enclosing block. */
+static char *
+strk_size(int strk, const char *e, const char *ind) {
+    return gfmt("%s\t{\n%s\t\tucsn, err := %sLen(%s)\n%s\t\tif err != nil {\n"
+                "%s\t\t\treturn 0, 0, err\n%s\t\t}\n%s\t\tpayload += ucsn\n%s\t}\n",
+                ind, ind, strk == 1 ? "bmp" : "univ", e, ind, ind, ind, ind, ind);
+}
+
+/* read-pass: `rdexpr` is the read<fn>Field(...) call; `assign` the
+ * statement template (one %s = the value) run on success, e.g. "acc = %s". */
+static char *
+strk_read(int strk, const char *recarg, const char *assign_fmt) {
+    char *asg = gfmt(assign_fmt, "ucss");
+    char *r = gfmt("\t{\n\t\tucss, err := read%sField(%s)\n\t\tif err != nil {\n"
+                   "\t\t\treturn nil, err\n\t\t}\n\t\t%s\n\t}\n",
+                   strk_fn(strk), recarg, asg);
+    free(asg);
+    return r;
+}
+
+/* ---------------------------------------------------------------------------
  * emit_prim — one scalar / bytes / bits member.
  * ------------------------------------------------------------------------- */
 static void
@@ -1106,7 +1140,57 @@ emit_prim(ectx *E, flat_member *m) {
          * member (OPTIONAL bytes: asn1cgo_bytes_flat *x) takes the
          * p != nil + alloc/storePtr form. */
         int slot_ptr = ptr_ft && go_flat_ir_member_stars(m);
-        if(is_str && !ptr_ft) {
+        const int strk = is_str ? go_flat_ir_member_strk(m) : 0;
+        int ucs_done = 0;
+        if(strk) {
+            /* BMPString / UniversalString: UTF-8 <-> UCS-2/UCS-4 at the
+             * boundary; same three slot shapes as the plain string forms. */
+            const char *fn = strk_fn(strk);
+            ucs_done = 1;
+            if(slot_ptr) {
+                (*E->fill) = gam((*E->fill), gfmt(
+                    "\tif %s != nil {\n\t\trec%d := fa.allocStruct(sizeofBytesFlat, alignInt64)\n"
+                    "\t\twrite%sField(fa, rec%d, *%s)\n\t\tstorePtr(%s, rec%d)\n\t}\n",
+                    acc, g_tmpseq, fn, g_tmpseq, acc, slot, g_tmpseq));
+                {
+                    char *rd = gfmt("*(**byte)(%s)", slot);
+                    char *inner = gfmt("unsafe.Pointer(p)");
+                    char *asg = gfmt("%s = &ucss", acc);
+                    (*E->read) = gam((*E->read), gfmt(
+                        "\tif p := %s; p != nil {\n\t\tucss, err := read%sField(%s)\n"
+                        "\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\t%s\n\t}\n",
+                        rd, fn, inner, asg));
+                    free(rd); free(inner); free(asg);
+                }
+                {
+                    char *deref = gfmt("*%s", acc);
+                    char *sz = strk_size(strk, deref, "\t");
+                    (*E->szt) = gam((*E->szt), gfmt(
+                        "\tif %s != nil {\n\t\tfixed += uintptr(sizeofBytesFlat)\n%s\t}\n",
+                        acc, sz));
+                    free(deref); free(sz);
+                }
+                g_tmpseq++;
+            } else if(ptr_ft) {
+                char *deref = gfmt("*%s", acc);
+                (*E->fill) = gam((*E->fill), gfmt("\twrite%sField(fa, %s, *%s)\n", fn, slot, acc));
+                (*E->szt) = gam((*E->szt), strk_size(strk, deref, ""));
+                {
+                    char *asg = gfmt("%s = &ucss", acc);
+                    char *rd = gfmt("\t{\n\t\tucss, err := read%sField(%s)\n\t\tif err != nil {\n"
+                                    "\t\t\treturn nil, err\n\t\t}\n\t\t%s\n\t}\n", fn, slot, asg);
+                    (*E->read) = gam((*E->read), rd);
+                    free(asg);
+                }
+                free(deref);
+            } else {
+                char *asg = gfmt("%s = %%s", acc);
+                (*E->fill) = gam((*E->fill), gfmt("\twrite%sField(fa, %s, %s)\n", fn, slot, acc));
+                (*E->szt) = gam((*E->szt), strk_size(strk, acc, ""));
+                (*E->read) = gam((*E->read), strk_read(strk, slot, asg));
+                free(asg);
+            }
+        } else if(is_str && !ptr_ft) {
             (*E->fill) = gam((*E->fill), gfmt("\twriteStringField(fa, %s, %s)\n", slot, acc));
             (*E->szt) = gam((*E->szt), gfmt("\tpayload += uintptr(len(%s))\n", acc));
         } else if(named_alias && !ptr_ft) {
@@ -1183,7 +1267,7 @@ emit_prim(ectx *E, flat_member *m) {
          * SECOND count of the same member (RANfunction-Name: payload
          * over-reserved by exactly the sum of its string lengths — the
          * exact-consumption invariant's first find). */
-        if(!ptr_ft) {
+        if(!ptr_ft && !ucs_done) {
             if(is_str) {
                 (*E->read) = gam((*E->read), gfmt("\t%s = readStringField(%s)\n", acc, slot));
             } else if(named_alias) {
@@ -1758,7 +1842,52 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
              * a STARRED Flat slot only (an OPTIONAL bytes member). */
             int is_str = ft && strcmp(unqual(ft), "string") == 0;
             int ft_ptr = ft && *ft == '*';
-            if(ft_ptr && !stars) {
+            const int strk = go_flat_ir_strk(r);
+            if(strk) {
+                /* a BMPString / UniversalString leaf behind a named type:
+                 * UTF-8 <-> UCS-2/UCS-4 at the boundary (cast = the
+                 * member's Go type, pointer star stripped). */
+                const char *fn = strk_fn(strk);
+                if(stars) {
+                    char *deref = gfmt("string(*%s)", acc);
+                    char *sz = strk_size(strk, deref, "\t");
+                    (*E->fill) = gam((*E->fill), gfmt(
+                        "\tif %s != nil {\n"
+                        "\t\twv := fa.allocStruct(%s, alignInt64)\n"
+                        "\t\twrite%sField(fa, wv, string(*%s))\n"
+                        "\t\tstorePtr(%s, wv)\n\t}\n",
+                        acc, szexpr, fn, acc, slot));
+                    (*E->read) = gam((*E->read), gfmt(
+                        "\tif p := *(**byte)(%s); p != nil {\n"
+                        "\t\tucss, err := read%sField(unsafe.Pointer(p))\n"
+                        "\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n"
+                        "\t\trr2 := %s(ucss)\n\t\t%s = &rr2\n\t}\n",
+                        slot, fn, cast, acc));
+                    (*E->szt) = gam((*E->szt), gfmt(
+                        "\tif %s != nil {\n\t\tfixed += uintptr(%s)\n%s\t}\n",
+                        acc, szexpr, sz));
+                    free(deref); free(sz);
+                } else if(ft_ptr) {
+                    char *deref = gfmt("string(*%s)", acc);
+                    (*E->fill) = gam((*E->fill), gfmt(
+                        "\twrite%sField(fa, %s, string(*%s))\n", fn, slot, acc));
+                    (*E->read) = gam((*E->read), gfmt(
+                        "\t{\n\t\tucss, err := read%sField(%s)\n"
+                        "\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n"
+                        "\t\trr := %s(ucss)\n\t\t%s = &rr\n\t}\n",
+                        fn, slot, cast, acc));
+                    (*E->szt) = gam((*E->szt), strk_size(strk, deref, ""));
+                    free(deref);
+                } else {
+                    char *deref = gfmt("string(%s)", acc);
+                    char *asg = gfmt("%s = %s(%%s)", acc, cast);
+                    (*E->fill) = gam((*E->fill), gfmt(
+                        "\twrite%sField(fa, %s, string(%s))\n", fn, slot, acc));
+                    (*E->read) = gam((*E->read), strk_read(strk, slot, asg));
+                    (*E->szt) = gam((*E->szt), strk_size(strk, deref, ""));
+                    free(deref); free(asg);
+                }
+            } else if(ft_ptr && !stars) {
                 char *rrn = gfmt("rr%d", g_tmpseq++);
                 if(is_str || !is_prim_view(cast)) {
                     const char *acast = is_str ? "string" : cast;
@@ -2951,7 +3080,17 @@ emit_type_fn(flat_type *t) {
             if(go_flat_ir_go_type(t) || (tm && g_emit_mod && strcmp(tm, g_emit_mod) == 0)) alq = gown(al0);
             else { char *pk = gmodule_pkg(tm); alq = gfmt("%s.%s", pk, al0); free(pk); }
         }
-        if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
+        if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && go_flat_ir_strk(t)) {
+            /* a BMPString / UniversalString leaf root (or hidden element):
+             * UTF-8 <-> UCS-2/UCS-4 at the boundary. */
+            const int strk = go_flat_ir_strk(t);
+            const char *fn = strk_fn(strk);
+            char *asg = gfmt("*v = %s(%%s)", (alq && *alq) ? alq : "string");
+            (*E.fill) = gam((*E.fill), gfmt("\twrite%sField(fa, slot, string(*v))\n", fn));
+            (*E.read) = gam((*E.read), strk_read(strk, "slot", asg));
+            (*E.szt) = gam((*E.szt), strk_size(strk, "string(*v)", ""));
+            free(asg);
+        } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
             (*E.fill) = ga((*E.fill), "\twriteBytesField(fa, slot, []byte(*v))\n");
             {
                 char *lv = alq && *alq
@@ -3269,6 +3408,125 @@ static const char *GLUE_WRITE_BITS =
     "\tcopy(unsafe.Slice((*byte)(payload), len(bs.Bytes)), bs.Bytes)\n"
     "\tstorePtr(recAddr, payload)\n"
     "\t*(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBitsFlatLen)) = uintptr(len(bs.Bytes))\n"
+    "}\n"
+    "\n";
+
+/* BMPString / UniversalString helpers (go_glue.c strk_*): UTF-8 in Go,
+ * UCS-2 / UCS-4 big-endian in the C buffer. Each pair is appended to a
+ * package only when its bodies use it. The size pass validates, so the fill
+ * never sees an unrepresentable string; a defensive U+FFFD keeps the byte
+ * count identical to the size pass if it ever did. */
+static const char *GLUE_STRCONV_COMMON =
+    "// ucsEncErr builds the error for a Go string that has no BMPString /\n"
+    "// UniversalString form (encode side: the value violates the type).\n"
+    "func ucsEncErr(typ, msg string) error {\n"
+    "\treturn &rt.Error{Code: rt.CodeConstraint, TypeName: typ, Message: msg}\n"
+    "}\n"
+    "\n"
+    "// ucsDecErr builds the error for a C buffer that is not a valid\n"
+    "// BMPString / UniversalString (decode side).\n"
+    "func ucsDecErr(typ, msg string) error {\n"
+    "\treturn &rt.Error{Code: rt.CodeDecode, TypeName: typ, Message: msg}\n"
+    "}\n"
+    "\n"
+    "// ucsBadUTF8 reports whether the rune r at s[i] came from invalid UTF-8\n"
+    "// (range yields U+FFFD for it; a genuine U+FFFD is EF BF BD).\n"
+    "func ucsBadUTF8(s string, i int, r rune) bool {\n"
+    "\treturn r == 0xFFFD && !(i+3 <= len(s) && s[i] == 0xEF && s[i+1] == 0xBF && s[i+2] == 0xBD)\n"
+    "}\n"
+    "\n";
+
+static const char *GLUE_STRCONV_BMP =
+    "func bmpLen(s string) (uintptr, error) {\n"
+    "\tvar n uintptr\n"
+    "\tfor i, r := range s {\n"
+    "\t\tif ucsBadUTF8(s, i, r) {\n"
+    "\t\t\treturn 0, ucsEncErr(\"BMPString\", \"value is not valid UTF-8\")\n"
+    "\t\t}\n"
+    "\t\tif r > 0xFFFF {\n"
+    "\t\t\treturn 0, ucsEncErr(\"BMPString\", \"character U+\"+strconv.FormatInt(int64(r), 16)+\" is outside the Basic Multilingual Plane\")\n"
+    "\t\t}\n"
+    "\t\tn += 2\n"
+    "\t}\n"
+    "\treturn n, nil\n"
+    "}\n"
+    "\n"
+    "func writeBMPField(fa *blockArena, recAddr unsafe.Pointer, s string) {\n"
+    "\tvar n uintptr\n"
+    "\tfor range s {\n\t\tn += 2\n\t}\n"
+    "\tif n == 0 {\n\t\treturn\n\t}\n"
+    "\tpayload := fa.allocPayload(n)\n"
+    "\tb := unsafe.Slice((*byte)(payload), int(n))\n"
+    "\tj := 0\n"
+    "\tfor _, r := range s {\n"
+    "\t\tif r > 0xFFFF {\n\t\t\tr = 0xFFFD\n\t\t}\n"
+    "\t\tb[j] = byte(r >> 8)\n\t\tb[j+1] = byte(r)\n\t\tj += 2\n"
+    "\t}\n"
+    "\tstorePtr(recAddr, payload)\n"
+    "\t*(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBytesFlatLen)) = n\n"
+    "}\n"
+    "\n"
+    "func readBMPField(recAddr unsafe.Pointer) (string, error) {\n"
+    "\tn := *(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBytesFlatLen))\n"
+    "\tif n == 0 {\n\t\treturn \"\", nil\n\t}\n"
+    "\tif n%2 != 0 {\n"
+    "\t\treturn \"\", ucsDecErr(\"BMPString\", \"length \"+strconv.Itoa(int(n))+\" is not a multiple of 2\")\n"
+    "\t}\n"
+    "\tb := unsafe.Slice(*(**byte)(recAddr), int(n))\n"
+    "\trs := make([]rune, 0, len(b)/2)\n"
+    "\tfor i := 0; i < len(b); i += 2 {\n"
+    "\t\tr := rune(b[i])<<8 | rune(b[i+1])\n"
+    "\t\tif r >= 0xD800 && r <= 0xDFFF {\n"
+    "\t\t\treturn \"\", ucsDecErr(\"BMPString\", \"code unit U+\"+strconv.FormatInt(int64(r), 16)+\" is a surrogate\")\n"
+    "\t\t}\n"
+    "\t\trs = append(rs, r)\n"
+    "\t}\n"
+    "\treturn string(rs), nil\n"
+    "}\n"
+    "\n";
+
+static const char *GLUE_STRCONV_UNIV =
+    "func univLen(s string) (uintptr, error) {\n"
+    "\tvar n uintptr\n"
+    "\tfor i, r := range s {\n"
+    "\t\tif ucsBadUTF8(s, i, r) {\n"
+    "\t\t\treturn 0, ucsEncErr(\"UniversalString\", \"value is not valid UTF-8\")\n"
+    "\t\t}\n"
+    "\t\tn += 4\n"
+    "\t}\n"
+    "\treturn n, nil\n"
+    "}\n"
+    "\n"
+    "func writeUnivField(fa *blockArena, recAddr unsafe.Pointer, s string) {\n"
+    "\tvar n uintptr\n"
+    "\tfor range s {\n\t\tn += 4\n\t}\n"
+    "\tif n == 0 {\n\t\treturn\n\t}\n"
+    "\tpayload := fa.allocPayload(n)\n"
+    "\tb := unsafe.Slice((*byte)(payload), int(n))\n"
+    "\tj := 0\n"
+    "\tfor _, r := range s {\n"
+    "\t\tb[j] = byte(r >> 24)\n\t\tb[j+1] = byte(r >> 16)\n\t\tb[j+2] = byte(r >> 8)\n\t\tb[j+3] = byte(r)\n\t\tj += 4\n"
+    "\t}\n"
+    "\tstorePtr(recAddr, payload)\n"
+    "\t*(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBytesFlatLen)) = n\n"
+    "}\n"
+    "\n"
+    "func readUnivField(recAddr unsafe.Pointer) (string, error) {\n"
+    "\tn := *(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBytesFlatLen))\n"
+    "\tif n == 0 {\n\t\treturn \"\", nil\n\t}\n"
+    "\tif n%4 != 0 {\n"
+    "\t\treturn \"\", ucsDecErr(\"UniversalString\", \"length \"+strconv.Itoa(int(n))+\" is not a multiple of 4\")\n"
+    "\t}\n"
+    "\tb := unsafe.Slice(*(**byte)(recAddr), int(n))\n"
+    "\trs := make([]rune, 0, len(b)/4)\n"
+    "\tfor i := 0; i < len(b); i += 4 {\n"
+    "\t\tu := uint32(b[i])<<24 | uint32(b[i+1])<<16 | uint32(b[i+2])<<8 | uint32(b[i+3])\n"
+    "\t\tif u > 0x10FFFF || (u >= 0xD800 && u <= 0xDFFF) {\n"
+    "\t\t\treturn \"\", ucsDecErr(\"UniversalString\", \"code point U+\"+strconv.FormatUint(uint64(u), 16)+\" is not a Unicode scalar value\")\n"
+    "\t\t}\n"
+    "\t\trs = append(rs, rune(u))\n"
+    "\t}\n"
+    "\treturn string(rs), nil\n"
     "}\n"
     "\n";
 
@@ -3654,6 +3912,21 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             }
             free(src); src = out;
             free(bsname);
+        }
+
+        /* BMPString / UniversalString conversion helpers, only when this
+         * package's bodies use them (appended after the bodies, so a package
+         * without such a type is unchanged). */
+        {
+            int use_bmp = strstr(src, "bmpLen(") != NULL
+                       || strstr(src, "BMPField(") != NULL;
+            int use_univ = strstr(src, "univLen(") != NULL
+                        || strstr(src, "UnivField(") != NULL;
+            if(use_bmp || use_univ) {
+                src = ga(src, GLUE_STRCONV_COMMON);
+                if(use_bmp) src = ga(src, GLUE_STRCONV_BMP);
+                if(use_univ) src = ga(src, GLUE_STRCONV_UNIV);
+            }
         }
 
         /* sweep: assert EVERY own-package node's const set, not only

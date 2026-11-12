@@ -46,6 +46,7 @@
 #include "asn1c_internal.h"
 #include "asn1c_misc.h"
 
+#include "go_constructs.h"
 #include "go_conv.h"
 #include "go_conv_internal.h"
 
@@ -1142,6 +1143,19 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             if(conv_copy_skel_header(rtdir, skel_header_files[i]) < 0) {
                 free(rtdir);
                 return -1;
+            }
+        }
+        /* the headers of the other restricted string / time types, only when
+         * the walk classified one (a PrintableString-only tree is unchanged) */
+        {
+            unsigned used = go_string_hdr_mask();
+            for(int i = 0; used >> i; i++) {
+                const char *hn = go_string_hdr_name(i);
+                if(!(used >> i & 1u) || !hn) continue;
+                if(conv_copy_skel_header(rtdir, hn) < 0) {
+                    free(rtdir);
+                    return -1;
+                }
             }
         }
         free(rtdir);

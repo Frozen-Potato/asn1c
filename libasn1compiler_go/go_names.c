@@ -1300,7 +1300,12 @@ typedef enum {
     GLEAF_OID,           /* OBJECT IDENTIFIER → []byte                      */
     GLEAF_STRING,        /* restricted string types → string                */
     GLEAF_BITSTRING,     /* BIT STRING → the BitString helper type          */
-    GLEAF_ENUM           /* ENUMERATED → int32 + const block                */
+    GLEAF_ENUM,          /* ENUMERATED → int32 + const block                */
+    GLEAF_STRING_BMP,    /* BMPString → string (UCS-2 in C, UTF-8 in Go)    */
+    GLEAF_STRING_UNIV,   /* UniversalString → string (UCS-4 in C, UTF-8)    */
+    GLEAF_STRING_Z       /* every other restricted string / time type →
+                            string, bytes as-is (PrintableString keeps
+                            GLEAF_STRING: its tree is generated unchanged) */
 } go_leaf_kind;
 
 /* ------------------------------------------------------------------------- */
@@ -1543,7 +1548,14 @@ classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     case GO_CONSTR_REAL:     return GLEAF_REAL;
     case GO_CONSTR_OCTET_STRING: return GLEAF_OCTETS;
     case GO_CONSTR_BIT_STRING:   return GLEAF_BITSTRING;
-    case GO_CONSTR_PRINTABLE:    return GLEAF_STRING;
+    case GO_CONSTR_STRING:
+        switch(go_string_subkind(terminal)) {
+        case GO_STR_BMP:       return GLEAF_STRING_BMP;
+        case GO_STR_UNIVERSAL: return GLEAF_STRING_UNIV;
+        default:
+            return terminal->expr_type == ASN_STRING_PrintableString
+                   ? GLEAF_STRING : GLEAF_STRING_Z;
+        }
     case GO_CONSTR_ENUMERATED:   return GLEAF_ENUM;
     default: break;
     }
@@ -2259,7 +2271,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
              * classify_leaf table). */
             {
                 int cstars = 0;
-                int cwide = 0;
+                int cwide = 0, clk = 0;
                 char *ccid = NULL;
                 const char *cprim = NULL;
                 const char *star_tok = go_mk_suffix(alt);
@@ -2292,6 +2304,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     /* a plain inline leaf alt: the mapping-table Flat prim slot. */
                     ctx->wide_nr = 1; ctx->wide_hit = 0;
                     int lk = classify_leaf(ctx, aterm, parent_path);
+                    clk = lk;
                     cwide = ctx->wide_hit;
                     ctx->wide_nr = 0; ctx->wide_hit = 0;
                     static const struct { int k; const char *p; } lk2p[] = {
@@ -2299,6 +2312,8 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                         {5, "double"}, {6, "asn1cgo_bytes_flat"},
                         {7, "asn1cgo_bytes_flat"}, {8, "asn1cgo_bytes_flat"},
                         {9, "asn1cgo_bits_flat"}, {10, "int32_t"},
+                        {11, "asn1cgo_bytes_flat"}, {12, "asn1cgo_bytes_flat"},
+                        {13, "asn1cgo_bytes_flat"},
                     };
                     for(size_t qi = 0;
                         qi < sizeof lk2p / sizeof lk2p[0]; qi++)
@@ -2313,6 +2328,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     if(cprim) {
                         go_flat_member_prim(cprim, flat_atok, cstars);
                         if(cwide) go_flat_last_member_wide();
+                        go_flat_last_member_gleaf(clk);
                     } else if(ccid)
                         go_flat_member_ref(ccid, flat_atok, cstars);
                     /* CHOICE alt member label = the alt's own ASN.1
@@ -3349,7 +3365,26 @@ member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path) {
         darg.asn = ctx->asn;
         darg.ns = ctx->ns;
         darg.expr = child;
-        if(!asn1c_default_callbacks_supported(&darg, child, &why)) {
+        int dflt_ok = asn1c_default_callbacks_supported(&darg, child, &why);
+        if(dflt_ok) {
+            /* BMPString / UniversalString: the C generator stores the DEFAULT
+             * as the raw one-byte-per-character literal (asn1c_C.c default
+             * set callbacks), which is not valid UCS-2 / UCS-4 content, so a
+             * decoded absent member would not be the declared value. */
+            asn1p_expr_t *dt = child;
+            if(child->expr_type == A1TC_REFERENCE
+               || child->meta_type == AMT_TYPEREF) {
+                asn1p_expr_t *t = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, child);
+                if(t) dt = t;
+            }
+            if(go_construct_classify(dt) == GO_CONSTR_STRING
+               && go_string_subkind(dt) != GO_STR_PLAIN) {
+                why = "the C generator stores a BMPString / UniversalString "
+                      "DEFAULT as single-byte characters, not as UCS-2 / UCS-4";
+                dflt_ok = 0;
+            }
+        }
+        if(!dflt_ok) {
             fprintf(stderr,
                     "asn1cgo: DEFAULT member %s is out of model in "
                     "module %s: %s\n",
@@ -4174,7 +4209,10 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
         case GLEAF_NULL:   ctype = "NULL_t"; break;
         case GLEAF_REAL:   ctype = "double"; break;
         case GLEAF_OCTETS: ctype = "OCTET_STRING_t"; break;
-        case GLEAF_STRING: ctype = "PrintableString_t"; break;
+        case GLEAF_STRING:
+        case GLEAF_STRING_Z:
+        case GLEAF_STRING_BMP:
+        case GLEAF_STRING_UNIV: ctype = go_string_ctype(elem); break;
         case GLEAF_BITSTRING: ctype = "BIT_STRING_t"; break;
         case GLEAF_ENUM:   ctype = "long"; break;
         default: break;
@@ -4850,6 +4888,8 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                     {5, "double"}, {6, "asn1cgo_bytes_flat"},
                     {7, "asn1cgo_bytes_flat"}, {8, "asn1cgo_bytes_flat"},
                     {9, "asn1cgo_bits_flat"}, {10, "int32_t"},
+                    {11, "asn1cgo_bytes_flat"}, {12, "asn1cgo_bytes_flat"},
+                    {13, "asn1cgo_bytes_flat"},
                 };
                 const char *fprim = NULL;
                 for(size_t qi = 0; qi < sizeof lk2p / sizeof lk2p[0]; qi++)
@@ -4858,6 +4898,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                     char *fpm = go_mk_member(child);
                     go_flat_member_prim(fprim, fpm, flat_star);
                     if(mwide) go_flat_last_member_wide();
+                    go_flat_last_member_gleaf(lk);
                     go_flat_label_last_member(child->Identifier);
                     if(is_dflt) go_flat_last_member_default(tree_ptr);
                     free(fpm);
@@ -5130,7 +5171,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                        || k == GO_CONSTR_NULL || k == GO_CONSTR_REAL
                        || k == GO_CONSTR_OCTET_STRING
                        || k == GO_CONSTR_BIT_STRING
-                       || k == GO_CONSTR_PRINTABLE
+                       || k == GO_CONSTR_STRING
                        || k == GO_CONSTR_ENUMERATED);
         if(lang_cb && !expr->lhs_params
            && (go_compiler_flags & A1C_PDU_ALL

@@ -150,6 +150,13 @@ struct flat_member {
     int tree_ptr;      /* DEFAULT member: the C tree slot is a pointer      */
     char *tree_token;  /* CHOICE alt: the C tree's member name when it differs
                         * from token (an alt `present`); NULL = same         */
+    int strk;          /* bytes_flat member holding a BMPString (1) or
+                        * UniversalString (2): the glue converts UTF-8 <->
+                        * UCS-2/UCS-4; 0 = bytes as-is                      */
+    int strz;          /* bytes_flat member of a restricted string / time type
+                        * other than PrintableString: the tree buffer is
+                        * allocated even when empty (the C constraint
+                        * functions reject a NULL buf, "value not given")   */
     int wide;          /* INTEGER_t-backed int64/uint64 member (the tree slot
                         * is an INTEGER_t, not a native long)               */
     unsigned long offset;  /* computed (x86-64 SysV layout rule)              */
@@ -177,6 +184,8 @@ struct flat_type {
     flat_member *members;
     int n_members, cap_members;
     char *prim;         /* FLT_LEAF                                        */
+    int strk;           /* FLT_LEAF bytes: 1 BMPString, 2 UniversalString   */
+    int strz;           /* FLT_LEAF bytes: see flat_member.strz             */
     char *elem;         /* FLT_SEQOF element cid (or prim token)            */
     int elem_prim;      /* 1 = elem is a primitive token                    */
     char *alias_of;     /* FLT_ALIAS target cid                             */
@@ -392,13 +401,15 @@ gleaf_prim(int gleaf) {
         1 /* GLEAF_INT64 */, 2 /* GLEAF_UINT64 */, 3 /* GLEAF_BOOL */,
         4 /* GLEAF_NULL */, 5 /* GLEAF_REAL */, 6 /* GLEAF_OCTETS */,
         7 /* GLEAF_OID */, 8 /* GLEAF_STRING */, 9 /* GLEAF_BITSTRING */,
-        10 /* GLEAF_ENUM */
+        10 /* GLEAF_ENUM */, 11 /* GLEAF_STRING_BMP */, 12 /* GLEAF_STRING_UNIV */,
+        13 /* GLEAF_STRING_Z */
     };
     static const char *const prim[] = {
         "int64_t", "uint64_t", "_bool32",
         NULL, "double", "asn1cgo_bytes_flat",
         "asn1cgo_bytes_flat", "asn1cgo_bytes_flat", "asn1cgo_bits_flat",
-        "int32_t"
+        "int32_t", "asn1cgo_bytes_flat", "asn1cgo_bytes_flat",
+        "asn1cgo_bytes_flat"
     };
     for(size_t i = 0; i < sizeof order / sizeof order[0]; i++)
         if(gleaf == order[i]) return prim[i];
@@ -409,7 +420,13 @@ int
 go_flat_leaf_gleaf(const char *cid, int gleaf, const char *module) {
     const char *p = gleaf_prim(gleaf);
     if(!p) return -1;
-    return go_flat_leaf(cid, p, module);
+    int ix = go_flat_leaf(cid, p, module);
+    /* 11 = GLEAF_STRING_BMP, 12 = GLEAF_STRING_UNIV, 13 = GLEAF_STRING_Z */
+    if(ix >= 0 && gleaf >= 11 && gleaf <= 13) {
+        flat_at(ix)->strk = gleaf == 11 ? 1 : gleaf == 12 ? 2 : 0;
+        flat_at(ix)->strz = 1;
+    }
+    return ix;
 }
 
 /* Mark the CUR node (just minted) as an inline element/alt type: see the
@@ -567,6 +584,14 @@ go_flat_last_member_wide(void) {
 }
 
 void
+go_flat_last_member_gleaf(int gleaf) {
+    flat_type *t = flat_at(g_flat_last_member_owner);
+    if(!t || t->n_members <= 0 || gleaf < 11 || gleaf > 13) return;
+    t->members[t->n_members - 1].strk = gleaf == 11 ? 1 : gleaf == 12 ? 2 : 0;
+    t->members[t->n_members - 1].strz = 1;
+}
+
+void
 go_flat_member_prim_on(int ix, const char *prim, const char *token, int stars) {
     if(ix < 0) ix = g_flat_last_nest;
     g_flat_last_member_owner = ix;
@@ -681,6 +706,10 @@ int go_flat_ir_member_stars(flat_member *m) { return m ? m->stars : 0; }
 int go_flat_ir_member_is_default(flat_member *m) { return m ? m->is_default : 0; }
 int go_flat_ir_member_tree_ptr(flat_member *m) { return m ? m->tree_ptr : 0; }
 int go_flat_ir_member_wide(flat_member *m) { return m ? m->wide : 0; }
+int go_flat_ir_member_strk(flat_member *m) { return m ? m->strk : 0; }
+int go_flat_ir_strk(flat_type *t) { return t ? t->strk : 0; }
+int go_flat_ir_member_strz(flat_member *m) { return m ? m->strz : 0; }
+int go_flat_ir_strz(flat_type *t) { return t ? t->strz : 0; }
 const char *go_flat_ir_member_tree_token(flat_member *m) {
     return m ? (m->tree_token ? m->tree_token : m->token) : NULL;
 }

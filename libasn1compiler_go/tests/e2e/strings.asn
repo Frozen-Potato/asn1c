@@ -1,0 +1,134 @@
+Strs DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- Every restricted character string type and both time types: Go `string`.
+-- BMPString and UniversalString are converted to and from UTF-8 by the Go
+-- glue; every other type carries the C buffer's bytes unchanged. (ISO646String
+-- is not here: asn1c itself aborts on it, KNOWN-ISSUES.md #9.)
+
+	-- ---- top level (each is a PDU) ----
+	IA5Top ::= IA5String (SIZE(2..6) ^ FROM("a".."z" | "0".."9"))
+	NumTop ::= NumericString (SIZE(1..6))
+	VisTop ::= VisibleString
+	UtfTop ::= UTF8String
+	BmpTop ::= BMPString (SIZE(1..16))
+	BmpFree ::= BMPString
+	UnivFree ::= UniversalString
+	UnivTop ::= UniversalString (SIZE(1..8))
+	GenlTop ::= GeneralString
+	GrapTop ::= GraphicString
+	TeleTop ::= TeletexString
+	T61Top ::= T61String
+	VideoTop ::= VideotexString
+	ObjTop ::= ObjectDescriptor
+	UtcTop ::= UTCTime
+	GtTop ::= GeneralizedTime
+
+	-- ---- named types used by reference (so not PDUs themselves) ----
+	IA5Named ::= IA5String (SIZE(2..6) ^ FROM("a".."z" | "0".."9"))
+	BmpNamed ::= BMPString (SIZE(1..16))
+	UnivNamed ::= UniversalString (SIZE(1..8))
+
+	-- ---- members, OPTIONAL members and references to a named type ----
+	Rec ::= SEQUENCE {
+		ia5	IA5String (SIZE(1..8)),
+		ia5o	IA5String (SIZE(1..8)) OPTIONAL,
+		num	NumericString,
+		numo	NumericString OPTIONAL,
+		vis	VisibleString,
+		viso	VisibleString OPTIONAL,
+		utf	UTF8String,
+		utfo	UTF8String OPTIONAL,
+		bmp	BMPString,
+		bmpo	BMPString OPTIONAL,
+		univ	UniversalString,
+		univo	UniversalString OPTIONAL,
+		genl	GeneralString,
+		genlo	GeneralString OPTIONAL,
+		grap	GraphicString,
+		grapo	GraphicString OPTIONAL,
+		tele	TeletexString,
+		teleo	TeletexString OPTIONAL,
+		t61	T61String,
+		t61o	T61String OPTIONAL,
+		video	VideotexString,
+		videoo	VideotexString OPTIONAL,
+		obj	ObjectDescriptor,
+		objo	ObjectDescriptor OPTIONAL,
+		utc	UTCTime,
+		utco	UTCTime OPTIONAL,
+		gt	GeneralizedTime,
+		gto	GeneralizedTime OPTIONAL,
+		bmpref	BmpNamed,
+		bmprefo	BmpNamed OPTIONAL,
+		univref	UnivNamed,
+		univrefo UnivNamed OPTIONAL,
+		ia5ref	IA5Named,
+		ia5refo	IA5Named OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	-- ---- SEQUENCE OF element: top level, member, OPTIONAL member ----
+	Ia5List ::= SEQUENCE (SIZE(0..3)) OF IA5String (SIZE(1..4))
+	NumList ::= SEQUENCE (SIZE(0..3)) OF NumericString (SIZE(1..4))
+	VisList ::= SEQUENCE (SIZE(0..3)) OF VisibleString
+	UtfList ::= SEQUENCE (SIZE(0..3)) OF UTF8String
+	BmpList ::= SEQUENCE (SIZE(0..3)) OF BMPString
+	UnivList ::= SEQUENCE (SIZE(0..3)) OF UniversalString
+	GenlList ::= SEQUENCE (SIZE(0..3)) OF GeneralString
+	GrapList ::= SEQUENCE (SIZE(0..3)) OF GraphicString
+	TeleList ::= SEQUENCE (SIZE(0..3)) OF TeletexString
+	T61List ::= SEQUENCE (SIZE(0..3)) OF T61String
+	VideoList ::= SEQUENCE (SIZE(0..3)) OF VideotexString
+	ObjList ::= SEQUENCE (SIZE(0..3)) OF ObjectDescriptor
+	UtcList ::= SEQUENCE (SIZE(0..3)) OF UTCTime
+	GtList ::= SEQUENCE (SIZE(0..3)) OF GeneralizedTime
+	BmpRefList ::= SEQUENCE (SIZE(0..3)) OF BmpNamed
+
+	ListHolder ::= SEQUENCE {
+		bmps	SEQUENCE (SIZE(0..3)) OF BMPString,
+		univs	SEQUENCE (SIZE(0..3)) OF UniversalString OPTIONAL,
+		ia5s	SEQUENCE (SIZE(0..3)) OF IA5String OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	-- ---- CHOICE alternatives ----
+	Alt ::= CHOICE {
+		ia5	IA5String (SIZE(1..8)),
+		num	NumericString,
+		vis	VisibleString,
+		utf	UTF8String,
+		bmp	BMPString,
+		univ	UniversalString,
+		genl	GeneralString,
+		grap	GraphicString,
+		tele	TeletexString,
+		t61	T61String,
+		video	VideotexString,
+		obj	ObjectDescriptor,
+		utc	UTCTime,
+		gt	GeneralizedTime,
+		bmpref	BmpNamed,
+		univref	UnivNamed,
+		...
+	}
+
+	-- ---- DEFAULT members (single-byte string types only: a BMPString / UniversalString
+	-- DEFAULT is refused, see KNOWN-ISSUES.md) ----
+	Dflt ::= SEQUENCE {
+		ia5	IA5String DEFAULT "hi",
+		vis	VisibleString DEFAULT "vv",
+		num	NumericString DEFAULT "42",
+		flag	BOOLEAN
+	}
+
+	-- ---- extensible SEQUENCE with the string types as additions ----
+	Ext ::= SEQUENCE {
+		a	INTEGER (0..7),
+		...,
+		bmp	BMPString,
+		univo	UniversalString OPTIONAL,
+		ia5	IA5String
+	}
+
+END

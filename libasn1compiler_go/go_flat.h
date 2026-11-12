@@ -75,6 +75,11 @@ void go_flat_last_member_default(int tree_ptr);
  * (asn_imax2INTEGER / asn_umax2INTEGER and back in the conv). */
 void go_flat_last_member_wide(void);
 
+/* The LAST member row (a prim) is a string leaf of the given GLEAF_* kind:
+ * 11 BMPString / 12 UniversalString (the glue converts UTF-8 <-> UCS-2/UCS-4),
+ * 13 any other restricted string / time type. Other kinds: no effect. */
+void go_flat_last_member_gleaf(int gleaf);
+
 /* Record the C tree's name for the LAST member row when it differs from the
  * Flat member token: a CHOICE alt named `present` is the Flat member
  * `presentAlt` (the Flat struct already has the discriminant `present`) but

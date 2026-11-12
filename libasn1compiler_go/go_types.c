@@ -76,7 +76,7 @@
 typedef enum {
     GLEAF_NONE = 0, GLEAF_INT64, GLEAF_UINT64, GLEAF_BOOL, GLEAF_NULL,
     GLEAF_REAL, GLEAF_OCTETS, GLEAF_OID, GLEAF_STRING, GLEAF_BITSTRING,
-    GLEAF_ENUM
+    GLEAF_ENUM, GLEAF_STRING_BMP, GLEAF_STRING_UNIV, GLEAF_STRING_Z
 } go_leaf_kind;
 
 /* go_leaf_underlying: the mapping-table Go text for a leaf kind. Non-static so
@@ -99,7 +99,10 @@ go_leaf_underlying(go_leaf_kind k) {
     case GLEAF_REAL:      return "float64";
     case GLEAF_OCTETS:    return "[]byte";
     case GLEAF_OID:       return "[]byte";
-    case GLEAF_STRING:    return "string";
+    case GLEAF_STRING:
+    case GLEAF_STRING_BMP:
+    case GLEAF_STRING_UNIV:
+    case GLEAF_STRING_Z:  return "string";
     case GLEAF_BITSTRING: return "BitString";
     case GLEAF_ENUM:      return "int32";
     default:              return NULL;

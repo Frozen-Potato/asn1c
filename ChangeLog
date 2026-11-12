@@ -18,6 +18,14 @@
     * Go backend: a CHOICE alternative named `present` is generated as the
       field PresentAlt (the discriminant Present is unchanged; the constant
       is still <Choice>PrPresent). This was a "collision" refusal before.
+    * Go backend: all restricted character string types (IA5String,
+      VisibleString, NumericString, UTF8String, BMPString, UniversalString,
+      GeneralString, GraphicString, TeletexString, T61String, VideotexString,
+      ObjectDescriptor) and UTCTime/GeneralizedTime map to Go `string`;
+      BMPString and UniversalString are converted to and from UTF-8 (an
+      unrepresentable string is an rt.ErrConstraint on Encode, an invalid
+      C buffer an rt.ErrDecode on Decode). A DEFAULT on those two is
+      refused.
 
     FIXES:
     * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region

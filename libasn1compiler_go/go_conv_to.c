@@ -205,6 +205,30 @@ conv_is_scc(const void *t) {
  * Per-node body emission: _to_tree (this TU) — continued below.
  * ------------------------------------------------------------------------- */
 
+/* The copy of a Flat bytes record into a tree OCTET STRING-shaped slot:
+ *     if (LEN) { BUF = calloc(1, LEN); if (!BUF) fail; memcpy(BUF, SRC, LEN); }
+ * `ind` indents the "if" and its closing brace; `fail` is the argument list
+ * of asn1cgo_fail after ASN1CGO_E_ALLOC. For a restricted string / time type
+ * (strz: every one except PrintableString) the buffer is allocated even when
+ * the value is empty, with a spare byte: the C constraint functions reject a
+ * NULL buf ("value not given"), which is what an empty Go string would
+ * otherwise produce. Without strz the text is the historical one. */
+static char *
+bytes_copy_blk(const char *ind, int strz, const char *len, const char *out_buf,
+               const char *in_buf, const char *fail) {
+    if(strz)
+        return cfmt("%s{\n%s    %s = (uint8_t *)asn1cgo_calloc(1, %s + 1);\n"
+                    "%s    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, %s);\n"
+                    "%s    if (%s) memcpy(%s, %s, %s);\n%s}\n",
+                    ind, ind, out_buf, len, ind, out_buf, fail,
+                    ind, len, out_buf, in_buf, len, ind);
+    return cfmt("%sif (%s) {\n%s    %s = (uint8_t *)asn1cgo_calloc(1, %s);\n"
+                "%s    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, %s);\n"
+                "%s    memcpy(%s, %s, %s);\n%s}\n",
+                ind, len, ind, out_buf, len, ind, out_buf, fail,
+                ind, out_buf, in_buf, len, ind);
+}
+
 /* tree-side scalar ctype of a Flat prim token, as the emitted casts need it:
  * int64/int32 (NativeInteger/ENUM) -> long; uint64 -> unsigned long/long per
  * the comparison set' member casts; double -> double. */
@@ -278,11 +302,14 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
             const char *prim = go_flat_ir_member_prim(mtmp);
             { char *_cf = cfmt("    case %s:\n", pr); s = ca(s, _cf); free(_cf); }
             if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
-                { char *_cf = cfmt("        if (%s%s%s.len) {\n", in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                s = ca(s, "        }\n");
+                {
+                    char *_len = cfmt("%s%s%s.len", in_sel, deref, tok);
+                    char *_ob = cfmt("%s%schoice.%s.buf", out_sel, deref, ttok);
+                    char *_ib = cfmt("%s%s%s.buf", in_sel, deref, tok);
+                    char *_fl = cfmt("\"%s\", \"%s\", NULL", label, mlab);
+                    char *_cf = bytes_copy_blk("        ", go_flat_ir_member_strz(mtmp), _len, _ob, _ib, _fl);
+                    s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
+                }
                 { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
             } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
                 { char *_cf = cfmt("        if (%s%s%s.len) {\n", in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
@@ -360,11 +387,16 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
                 if(prim && strcmp(prim, "uint64_t") == 0) ct = "unsigned long";
                 if(prim && (strcmp(prim, "asn1cgo_bytes_flat") == 0
                             || strcmp(prim, "asn1cgo_bits_flat") == 0)) {
-                    { char *_cf = cfmt("        if (%s%s%s.len) {\n", in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                    s = ca(s, "        }\n");
+                    {
+                        char *_len = cfmt("%s%s%s.len", in_sel, deref, tok);
+                        char *_ob = cfmt("%s%schoice.%s.buf", out_sel, deref, ttok);
+                        char *_ib = cfmt("%s%s%s.buf", in_sel, deref, tok);
+                        char *_fl = cfmt("\"%s\", \"%s\", NULL", label, mlab);
+                        char *_cf = bytes_copy_blk("        ",
+                            strcmp(prim, "asn1cgo_bytes_flat") == 0 && go_flat_ir_strz(r),
+                            _len, _ob, _ib, _fl);
+                        s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
+                    }
                     if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0)
                         { char *_cf = cfmt("        %s%schoice.%s.bits_unused = (int)%s%s%s.bits_unused;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                     { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
@@ -446,6 +478,16 @@ leaf_to_body(void *t, const char *label) {
         return s;
     }
     if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
+        if(go_flat_ir_strz(t))
+            return cfmt(
+                "    {\n"
+                "        const asn1cgo_bytes_flat *b = (const asn1cgo_bytes_flat *)in;\n"
+                "        OCTET_STRING_t *o = (OCTET_STRING_t *)out;\n"
+                "        o->buf = (uint8_t *)asn1cgo_calloc(1, b->len + 1);\n"
+                "        if (!o->buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, \"calloc bytes (%%zu)\", b->len);\n"
+                "        if (b->len) memcpy(o->buf, b->buf, b->len);\n"
+                "        o->size = (int)b->len;\n"
+                "    }\n", label);
         return cfmt(
             "    {\n"
             "        const asn1cgo_bytes_flat *b = (const asn1cgo_bytes_flat *)in;\n"
@@ -540,11 +582,15 @@ arm_prim_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        %s = asn1cgo_calloc(1, sizeof(*%s));\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("        if (%s->len) {\n", in_acc); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("            %s->buf = (uint8_t *)asn1cgo_calloc(1, %s->len);\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("            if (!%s->buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("            memcpy(%s->buf, %s->buf, %s->len);\n", out_acc, in_acc, in_acc); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("        }\n        %s->size = (int)%s->len;\n    }\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+            {
+                char *_len = cfmt("%s->len", in_acc);
+                char *_ob = cfmt("%s->buf", out_acc);
+                char *_ib = cfmt("%s->buf", in_acc);
+                char *_fl = cfmt("\"%s\", \"%s\", NULL", label, mlab);
+                char *_cf = bytes_copy_blk("        ", go_flat_ir_member_strz(m), _len, _ob, _ib, _fl);
+                s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
+            }
+            { char *_cf = cfmt("        %s->size = (int)%s->len;\n    }\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
         } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
             { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        %s = asn1cgo_calloc(1, sizeof(*%s));\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
@@ -572,11 +618,14 @@ arm_prim_to(void *t, void *m, const char *in_acc, const char *out_acc) {
         return s;
     }
     if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
-        { char *_cf = cfmt("    if (%s.len) {\n", in_acc); s = ca(s, _cf); free(_cf); }
-        { char *_cf = cfmt("        %s.buf = (uint8_t *)asn1cgo_calloc(1, %s.len);\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
-        { char *_cf = cfmt("        if (!%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
-        { char *_cf = cfmt("        memcpy(%s.buf, %s.buf, %s.len);\n", out_acc, in_acc, in_acc); s = ca(s, _cf); free(_cf); }
-        s = ca(s, "    }\n");
+        {
+            char *_len = cfmt("%s.len", in_acc);
+            char *_ob = cfmt("%s.buf", out_acc);
+            char *_ib = cfmt("%s.buf", in_acc);
+            char *_fl = cfmt("\"%s\", \"%s\", NULL", label, mlab);
+            char *_cf = bytes_copy_blk("    ", go_flat_ir_member_strz(m), _len, _ob, _ib, _fl);
+            s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
+        }
         { char *_cf = cfmt("    %s.size = (int)%s.len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
         { char *_cf = cfmt("    if (%s.len) {\n", in_acc); s = ca(s, _cf); free(_cf); }
@@ -648,19 +697,25 @@ arm_ref_to(void *t, void *m, const char *in_acc, const char *out_acc) {
                 { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        %s = asn1cgo_calloc(1, sizeof(*%s));\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (%s->len) {\n", in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            %s->buf = (uint8_t *)asn1cgo_calloc(1, %s->len);\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            if (!%s->buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            memcpy(%s->buf, %s->buf, %s->len);\n", out_acc, in_acc, in_acc); s = ca(s, _cf); free(_cf); }
-                s = ca(s, "        }\n");
+                {
+                    char *_len = cfmt("%s->len", in_acc);
+                    char *_ob = cfmt("%s->buf", out_acc);
+                    char *_ib = cfmt("%s->buf", in_acc);
+                    char *_fl = cfmt("\"%s\", \"%s\", NULL", label, mlab);
+                    char *_cf = bytes_copy_blk("        ", go_flat_ir_strz(r), _len, _ob, _ib, _fl);
+                    s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
+                }
                 { char *_cf = cfmt("        %s->size = (int)%s->len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "    }\n");
             } else {
-                { char *_cf = cfmt("    if (%s.len) {\n", in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        %s.buf = (uint8_t *)asn1cgo_calloc(1, %s.len);\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (!%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        memcpy(%s.buf, %s.buf, %s.len);\n", out_acc, in_acc, in_acc); s = ca(s, _cf); free(_cf); }
-                s = ca(s, "    }\n");
+                {
+                    char *_len = cfmt("%s.len", in_acc);
+                    char *_ob = cfmt("%s.buf", out_acc);
+                    char *_ib = cfmt("%s.buf", in_acc);
+                    char *_fl = cfmt("\"%s\", \"%s\", NULL", label, mlab);
+                    char *_cf = bytes_copy_blk("    ", go_flat_ir_strz(r), _len, _ob, _ib, _fl);
+                    s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
+                }
                 { char *_cf = cfmt("    %s.size = (int)%s.len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
             }
         } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
