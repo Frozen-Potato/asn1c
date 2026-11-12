@@ -88,12 +88,9 @@ go_construct_classify(const asn1p_expr_t *t) {
         return GO_CONSTR_UNSUPPORTED;
 
     /*
-     * BIT STRING is supported ONLY as plain BIT STRING (SIZE(n)). The named-bit
-     * variant (`BIT STRING { a(0), b(1) }`) has identifier children in .members
-     * and is rejected. That discrimination is the job of the walker (it needs a
-     * fresh eye on the .members of the terminal); here, on a named-bit terminal
-     * the caller must have run is_namedbit_bitstring first and rejected. By the
-     * time we get here a BIT STRING is the plain supported kind.
+     * BIT STRING, plain or named-bit (`BIT STRING { a(0), b(1) }`): the value
+     * type is the same; the identifier children in .members only produce the
+     * bit-position constants (go_names.c, emit_bit_names).
      */
     case ASN_BASIC_BIT_STRING:   return GO_CONSTR_BIT_STRING;
 
@@ -163,21 +160,6 @@ go_construct_is_classfield_fixedtype(const asn1p_expr_t *expr) {
         && expr->reference
         && expr->reference->comp_count == 2
         && expr->reference->components[1].lex_type == RLT_Amplowercase;
-}
-
-/* ------------------------------------------------------------------------- */
-/*
- * is_namedbit_bitstring — the named-bit variant (`BIT STRING { a(0), b(1) }`)
- * has identifier children (A1TC_UNIVERVAL/AMT_VALUE, asn1p_y.y:2292-2308) in
- * .members; plain BIT STRING (SIZE(n)) keeps .members empty post-fix
- * (asn1fix_bitstring.c:40-88 only validates, never grows, .members). So a
- * non-empty .members on a BIT STRING is the named-bit variant.
- */
-int
-go_construct_is_namedbit_bitstring(asn1p_expr_t *t) {
-    return t
-        && t->expr_type == ASN_BASIC_BIT_STRING
-        && TQ_FIRST(&t->members) != NULL;
 }
 
 /* ------------------------------------------------------------------------- */

@@ -199,6 +199,18 @@ int
 go_types_emit_const_open(FILE *out) {
     return fputs("\nconst (\n", out) < 0 ? -1 : 0;
 }
+
+/*
+ * go_types_emit_const_open_bits - the const-block fence of a named-bit
+ * BIT STRING's bit positions: the same canonical layout as _open, with a
+ * `// bit positions of <ASN.1 type>` comment attached directly above the
+ * `const (` (no blank line in between, so gofmt keeps it a doc comment).
+ */
+int
+go_types_emit_const_open_bits(FILE *out, const char *asn1_type) {
+    return fprintf(out, "\n// bit positions of %s\nconst (\n", asn1_type) < 0
+        ? -1 : 0;
+}
 int
 go_types_emit_const_close(FILE *out) {
     return fputs(")\n", out) < 0 ? -1 : 0;

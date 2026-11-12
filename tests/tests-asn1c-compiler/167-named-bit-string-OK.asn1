@@ -1,0 +1,38 @@
+-- OK: named-bit BIT STRING (top level, SIZE variants, inline member, CHOICE
+-- alternative, SEQUENCE OF, non-contiguous and unsorted bit numbers)
+
+-- iso.org.dod.internet.private.enterprise (1.3.6.1.4.1)
+-- .spelio.software.asn1c.test (9363.1.5.1)
+-- .167
+
+ModuleNamedBits
+	{ iso org(3) dod(6) internet(1) private(4) enterprise(1)
+		spelio(9363) software(1) asn1c(5) test(1) 167 }
+	DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+	-- Not contiguous, not in sorted order.
+	Caps ::= BIT STRING { c(7), a(0), b(3) }
+
+	Fixed ::= BIT STRING { lo(0), hi(5) } (SIZE(8))
+	Ranged ::= BIT STRING { p(0), q(2) } (SIZE(4..12))
+	Open ::= BIT STRING { p(0), q(2) } (SIZE(4..12, ...))
+
+	-- Reference to a named-bit type, refined: gets no constants of its own.
+	Narrow ::= Fixed (SIZE(8))
+
+	List ::= SEQUENCE OF Caps
+
+	Holder ::= SEQUENCE {
+		must	Caps,
+		opt	BIT STRING { x(1), y(4) } (SIZE(3..6)) OPTIONAL,
+		sel	Selector
+	}
+
+	Selector ::= CHOICE {
+		flags	BIT STRING { on(0), off(1) },
+		plain	BIT STRING (SIZE(2)),
+		named	Caps
+	}
+
+END

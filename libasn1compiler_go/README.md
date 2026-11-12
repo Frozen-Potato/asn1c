@@ -100,7 +100,7 @@ straight into `-D` (stock behaviour) before the Go pass runs. Rejects that do
 not depend on the C pass run first, as a pre-flight, so those leave `-D`
 untouched and exit 70 with `no C output was written`: the construct rejects
 (unsupported DEFAULT forms, `[[ ]]` version brackets, unsupported types such as SET /
-SET OF / OID, named-bit BIT STRING, unresolvable references) an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`, and (without a prefix) a `-Fgo` basename that is a standard-library top-level name.
+SET OF / OID, a DEFAULT of a named-bit BIT STRING, unresolvable references) an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`, and (without a prefix) a `-Fgo` basename that is a standard-library top-level name.
 The remaining Go-pass failures can only be detected after the C pass, because
 the name pass reads the `EM_INDIRECT` / `EM_UNRECURSE` markers it stamps: Go
 name collisions, by-value type cycles, and I/O errors while writing the Go tree.
@@ -357,6 +357,30 @@ allowed to overflow the stack. The bound is compile-time: 64 is
 change it, edit the rt header and regenerate the trees (a regenerated
 package and the rt module it was built against must come from the same
 value).
+
+### Named-bit BIT STRING
+
+`BIT STRING { a(0), b(3) }` is the same Go value as a plain BIT STRING
+(`BitString`, `*BitString` when optional; a named type is `type X BitString`).
+The names only add `int` bit-position constants, in declaration order, named
+like the constants of an ENUMERATED in the same position
+(`<GoType><Bit>`; `<Parent><Member><Bit>` for an inline member, `<Choice><Alt><Bit>`
+for a CHOICE alternative):
+
+```go
+// bit positions of Caps
+const (
+	CapsC int = 7
+	CapsA int = 0
+	CapsB int = 3
+)
+```
+
+They are package-level names and collide like every other generated name. Set
+a bit with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. The C APER encoder writes the
+bits as given; the UPER encoder drops trailing zero bits and pads up to the
+SIZE lower bound. A DEFAULT of a named-bit type and a SEQUENCE OF an inline
+named-bit BIT STRING are refused.
 
 ## Runtime module
 

@@ -270,6 +270,14 @@ struct name_row {
     char *dflt_lit;
     char *dflt_owner;
     char *dflt_field;
+    /* GK_ENUM_CONST rows that are the bit-position constants of a named-bit
+     * BIT STRING (`BIT STRING { a(0), b(1) }`): bit_group is non-zero and
+     * identical for all bits of one type (the first bit row's ord + 1),
+     * bit_type is the ASN.1 path of the BIT STRING type (for the comment).
+     * Such a row has goType "int" and belongs to no owner type row: its block
+     * is emitted at the first bit row, in walk order. */
+    int bit_group;
+    char *bit_type;
     int ord;                /* insertion (WALK) order; dump sorting does
                              * not preserve it, but const-block ORDER inside
                              * one block must (PrNothing first, alts in
@@ -620,6 +628,8 @@ add_row(struct name_bag *b, const char *module,
     b->rows[b->n_rows].dflt_lit = NULL;
     b->rows[b->n_rows].dflt_owner = NULL;
     b->rows[b->n_rows].dflt_field = NULL;
+    b->rows[b->n_rows].bit_group = 0;
+    b->rows[b->n_rows].bit_type = NULL;
     b->rows[b->n_rows].ord = b->n_rows;
     b->n_rows++;
 }
@@ -1146,6 +1156,7 @@ go_emit_module_decls(FILE *out, const char *module) {
                     if(c->kind != GK_ENUM_CONST && c->kind != GK_CHOICE_CONST
                        && c->kind != GK_VALUE_CONST)
                         continue;
+                    if(c->bit_group) continue;   /* named-bit consts: own block */
                     if(!c->goType || !strstr(c->goType, r->goName)
                        || strcmp(c->goType, r->goName) != 0) {
                         /* qualified (contains '.' or a foreign qualifier) —
@@ -1169,6 +1180,7 @@ go_emit_module_decls(FILE *out, const char *module) {
                            && c->kind != GK_CHOICE_CONST
                            && c->kind != GK_VALUE_CONST)
                             continue;
+                        if(c->bit_group) continue;
                         const char *dot = c->goType
                             ? strrchr(c->goType, '.') : NULL;
                         if(!c->goType
@@ -1185,8 +1197,36 @@ go_emit_module_decls(FILE *out, const char *module) {
                 }
             }
             break;
+        case GK_ENUM_CONST:
+            /* A named-bit BIT STRING's bit positions: one standalone block of
+             * `Name int = N` per type, emitted at its first bit row (the bits
+             * of one type are contiguous in walk order). Every other
+             * enum-const row is emitted at its owner's decl row above. */
+            if(r->bit_group && (x == 0
+               || b->rows[ordx[x - 1]].bit_group != r->bit_group)) {
+                int name_w = 0, type_w = 0, y;
+                for(y = x; y < b->n_rows
+                           && b->rows[ordx[y]].bit_group == r->bit_group; y++) {
+                    struct name_row *c = &b->rows[ordx[y]];
+                    int nw = (int)strlen(c->goName) + 1;
+                    int tw = (int)strlen(c->goType) + 1;
+                    if(nw > name_w) name_w = nw;
+                    if(tw > type_w) type_w = tw;
+                }
+                rc = go_types_emit_const_open_bits(out, r->bit_type);
+                for(int z = x; z < y && rc == 0; z++) {
+                    struct name_row *c = &b->rows[ordx[z]];
+                    rc = go_types_emit_const(out, c->goName, c->goType,
+                                             c->intval, name_w, type_w);
+                }
+                if(rc == 0)
+                    rc = go_types_emit_const_close(out);
+                prev_block = 1;
+                wrote_any = 1;
+            }
+            break;
         default:
-            break;   /* field/pkg-dir rows; enum-/choice-/value-const rows are
+            break;   /* field/pkg-dir rows; choice-/value-const rows are
                        emitted grouped at their owner's decl row above */
         }
     }
@@ -1925,6 +1965,7 @@ done:
             free(bag.rows[j].dflt_lit);
             free(bag.rows[j].dflt_owner);
             free(bag.rows[j].dflt_field);
+            free(bag.rows[j].bit_type);
         }
         free(bag.rows);
         for(int j = 0; j < bag.n_ps; j++) {
@@ -1975,6 +2016,9 @@ static void emit_choice(struct walk_ctx *ctx, const char *choice_go,
 static void emit_enum(struct walk_ctx *ctx, const char *enum_go,
                       const char *enum_cid, const char *parent_path,
                       asn1p_expr_t *enum_expr);
+static void emit_bit_names(struct walk_ctx *ctx, const char *type_go,
+                           const char *type_cid, const char *type_path,
+                           asn1p_expr_t *bs);
 
 /* Emit choice discriminant rows for a CHOICE whose goName is `choice_go` and real
  * C-ident prefix is `choice_cid`, at path prefix `parent_path`. choice_expr is the
@@ -2306,6 +2350,20 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 ctx->parent_cid = save_cid;
             }
             free(inline_go); free(inline_cid); free(alt_path);
+        } else if(alt->expr_type == ASN_BASIC_BIT_STRING
+                  && TQ_FIRST(&alt->members)
+                  && alt->meta_type != AMT_TYPEREF
+                  && asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, alt)
+                         == alt) {
+            /* An inline named-bit BIT STRING alt: the alt is a plain
+             * BitString; only the bit positions are named, as an inline
+             * ENUMERATED alt would be (<Choice><Alt>). */
+            char *bit_go = str_append(strdup(""), choice_go);
+            bit_go = str_append(bit_go, altgo);
+            char *bit_cid = go_cid_compound(choice_cid, "__", altcid);
+            char *bit_path = make_path(parent_path, alt->Identifier);
+            emit_bit_names(ctx, bit_go, bit_cid, bit_path, alt);
+            free(bit_go); free(bit_cid); free(bit_path);
         } else if(alt->expr_type == ASN_CONSTR_SEQUENCE_OF) {
             fprintf(stderr,
                     "asn1cgo: SEQUENCE OF <inline constructed type> as a CHOICE "
@@ -2365,6 +2423,54 @@ emit_enum(struct walk_ctx *ctx, const char *enum_go,
                           etype);
         free(etype);
         free((char *)ecid);
+    }
+}
+
+/* emit_bit_names: the bit-position constants of a named-bit BIT STRING
+ * (`BIT STRING { a(0), b(1) }`). The value type is a plain BitString; the
+ * names only add one `int` constant per named bit, in declaration order:
+ * <type_go> + R2(bit) -- the ENUMERATED enumerator scheme (emit_enum), with
+ * `type_go` the name an ENUMERATED in the same position would get (the type's
+ * own Go name at top level, <Parent><Member> for an inline member,
+ * <Choice><Alt> for a CHOICE alt). They are package-scoped GK_ENUM_CONST
+ * rows, so a clash with a type or another constant fails like every other
+ * collision. The values are the C backend's own (v->value->value.v_integer,
+ * asn1c_C.c asn1c_lang_C_type_BIT_STRING); the fixer resolved referenced
+ * values and rejects non-integer / negative ones, anything else is refused
+ * here. */
+static void
+emit_bit_names(struct walk_ctx *ctx, const char *type_go,
+               const char *type_cid, const char *type_path,
+               asn1p_expr_t *bs) {
+    asn1p_expr_t *v;
+    int group = 0;
+    TQ_FOR(v, &(bs->members), next) {
+        if(v->expr_type == A1TC_EXTENSIBLE || !v->Identifier) continue;
+        if(v->expr_type != A1TC_UNIVERVAL || !v->value
+           || v->value->type != ATV_INTEGER || v->value->value.v_integer < 0) {
+            fprintf(stderr,
+                    "asn1cgo: BIT STRING named bit %s is not a resolved "
+                    "non-negative integer in module %s: %s\n",
+                    v->Identifier, ctx->module ? ctx->module : "?", type_path);
+            ctx->bag->failed = 1;
+            return;
+        }
+        const char *bcid = go_mk_suffix(v);
+        char *raw = str_append(strdup(""), type_cid);
+        raw = str_append(raw, "_");
+        raw = str_append(raw, bcid);
+        char *bgo = go_r2(bcid);
+        char *go = str_append(strdup(""), type_go);
+        go = str_append(go, bgo);
+        free(bgo);
+        emit_name(ctx->bag, ctx->module, make_path(type_path, v->Identifier),
+                  GK_ENUM_CONST, raw, go);
+        row_set_const(ctx->bag, asn1p_itoa(v->value->value.v_integer), "int");
+        struct name_row *r = &ctx->bag->rows[ctx->bag->n_rows - 1];
+        if(!group) group = r->ord + 1;
+        r->bit_group = group;
+        r->bit_type = own(type_path);
+        free((char *)bcid);
     }
 }
 
@@ -3816,6 +3922,17 @@ slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
         ctx->bag->failed = 1;
         return NULL;
     }
+    /* An inline named-bit BIT STRING element: same anchor-less shape as the
+     * inline ENUMERATED element above (nothing to hang the bit constants on). */
+    if(elem->expr_type == ASN_BASIC_BIT_STRING && TQ_FIRST(&elem->members)
+       && !(elem->meta_type == AMT_TYPEREF)) {
+        fprintf(stderr,
+                "asn1cgo: SEQUENCE OF <inline named-bit BIT STRING> has no Go "
+                "naming rule in module %s: %s\n",
+                ctx->module ? ctx->module : "?", path_for_diag);
+        ctx->bag->failed = 1;
+        return NULL;
+    }
     /* Inline plain leaf: the mapping-table Go text (the same table). */
     if(!(elem->expr_type == A1TC_REFERENCE || elem->meta_type == AMT_TYPEREF)) {
         int lk = classify_leaf(ctx, elem, path_for_diag);
@@ -4411,6 +4528,23 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
     int first_row = ctx->bag->n_rows;
     int rc = walk_names_child_inner(ctx, child, parent_path, parent_go,
                                     parent_cid);
+    /* An inline named-bit BIT STRING member: a plain BitString field (typed
+     * by the inner walk); the bit positions are named as an inline
+     * ENUMERATED member's type would be (<Parent><Member>). Emitted here, after
+     * the member's own rows are complete (row_set_field_type addresses the
+     * last row). parent_path already ends in this member's name. */
+    if(rc == 0 && child->expr_type == ASN_BASIC_BIT_STRING
+       && child->meta_type != AMT_TYPEREF && TQ_FIRST(&child->members)
+       && asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, child) == child) {
+        char *mgo = go_r2(GO_MKID(child));
+        char *bit_go = str_append(str_append(strdup(""), parent_go), mgo);
+        char *mcid = own_mkid(child);
+        char *bit_cid = go_cid_compound(parent_cid ? parent_cid : "", "__",
+                                        mcid);
+        emit_bit_names(ctx, bit_go, bit_cid, parent_path, child);
+        free(mgo); free(bit_go); free(mcid); free(bit_cid);
+        if(ctx->bag->failed) return -1;
+    }
     if(rc == 0 && child->expr_type != A1TC_EXTENSIBLE
        && member_is_default(child) && ctx->bag->n_rows > first_row) {
         note_default_value(ctx, child, parent_path, first_row);
@@ -4673,6 +4807,13 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
 
     if(k == GO_CONSTR_BIT_STRING)
         mark_bitstring_module(ctx->bag, ctx->module);
+    /* A named-bit BIT STRING assignment: `type X BitString` plus the bit
+     * positions as int constants. Only the defining assignment gets them (an
+     * alias `Y ::= X` does not redeclare X's bits). */
+    if(k == GO_CONSTR_BIT_STRING && terminal == expr
+       && expr->expr_type == ASN_BASIC_BIT_STRING
+       && expr->meta_type != AMT_TYPEREF && TQ_FIRST(&expr->members))
+        emit_bit_names(ctx, type_go, type_cid, ident, expr);
 
     int rc = 0;
     if(k == GO_CONSTR_SEQUENCE) {

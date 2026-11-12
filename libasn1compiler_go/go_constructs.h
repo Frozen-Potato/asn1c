@@ -77,19 +77,16 @@ int go_construct_is_classfield_ref(const asn1p_expr_t *expr);
 int go_construct_is_classfield_fixedtype(const asn1p_expr_t *expr);
 
 /*
- * Deterministic rejection predicate (run against a member's terminal):
- *
- *   go_construct_is_namedbit_bitstring — BIT STRING with at least one
- *      identifier child (the named-bit variant). Plain BIT STRING (SIZE(n))
- *      has no such children (asn1p_y.y:1728 vs the NamedBit rule, :2292).
- *
  * No "[[ ... ]]" bracket-group predicate: the C emit pass mints `ext<N>` on the
  * shared AST (asn1c_C.c:378-385/618-633) before this walker runs, leaving no
  * discriminating trace, so a bracket-group reject cannot fire from the AST we
  * receive. `[[` absence in the specs is a property of the spec corpus,
  * checkable directly against specs/. See go_constructs.c.
+ *
+ * A named-bit BIT STRING (`BIT STRING { a(0), b(1) }`) is supported: it maps
+ * exactly like a plain BIT STRING (the value type is unchanged) and only adds
+ * a block of int bit-position constants (go_names.c, emit_bit_names).
  */
-int go_construct_is_namedbit_bitstring(asn1p_expr_t *terminal);
 
 /*
  * Leaf-type emission (go_types.c). Flat prototypes here (no new
@@ -102,6 +99,7 @@ int go_types_emit_bitstring(FILE *out);
 int go_types_emit_const(FILE *out, const char *name, const char *type,
                         const char *value, int name_w, int type_w);
 int go_types_emit_const_open(FILE *out);
+int go_types_emit_const_open_bits(FILE *out, const char *asn1_type);
 int go_types_emit_const_close(FILE *out);
 
 /*

@@ -72,8 +72,49 @@ run_one() {
     )
 }
 
+# Named-bit BIT STRING: generated and tested on its own. (Two modules that both
+# own BIT STRING members in one -Fgo tree do not build yet -- glue.go of the
+# second one names the first one's BitString -- so it cannot share the run
+# above with default.asn.) Same C-converter oracle as the other cases.
+run_namedbit() {
+    label=$1; shift
+    oerdef=
+    case " $* " in *" -no-gen-OER "*) oerdef=-DASN_DISABLE_OER_SUPPORT ;; esac
+    work="$tmp/namedbit-$label"
+    mkdir -p "$work/c"
+    echo "== run-e2e: named-bit BIT STRING ($label) =="
+    (
+        cd "$here/e2e"
+        env ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+        "$tmp/bin/asn1c" \
+            -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
+            -findirect-choice -fno-include-deps -gen-PER "$@" \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" namedbit.asn
+    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
+    # The generated bit-position constants must be gofmt-clean byte for byte.
+    if [ -n "$(gofmt -l "$work/go/namedbit/types.go")" ]; then
+        echo "run-e2e: namedbit/types.go is not gofmt-clean" >&2
+        return 1
+    fi
+    cp "$here/e2e/namedbit_test.go" "$work/go/"
+    (
+        cd "$work/c"
+        # shellcheck disable=SC2046
+        ${CC:-cc} -O1 -w -DASN_PDU_COLLECTION $oerdef -I. -o "$work/converter" \
+            $(ls ./*.c | grep -v '/converter-example.c$') ./converter-example.c -lm
+    ) >"$work/converter.log" 2>&1 || { cat "$work/converter.log" >&2; echo "run-e2e: converter build failed" >&2; return 1; }
+    (
+        cd "$work/go"
+        export ASN1CGO_C_CONVERTER="$work/converter"
+        export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
+        go test -count=1 ./...
+    )
+}
+
 run_one aper-no-oer -no-gen-OER
 run_one aper-oer
+run_namedbit aper-no-oer -no-gen-OER
+run_namedbit aper-oer
 # Two modules importing each other must be rejected before any Go is written.
 run_cycle() {
     work="$tmp/cycle"

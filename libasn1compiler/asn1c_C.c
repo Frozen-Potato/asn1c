@@ -2561,6 +2561,11 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 	case ASN_BASIC_BIT_STRING: {
 		int is_bit = (etype == ASN_BASIC_BIT_STRING);
 		int bits;
+		if(is_bit && expr_elements_count(arg, expr)) {
+			/* Whatever the value form ({ a, b }, 'H, 'B). */
+			*why = "DEFAULT of a named-bit BIT STRING is not supported";
+			return 0;
+		}
 		if(!dv || dv->type != ATV_BITVECTOR) {
 			*why = "only an hstring/bstring DEFAULT value is supported "
 			       "for OCTET STRING / BIT STRING";
@@ -2571,12 +2576,7 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 			*why = "malformed hstring/bstring DEFAULT value";
 			return 0;
 		}
-		if(is_bit) {
-			if(expr_elements_count(arg, expr)) {
-				*why = "DEFAULT of a named-bit BIT STRING is not supported";
-				return 0;
-			}
-		} else if(bits % 8) {
+		if(!is_bit && bits % 8) {
 			*why = "OCTET STRING DEFAULT must be a whole number of octets";
 			return 0;
 		}

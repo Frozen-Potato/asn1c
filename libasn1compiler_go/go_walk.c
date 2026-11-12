@@ -371,16 +371,6 @@ walk_child(struct walk_ctx *ctx, asn1p_expr_t *child,
             terminal = child;
         }
 
-        /* named-bit BIT STRING rejection (terminal-side). */
-        if(go_construct_is_namedbit_bitstring(terminal)) {
-            fprintf(stderr,
-                    "asn1cgo: BIT STRING, named bits in module %s: "
-                    "type %s, member %s, construct BIT STRING\n",
-                    ctx->module ? ctx->module : "?",
-                    ctx->toptype ? ctx->toptype : "?", path);
-            return -1;
-        }
-
         kind = go_construct_classify(terminal);
         cov_note(kind, ctx->module, ctx->toptype);
     }
@@ -560,16 +550,6 @@ walk_expr(struct walk_ctx *ctx, asn1p_expr_t *expr,
 
     const char *save_toptype = ctx->toptype;
     ctx->toptype = expr->Identifier ? expr->Identifier : "?";
-
-    /* Top-level named-bit BIT STRING is rejected. */
-    if(go_construct_is_namedbit_bitstring(terminal)) {
-        fprintf(stderr,
-                "asn1cgo: BIT STRING, named bits in module %s: type %s, "
-                "construct BIT STRING\n",
-                ctx->module ? ctx->module : "?", ctx->toptype);
-        ctx->toptype = save_toptype;
-        return -1;
-    }
 
     go_construct_e kind = go_construct_classify(terminal);
     cov_note(kind, ctx->module, ctx->toptype);
