@@ -1,0 +1,14 @@
+-- Fixer-valid, but a real name clash that -fcompound-names cannot resolve: the
+-- CHOICE "Foo" generates the C presence enum "Foo_PR", which is also the C name
+-- of the unrelated type "Foo-PR". asn1c must fail (non-zero exit, see
+-- check-name-clash.sh) and report it.
+RealClash DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+Foo ::= CHOICE {
+	a INTEGER,
+	b BOOLEAN
+}
+
+Foo-PR ::= INTEGER
+
+END

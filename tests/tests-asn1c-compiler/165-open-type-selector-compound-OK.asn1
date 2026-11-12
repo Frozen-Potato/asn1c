@@ -1,0 +1,28 @@
+-- OK: with -fcompound-names the open type of a parameterized member is
+-- synthesized twice (type declaration and type selector function) because two
+-- object set rows carry the same TYPE. Both copies come from the same
+-- declaration and must not be reported as a name clash.
+OpenTypeSelectorCompound DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+IES ::= CLASS {
+	&id	INTEGER UNIQUE,
+	&Value
+} WITH SYNTAX { ID &id VALUE &Value }
+
+Field { IES : Set } ::= SEQUENCE {
+	id	IES.&id ({Set}),
+	value	IES.&Value ({Set}{@id})
+}
+
+Container { IES : Set } ::= SEQUENCE (SIZE (0..10)) OF Field {{Set}}
+
+Single { IES : Set } ::= Field {{Set}}
+
+Msg ::= SEQUENCE {
+	a	Container {{Set1}},
+	b	Single {{Set1}}
+}
+
+Set1 IES ::= { { ID 1 VALUE INTEGER } | { ID 2 VALUE INTEGER }, ... }
+
+END

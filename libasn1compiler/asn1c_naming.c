@@ -43,6 +43,28 @@ c_name_clash_finder_destroy() {
     used_names_hash = NULL;
 }
 
+/*
+ * The open type CHOICE (ASN_CONSTR_OPEN_TYPE) is synthesized afresh every time
+ * the compiler needs it (the type declaration, the type selector function),
+ * each time as a new asn1p_expr_t built from the same source member.
+ * Two such exprs generate identical code (and thus identical names) only if
+ * they were built from the very same declaration: same parent expression
+ * (which is the unique specialization clone for parameterized types),
+ * same module, same identifier, same line, same type index.
+ */
+static int
+same_synthesized_open_type(const asn1p_expr_t *a, const asn1p_expr_t *b) {
+    return a->expr_type == ASN_CONSTR_OPEN_TYPE
+           && b->expr_type == ASN_CONSTR_OPEN_TYPE
+           && a->parent_expr != NULL
+           && a->parent_expr == b->parent_expr
+           && a->module == b->module
+           && a->_lineno == b->_lineno
+           && a->_type_unique_index == b->_type_unique_index
+           && a->Identifier && b->Identifier
+           && strcmp(a->Identifier, b->Identifier) == 0;
+}
+
 static void
 register_global_name(asn1p_expr_t *expr, const char *name) {
     struct intl_name *n;
@@ -50,6 +72,7 @@ register_global_name(asn1p_expr_t *expr, const char *name) {
     n = genhash_get(used_names_hash, (const void *)name);
     if(n) {
         if(!(expr->_mark & TM_NAMEGIVEN) && (expr != n->expr)) {
+            if(same_synthesized_open_type(expr, n->expr)) return;
             n->clashes_with = expr;
             expr->ref_cnt++;
             return;

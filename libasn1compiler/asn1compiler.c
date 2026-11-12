@@ -65,7 +65,11 @@ asn1_compile(asn1p_t *asn, const char *datadir, const char *destdir, enum asn1c_
 	if(c_name_clash(arg)) {
 		if(arg->flags & A1C_COMPOUND_NAMES) {
 			FATAL("Name clashes encountered even with -fcompound-names flag");
-			/* Proceed further for better debugging. */
+			if(arg->flags & A1C_PRINT_COMPILED) {
+				/* Proceed further for better debugging. */
+			} else {
+				return -1;
+			}
 		} else {
 			FATAL("Use \"-fcompound-names\" flag to asn1c to resolve name clashes");
 			if(arg->flags & A1C_PRINT_COMPILED) {
