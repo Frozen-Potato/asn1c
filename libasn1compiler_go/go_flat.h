@@ -111,6 +111,13 @@ void go_flat_member_ref_on(int ix, const char *cid, const char *token, int stars
  * and attached in one call. */
 void go_flat_member_seqof(const char *elem_cid, int elem_is_prim,
                           const char *token, int stars);
+/* Mark the CUR node (the one just minted) an inline element/alt type: no
+ * `<cid>_t` typedef and no asn_DEF_<cid> exist in the C tree (the element is
+ * an anonymous type inside its SEQUENCE OF / CHOICE). tree_ctype = the C
+ * spelling the conv file aliases `<cid>_t` to; go_type = the unnamed Go
+ * element type for a hidden leaf (NULL when the Go type is a named one). */
+void go_flat_mark_inline_elem(const char *tree_ctype, const char *go_type);
+
 /* the _on form: attach onto the ENCLOSING struct's nested node index (the
  * inline-SEQ-OF member whose node was pre-minted by go_flat_struct_nested). */
 void go_flat_member_seqof_on(int nest_ix, const char *elem_cid,

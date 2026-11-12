@@ -1,0 +1,65 @@
+SeqofInl DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- SEQUENCE OF with an inline (anonymous) element type: at top level, as a
+-- SEQUENCE member, as an OPTIONAL member and as a CHOICE alternative. The C
+-- backend names the element "Member"; Go gets the unnamed leaf mapping
+-- ([]int64, []bool, ...) or <Owner>Member for an inline constructed element.
+
+	-- ---- primitive elements, top level ----
+	IntTop ::= SEQUENCE (SIZE(0..4)) OF INTEGER (0..3)
+	WideTop ::= SEQUENCE (SIZE(0..4)) OF INTEGER (-1000000000..1000000000)
+	FreeTop ::= SEQUENCE (SIZE(0..4)) OF INTEGER
+	BoolTop ::= SEQUENCE (SIZE(0..4)) OF BOOLEAN
+	OctTop ::= SEQUENCE (SIZE(0..4)) OF OCTET STRING (SIZE(1..3))
+	BitTop ::= SEQUENCE (SIZE(0..4)) OF BIT STRING (SIZE(1..8))
+	StrTop ::= SEQUENCE (SIZE(0..4)) OF PrintableString (SIZE(1..4))
+	RealTop ::= SEQUENCE (SIZE(0..4)) OF REAL
+	NullTop ::= SEQUENCE (SIZE(0..4)) OF NULL
+
+	-- ---- primitive elements, member / OPTIONAL member / CHOICE alt ----
+	InlHolder ::= SEQUENCE {
+		a	SEQUENCE (SIZE(0..4)) OF INTEGER (0..3),
+		b	SEQUENCE (SIZE(0..4)) OF BOOLEAN OPTIONAL,
+		c	SEQUENCE (SIZE(0..4)) OF OCTET STRING (SIZE(1..3)) OPTIONAL,
+		d	SEQUENCE (SIZE(0..4)) OF NULL OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	InlAlt ::= CHOICE {
+		a	SEQUENCE (SIZE(0..4)) OF INTEGER (0..3),
+		b	SEQUENCE (SIZE(0..4)) OF PrintableString (SIZE(1..4)),
+		c	BOOLEAN
+	}
+
+	-- ---- constructed elements, top level ----
+	SeqTop ::= SEQUENCE (SIZE(0..4)) OF SEQUENCE {
+		x	INTEGER (0..3),
+		y	BOOLEAN OPTIONAL
+	}
+	ChoiceTop ::= SEQUENCE (SIZE(0..4)) OF CHOICE {
+		x	INTEGER (0..3),
+		y	BOOLEAN
+	}
+	EnumTop ::= SEQUENCE (SIZE(0..4)) OF ENUMERATED { red, green, blue }
+	NestTop ::= SEQUENCE (SIZE(0..3)) OF SEQUENCE OF INTEGER
+	Nest3Top ::= SEQUENCE (SIZE(0..2)) OF SEQUENCE OF BOOLEAN
+	BitsNamedTop ::= SEQUENCE (SIZE(0..4)) OF BIT STRING { p(0), q(1), r(2) }
+
+	-- ---- constructed elements, member / OPTIONAL member / CHOICE alt ----
+	SeqMem ::= SEQUENCE {
+		a	SEQUENCE (SIZE(0..4)) OF SEQUENCE { x INTEGER (0..3), y BOOLEAN },
+		b	SEQUENCE (SIZE(0..4)) OF CHOICE { x INTEGER (0..3), y BOOLEAN } OPTIONAL,
+		c	SEQUENCE (SIZE(0..4)) OF ENUMERATED { red, green } OPTIONAL,
+		d	SEQUENCE (SIZE(0..4)) OF BIT STRING { p(0), q(1) } OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	InlAltC ::= CHOICE {
+		a	SEQUENCE (SIZE(0..4)) OF SEQUENCE { x INTEGER (0..3) },
+		b	SEQUENCE (SIZE(0..4)) OF ENUMERATED { red, green },
+		c	SEQUENCE (SIZE(0..4)) OF SEQUENCE OF BOOLEAN,
+		d	BOOLEAN
+	}
+
+END

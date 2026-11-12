@@ -1,0 +1,117 @@
+any	REFUSED	asn1cgo: ANY in module Probe
+bitstr-unconstr	OK
+bool-top	OK
+charstring	REFUSED	asn1cgo: CHARACTER STRING in module Probe
+choice-ext-alts	OK
+choice-present	KNOWN-BROKEN	AC
+choice-seqof-ref-alt	OK
+components-of	OK
+dflt-enum-ok	OK
+dflt-namedbit	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-null	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-real	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-seq	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+embedded	REFUSED	asn1cgo: EMBEDDED PDV in module Probe
+enum-ext	OK
+explicit	OK
+ext-mandatory	KNOWN-BROKEN	AC
+ext-mandatory2	KNOWN-BROKEN	AC
+external	REFUSED	asn1cgo: EXTERNAL in module Probe
+extgroup	REFUSED	asn1cgo: Extension addition group [[ ]] in module Probe
+gentime	REFUSED	asn1cgo: GeneralizedTime in module Probe
+inl-choice-alt1	KNOWN-BROKEN	AB
+inl-choice-alt2	KNOWN-BROKEN	AB
+inl-seq-alt	KNOWN-BROKEN	AB
+inl-seq-mem	KNOWN-BROKEN	AB
+inl-seq-mem-opt	KNOWN-BROKEN	AB
+int-u64-mem	KNOWN-BROKEN	AC
+int-u64-mem-opt	KNOWN-BROKEN	AC
+int-u64top	OK
+int-unconstr	OK
+null-alt	OK
+null-mem	OK
+null-top	OK
+octet-unconstr	OK
+oid	REFUSED	asn1cgo: OBJECT IDENTIFIER in module Probe
+oid-mem	REFUSED	asn1cgo: OBJECT IDENTIFIER in module Probe
+param	OK
+printable-alpha	OK
+real-mem	OK
+real-top	OK
+recursive	OK
+recursive-seqof	OK
+roid	REFUSED	asn1cgo: RELATIVE-OID in module Probe
+seq-inline-choice	OK
+seq-present	OK
+seqof-alias-inline	OK
+seqof-alias-inline-seq	OK
+seqof-ref-top	OK
+set	REFUSED	asn1cgo: SET in module Probe
+setof	REFUSED	asn1cgo: SET OF in module Probe
+setof-mem	REFUSED	asn1cgo: SET OF in module Probe
+sof-bitstr-mem	OK
+sof-bitstr-top	OK
+sof-bool-mem	OK
+sof-bool-top	OK
+sof-bool-top-size	OK
+sof-choice-alt	OK
+sof-choice-mem	OK
+sof-choice-top	OK
+sof-enum-alt	OK
+sof-enum-mem	OK
+sof-enum-top	OK
+sof-ext-size	OK
+sof-ia5-top	REFUSED	asn1cgo: IA5String in module Probe
+sof-in-alt-seq	KNOWN-BROKEN	AB
+sof-int-alt	OK
+sof-int-mem	OK
+sof-int-mem-opt	OK
+sof-int-top	OK
+sof-int-top-size	OK
+sof-int-u32-top	KNOWN-BROKEN	upstream-C
+sof-int-unconstr-top	OK
+sof-int-wide-top	OK
+sof-name-clash	REFUSED	asn1cgo: collision in module Probe
+sof-name-clash2	REFUSED	asn1cgo: collision in module Probe
+sof-namedbit-mem	OK
+sof-namedbit-top	OK
+sof-null-alt	OK
+sof-null-mem	OK
+sof-null-ref	KNOWN-BROKEN	followup-null-ref
+sof-null-top	OK
+sof-octet-mem-opt	OK
+sof-octet-top	OK
+sof-octet-top-size	OK
+sof-oid-top	REFUSED	asn1cgo: OBJECT IDENTIFIER in module Probe
+sof-printable-alt	OK
+sof-printable-top	OK
+sof-real-mem	OK
+sof-real-top	OK
+sof-seq-alt	OK
+sof-seq-mem	OK
+sof-seq-mem-opt	OK
+sof-seq-seqmem	OK
+sof-seq-top	OK
+sof-sof-alt	OK
+sof-sof-bool-mem	OK
+sof-sof-choice-top	KNOWN-BROKEN	upstream-C
+sof-sof-enum-top	OK
+sof-sof-mem	OK
+sof-sof-namedbit	OK
+sof-sof-seq-top	KNOWN-BROKEN	upstream-C
+sof-sof-size-both	KNOWN-BROKEN	upstream-parser
+sof-sof-top	OK
+str-bmpstring	REFUSED	asn1cgo: BMPString in module Probe
+str-generalstring	REFUSED	asn1cgo: GeneralString in module Probe
+str-graphicstring	REFUSED	asn1cgo: GraphicString in module Probe
+str-ia5string	REFUSED	asn1cgo: IA5String in module Probe
+str-iso646string	KNOWN-BROKEN	upstream-asn1fix
+str-numericstring	REFUSED	asn1cgo: NumericString in module Probe
+str-objectdescriptor	REFUSED	asn1cgo: ObjectDescriptor in module Probe
+str-t61string	REFUSED	asn1cgo: T61String in module Probe
+str-teletexstring	REFUSED	asn1cgo: TeletexString in module Probe
+str-universalstring	REFUSED	asn1cgo: UniversalString in module Probe
+str-utf8string	REFUSED	asn1cgo: UTF8String in module Probe
+str-videotexstring	REFUSED	asn1cgo: VideotexString in module Probe
+str-visiblestring	REFUSED	asn1cgo: VisibleString in module Probe
+utctime	REFUSED	asn1cgo: UTCTime in module Probe

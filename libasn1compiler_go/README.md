@@ -379,8 +379,34 @@ const (
 They are package-level names and collide like every other generated name. Set
 a bit with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. The C APER encoder writes the
 bits as given; the UPER encoder drops trailing zero bits and pads up to the
-SIZE lower bound. A DEFAULT of a named-bit type and a SEQUENCE OF an inline
-named-bit BIT STRING are refused.
+SIZE lower bound. A DEFAULT of a named-bit type is refused.
+
+### SEQUENCE OF with an inline element type
+
+`SEQUENCE OF` works whether the element is a type reference or an inline
+(anonymous) type. The C backend calls an inline element `Member`
+(`struct T__Member`, `A_SEQUENCE_OF(long)`, ...); Go follows the same name:
+
+| ASN.1 element | Go |
+|---|---|
+| INTEGER, BOOLEAN, REAL, OCTET STRING, BIT STRING, PrintableString | the unnamed leaf mapping: `[]int64`, `[]bool`, `[]float64`, `[][]byte`, `[]BitString`, `[]string` |
+| NULL | `[]struct{}` (the NULL leaf mapping, `struct{}`; one entry per NULL) |
+| named-bit BIT STRING | `[]BitString`, plus the bit constants `<Owner>Member<Bit>` |
+| ENUMERATED | `type <Owner>Member int32` and its value constants |
+| SEQUENCE, CHOICE | `type <Owner>Member struct {...}` (a CHOICE with its `Pr` type and constants) |
+| SEQUENCE OF | `type <Owner>Member []Elem`, recursively |
+
+`<Owner>` is the name the enclosing position gets: the type for a top-level
+`T ::= SEQUENCE OF ...` (`TMember`), `<Type><Member>` for a SEQUENCE member or
+CHOICE alternative `a` of `T` (`TAMember`), and `<Owner>Member` again for an
+element of an element (`TMemberMember`). The name is registered like every other
+generated name, so `TMember ::= BOOLEAN` next to an inline element of `T`
+fails with a collision. A SEQUENCE OF alternative of a CHOICE is
+`type <Choice><Alt> []Elem`, held through a pointer like every alternative.
+
+Not supported (the C generator itself emits unusable C for them):
+`SEQUENCE OF SEQUENCE OF {SEQUENCE | CHOICE}` and an inline unsigned INTEGER
+wider than `long` (`INTEGER (0..4294967295)`) as an element.
 
 ## Runtime module
 
@@ -525,5 +551,15 @@ round-trips at indices 0, 63, 64, 65, 69, hand-computed APER/UPER bytes for
 index 64, truncated and zero-count inputs, and the C converter's APER/UPER/XER
 (mirrors C `check-164`). `tests/run-c-invariance.sh` checks that adding
 `-Fgo=` leaves the generated C byte-identical (apart from the stamped
-command line). Both scripts exit 77 (skip) when a prerequisite (`go`, cgo,
+command line). `tests/e2e/seqofinline.asn` and `seqofinline_test.go` cover
+SEQUENCE OF with inline element types (APER and XER round trips against the C
+converter, an empty list and one at the SIZE bound, the `-race` detector and
+the allocation-fault sweep). `tests/run-feature-matrix.sh` generates every
+`tests/feature-matrix/*.asn` (module `Probe`), runs `go vet` on the output and
+compares the outcome with `expected.tsv`: `OK` (generates and vets), `REFUSED`
+(a clean `asn1cgo: <construct> in module ...` refusal, whose text is also
+matched) or `KNOWN-BROKEN <task>` (reported as XFAIL; the run fails when one
+starts to pass). No case may end in an internal error (`asn1cgo: conv:`,
+`glue:`, `flat:`, `ctor:`) or generate Go or C that fails `go vet`. All the
+scripts exit 77 (skip) when a prerequisite (`go`, cgo,
 linux/amd64, or the built `asn1c`) is unavailable.

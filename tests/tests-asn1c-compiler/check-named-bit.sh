@@ -91,10 +91,26 @@ refuse default-ref "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 C ::= BIT STRING { a(0), b(1) }
 T ::= SEQUENCE { d C DEFAULT '01'B }
 END" 'asn1cgo: DEFAULT member T.d is out of model in module M: DEFAULT of a named-bit BIT STRING is not supported'
-# An inline named-bit element of a SEQUENCE OF has no name to hang the
-# constants on (an inline ENUMERATED element is refused the same way).
-refuse seqof-inline "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-L ::= SEQUENCE OF BIT STRING { a(0) }
-END" 'asn1cgo: SEQUENCE OF <inline named-bit BIT STRING> has no Go naming rule in module M: L' after-c
+
+# 3. An inline named-bit element of a SEQUENCE OF: a plain BitString slice
+#    element, the bit constants named after the C backend's synthesized
+#    element (<Owner>Member), here for a top-level type and for a member.
+mkdir "$tmp/seqof" "$tmp/seqof/c"
+cat >"$tmp/seqof/m.asn" <<'EOF'
+M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+L ::= SEQUENCE OF BIT STRING { a(0), b(5) }
+H ::= SEQUENCE { m SEQUENCE OF BIT STRING { c(1) }, f BOOLEAN }
+END
+EOF
+out=$(cd "$tmp/seqof" && "$asn1c" -S "$skel" -D c -Fgo=gen m.asn 2>&1)
+rc=$?
+[ $rc = 0 ] || { echo "FAIL: seqof-inline exited $rc"; echo "$out"; fail=1; }
+types=$(ls "$tmp"/seqof/gen/*/types.go 2>/dev/null)
+[ -n "$types" ] || { echo "FAIL: seqof-inline wrote no types.go"; fail=1; }
+want '^type L \[\]BitString$'
+want '^	LMemberA int = 0$'
+want '^	LMemberB int = 5$'
+want '^type HM \[\]BitString$'
+want '^	HMMemberC int = 1$'
 
 exit $fail

@@ -641,6 +641,13 @@ node_from_body(void *t) {
                 "            out->buf = NULL;\n"
                 "        }\n"
                 "    }\n", label); s = ca(s, _cf); free(_cf); }
+        } else if(go_flat_ir_inline_elem(t) && go_flat_ir_tree_ctype(t)) {
+            /* inline SEQUENCE OF element leaf: read through its exact C
+             * tree type (see leaf_to_body) */
+            const char *ct = go_flat_ir_tree_ctype(t);
+            if(strcmp(ct, "NULL_t") == 0)
+                s = ca(s, "    (void)in;\n    *out = 0;\n");
+            else { char *_cf = cfmt("    *out = (%s)(*(const %s *)in);\n", prim ? (strcmp(prim, "_bool32") == 0 ? "int32_t" : prim) : "int64_t", ct); s = ca(s, _cf); free(_cf); }
         } else if(prim && strcmp(prim, "double") == 0) {
             s = ca(s, "    *out = (double)(*(const double *)in);\n");
         } else if(prim && strcmp(prim, "uint64_t") == 0) {

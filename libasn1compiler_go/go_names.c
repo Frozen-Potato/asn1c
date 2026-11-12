@@ -328,6 +328,13 @@ struct name_bag {
     /* Modules owning a BIT-STRING member (helper row emission). */
     const char **bs_modules;
     int n_bs, cap_bs;
+
+    /* Inline SEQUENCE OF elements already minted (module + element cid ->
+     * Go element text): a second reach of the same owner (an alias
+     * assignment `U ::= T` of an inline-element SEQUENCE OF) reuses it. */
+    struct minted_elem { const char *module; char *cid; char *go_elem; }
+        *minted;
+    int n_minted, cap_minted;
 };
 
 /* Borrowed strdup: strdup the C-identifier return of GO_MKID (which returns a
@@ -656,6 +663,13 @@ row_set_leaf(struct name_bag *b, int leaf_kind) {
 static void
 row_set_slice_elem(struct name_bag *b, const char *elem) {
     b->rows[b->n_rows - 1].slice_elem = own(elem);
+}
+
+/* the same, by row index (an inline element's rows are appended after the
+ * slice owner's own row). */
+static void
+row_set_slice_elem_at(struct name_bag *b, int ix, const char *elem) {
+    b->rows[ix].slice_elem = own(elem);
 }
 
 /* One name, fully recorded into BOTH the right collision scope and the dump
@@ -1307,6 +1321,11 @@ struct walk_ctx {
      * EM_OPTIONAL on an OPTIONAL member of the LAST member_stars call
      * (0 otherwise). The field-row caller copies it onto the member's row. */
     int last_opt_extra;
+    /* classify_integer_leaf: when set, a wide-INTEGER result is recorded
+     * under this cid (an inline SEQUENCE OF element has no Identifier of
+     * its own; its Flat node is <Owner>__Member) and wide_hit is raised. */
+    const char *wide_cid;
+    int wide_hit;
 };
 
 /* ------------------------------------------------------------------------- */
@@ -1472,12 +1491,16 @@ classify_integer_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
        && right.value <= (asn1c_integer_t)18446744073709551615ULL) {
         /* record the wide-INTEGER leaf (its converters use the
          * asn_umax2INTEGER/asn_INTEGER2umax verb pair, not a scalar mirror). */
-        go_conv_record_wide_integer(GO_MKID(terminal));
+        go_conv_record_wide_integer(ctx->wide_cid ? ctx->wide_cid
+                                                  : GO_MKID(terminal));
+        ctx->wide_hit = 1;
         return GLEAF_UINT64;
     }
     if(left.value >= (asn1c_integer_t)(-9223372036854775807LL - 1)
        && right.value <= (asn1c_integer_t)9223372036854775807LL) {
-        go_conv_record_wide_integer(GO_MKID(terminal));
+        go_conv_record_wide_integer(ctx->wide_cid ? ctx->wide_cid
+                                                  : GO_MKID(terminal));
+        ctx->wide_hit = 1;
         return GLEAF_INT64;
     }
     /* asn1p_itoa returns a pointer into a small static RING: two calls in
@@ -1984,6 +2007,10 @@ done:
         for(int j = 0; j < bag.n_dirs; j++) free(bag.dirs[j].dir);
         free(bag.dirs);
         free(bag.bs_modules);
+        for(int j = 0; j < bag.n_minted; j++) {
+            free(bag.minted[j].cid); free(bag.minted[j].go_elem);
+        }
+        free(bag.minted);
         free(bag.sf_cur_owner);
         return rc;
     }
@@ -2019,6 +2046,13 @@ static void emit_enum(struct walk_ctx *ctx, const char *enum_go,
 static void emit_bit_names(struct walk_ctx *ctx, const char *type_go,
                            const char *type_cid, const char *type_path,
                            asn1p_expr_t *bs);
+static int seqof_elem_is_inline(asn1p_expr_t *elem);
+static int mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
+                                  const char *owner_path, const char *owner_go,
+                                  const char *owner_cid, char **go_elem,
+                                  char **flat_cid);
+static char *slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
+                                const char *path_for_diag);
 
 /* Emit choice discriminant rows for a CHOICE whose goName is `choice_go` and real
  * C-ident prefix is `choice_cid`, at path prefix `parent_path`. choice_expr is the
@@ -2222,7 +2256,8 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                      * minted-leaf form). */
                     cprim = "int32_t";
                 } else if(alt->expr_type == ASN_CONSTR_SEQUENCE
-                          || alt->expr_type == ASN_CONSTR_CHOICE) {
+                          || alt->expr_type == ASN_CONSTR_CHOICE
+                          || alt->expr_type == ASN_CONSTR_SEQUENCE_OF) {
                     /* inline constructed alt: pointee = the __-compound cid
                      * the mint below creates; prim-form slot when inline */
                     const char *ac = go_mk_suffix(alt);
@@ -2268,7 +2303,8 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 char *ft = NULL;
                 if(alt->expr_type == ASN_BASIC_ENUMERATED
                    || alt->expr_type == ASN_CONSTR_SEQUENCE
-                   || alt->expr_type == ASN_CONSTR_CHOICE) {
+                   || alt->expr_type == ASN_CONSTR_CHOICE
+                   || alt->expr_type == ASN_CONSTR_SEQUENCE_OF) {
                     /* An inline constructed alt: typed by its minted
                      * <Choice><Alt> name (the anonymous-inline naming
                      * rule), same-module. */
@@ -2307,8 +2343,8 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
          * the struct-body machinery; the alt slot's type above points
          * at the minted name). The real C-ident compounds by `__`:
          * <choice_cid>__<altcid>, matching asn1c's nested tag form. An inline
-         * SEQUENCE-OF alt has no naming rule (the same fail-loud a SEQ member
-         * takes in walk_names_child's mint path). */
+         * SEQUENCE-OF alt mints the slice alias <Choice><Alt> below, with its
+         * element named by mint_inline_seqof_elem when that is inline too. */
         if(alt->expr_type == ASN_BASIC_ENUMERATED
            || alt->expr_type == ASN_CONSTR_SEQUENCE
            || alt->expr_type == ASN_CONSTR_CHOICE) {
@@ -2365,11 +2401,45 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             emit_bit_names(ctx, bit_go, bit_cid, bit_path, alt);
             free(bit_go); free(bit_cid); free(bit_path);
         } else if(alt->expr_type == ASN_CONSTR_SEQUENCE_OF) {
-            fprintf(stderr,
-                    "asn1cgo: SEQUENCE OF <inline constructed type> as a CHOICE "
-                    "alt has no Go naming rule in module %s: %s\n",
-                    ctx->module ? ctx->module : "?", parent_path);
-            ctx->bag->failed = 1;
+            /* An inline SEQUENCE OF alt: the named slice `type <Choice><Alt>
+             * []Elem`, a package-scoped Flat {items,count} node of the C
+             * cid <choice>__<alt> (the alt slot is a pointer to it). The C
+             * struct has only a tag (`struct T__a {..} *a`), no typedef. */
+            char *sq_go = str_append(strdup(""), choice_go);
+            sq_go = str_append(sq_go, altgo);
+            char *sq_cid = go_cid_compound(choice_cid, "__", altcid);
+            char *sq_path = make_path(parent_path, alt->Identifier);
+            emit_name(ctx->bag, ctx->module, strdup(sq_path), GK_INLINE,
+                      strdup(sq_cid), strdup(sq_go));
+            int sq_row = ctx->bag->n_rows - 1;
+            asn1p_expr_t *sq_elem = TQ_FIRST(&alt->members);
+            int save_fcur = go_flat_cur_get();
+            char *ge = NULL, *fc = NULL;
+            int mrc = 0;
+            if(sq_elem && sq_elem->expr_type == ASN_BASIC_BIT_STRING)
+                mark_bitstring_module(ctx->bag, ctx->module);
+            if(seqof_elem_is_inline(sq_elem)) {
+                mrc = mint_inline_seqof_elem(ctx, sq_elem, sq_path, sq_go,
+                                             sq_cid, &ge, &fc);
+            } else {
+                ge = slice_element_type(ctx, sq_elem, sq_path);
+                if(ctx->bag->failed) mrc = -1;
+                else {
+                    asn1p_expr_t *et = sq_elem;
+                    asn1p_expr_t *t2 = asn1f_find_terminal_type_ex(
+                        ctx->asn, ctx->ns, sq_elem);
+                    if(t2) et = t2;
+                    fc = own(GO_MKID(et));
+                }
+            }
+            if(mrc >= 0 && !ctx->bag->failed) {
+                row_set_slice_elem_at(ctx->bag, sq_row, ge);
+                (void)go_flat_seqof(sq_cid, fc, 0, ctx->module);
+                go_flat_mark_inline_elem("struct", NULL);
+                go_flat_cur_restore(save_fcur);
+            }
+            free(ge); free(fc);
+            free(sq_go); free(sq_cid); free(sq_path);
         }
         free(altgo);
         free((char *)altcid);
@@ -3898,41 +3968,218 @@ check_go_cycles(struct name_bag *b) {
  *     table the decl emission uses (go_types_leaf_underlying; one table, no
  *     drift).
  *   an inline CONSTRUCTED element (SEQ/CHOICE/ENUM/SEQ-OF literal body at the
- *     element position) — NO Go naming rule (the naming rule base has no
- *     <Parent><Member> anchor inside a SEQUENCE OF). Fail loud; the census
- *     across the 3 pinned specs: 0 occurrences.
+ *     element position) never reaches this function: mint_inline_seqof_elem
+ *     (below) names it <Owner>Member first and hands back the element text.
  * Returns an owned string, or NULL after setting bag->failed (fail loud). */
+static char *
+slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
+                   const char *path_for_diag);
+
+/* Is the element of a SEQUENCE OF an inline (anonymous) type rather than a
+ * reference to a named one? */
+static int
+seqof_elem_is_inline(asn1p_expr_t *elem) {
+    return elem && !(elem->expr_type == A1TC_REFERENCE
+                     || elem->meta_type == AMT_TYPEREF);
+}
+
+/* mint_inline_seqof_elem: the element of a SEQUENCE OF that is an inline
+ * (anonymous) type — `SEQUENCE OF INTEGER (0..3)`, `SEQUENCE OF SEQUENCE
+ * {..}`, ... — mirrors the C backend, which synthesizes the element "Member":
+ * the C element cid is <OwnerCid>__Member and the Go name <OwnerGo>Member
+ * (the member / alt inline rule, so under a member `a` of T it is T__a__Member
+ * / TAMember; elements nest: T__Member__Member / TMemberMember).
+ *
+ * The element is minted as an ordinary package-scoped Flat node of that cid
+ * (flagged inline_elem: the C tree has no `_t` typedef / asn_DEF for it):
+ *   a plain leaf  (INTEGER BOOLEAN REAL NULL OCTET/BIT/PrintableString,
+ *                  named-bit BIT STRING) — a hidden leaf node, NO Go type row:
+ *                  the Go element is the unnamed leaf mapping ([]int64 ...),
+ *                  from the same table classify_leaf/go_types use;
+ *   ENUMERATED    — `type <Owner>Member int32` + value consts (emit_enum);
+ *   SEQUENCE / CHOICE — a struct / CHOICE type <Owner>Member with its own
+ *                  members, exactly as the member / alt inline rule;
+ *   SEQUENCE OF   — the named slice `type <Owner>Member []Elem`, recursing.
+ * A named-bit BIT STRING element is the plain BitString plus bit constants
+ * <Owner>Member<Bit> (emit_bit_names; the member / alt precedent).
+ * On success: *go_elem = the Go element type text, *flat_cid = the Flat
+ * element cid (both owned). Returns -1 (bag->failed) on failure. The Flat
+ * cur register is restored. */
+static int
+mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
+                       const char *owner_path, const char *owner_go,
+                       const char *owner_cid, char **go_elem,
+                       char **flat_cid) {
+    char *inline_go = str_append(strdup(""), owner_go ? owner_go : "");
+    inline_go = str_append(inline_go, "Member");
+    char *inline_cid = go_cid_compound(owner_cid ? owner_cid : "", "__",
+                                       "Member");
+    char *path = make_path(owner_path, "Member");
+    int save_fcur = go_flat_cur_get();
+    int rc = 0;
+    *go_elem = NULL;
+    *flat_cid = NULL;
+    for(int j = 0; j < ctx->bag->n_minted; j++) {
+        struct minted_elem *me = &ctx->bag->minted[j];
+        if(me->module == ctx->module && strcmp(me->cid, inline_cid) == 0) {
+            *go_elem = strdup(me->go_elem);
+            *flat_cid = strdup(inline_cid);
+            free(inline_go); free(inline_cid); free(path);
+            return 0;
+        }
+    }
+
+    switch(elem->expr_type) {
+    case ASN_CONSTR_SEQUENCE: {
+        emit_name(ctx->bag, ctx->module, strdup(path), GK_INLINE,
+                  strdup(inline_cid), strdup(inline_go));
+        go_flat_struct(inline_cid, ctx->module);
+        go_flat_mark_inline_elem(NULL, NULL);
+        const char *save_go = ctx->parent_go;
+        const char *save_cid = ctx->parent_cid;
+        char *save_sf = NULL;
+        if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
+        ctx->parent_go = inline_go;
+        ctx->parent_cid = inline_cid;
+        reset_field_scope(ctx->bag);
+        row_set_is_struct(ctx->bag);
+        struct_scope_open(ctx->bag, inline_go);
+        rc = walk_names_members(ctx, elem, path);
+        struct_scope_reset(ctx->bag);
+        free(bag_sf_restore(ctx->bag, save_sf));
+        ctx->parent_go = save_go;
+        ctx->parent_cid = save_cid;
+        *go_elem = strdup(inline_go);
+        break;
+    }
+    case ASN_CONSTR_CHOICE: {
+        emit_name(ctx->bag, ctx->module, strdup(path), GK_INLINE,
+                  strdup(inline_cid), strdup(inline_go));
+        char *save_sf = NULL;
+        if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
+        emit_choice(ctx, inline_go, inline_cid, path, elem);
+        free(bag_sf_restore(ctx->bag, save_sf));
+        {   /* emit_choice minted the CHOICE node and left it cur */
+            go_flat_mark_inline_elem(NULL, NULL);
+        }
+        *go_elem = strdup(inline_go);
+        break;
+    }
+    case ASN_CONSTR_SEQUENCE_OF: {
+        emit_name(ctx->bag, ctx->module, strdup(path), GK_INLINE,
+                  strdup(inline_cid), strdup(inline_go));
+        int row_ix = ctx->bag->n_rows - 1;
+        asn1p_expr_t *inner = TQ_FIRST(&elem->members);
+        char *ig = NULL, *ic = NULL;
+        if(!inner) { ctx->bag->failed = 1; rc = -1; break; }
+        if(seqof_elem_is_inline(inner)) {
+            rc = mint_inline_seqof_elem(ctx, inner, path, inline_go,
+                                        inline_cid, &ig, &ic);
+        } else {
+            ig = slice_element_type(ctx, inner, path);
+            if(ctx->bag->failed) { rc = -1; break; }
+            asn1p_expr_t *et = inner;
+            asn1p_expr_t *t2 = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns,
+                                                           inner);
+            if(t2) et = t2;
+            ic = own(GO_MKID(et));
+            if(go_construct_classify(et) == GO_CONSTR_BIT_STRING)
+                mark_bitstring_module(ctx->bag, ctx->module);
+        }
+        if(rc < 0 || ctx->bag->failed) { free(ig); free(ic); rc = -1; break; }
+        row_set_slice_elem_at(ctx->bag, row_ix, ig);
+        (void)go_flat_seqof(inline_cid, ic, 0, ctx->module);
+        go_flat_mark_inline_elem(NULL, NULL);
+        free(ig); free(ic);
+        *go_elem = strdup(inline_go);
+        break;
+    }
+    default: {
+        /* a plain leaf (or ENUMERATED / named-bit BIT STRING) */
+        int is_enum = elem->expr_type == ASN_BASIC_ENUMERATED;
+        int named_bits = elem->expr_type == ASN_BASIC_BIT_STRING
+                         && TQ_FIRST(&elem->members);
+        ctx->wide_cid = inline_cid;
+        ctx->wide_hit = 0;
+        int lk = classify_leaf(ctx, elem, path);
+        int wide = ctx->wide_hit;
+        ctx->wide_cid = NULL;
+        ctx->wide_hit = 0;
+        if(ctx->bag->failed) { rc = -1; break; }
+        if(lk == GLEAF_BITSTRING) mark_bitstring_module(ctx->bag, ctx->module);
+        const char *under = go_types_leaf_underlying(lk);
+        const char *ctype = NULL;
+        switch(lk) {
+        case GLEAF_INT64:  ctype = wide ? "INTEGER_t" : "long"; break;
+        case GLEAF_UINT64: ctype = wide ? "INTEGER_t" : "unsigned long"; break;
+        case GLEAF_BOOL:   ctype = "BOOLEAN_t"; break;
+        case GLEAF_NULL:   ctype = "NULL_t"; break;
+        case GLEAF_REAL:   ctype = "double"; break;
+        case GLEAF_OCTETS: ctype = "OCTET_STRING_t"; break;
+        case GLEAF_STRING: ctype = "PrintableString_t"; break;
+        case GLEAF_BITSTRING: ctype = "BIT_STRING_t"; break;
+        case GLEAF_ENUM:   ctype = "long"; break;
+        default: break;
+        }
+        if(!ctype || !under) {
+            fprintf(stderr,
+                    "asn1cgo: SEQUENCE OF element of unsupported kind in "
+                    "module %s: %s\n",
+                    ctx->module ? ctx->module : "?", path);
+            ctx->bag->failed = 1; rc = -1; break;
+        }
+        if(is_enum) {
+            emit_name(ctx->bag, ctx->module, strdup(path), GK_INLINE,
+                      strdup(inline_cid), strdup(inline_go));
+            row_set_leaf(ctx->bag, lk);
+            (void)go_flat_leaf_gleaf(inline_cid, lk, ctx->module);
+            go_flat_mark_inline_elem(ctype, NULL);
+            emit_enum(ctx, inline_go, inline_cid, path, elem);
+            *go_elem = strdup(inline_go);
+            break;
+        }
+        /* Reserve <Owner>Member as a name (no declaration: the row carries no
+         * leaf kind, struct or slice body): the glue helpers are named after
+         * it, so another type of that name must collide. */
+        emit_name(ctx->bag, ctx->module, strdup(path), GK_INLINE,
+                  strdup(inline_cid), strdup(inline_go));
+        if(lk == GLEAF_NULL)
+            (void)go_flat_leaf(inline_cid, "int32_t", ctx->module);
+        else
+            (void)go_flat_leaf_gleaf(inline_cid, lk, ctx->module);
+        go_flat_mark_inline_elem(ctype, under);
+        if(named_bits) emit_bit_names(ctx, inline_go, inline_cid, path, elem);
+        *go_elem = strdup(under);
+        break;
+    }
+    }
+    go_flat_cur_restore(save_fcur);
+    if(rc == 0 && ctx->bag->failed) rc = -1;
+    if(rc == 0) *flat_cid = strdup(inline_cid);
+    if(rc == 0) {
+        struct name_bag *b = ctx->bag;
+        if(b->n_minted + 1 > b->cap_minted) {
+            int nc = b->cap_minted ? b->cap_minted * 2 : 16;
+            struct minted_elem *nm = realloc(b->minted, (size_t)nc * sizeof *nm);
+            if(!nm) { b->failed = 1; rc = -1; }
+            else { b->minted = nm; b->cap_minted = nc; }
+        }
+        if(rc == 0) {
+            b->minted[b->n_minted].module = ctx->module;
+            b->minted[b->n_minted].cid = strdup(inline_cid);
+            b->minted[b->n_minted].go_elem = strdup(*go_elem);
+            b->n_minted++;
+        }
+    }
+    if(rc < 0) { free(*go_elem); *go_elem = NULL; free(*flat_cid); *flat_cid = NULL; }
+    free(inline_go); free(inline_cid); free(path);
+    return rc;
+}
+
 static char *
 slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
                    const char *path_for_diag) {
     if(!elem) return own("");
-    /* Inline constructed literal: no naming anchor — fail loud (no guessing:
-     * the generator never guesses; the shape does not occur in the 3 specs,
-     * count 0). BIT STRING keeps its helper membership handling (the caller
-     * marks the module for the helper — an element of BitString-typed refs
-     * resolves through the named-assignment arm). */
-    if(elem->expr_type == ASN_CONSTR_SEQUENCE
-       || elem->expr_type == ASN_CONSTR_CHOICE
-       || elem->expr_type == ASN_CONSTR_SEQUENCE_OF
-       || elem->expr_type == ASN_BASIC_ENUMERATED) {
-        fprintf(stderr,
-                "asn1cgo: SEQUENCE OF <inline constructed type> has no Go "
-                "naming rule in module %s: %s\n",
-                ctx->module ? ctx->module : "?", path_for_diag);
-        ctx->bag->failed = 1;
-        return NULL;
-    }
-    /* An inline named-bit BIT STRING element: same anchor-less shape as the
-     * inline ENUMERATED element above (nothing to hang the bit constants on). */
-    if(elem->expr_type == ASN_BASIC_BIT_STRING && TQ_FIRST(&elem->members)
-       && !(elem->meta_type == AMT_TYPEREF)) {
-        fprintf(stderr,
-                "asn1cgo: SEQUENCE OF <inline named-bit BIT STRING> has no Go "
-                "naming rule in module %s: %s\n",
-                ctx->module ? ctx->module : "?", path_for_diag);
-        ctx->bag->failed = 1;
-        return NULL;
-    }
     /* Inline plain leaf: the mapping-table Go text (the same table). */
     if(!(elem->expr_type == A1TC_REFERENCE || elem->meta_type == AMT_TYPEREF)) {
         int lk = classify_leaf(ctx, elem, path_for_diag);
@@ -4249,24 +4496,38 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * the n_rows-1 form targets the inline row. Element rule: ONE
          * resolver for all three slice shapes (slice_element_type) — a
          * reference element is the assignment's own goName, a leaf
-         * element is the mapping-table column, an inline constructed element FAILS
-         * LOUD (no naming anchor; count 0 in the 3 pinned specs). The
+         * element is the mapping-table column, an inline element is minted
+         * as <Parent><Member>Member by mint_inline_seqof_elem. The
          * member's own field row was typed by the minted name in the block
          * above (stars + parent_go + child name) — never a bare []Elem.
          * A BIT STRING
          * element marks this module for the helper (same membership as a
          * plain member; the element resolve itself keeps one path). */
+        char *inl_flat_cid = NULL;   /* the minted Flat element cid */
         {
             asn1p_expr_t *elem = TQ_FIRST(&child->members);
             if(elem && elem->expr_type == ASN_BASIC_BIT_STRING)
                 mark_bitstring_module(ctx->bag, ctx->module);
-            char *selem = slice_element_type(ctx, elem, inline_path);
-            if(ctx->bag->failed) {
-                free(selem);
-                free(inline_go); free(inline_cid); free(inline_path);
-                return -1;
+            char *selem;
+            if(seqof_elem_is_inline(elem)) {
+                int inl_row = ctx->bag->n_rows - 1;
+                if(mint_inline_seqof_elem(ctx, elem, inline_path, inline_go,
+                                          inline_cid, &selem,
+                                          &inl_flat_cid) < 0) {
+                    free(selem);
+                    free(inline_go); free(inline_cid); free(inline_path);
+                    return -1;
+                }
+                row_set_slice_elem_at(ctx->bag, inl_row, selem);
+            } else {
+                selem = slice_element_type(ctx, elem, inline_path);
+                if(ctx->bag->failed) {
+                    free(selem);
+                    free(inline_go); free(inline_cid); free(inline_path);
+                    return -1;
+                }
+                row_set_slice_elem(ctx->bag, selem);
             }
-            row_set_slice_elem(ctx->bag, selem);
             free(selem);
         }
         /* Flat: the inline SEQ OF member rides the nested node minted above
@@ -4285,7 +4546,8 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                 if(st) se_ = st;
             }
             if(flat_nest_ix == -3) {
-                char *flat_selem = se_ ? own(GO_MKID(se_)) : strdup("");
+                char *flat_selem = inl_flat_cid ? strdup(inl_flat_cid)
+                                   : se_ ? own(GO_MKID(se_)) : strdup("");
                 char *flat_mtok = go_mk_member(child);
                 go_flat_member_seqof(flat_selem, 0, flat_mtok,
                                      stars && *stars == '*');
@@ -4293,6 +4555,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                 free(flat_selem); free(flat_mtok);
             }
         }
+        free(inl_flat_cid);
         free(inline_go); free(inline_cid); free(inline_path);
         return 0;
     }
@@ -4849,11 +5112,49 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
          * the same one-resolver rule as every slice shape
          * (slice_element_type): a reference element is the assignment's
          * own goName (qualified by the prepass), an inline
-         * leaf is the mapping-table column, an inline constructed element FAILS
-         * LOUD (count 0 in the 3 pinned specs). */
+         * leaf is the mapping-table column, an inline element is minted as
+         * <Type>Member by mint_inline_seqof_elem (below). */
         asn1p_expr_t *elem = TQ_FIRST(&terminal->members);
         if(elem && elem->expr_type == ASN_BASIC_BIT_STRING)
             mark_bitstring_module(ctx->bag, ctx->module);
+        if(seqof_elem_is_inline(elem)) {
+            /* an inline element is named after the assignment that DECLARES
+             * the SEQUENCE OF (the terminal): its own for a plain assignment,
+             * the chased one for an alias `U ::= T` (the element is reused
+             * by the minted-element table). */
+            int owner_row = ctx->bag->n_rows - 1;
+            char *ogo, *ocid;
+            const char *opath;
+            if(terminal == expr) {
+                ogo = strdup(type_go); ocid = strdup(type_cid); opath = ident;
+            } else {
+                const char *tmod = terminal->module
+                    ? terminal->module->ModuleName : NULL;
+                if(!tmod || !ctx->module || strcmp(tmod, ctx->module) != 0) {
+                    fprintf(stderr,
+                            "asn1cgo: SEQUENCE OF with an inline element "
+                            "type reached through a type assignment of "
+                            "another module is not supported in module "
+                            "%s: %s\n",
+                            ctx->module ? ctx->module : "?", ident);
+                    ctx->bag->failed = 1;
+                    return -1;
+                }
+                ogo = go_r2(GO_MKID(terminal));
+                ocid = own_mkid(terminal);
+                opath = terminal->Identifier ? terminal->Identifier : ident;
+            }
+            char *ge = NULL, *fc = NULL;
+            int mrc = mint_inline_seqof_elem(ctx, elem, opath, ogo, ocid,
+                                             &ge, &fc);
+            free(ogo); free(ocid);
+            if(mrc < 0) { free(ge); free(fc); return -1; }
+            row_set_slice_elem_at(ctx->bag, owner_row, ge);
+            (void)go_flat_seqof(type_cid, fc, 0, ctx->module);
+            go_flat_label_cur(terminal->Identifier);
+            free(ge); free(fc);
+            return 0;
+        }
         {
             char *selem = slice_element_type(ctx, elem, ident);
             if(ctx->bag->failed) {

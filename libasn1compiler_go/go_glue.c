@@ -842,7 +842,14 @@ typedef struct {
  * "T" when t's module == g_emit_mod, else "<pkg>.T" (the local fns are
  * per-package; the sibling packages of one go.mod are importable by their
  * module path "<mod>/<pkg>"). Malloc'd. */
+static char *local_bitstring(void);
 static char *gtype_q(flat_type *t) {
+    /* a hidden inline-element leaf (`SEQUENCE OF INTEGER`...) has no Go type
+     * row: its Go type IS the unnamed leaf mapping text. */
+    if(t && go_flat_ir_go_type(t)) {
+        const char *gt = go_flat_ir_go_type(t);
+        return strcmp(gt, "BitString") == 0 ? local_bitstring() : gown(gt);
+    }
     /* a SEQ-OF CONTAINER CLONE node (asn1c's ProtocolIE-Container 85Px
      * instantiations) has NO Go type row of its own — its Go spelling is
      * the referencing field's slice alias (<Msg>ProtocolIEs). Find
@@ -2870,11 +2877,14 @@ emit_type_fn(flat_type *t) {
          * point with the Flat's own single value. */
         const char *prim = go_flat_ir_prim(t);
         char *cast = gown(prim ? prim : "");
-        const char *al0 = gf_goname(t);   /* the leaf's own named alias, if any */
+        /* the leaf's own named alias, if any; a hidden inline-element leaf
+         * has none — its Go type is the unnamed leaf mapping text */
+        const char *al0 = go_flat_ir_go_type(t) ? go_flat_ir_go_type(t)
+                                                : gf_goname(t);
         char *alq = NULL;                 /* package-qualified alias spelling */
         if(al0 && *al0) {
             const char *tm = go_flat_ir_module(t);
-            if(tm && g_emit_mod && strcmp(tm, g_emit_mod) == 0) alq = gown(al0);
+            if(go_flat_ir_go_type(t) || (tm && g_emit_mod && strcmp(tm, g_emit_mod) == 0)) alq = gown(al0);
             else { char *pk = gmodule_pkg(tm); alq = gfmt("%s.%s", pk, al0); free(pk); }
         }
         if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
@@ -2899,6 +2909,12 @@ emit_type_fn(flat_type *t) {
                 lbs, (alq && *alq) ? alq : lbs));
             free(lbs);
             (*E.szt) = ga((*E.szt), "\tpayload += uintptr(len((*v).Bytes))\n");
+        } else if(go_flat_ir_go_type(t)
+                  && strcmp(go_flat_ir_go_type(t), "struct{}") == 0) {
+            /* a hidden NULL element: one int32 placeholder slot per item
+             * (the Go value struct{} carries nothing but its presence). */
+            (*E.fill) = ga((*E.fill), "\t*(*int32)(slot) = 0\n\t_ = v\n");
+            (*E.read) = ga((*E.read), "\t*v = struct{}{}\n");
         } else {
             const char *gt = gprim_slot(prim);
             char *stx = gconv_store(prim, gt, "*v");

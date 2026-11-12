@@ -182,6 +182,14 @@ struct flat_type {
                          * 85P0_flat, tree E2AP_ProtocolIE_Container_85P0).
                          * NULL = derive from name (strip _flat).           */
     int nested_only;    /* 1 = rides inside a parent member (no typedef)    */
+    int inline_elem;    /* 1 = an inline (anonymous) element/alt type: the C
+                         * tree type has no `<cid>_t` typedef and no exported
+                         * asn_DEF_<cid>; the conv file declares the _t alias
+                         * from tree_ctype and frees through the owning tree */
+    char *tree_ctype;   /* inline_elem: the C spelling of the tree type     */
+    char *go_type;      /* inline_elem leaf: the Go element type text (the
+                         * unnamed leaf mapping, e.g. int64); NULL = a named
+                         * Go type (the camel of the Flat name)             */
     int is_choice;      /* 1 = a CHOICE layout (present first)              */
     unsigned long size, align;
     int laid_out, in_progress;
@@ -398,6 +406,20 @@ go_flat_leaf_gleaf(const char *cid, int gleaf, const char *module) {
     const char *p = gleaf_prim(gleaf);
     if(!p) return -1;
     return go_flat_leaf(cid, p, module);
+}
+
+/* Mark the CUR node (just minted) as an inline element/alt type: see the
+ * inline_elem field. tree_ctype is the C spelling of the tree type; go_type
+ * the unnamed Go element type (NULL when the Go type is a named one). */
+void
+go_flat_mark_inline_elem(const char *tree_ctype, const char *go_type) {
+    flat_type *t = flat_at(g_flat.cur_ix);
+    if(!t) return;
+    t->inline_elem = 1;
+    free(t->tree_ctype);
+    t->tree_ctype = tree_ctype ? fstrdup(tree_ctype) : NULL;
+    free(t->go_type);
+    t->go_type = go_type ? fstrdup(go_type) : NULL;
 }
 
 int
@@ -651,6 +673,9 @@ long go_flat_ir_member_offset(flat_member *m) { return m ? (long)m->offset : -1;
 long go_flat_ir_node_size(flat_type *t) { return t ? (long)t->size : -1; }
 const char *go_flat_ir_elem(flat_type *t) { return t ? t->elem : NULL; }
 int go_flat_ir_elem_prim(flat_type *t) { return t ? t->elem_prim : 0; }
+int go_flat_ir_inline_elem(flat_type *t) { return t ? t->inline_elem : 0; }
+const char *go_flat_ir_tree_ctype(flat_type *t) { return t ? t->tree_ctype : NULL; }
+const char *go_flat_ir_go_type(flat_type *t) { return t ? t->go_type : NULL; }
 const char *go_flat_ir_alias_of(flat_type *t) { return t ? t->alias_of : NULL; }
 
 /* Tree type name of a node: <P><cid>_t (the real prefixed asn1c typedef).

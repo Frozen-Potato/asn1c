@@ -124,3 +124,18 @@ func mustEncode(t *testing.T, p *df.DefaultsPDU) []byte {
 	}
 	return b
 }
+
+// SEQUENCE OF with inline element types: every case of seqofinline_test.go
+// (primitive and constructed elements; top level, member, OPTIONAL member and
+// CHOICE alternative), encode and decode.
+func TestAllocFaultSweepSeqofInline(t *testing.T) {
+	for _, c := range siCases() {
+		c := c
+		wire, err := c.enc()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		sweep(t, c.name+" Encode", func() error { _, err := c.enc(); return err })
+		sweep(t, c.name+" Decode", func() error { return c.dec(wire) })
+	}
+}

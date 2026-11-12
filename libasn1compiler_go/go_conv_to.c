@@ -454,6 +454,15 @@ leaf_to_body(void *t, const char *label) {
             "        o->bits_unused = (int)b->bits_unused;\n"
             "    }\n", label);
     }
+    /* an inline SEQUENCE OF element leaf knows its exact C tree type (long,
+     * unsigned long, BOOLEAN_t, NULL_t, double): store through it, so a
+     * 4-byte BOOLEAN_t / NULL_t slot is never written as a long. */
+    if(go_flat_ir_inline_elem(t) && go_flat_ir_tree_ctype(t)) {
+        const char *ct = go_flat_ir_tree_ctype(t);
+        if(strcmp(ct, "NULL_t") == 0)
+            return cstrdup("    (void)in;\n    *(NULL_t *)out = 0;\n");
+        return cfmt("    *(%s *)out = (%s)*in;\n", ct, ct);
+    }
     /* native scalar leaf (bare typedef): int64/uint64 -> long, int32
      * (enum) -> long, double -> double. */
     if(prim && strcmp(prim, "double") == 0)
@@ -749,6 +758,8 @@ arm_nested_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             free(mlab); free(label); free(in_sel); free(out_sel);
             return s;
         }
+        const int inl = rt && go_flat_ir_inline_elem(rt);
+        char *frs = inl ? cstrdup("") : cfmt("ASN_STRUCT_FREE(asn_DEF_%s, item); ", rb);
         if(stars) {
             /* OPTIONAL inline SEQ OF: the Flat side carries *{items,count};
              * calloc the tree wrapper, loop into it. */
@@ -758,16 +769,17 @@ arm_nested_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             { char *_cf = cfmt("        for (size_t i = 0; i < %s->count; i++) {\n", in_sel); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("            %s_t *item = asn1cgo_calloc(1, sizeof(*item));\n", rb); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("            if (!item) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
+            if(inl) { char *_cf = cfmt("            if (ASN_SEQUENCE_ADD(&%s->list, item) != 0) { free(item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL); }\n", out_sel, label, mlab); s = ca(s, _cf); free(_cf); }
             if(conv_is_scc(t) && conv_is_scc(rt)) {
                 /* depth guard: guard, call, decrement, test inline (the depth must
                  * NOT leak past the loop iteration) */
-                { char *_cf = cfmt("            if (++err->depth > ASN1CGO_MAX_DEPTH) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH); }\n", rb, label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (++err->depth > ASN1CGO_MAX_DEPTH) { %sreturn asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH); }\n", frs, label, mlab); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            int itrc = %s_to_tree(&%s->items[i], item, err);\n", rb, in_sel); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            if (itrc) { ASN_STRUCT_FREE(asn_DEF_%s, item); return err->code; }\n", rb); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (itrc) { %sreturn err->code; }\n", frs); s = ca(s, _cf); free(_cf); }
             } else {
-                { char *_cf = cfmt("            if (%s_to_tree(&%s->items[i], item, err)) { ASN_STRUCT_FREE(asn_DEF_%s, item); return err->code; }\n", rb, in_sel, rb); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (%s_to_tree(&%s->items[i], item, err)) { %sreturn err->code; }\n", rb, in_sel, frs); s = ca(s, _cf); free(_cf); }
             }
-            { char *_cf = cfmt("            if (ASN_SEQUENCE_ADD(&%s->list, item) != 0) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL); }\n", out_sel, rb, label, mlab); s = ca(s, _cf); free(_cf); }
+            if(!inl) { char *_cf = cfmt("            if (ASN_SEQUENCE_ADD(&%s->list, item) != 0) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL); }\n", out_sel, rb, label, mlab); s = ca(s, _cf); free(_cf); }
             if(conv_is_scc(t) && conv_is_scc(rt))
                 s = ca(s, "            err->depth--;\n");
             s = ca(s, "        }\n    }\n");
@@ -775,20 +787,22 @@ arm_nested_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             { char *_cf = cfmt("    for (size_t i = 0; i < %s.count; i++) {\n", in_sel); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        %s_t *item = asn1cgo_calloc(1, sizeof(*item));\n", rb); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        if (!item) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
+            if(inl) { char *_cf = cfmt("        if (ASN_SEQUENCE_ADD(&%s.list, item) != 0) { free(item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL); }\n", out_sel, label, mlab); s = ca(s, _cf); free(_cf); }
             if(conv_is_scc(t) && conv_is_scc(rt)) {
                 /* depth guard: guard, call, decrement, test inline (mirror of the
                  * starred form; no depth leak past the iteration) */
-                { char *_cf = cfmt("        if (++err->depth > ASN1CGO_MAX_DEPTH) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH); }\n", rb, label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (++err->depth > ASN1CGO_MAX_DEPTH) { %sreturn asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH); }\n", frs, label, mlab); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        int itrc = %s_to_tree(&%s.items[i], item, err);\n", rb, in_sel); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (itrc) { ASN_STRUCT_FREE(asn_DEF_%s, item); return err->code; }\n", rb); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (itrc) { %sreturn err->code; }\n", frs); s = ca(s, _cf); free(_cf); }
             } else {
-                { char *_cf = cfmt("        if (%s_to_tree(&%s.items[i], item, err)) { ASN_STRUCT_FREE(asn_DEF_%s, item); return err->code; }\n", rb, in_sel, rb); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s_to_tree(&%s.items[i], item, err)) { %sreturn err->code; }\n", rb, in_sel, frs); s = ca(s, _cf); free(_cf); }
             }
-            { char *_cf = cfmt("        if (ASN_SEQUENCE_ADD(&%s.list, item) != 0) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL); }\n", out_sel, rb, label, mlab); s = ca(s, _cf); free(_cf); }
+            if(!inl) { char *_cf = cfmt("        if (ASN_SEQUENCE_ADD(&%s.list, item) != 0) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL); }\n", out_sel, rb, label, mlab); s = ca(s, _cf); free(_cf); }
             if(conv_is_scc(t) && conv_is_scc(rt))
                 s = ca(s, "        err->depth--;\n");
             s = ca(s, "    }\n");
         }
+        free(frs);
         free(rb); free(rflat);
     } else if(go_conv_ir_is_choice(n)) {
         /* nested CHOICE wrapper: present + inline alt slots under <tok>.
@@ -936,21 +950,28 @@ node_to_body(void *t) {
             return s;
         }
         int scc_edge = rt && conv_is_scc(rt);
+        /* an inline element type has no asn_DEF to free the item with: it is
+         * attached to the list first, and an error leaves it to the tree's
+         * own free (the caller frees the whole tree on failure). */
+        const int inl = rt && go_flat_ir_inline_elem(rt);
+        char *frs = inl ? cstrdup("") : cfmt("ASN_STRUCT_FREE(asn_DEF_%s, item); ", rb);
         { char *_cf = cfmt("    for (size_t i = 0; i < in->count; i++) {\n"); s = ca(s, _cf); free(_cf); }
         { char *_cf = cfmt("        %s_t *item = asn1cgo_calloc(1, sizeof(*item));\n", rb); s = ca(s, _cf); free(_cf); }
         { char *_cf = cfmt("        if (!item) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
+        if(inl) { char *_cf = cfmt("        if (ASN_SEQUENCE_ADD(&out->list, item) != 0) { free(item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n", label); s = ca(s, _cf); free(_cf); }
         if(scc_edge) {
             /* depth guard: the loop edge re-enters the recursion SCC (the list's
              * element type is itself an SCC member) — guard each item. */
-            { char *_cf = cfmt("        if (++err->depth > ASN1CGO_MAX_DEPTH) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", NULL, \"depth > %%d\", ASN1CGO_MAX_DEPTH); }\n", rb, label); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (++err->depth > ASN1CGO_MAX_DEPTH) { %sreturn asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", NULL, \"depth > %%d\", ASN1CGO_MAX_DEPTH); }\n", frs, label); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        int itrc = %s_to_tree(&in->items[i], item, err);\n", rb); s = ca(s, _cf); free(_cf); }
             s = ca(s, "        err->depth--;\n");
-            { char *_cf = cfmt("        if (itrc) { ASN_STRUCT_FREE(asn_DEF_%s, item); return err->code; }\n", rb); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (itrc) { %sreturn err->code; }\n", frs); s = ca(s, _cf); free(_cf); }
         } else {
-            { char *_cf = cfmt("        if (%s_to_tree(&in->items[i], item, err)) { ASN_STRUCT_FREE(asn_DEF_%s, item); return err->code; }\n", rb, rb); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (%s_to_tree(&in->items[i], item, err)) { %sreturn err->code; }\n", rb, frs); s = ca(s, _cf); free(_cf); }
         }
-        { char *_cf = cfmt("        if (ASN_SEQUENCE_ADD(&out->list, item) != 0) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n", rb, label); s = ca(s, _cf); free(_cf); }
+        if(!inl) { char *_cf = cfmt("        if (ASN_SEQUENCE_ADD(&out->list, item) != 0) { ASN_STRUCT_FREE(asn_DEF_%s, item); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n", rb, label); s = ca(s, _cf); free(_cf); }
         s = ca(s, "    }\n");
+        free(frs);
         free(rb);
         free(label);
         return s;

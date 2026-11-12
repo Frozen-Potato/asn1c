@@ -974,6 +974,31 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
         /* forward decls: every package-scoped converter pair (a
          * nested_only node has no own typedef/converter — its body rides
          * the parent's converter through the inline-wrapper arms). */
+        /* inline element types (the anonymous element of a SEQUENCE OF)
+         * have no `<base>_t` typedef in the asn1c tree: alias it to the
+         * C type the tree really uses, so every converter below spells
+         * the element like any other node. */
+        {
+            int any = 0;
+            for(int i = 0; i < n; i++) {
+                void *t = go_flat_ir_type(i);
+                const char *mod = go_flat_ir_module(t);
+                if(!mod || strcmp(mod, mods[mi]) != 0) continue;
+                if(!go_flat_ir_inline_elem(t)) continue;
+                char *base = conv_tree_base(t);
+                if(!base || !*base) { free(base); continue; }
+                const char *ct = go_flat_ir_tree_ctype(t);
+                if(!any) { s = ca(s, "/* ---- inline element tree types ---- */\n"); any = 1; }
+                if(ct && strcmp(ct, "struct") == 0) {
+                    /* the C type has a struct tag only (an inline CHOICE alt) */
+                    char *_cf = cfmt("typedef struct %s %s_t;\n", base, base); s = ca(s, _cf); free(_cf);
+                } else {
+                    char *_cf = cfmt("typedef %s %s_t;\n", ct && *ct ? ct : base, base); s = ca(s, _cf); free(_cf);
+                }
+                free(base);
+            }
+            if(any) s = ca(s, "\n");
+        }
         s = ca(s, "/* ---- converter forward decls ---- */\n");
         for(int i = 0; i < n; i++) {
             void *t = go_flat_ir_type(i);
