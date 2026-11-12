@@ -934,6 +934,7 @@ errlit(flat_type *t, const char *mfield, const char *code, const char *msg) {
  * emits). */
 static char *local_bitstring(void) {
     char *bsname = gown("BitString");
+    const char *foreign = NULL;
     for(int bi = 0; bi < go_names_rows_n(); bi++) {
         const char *bk = go_names_row_kind(bi);
         if(!bk || (strcmp(bk, "type") != 0 && strcmp(bk, "helper") != 0))
@@ -942,14 +943,14 @@ static char *local_bitstring(void) {
         if(!bg || strcmp(bg, "BitString") != 0) continue;
         const char *bm = go_names_row_module(bi);
         if(bm && g_emit_mod && strcmp(bm, g_emit_mod) == 0)
-            break;   /* ours: bare */
-        if(bm) {
-            char *pk = gmodule_pkg(bm);
-            free(bsname);
-            bsname = gfmt("%s.BitString", pk);
-            free(pk);
-        }
-        break;
+            return bsname;   /* ours: bare, wherever its row sits */
+        if(bm && !foreign) foreign = bm;   /* first foreign owner */
+    }
+    if(foreign) {
+        char *pk = gmodule_pkg(foreign);
+        free(bsname);
+        bsname = gfmt("%s.BitString", pk);
+        free(pk);
     }
     return bsname;
 }
@@ -991,6 +992,18 @@ qualify_alias(const char *alias_in) {
     int star = 0;
     while(*st == '*') { star++; st++; }
     const char *base = unqual(st);
+    /* a name this package declares itself wins over a same-named row of
+     * another module (BitString: every module that owns BIT STRING members
+     * declares one) — never qualify it by the first match. */
+    for(int i = 0; i < go_names_rows_n() && g_emit_mod; i++) {
+        const char *gn = go_names_row_goname(i);
+        const char *mrow = go_names_row_module(i);
+        const char *k = go_names_row_kind(i);
+        if(gn && mrow && k && strcmp(gn, base) == 0
+           && strcmp(mrow, g_emit_mod) == 0
+           && (strcmp(k, "type") == 0 || strcmp(k, "inline") == 0))
+            return gown(alias_in);
+    }
     for(int i = 0; i < go_names_rows_n(); i++) {
         const char *k = go_names_row_kind(i);
         if(!k || (strcmp(k, "type") != 0 && strcmp(k, "inline") != 0
@@ -1158,17 +1171,22 @@ emit_prim(ectx *E, flat_member *m) {
             char *sdn = gfmt("sd%d", g_tmpseq++);
             char *lbs3 = local_bitstring();
             if(go_flat_ir_member_stars(m)) {
-                /* a STARRED Flat slot (OPTIONAL BIT STRING): pointer test. */
+                /* a STARRED Flat slot (OPTIONAL BIT STRING): the C member is
+                 * BIT_STRING_t *x — alloc the record, write through it,
+                 * storePtr (never the record inline into the pointer slot). */
                 (*E->fill) = gam((*E->fill), gfmt(
-                    "\tif %s != nil {\n\t\twriteBitsField(fa, %s, %s(*%s))\n\t}\n",
-                    acc, slot, lbs3, acc));
+                    "\tif %s != nil {\n"
+                    "\t\twv := fa.allocStruct(sizeofBitsFlat, alignInt64)\n"
+                    "\t\twriteBitsField(fa, wv, %s(*%s))\n"
+                    "\t\tstorePtr(%s, wv)\n\t}\n",
+                    acc, lbs3, acc, slot));
                 /* sizing (the e2connectionUpdate catch): the
                  * fill's writeBitsField allocs payload for the byte slice —
                  * the size fn MUST reserve it (same rule as the bytes member
                  * path; the undercount panicked blockArena.allocPayload on
                  * the first BitsField-bearing struct the corpus ever drove). */
                 (*E->szt) = gam((*E->szt), gfmt(
-                    "\tif %s != nil {\n\t\tpayload += uintptr(len((*%s).Bytes))\n\t}\n",
+                    "\tif %s != nil {\n\t\tfixed += uintptr(sizeofBitsFlat)\n\t\tpayload += uintptr(len((*%s).Bytes))\n\t}\n",
                     acc, acc));
                 (*E->read) = gam((*E->read), gfmt(
                     "\tif p := *(**byte)(%s); p != nil {\n"
@@ -1765,7 +1783,11 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
                  * the field lives in another package's type). */
                 char *bst = NULL;
                 if(ft && *ft == '*') {
-                    bst = qualify_alias(ft);
+                    /* strip the pointer star BEFORE qualifying: the casts
+                     * below spell the pointee type, not a pointer type. */
+                    const char *ftp = ft;
+                    while(*ftp == '*') ftp++;
+                    bst = qualify_alias(ftp);
                 } else {
                     const char *tm = go_flat_ir_module(E->t);
                     if(tm && g_emit_mod && strcmp(tm, g_emit_mod) != 0) {

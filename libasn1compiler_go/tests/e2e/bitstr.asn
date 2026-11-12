@@ -1,0 +1,66 @@
+BitsA DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- BIT STRING members in several modules of one -Fgo run (each module owns its
+-- BitString helper type), OPTIONAL inline BIT STRINGs (C: BIT_STRING_t *) and
+-- OPTIONAL references to BIT STRING types, local and imported.
+
+	OptFixed ::= SEQUENCE {
+		opt	BIT STRING (SIZE(8)) OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	OptVar ::= SEQUENCE {
+		opt	BIT STRING (SIZE(1..160, ...)) OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	-- the shape of E2AP's TNLinformation
+	TnlInfo ::= SEQUENCE {
+		tnlAddress	BIT STRING (SIZE(1..160, ...)),
+		tnlPort	BIT STRING (SIZE(16)) OPTIONAL,
+		...
+	}
+
+	RangedBits ::= BIT STRING (SIZE(4..12))
+	CapsBits ::= BIT STRING { c(7), a(0), b(3) }
+
+	RefHolder ::= SEQUENCE {
+		ref	RangedBits OPTIONAL,
+		caps	CapsBits OPTIONAL,
+		flag	BOOLEAN
+	}
+
+END
+
+BitsB DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+	IMPORTS RangedBits, CapsBits FROM BitsA;
+
+	-- owns its own BIT STRING member (and thus its own BitString)
+	OwnBits ::= SEQUENCE {
+		b	BIT STRING (SIZE(4)),
+		flag	BOOLEAN
+	}
+
+	-- OPTIONAL references to BIT STRING types of another module
+	XRefHolder ::= SEQUENCE {
+		ref	RangedBits OPTIONAL,
+		caps	CapsBits OPTIONAL,
+		flag	BOOLEAN
+	}
+
+END
+
+BitsC DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+	IMPORTS RangedBits FROM BitsA;
+
+	-- no BIT STRING of its own: the member types come from BitsA
+	ImpHolder ::= SEQUENCE {
+		req	RangedBits,
+		opt	RangedBits OPTIONAL,
+		flag	BOOLEAN
+	}
+
+END

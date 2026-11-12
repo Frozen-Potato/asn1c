@@ -6,6 +6,23 @@
       in skeletons/ and rt/go/rt alike. The fix reaches fetch-mode users
       only once rt v0.3.1 is tagged. New tests/run-rt-skeleton-sync.sh
       checks rt/skeleton identity and a -Werror=cpp compile of the rt.
+    * Go backend: CRITICAL. Encoding a PRESENT inline OPTIONAL BIT STRING
+      member (C: BIT_STRING_t *x) failed: the glue wrote the BIT STRING
+      record into the pointer slot instead of allocating it and storing a
+      pointer, so the C encoder read data bytes as a pointer (SIGSEGV in a
+      small repro; a constraint error in E2AP). go.4 and earlier (back to
+      go.1) are affected, e.g. E2AP TNLinformation.tnlPort present. Programs
+      built from earlier output must be REGENERATED with the fixed asn1c;
+      no runtime change is needed.
+    * Go backend: several modules that each own BIT STRING members in one
+      -Fgo run now build. A module's glue helpers use its own BitString (they
+      named the first module's, whose package was not imported). A module
+      without its own BitString still uses the owner's. Output for E2SM
+      modules that own a BitString spells it bare instead of through
+      e2sm_common_ies (same type shape, no behaviour change).
+    * Go backend: an OPTIONAL member whose type is a BIT STRING type
+      (`ref Ranged OPTIONAL`, also named-bit and imported types) generated
+      code that did not compile (cannot indirect ...).
 
 0.9.29-go.4:
     FIXES:

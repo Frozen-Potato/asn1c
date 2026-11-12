@@ -11,6 +11,7 @@ import (
 
 	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	deep "asn1cgo.test/go/deep"
+	bitsa "asn1cgo.test/go/bitsa"
 	df "asn1cgo.test/go/defaults"
 	ex "asn1cgo.test/go/synth_example"
 )
@@ -99,6 +100,20 @@ func TestAllocFaultSweepDefaults(t *testing.T) {
 	ext.ExtNon = 1
 	sweep(t, "ExtDefaults Encode", func() error { _, err := ext.Encode(); return err })
 	sweep(t, "ExtDefaults Decode", func() error { _, err := df.DecodeExtDefaults([]byte{0x00}); return err })
+}
+
+// A present OPTIONAL BIT STRING (a pointer record in the fixed region) and an
+// OPTIONAL reference to a BIT STRING type, encode and decode.
+func TestAllocFaultSweepBitString(t *testing.T) {
+	tnl := &bitsa.TnlInfo{TnlAddress: bitsa.BitString{Bytes: []byte{1, 2, 3, 4}}, TnlPort: &bitsa.BitString{Bytes: []byte{0x1F, 0x90}}}
+	sweep(t, "TnlInfo Encode", func() error { _, err := tnl.Encode(); return err })
+	w, err := tnl.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sweep(t, "TnlInfo Decode", func() error { _, err := bitsa.DecodeTnlInfo(w); return err })
+	ref := &bitsa.RefHolder{Ref: &bitsa.RangedBits{Bytes: []byte{0xA0}, BitsUnused: 1}, Flag: true}
+	sweep(t, "RefHolder Encode", func() error { _, err := ref.Encode(); return err })
 }
 
 func mustEncode(t *testing.T, p *df.DefaultsPDU) []byte {
