@@ -87,7 +87,7 @@ run_cycle() {
         cd "$here/e2e/cycle"
         "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
             -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" mod-a.asn mod-b.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/gen" mod-a.asn mod-b.asn
     ) >"$work/asn1c.log" 2>&1 || rc=$?
     if [ "$rc" != 70 ]; then
         cat "$work/asn1c.log" >&2
@@ -99,7 +99,7 @@ run_cycle() {
         echo "run-e2e: cycle message missing" >&2
         return 1
     fi
-    if [ -e "$work/go" ]; then
+    if [ -e "$work/gen" ]; then
         echo "run-e2e: cycle case wrote Go output" >&2
         return 1
     fi
@@ -139,7 +139,7 @@ run_unsupported_default() {
         cd "$here/e2e"
         "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
             -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" default-unsupported.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/gen" default-unsupported.asn
     ) >"$work/asn1c.log" 2>&1 || rc=$?
     if [ "$rc" != 70 ]; then
         cat "$work/asn1c.log" >&2
@@ -151,13 +151,97 @@ run_unsupported_default() {
         echo "run-e2e: unsupported-DEFAULT diagnostic missing" >&2
         return 1
     fi
-    if [ -n "$(ls -A "$work/c")" ] || [ -e "$work/go" ]; then
+    if [ -n "$(ls -A "$work/c")" ] || [ -e "$work/gen" ]; then
         echo "run-e2e: unsupported-DEFAULT case wrote output" >&2
         return 1
     fi
 }
 
+# A bare -Fgo basename that is a standard-library top-level element (and no
+# ASN1CGO_GO_MODULE_PREFIX) would put the generated imports inside the stdlib
+# tree: rejected by the pre-flight, exit 70, -D untouched, no Go tree. With a
+# prefix the same directory is fine and builds; a non-colliding basename needs
+# no prefix.
+run_stdlib_collision() {
+    echo "== run-e2e: stdlib module-path collision =="
+    for b in go net; do
+        work="$tmp/collide-$b"
+        mkdir -p "$work/c"
+        printf 'sentinel\n' >"$work/c/keep.c"
+        touch -d '2001-01-01 00:00:00' "$work/c/keep.c"
+        m0=$(stat -c %Y "$work/c/keep.c")
+        rc=0
+        (
+            cd "$here/e2e"
+            env -u ASN1CGO_GO_MODULE_PREFIX \
+            "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+                -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+                -pdu=auto -D "$work/c" -Fgo="$work/$b" ex.asn
+        ) >"$work/asn1c.log" 2>&1 || rc=$?
+        if [ "$rc" != 70 ]; then
+            cat "$work/asn1c.log" >&2
+            echo "run-e2e: collision '$b' exited $rc, want 70" >&2
+            return 1
+        fi
+        if ! grep -q "asn1cgo: go module path '$b' collides with the Go standard library; set ASN1CGO_GO_MODULE_PREFIX or rename the -Fgo directory" "$work/asn1c.log"; then
+            cat "$work/asn1c.log" >&2
+            echo "run-e2e: collision '$b' message missing" >&2
+            return 1
+        fi
+        if [ "$(ls -A "$work/c" | tr '\n' ' ')" != "keep.c " ] \
+           || [ "$(cat "$work/c/keep.c")" != sentinel ] \
+           || [ "$(stat -c %Y "$work/c/keep.c")" != "$m0" ]; then
+            echo "run-e2e: collision '$b': -D was modified" >&2
+            return 1
+        fi
+        if [ -e "$work/$b" ]; then
+            echo "run-e2e: collision '$b': Go tree was created" >&2
+            return 1
+        fi
+    done
+
+    # With a prefix: -Fgo=.../go is accepted and builds.
+    work="$tmp/collide-prefixed"
+    mkdir -p "$work/c"
+    (
+        cd "$here/e2e"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn
+    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: prefixed go dir rejected" >&2; return 1; }
+    cp -R "$repo/libasn1compiler_go/rt/go" "$work/asn1cgo-rt"
+    sed 's|^module .*|module asn1cgo.test/asn1cgo-rt|' "$work/asn1cgo-rt/go.mod" >"$work/go.mod.new"
+    mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
+    (
+        cd "$work/go"
+        export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
+        go build ./...
+    )
+
+    # No prefix, non-colliding basename: accepted (the module is just "e2ap").
+    work="$tmp/collide-ok"
+    mkdir -p "$work/c"
+    (
+        cd "$here/e2e"
+        env -u ASN1CGO_GO_MODULE_PREFIX \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/e2ap" ex.asn
+    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: -Fgo=e2ap rejected" >&2; return 1; }
+    [ -f "$work/e2ap/go.mod" ] || { echo "run-e2e: -Fgo=e2ap wrote no go.mod" >&2; return 1; }
+}
+
+# The hard-coded stdlib name table must match the local toolchain.
+run_stdlib_names_drift() {
+    rc=0
+    sh "$here/run-stdlib-names.sh" || rc=$?
+    [ "$rc" = 0 ] || [ "$rc" = 77 ] || { echo "run-e2e: stdlib name table drift" >&2; return 1; }
+}
+
 run_cycle
 run_oneway
 run_unsupported_default
+run_stdlib_collision
+run_stdlib_names_drift
 echo "run-e2e: PASS"

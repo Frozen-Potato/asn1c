@@ -1486,6 +1486,72 @@ classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     return 0;
 }
 
+/* Top-level path elements of the Go standard library, plus the reserved
+ * patterns std, cmd, all. A module whose path is exactly one of these (no
+ * ASN1CGO_GO_MODULE_PREFIX, so the module path is the bare -Fgo basename)
+ * makes the generated imports ("go/<pkg>", "net/<pkg>", ...) resolve inside
+ * the standard library tree. Source: `go list std`, first path elements,
+ * minus vendor/internal, from go1.27.3. tests/run-stdlib-names.sh compares
+ * this table with the local toolchain; keep one name per STDLIB_ROW line,
+ * sorted, as that script parses them. */
+#define STDLIB_ROW(n) n,
+static const char *const go_stdlib_top[] = {
+    STDLIB_ROW("all")
+    STDLIB_ROW("archive")
+    STDLIB_ROW("bufio")
+    STDLIB_ROW("bytes")
+    STDLIB_ROW("cmd")
+    STDLIB_ROW("cmp")
+    STDLIB_ROW("compress")
+    STDLIB_ROW("container")
+    STDLIB_ROW("context")
+    STDLIB_ROW("crypto")
+    STDLIB_ROW("database")
+    STDLIB_ROW("debug")
+    STDLIB_ROW("embed")
+    STDLIB_ROW("encoding")
+    STDLIB_ROW("errors")
+    STDLIB_ROW("expvar")
+    STDLIB_ROW("flag")
+    STDLIB_ROW("fmt")
+    STDLIB_ROW("go")
+    STDLIB_ROW("hash")
+    STDLIB_ROW("html")
+    STDLIB_ROW("image")
+    STDLIB_ROW("index")
+    STDLIB_ROW("io")
+    STDLIB_ROW("iter")
+    STDLIB_ROW("log")
+    STDLIB_ROW("maps")
+    STDLIB_ROW("math")
+    STDLIB_ROW("mime")
+    STDLIB_ROW("net")
+    STDLIB_ROW("os")
+    STDLIB_ROW("path")
+    STDLIB_ROW("plugin")
+    STDLIB_ROW("reflect")
+    STDLIB_ROW("regexp")
+    STDLIB_ROW("runtime")
+    STDLIB_ROW("slices")
+    STDLIB_ROW("sort")
+    STDLIB_ROW("std")
+    STDLIB_ROW("strconv")
+    STDLIB_ROW("strings")
+    STDLIB_ROW("structs")
+    STDLIB_ROW("sync")
+    STDLIB_ROW("syscall")
+    STDLIB_ROW("testing")
+    STDLIB_ROW("text")
+    STDLIB_ROW("time")
+    STDLIB_ROW("unicode")
+    STDLIB_ROW("unique")
+    STDLIB_ROW("unsafe")
+    STDLIB_ROW("uuid")
+    STDLIB_ROW("weak")
+    NULL
+};
+#undef STDLIB_ROW
+
 /* Pre-flight checks that depend only on the command line / environment
  * (not on the AST or on anything the C pass stamps): -Fgo basename and
  * ASN1CGO_GO_MODULE_PREFIX. Callable before asn1_compile. 0 ok, -1 reject. */
@@ -1512,6 +1578,27 @@ go_check_outdir(const char *go_outdir) {
             fprintf(stderr,
                     "asn1cgo: invalid go module path '%s'\n", base);
             return -1;          /* -> driver EX_SOFTWARE (70) */
+        }
+    }
+
+    /* Without a prefix the module path is the bare basename; reject one that
+     * is a standard-library top-level element (the generated imports would
+     * land inside the stdlib tree and `go build` fails). With a prefix the
+     * first path element contains a dot, so it cannot collide. */
+    {
+        const char *pfx0 = getenv("ASN1CGO_GO_MODULE_PREFIX");
+        if(go_outdir && *go_outdir && !(pfx0 && *pfx0)) {
+            const char *base = strrchr(go_outdir, '/');
+            base = base ? base + 1 : go_outdir;
+            for(size_t i = 0; go_stdlib_top[i]; i++) {
+                if(!strcmp(base, go_stdlib_top[i])) {
+                    fprintf(stderr,
+                            "asn1cgo: go module path '%s' collides with the "
+                            "Go standard library; set ASN1CGO_GO_MODULE_PREFIX "
+                            "or rename the -Fgo directory\n", base);
+                    return -1;      /* -> driver EX_SOFTWARE (70) */
+                }
+            }
         }
     }
 

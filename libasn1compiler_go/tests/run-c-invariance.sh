@@ -57,7 +57,7 @@ check() {
     mkdir "$work/c"
     rc=0
     # shellcheck disable=SC2086
-    "$asn1c" $flags -D "$work/c" -Fgo="$work/go" "$@" >"$work/withgo.log" 2>&1 || rc=$?
+    "$asn1c" $flags -D "$work/c" -Fgo="$work/gen" "$@" >"$work/withgo.log" 2>&1 || rc=$?
     if [ "$rc" != "$want_rc" ]; then
         cat "$work/withgo.log" >&2
         echo "run-c-invariance: $label: -Fgo run exited $rc, want $want_rc" >&2
@@ -108,7 +108,7 @@ reject_untouched() {
     rc=0
     "$asn1c" -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
         -findirect-choice -fno-include-deps -gen-PER -no-gen-OER -pdu=auto \
-        -D "$work/c" -Fgo="$work/go" "$e2e/default-unsupported.asn" \
+        -D "$work/c" -Fgo="$work/gen" "$e2e/default-unsupported.asn" \
         >"$work/log" 2>&1 || rc=$?
     if [ "$rc" = 0 ]; then
         echo "run-c-invariance: reject: expected non-zero exit" >&2; return 1
@@ -119,7 +119,7 @@ reject_untouched() {
         cat "$work/log" >&2
         echo "run-c-invariance: reject: -D was modified" >&2; return 1
     fi
-    if [ -e "$work/go" ]; then
+    if [ -e "$work/gen" ]; then
         echo "run-c-invariance: reject: Go tree was created" >&2; return 1
     fi
     grep -q "DEFAULT member" "$work/log" || {
@@ -128,4 +128,38 @@ reject_untouched() {
     echo "   exit $rc, -D untouched"
 }
 reject_untouched
+
+# A -Fgo basename equal to a standard-library top-level element, with no
+# ASN1CGO_GO_MODULE_PREFIX, is refused by the same pre-flight: exit 70, -D
+# untouched, no Go tree.
+reject_stdlib_name() {
+    work="$tmp/reject-stdlib"
+    mkdir -p "$work/c"
+    echo "== run-c-invariance: reject-stdlib-module-name =="
+    printf 'sentinel\n' >"$work/c/keep.c"
+    touch -d '2001-01-01 00:00:00' "$work/c/keep.c"
+    m0=$(stat -c %Y "$work/c/keep.c")
+    rc=0
+    env -u ASN1CGO_GO_MODULE_PREFIX "$asn1c" -S "$repo/skeletons" \
+        -fincludes-quoted -fcompound-names -findirect-choice \
+        -fno-include-deps -gen-PER -no-gen-OER -pdu=auto \
+        -D "$work/c" -Fgo="$work/go" "$e2e/ex.asn" >"$work/log" 2>&1 || rc=$?
+    if [ "$rc" != 70 ]; then
+        cat "$work/log" >&2
+        echo "run-c-invariance: reject-stdlib: exit $rc, want 70" >&2; return 1
+    fi
+    grep -q "collides with the Go standard library" "$work/log" || {
+        cat "$work/log" >&2
+        echo "run-c-invariance: reject-stdlib: no diagnostic" >&2; return 1; }
+    if [ "$(ls -A "$work/c" | tr '\n' ' ')" != "keep.c " ] \
+       || [ "$(cat "$work/c/keep.c")" != sentinel ] \
+       || [ "$(stat -c %Y "$work/c/keep.c")" != "$m0" ]; then
+        echo "run-c-invariance: reject-stdlib: -D was modified" >&2; return 1
+    fi
+    if [ -e "$work/go" ]; then
+        echo "run-c-invariance: reject-stdlib: Go tree was created" >&2; return 1
+    fi
+    echo "   exit $rc, -D untouched"
+}
+reject_stdlib_name
 echo "run-c-invariance: PASS"

@@ -45,6 +45,18 @@ if you call the C OER functions yourself.
 just the basename. `-Fgo=out/go` with prefix `your.prefix` yields module
 `your.prefix/go`, and packages are imported as `your.prefix/go/<package>`.
 
+Without a prefix the basename must not be a standard-library top-level path
+element (`go`, `net`, `crypto`, `math`, `os`, `testing`, ... — the first path
+elements of `go list std`, minus `vendor`/`internal` — or the reserved
+patterns `std`, `cmd`, `all`): a module named `go` would import its packages
+as `go/<package>`, inside the standard library tree, and `go build` fails.
+asn1c refuses it before writing anything (exit 70, `-D` untouched):
+`asn1cgo: go module path 'go' collides with the Go standard library; set
+ASN1CGO_GO_MODULE_PREFIX or rename the -Fgo directory`. With a prefix the
+module path's first element contains a dot, so no basename collides.
+`tests/run-stdlib-names.sh` checks the generator's table against the local
+`go list std`.
+
 **Workspace layout.** The generated `go.mod` sets `go 1.21.0`, requires the
 runtime (`asn1cgo-rt`, or `<prefix>/asn1cgo-rt`) at the generator's embedded
 version, and has `replace <rt> => ../asn1cgo-rt`. So the runtime is expected
@@ -63,7 +75,7 @@ pruned while it is renamed aside. `flock` is advisory (it only coordinates
 asn1c processes) and may be unreliable or a no-op on some network filesystems;
 keep the parent on a local filesystem when generating in parallel. If the lock
 cannot be taken, generation fails and the tree is left unchanged. A bare
-`-Fgo=go` has no parent component, so no `go.work` is written and the
+`-Fgo=gen` has no parent component, so no `go.work` is written and the
 `replace` does the work.
 
 Go 1.21 or newer is required (cgo enabled). The e2e test can be run against
@@ -88,7 +100,7 @@ straight into `-D` (stock behaviour) before the Go pass runs. Rejects that do
 not depend on the C pass run first, as a pre-flight, so those leave `-D`
 untouched and exit 70 with `no C output was written`: the construct rejects
 (unsupported DEFAULT forms, `[[ ]]` version brackets, unsupported types such as SET /
-SET OF / OID, named-bit BIT STRING, unresolvable references) and an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`.
+SET OF / OID, named-bit BIT STRING, unresolvable references) an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`, and (without a prefix) a `-Fgo` basename that is a standard-library top-level name.
 The remaining Go-pass failures can only be detected after the C pass, because
 the name pass reads the `EM_INDIRECT` / `EM_UNRECURSE` markers it stamps: Go
 name collisions, by-value type cycles, and I/O errors while writing the Go tree.
