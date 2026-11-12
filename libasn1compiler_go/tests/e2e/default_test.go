@@ -25,17 +25,17 @@ import (
 // default constant (the Go zero value is NOT the default).
 func dflt() *df.DefaultsPDU {
 	return &df.DefaultsPDU{
-		Flag:    df.DefaultsPDUFlagDefault,
-		Small:   df.DefaultsPDUSmallDefault,
-		Signed:  df.DefaultsPDUSignedDefault,
-		Min32:   df.DefaultsPDUMin32Default,
-		Min64:   df.DefaultsPDUMin64Default,
-		Colour:  df.DefaultsPDUColourDefault,
-		Inl:     df.DefaultsPDUInlDefault,
-		Name:    df.DefaultsPDUNameDefault,
-		Octs:    append([]byte(nil), df.DefaultsPDUOctsDefault...),
-		Bits:    df.BitString{Bytes: append([]byte(nil), df.DefaultsPDUBitsDefault.Bytes...), BitsUnused: df.DefaultsPDUBitsDefault.BitsUnused},
-		Inner:   df.Inner{X: df.InnerXDefault, Y: df.InnerYDefault},
+		Flag:   df.DefaultsPDUFlagDefault,
+		Small:  df.DefaultsPDUSmallDefault,
+		Signed: df.DefaultsPDUSignedDefault,
+		Min32:  df.DefaultsPDUMin32Default,
+		Min64:  df.DefaultsPDUMin64Default,
+		Colour: df.DefaultsPDUColourDefault,
+		Inl:    df.DefaultsPDUInlDefault,
+		Name:   df.DefaultsPDUNameDefault,
+		Octs:   append([]byte(nil), df.DefaultsPDUOctsDefault...),
+		Bits:   df.BitString{Bytes: append([]byte(nil), df.DefaultsPDUBitsDefault.Bytes...), BitsUnused: df.DefaultsPDUBitsDefault.BitsUnused},
+		Inner:  df.Inner{X: df.InnerXDefault, Y: df.InnerYDefault},
 	}
 }
 
@@ -137,12 +137,8 @@ func TestDefaultOmittedOnWire(t *testing.T) {
 	balanced(t, "omitted")
 }
 
-// Extension additions. The C runtime emits an extension addition whenever its
-// C slot is populated (the pointer form is non-NULL, the by-value form is
-// always there): it does NOT compare against the DEFAULT, so a default-equal
-// extension addition is still sent, with the extension bit set. The wire is
-// valid either way; this test pins down what we observe and checks
-// decoding of bytes in which the additions are absent.
+// Extension additions: a default-equal addition is treated as absent (like a
+// root member), so the extension bit is 0 when every addition is defaulted.
 func TestDefaultExtensionAdditions(t *testing.T) {
 	// Hand-computed APER, ext bit 0 / additions absent: ext(0) + presence of
 	// `a` (0) = 00. The decoder must fill every DEFAULT with its default.
@@ -193,26 +189,35 @@ func TestDefaultExtensionAdditions(t *testing.T) {
 		}
 		balanced(t, c.name)
 	}
-	// Hand-computed encodings of what this runtime emits (additions are
-	// sent even when equal to their DEFAULT):
-	// a=TRUE:  ext(1) a-presence(0) nslength(0|000001) bitmap(11), aligned,
-	//          then the open types 01 00 (extZero=0) and 01 a0 (extNon=5)
-	//          -> 1000 0000 | 1110 0000 | 01 00 01 a0
-	// a=FALSE: ext(1) a-presence(1) a-value(0) nslength bitmap(11)
-	//          -> 1100 0000 | 0111 0000 | 01 00 01 a0
+
+	// Hand-computed APER encodings. A member equal to its DEFAULT is omitted both
+	// in the root and among the extension additions; when every addition is
+	// absent the extension bit is 0 and no bitmap is written.
+	//   defaults:           ext(0) a-presence(0)                  -> 00
+	//   a=FALSE, defaults:  ext(0) a-presence(1) a(0) = 010       -> 40
+	//   only extNon=6:      ext(1) a-pres(0) nslength(0|000001: 2 additions)
+	//                       bitmap(01) -> 1000 0000 | 101(00000) = 80 a0,
+	//                       open type 01 + '110'(00000)           -> 80 a0 01 c0
+	//   only extZero=3:     bitmap(10) -> 80 c0, open type 01 + '011' -> 80 c0 01 60
+	//   both non-default:   bitmap(11) -> 80 e0, open types 01 60, 01 c0
 	for _, c := range []struct {
 		name string
-		a    bool
+		v    df.ExtDefaults
 		want []byte
 	}{
-		{"a-true", true, []byte{0x80, 0xe0, 0x01, 0x00, 0x01, 0xa0}},
-		{"a-false", false, []byte{0xc0, 0x70, 0x01, 0x00, 0x01, 0xa0}},
+		{"defaults", df.ExtDefaults{A: true, ExtZero: 0, ExtNon: 5}, []byte{0x00}},
+		{"a-false", df.ExtDefaults{A: false, ExtZero: 0, ExtNon: 5}, []byte{0x40}},
+		{"only-extNon", df.ExtDefaults{A: true, ExtZero: 0, ExtNon: 6}, []byte{0x80, 0xa0, 0x01, 0xc0}},
+		{"only-extZero", df.ExtDefaults{A: true, ExtZero: 3, ExtNon: 5}, []byte{0x80, 0xc0, 0x01, 0x60}},
+		{"both", df.ExtDefaults{A: true, ExtZero: 3, ExtNon: 6}, []byte{0x80, 0xe0, 0x01, 0x60, 0x01, 0xc0}},
 	} {
-		v := extDflt()
-		v.A = c.a
-		b, err := v.Encode()
+		b, err := c.v.Encode()
 		if err != nil || !bytes.Equal(b, c.want) {
 			t.Errorf("%s: APER = % x, %v; want % x", c.name, b, err, c.want)
+		}
+		back, err := df.DecodeExtDefaults(c.want)
+		if err != nil || !reflect.DeepEqual(*back, c.v) {
+			t.Errorf("%s: decode % x -> %+v, %v", c.name, c.want, back, err)
 		}
 		balanced(t, c.name)
 	}
@@ -388,7 +393,7 @@ func TestDefaultCConverter(t *testing.T) {
 		}
 	}
 	// Extension additions through the C converter (APER/UPER/XER).
-	for _, v := range []df.ExtDefaults{*extDflt(), {A: false, ExtZero: 2, ExtNon: 0}, {A: true, ExtZero: 0, ExtNon: 7}} {
+	for _, v := range []df.ExtDefaults{*extDflt(), {A: false, ExtZero: 2, ExtNon: 0}, {A: true, ExtZero: 0, ExtNon: 7}, {A: true, ExtZero: 3, ExtNon: 5}, {A: false, ExtZero: 0, ExtNon: 5}, {A: true, ExtZero: 3, ExtNon: 6}} {
 		aper, err := v.Encode()
 		if err != nil {
 			t.Fatal(err)

@@ -1,4 +1,5 @@
--- OK: aligned PER keeps DEFAULT members (root and extension additions)
+-- OK: aligned PER keeps DEFAULT members; a root member or extension addition
+-- equal to its DEFAULT is omitted
 
 -- iso.org.dod.internet.private.enterprise (1.3.6.1.4.1)
 -- .spelio.software.asn1c.test (9363.1.5.1)
@@ -17,6 +18,15 @@ BEGIN
 		...,
 		x	INTEGER (0..7) DEFAULT 1,
 		y	INTEGER (0..7) DEFAULT 5
+	}
+
+	-- Extension additions with a DEFAULT: extZero (default 0) is stored by
+	-- value in C, extNon (default 5) behind a pointer.
+	U ::= SEQUENCE {
+		a	BOOLEAN DEFAULT TRUE,
+		...,
+		extZero	INTEGER (0..7) DEFAULT 0,
+		extNon	INTEGER (0..7) DEFAULT 5
 	}
 
 END

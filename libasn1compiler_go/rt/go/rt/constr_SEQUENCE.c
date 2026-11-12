@@ -1285,7 +1285,12 @@ SEQUENCE_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
                 memb_ptr2 = (void **)((char *)st + elm->memb_offset);
                 if(*memb_ptr2) continue;
             } else {
-                continue; /* Extensions are all optionals */
+                /*
+                 * Extensions are all optionals. A by-value addition can only
+                 * be a DEFAULT 0 scalar, and the decoder's struct is
+                 * zero-initialised, so the slot already holds the default.
+                 */
+                continue;
             }
 
             /* Set default value */
@@ -1330,6 +1335,11 @@ SEQUENCE__handle_extensions(const asn_TYPE_descriptor_t *td, const void *sptr,
             memb_ptr2 = &memb_ptr;
 			present = 1;
 		}
+
+        /* A member equal to its DEFAULT is omitted, as in the root. */
+        if(present && elm->default_value_cmp
+           && elm->default_value_cmp(*memb_ptr2) == 0)
+            present = 0;
 
         ASN_DEBUG("checking %s:%s (@%" ASN_PRI_SIZE ") present => %d", elm->name,
                   elm->type->name, edx, present);
@@ -1717,7 +1727,12 @@ SEQUENCE_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 			                      + elm->memb_offset);
 			if(*memb_ptr2) continue;
 		} else {
-			continue;	/* Extensions are all optionals */
+			/*
+			 * Extensions are all optionals. A by-value addition can
+			 * only be a DEFAULT 0 scalar, and the decoder's struct is
+			 * zero-initialised, so the slot already holds the default.
+			 */
+			continue;
 		}
 
 		/* Set default value */
@@ -1766,6 +1781,11 @@ SEQUENCE_handle_extensions_aper(const asn_TYPE_descriptor_t *td,
 			memb_ptr2 = &memb_ptr;
 			present = 1;
 		}
+
+		/* A member equal to its DEFAULT is omitted, as in the root. */
+		if(present && elm->default_value_cmp
+		        && elm->default_value_cmp(*memb_ptr2) == 0)
+			present = 0;
 
 		ASN_DEBUG("checking %s (@%ld) present => %d",
 		          elm->type->name, edx, present);

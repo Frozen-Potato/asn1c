@@ -264,10 +264,9 @@ type DefaultsPDU struct {
   modify those vars. The names take part in the generator's usual
   package-level collision check, so a clash with another generated name
   fails generation.
-- C runtime note: an *extension addition* with a DEFAULT is sent whenever its
-  C slot is populated, even when equal to the DEFAULT (the codec compares
-  against the DEFAULT for root members only). The wire is valid and decodes
-  to the same value.
+- A member equal to its DEFAULT is omitted from the encoding, in both the
+  root and the extension additions (an extension bit is set only when some
+  addition differs from its DEFAULT); a missing member decodes to its DEFAULT.
 
 **Error handling** is uniform across every generated package: failures
 are `*rt.Error` values matching `errors.Is` against the sentinels —
