@@ -734,7 +734,7 @@ static struct name_bag *g_emit_bag;
  * from g_go_rt_module_path the same way. Owned by this TU, freed via
  * clear_go_module_paths after the emit chain. */
 static char *g_go_module_path;
-static char *g_go_rt_module_path;   /* `<prefix>/asn1cgo-rt`, or `asn1cgo-rt` */
+static char *g_go_rt_module_path;   /* the rt module path (ASN1CGO_RT_MODULE) */
 
 /* Prefix validation, per Go module-path rules: each '/'-separated segment is
  * a valid path element (same char class + dot rules the basename uses), and
@@ -796,11 +796,11 @@ set_go_module_paths(const char *go_outdir) {
     const char *pfx = getenv("ASN1CGO_GO_MODULE_PREFIX");
     if(pfx && *pfx) {
         g_go_module_path = path_join2(pfx, base);
-        g_go_rt_module_path = path_join2(pfx, "asn1cgo-rt");
     } else {
         g_go_module_path = path_dup2(base);
-        g_go_rt_module_path = path_dup2("asn1cgo-rt");
     }
+    /* the rt path is fixed: the prefix never applies to it */
+    g_go_rt_module_path = path_dup2(ASN1CGO_RT_MODULE);
 }
 
 static void
@@ -1552,6 +1552,39 @@ static const char *const go_stdlib_top[] = {
 };
 #undef STDLIB_ROW
 
+/* Validate ASN1CGO_RT_LOCAL: <dir>/go.mod must exist and carry the line
+ * `module ASN1CGO_RT_MODULE`. 0 ok, -1 (diagnostic printed). */
+static int
+go_rt_local_check(const char *dir) {
+    char *gm = path_join2(dir, "go.mod");
+    FILE *f = gm ? fopen(gm, "r") : NULL;
+    int ok = 0;
+    if(f) {
+        char line[512];
+        while(fgets(line, sizeof line, f)) {
+            char *p = line;
+            while(*p == ' ' || *p == '\t') p++;
+            if(strncmp(p, "module", 6) != 0 || (p[6] != ' ' && p[6] != '\t'))
+                continue;
+            p += 6;
+            while(*p == ' ' || *p == '\t') p++;
+            size_t n = strlen(ASN1CGO_RT_MODULE);
+            if(strncmp(p, ASN1CGO_RT_MODULE, n) == 0
+               && (p[n] == '\n' || p[n] == '\r' || p[n] == '\0'
+                   || p[n] == ' ' || p[n] == '\t'))
+                ok = 1;
+            break;
+        }
+        fclose(f);
+    }
+    if(!ok)
+        fprintf(stderr, "asn1cgo: ASN1CGO_RT_LOCAL '%s' is not an rt checkout "
+                "(%s/go.mod must declare 'module %s')\n", dir, dir,
+                ASN1CGO_RT_MODULE);
+    free(gm);
+    return ok ? 0 : -1;
+}
+
 /* Pre-flight checks that depend only on the command line / environment
  * (not on the AST or on anything the C pass stamps): -Fgo basename and
  * ASN1CGO_GO_MODULE_PREFIX. Callable before asn1_compile. 0 ok, -1 reject. */
@@ -1600,6 +1633,14 @@ go_check_outdir(const char *go_outdir) {
                 }
             }
         }
+    }
+
+    /* ASN1CGO_RT_LOCAL=<dir>: an rt checkout used via `replace` / go.work.
+     * It must be a directory whose go.mod declares the rt module path. */
+    {
+        const char *loc = getenv("ASN1CGO_RT_LOCAL");
+        if(loc && *loc && go_rt_local_check(loc) < 0)
+            return -1;          /* -> driver EX_SOFTWARE (70) */
     }
 
     /* ASN1CGO_GO_MODULE_PREFIX: when set, the go.mod module line and every

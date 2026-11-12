@@ -43,16 +43,13 @@ run_one() {
     echo "== run-e2e: $label =="
     (
         cd "$here/e2e"
-        env ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
+        env ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
             -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
-    cp -R "$repo/libasn1compiler_go/rt/go" "$work/asn1cgo-rt"
-    sed 's|^module .*|module asn1cgo.test/asn1cgo-rt|' "$work/asn1cgo-rt/go.mod" >"$work/go.mod.new"
-    mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
 
     cp "$here/e2e/main_test.go" "$here/e2e/default_test.go" "$here/e2e/nsmall_test.go" "$here/e2e/faults_test.go" "$work/go/"
     # The C converter built from the same C tree: the cross-check oracle for
@@ -112,14 +109,11 @@ run_oneway() {
     echo "== run-e2e: one-way import =="
     (
         cd "$here/e2e/oneway"
-        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
         "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
             -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
             -pdu=auto -D "$work/c" -Fgo="$work/go" mod-a.asn mod-b.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
-    cp -R "$repo/libasn1compiler_go/rt/go" "$work/asn1cgo-rt"
-    sed 's|^module .*|module asn1cgo.test/asn1cgo-rt|' "$work/asn1cgo-rt/go.mod" >"$work/go.mod.new"
-    mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
     (
         cd "$work/go"
         export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
@@ -205,14 +199,11 @@ run_stdlib_collision() {
     mkdir -p "$work/c"
     (
         cd "$here/e2e"
-        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test \
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
         "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
             -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
             -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: prefixed go dir rejected" >&2; return 1; }
-    cp -R "$repo/libasn1compiler_go/rt/go" "$work/asn1cgo-rt"
-    sed 's|^module .*|module asn1cgo.test/asn1cgo-rt|' "$work/asn1cgo-rt/go.mod" >"$work/go.mod.new"
-    mv "$work/go.mod.new" "$work/asn1cgo-rt/go.mod"
     (
         cd "$work/go"
         export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
@@ -239,9 +230,17 @@ run_stdlib_names_drift() {
     [ "$rc" = 0 ] || [ "$rc" = 77 ] || { echo "run-e2e: stdlib name table drift" >&2; return 1; }
 }
 
+# Fetch mode (default go.mod, no replace) against a file:// GOPROXY.
+run_rt_fetch() {
+    rc=0
+    sh "$here/run-rt-fetch.sh" || rc=$?
+    [ "$rc" = 0 ] || [ "$rc" = 77 ] || { echo "run-e2e: rt fetch-mode test failed" >&2; return 1; }
+}
+
 run_cycle
 run_oneway
 run_unsupported_default
 run_stdlib_collision
 run_stdlib_names_drift
+run_rt_fetch
 echo "run-e2e: PASS"

@@ -2,14 +2,14 @@
 
 // errors.go — the ONE shared Go error model. The Error
 // type, one Code constant per C asn1cgo_err_code, and ONE exported sentinel
-// per code live here, in the asn1cgo-rt module, exactly once; every spec
+// per code live here, in the rt module, exactly once; every spec
 // package returns *rt.Error, so errors.Is works uniformly across specs
 // — including a mixed-spec test asserting errors from two spec
 // packages against the same sentinel.
 //
 // The C side of this package is the canonical rt/err.h + err.c (identical
 // across every spec package, byte for byte). This file is the single source: the generator copies it into
-// every emitted asn1cgo-rt module verbatim; the identity check compares
+// the rt module verbatim; the identity check compares
 // the copy to THIS file, never to generator output.
 //
 // Single cgo surface: the arena bridge functions

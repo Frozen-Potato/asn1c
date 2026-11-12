@@ -26,6 +26,17 @@ unber_LDADD =                                           \
 
 bin_PROGRAMS = asn1c unber enber
 
+# Go backend: the rt C files the generator copies into each generated tree
+# (internal/cspec/rt, c/rt). An installed asn1c finds them at
+# <pkgdatadir>/go-rt, next to the skeletons (its default -S directory).
+go_rtdir = $(pkgdatadir)/go-rt
+dist_go_rt_DATA = \
+    $(top_srcdir)/libasn1compiler_go/rt/go/rt/arena.h \
+    $(top_srcdir)/libasn1compiler_go/rt/go/rt/err.h   \
+    $(top_srcdir)/libasn1compiler_go/rt/go/rt/types.h \
+    $(top_srcdir)/libasn1compiler_go/rt/go/rt/arena.c \
+    $(top_srcdir)/libasn1compiler_go/rt/go/rt/err.c
+
 noinst_HEADERS = sys-common.h
 
 dist_check_SCRIPTS = check-xxber.sh

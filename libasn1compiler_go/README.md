@@ -12,7 +12,7 @@ harness outside this fork.
 
 Documentation here is for users of `-Fgo`. For the generated code's error
 model see the runtime module's README (`rt/go/README.md`, shipped in every
-release as `asn1cgo-rt/README.md`).
+release as the module's `README.md`; see Runtime module below).
 
 ## Build
 
@@ -57,13 +57,13 @@ module path's first element contains a dot, so no basename collides.
 `tests/run-stdlib-names.sh` checks the generator's table against the local
 `go list std`.
 
-**Workspace layout.** The generated `go.mod` sets `go 1.21.0`, requires the
-runtime (`asn1cgo-rt`, or `<prefix>/asn1cgo-rt`) at the generator's embedded
-version, and has `replace <rt> => ../asn1cgo-rt`. So the runtime is expected
-at `../asn1cgo-rt`, next to the `-Fgo` dir. When `-Fgo` has a parent
+**Workspace layout.** The generated `go.mod` sets `go 1.21.0` and requires
+the runtime module (see Runtime module) at the generator's embedded version.
+By default that is all: Go fetches the runtime. With `ASN1CGO_RT_LOCAL=<dir>`
+it also has `replace <rt> => <dir>`. When `-Fgo` has a parent
 directory component (e.g. `out/go`), the generator also writes a `go.work`
-in that parent (`out/`) listing `./asn1cgo-rt` and the generated module,
-creating it if absent and otherwise adding the module to its `use ( … )`
+in that parent (`out/`) listing the generated module (and, in local mode, the
+`ASN1CGO_RT_LOCAL` dir), creating it if absent and otherwise adding the entries to its `use ( … )`
 block (each entry once; entries whose directory is gone are pruned). It is
 rewritten atomically and only after the whole tree was generated, so a failed
 run never modifies it and a rerun never adds a duplicate `use` line. Concurrent
@@ -358,35 +358,76 @@ change it, edit the rt header and regenerate the trees (a regenerated
 package and the rt module it was built against must come from the same
 value).
 
-## Supplying the runtime (asn1cgo-rt)
+## Runtime module
 
-Generated code imports the runtime module `asn1cgo-rt` (error model +
-arena + the asn1c skeleton codec). The generator does not emit it; you
-supply it beside your generated trees (at `../asn1cgo-rt` relative to the
-`-Fgo` dir; copying `libasn1compiler_go/rt/go` there is enough, it is
-self-contained). The skeleton files in `rt/go/rt` are copies of
-`skeletons/`; refresh them with `libasn1compiler_go/rt/sync-skeletons.sh`
-after changing the skeletons. Its source lives in this fork at
-`libasn1compiler_go/rt/go`. Two supported forms:
+Generated code imports the runtime module (error model + arena + the asn1c
+skeleton codec), whose source is `libasn1compiler_go/rt/go` in this
+repository:
 
-1. **A `replace` to the local copy** — point your module at the rt
-   source tree (the form the generator itself wires when it owns the
-   output layout):
+- **Module path:** `github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go` (package import path `github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt`).
+  `ASN1CGO_GO_MODULE_PREFIX` does not affect it; it only prefixes the
+  generated modules.
+- **Fetch (default).** The generated `go.mod` contains
+  `require github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go v0.3.0` and nothing else about the runtime; `go.work`
+  lists only the generated modules. Go downloads the runtime from the
+  public repository, so no copy of the runtime is needed. The generator
+  cannot compute the module hash offline, so run **once** after
+  generation (it needs network access or a `GOPROXY`):
 
-   ```
-   require asn1cgo-rt v0.2.3
-   replace asn1cgo-rt => /path/to/asn1c-fork/libasn1compiler_go/rt/go
-   ```
+  ```sh
+  cd out/go && go mod tidy
+  ```
 
-2. **Publish it under your prefix** — copy `libasn1compiler_go/rt/go`
-   to a module repository of yours (optionally renaming the module line
-   to `<your-prefix>/asn1cgo-rt`, the one permitted delta) and generate
-   with `ASN1CGO_GO_MODULE_PREFIX=<your-prefix>` so every generated
-   import and `require` line references it.
+  which writes `go.sum`. Until then `go build` stops with the ordinary
+  `missing go.sum entry for module providing package github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt …`. Commit
+  `go.sum`; re-run `go mod tidy` only when the runtime version changes.
+  (Regenerating rewrites `go.mod` but not `go.sum`.) `tests/run-rt-fetch.sh`
+  exercises this flow against a `file://` `GOPROXY` without network.
+- **Local (offline / development).** Set `ASN1CGO_RT_LOCAL=<dir>`, a
+  checkout of the runtime (a directory whose `go.mod` declares
+  `module github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go`, i.e. `<fork>/libasn1compiler_go/rt/go`). The generator
+  checks this before writing anything (exit 70 otherwise) and adds
+  `replace github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go => <dir>` to `go.mod` — relative to the `-Fgo` dir when `<dir>`
+  lies inside the `-Fgo` dir's parent (e.g. `../rt`), absolute otherwise —
+  and lists `<dir>` in `go.work`. No `go.sum` entry is needed for a
+  replaced module.
+- **Release procedure.** The runtime is versioned in lockstep with the
+  generator: `ASN1CGO_RT_VERSION` in `go_entry.c` is the version every
+  generated `go.mod` requires. To release: bump it (and the version
+  text in `rt/go/README.md`), commit, then tag that commit with the
+  module-path-relative tag and push it:
 
-Version lockstep: the generator embeds one rt version and every
-generated `go.mod` requires exactly that version — regenerate and
-republish the pair together.
+  ```sh
+  git tag libasn1compiler_go/rt/go/v0.3.0 <commit>
+  git push origin libasn1compiler_go/rt/go/v0.3.0
+  ```
+
+  A generated tree is only fetchable once that tag exists; before it,
+  use local mode. The skeleton files in `rt/go/rt` are copies of
+  `skeletons/`; refresh them with `libasn1compiler_go/rt/sync-skeletons.sh`
+  after changing the skeletons.
+- **Installed asn1c.** `make install` puts the rt C files the generator
+  copies into every tree in `<pkgdatadir>/go-rt`; with the default `-S`
+  directory no `ASN1CGO_RT_SRC` is needed.
+
+**Upgrading from the dotless `asn1cgo-rt` (runtime v0.2.x).** v0.3.0 is
+a breaking change: the module path changed from `asn1cgo-rt` (or
+`<prefix>/asn1cgo-rt`) to `github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go`.
+
+1. Regenerate every tree with the new `asn1c`; the `go.mod` now requires
+   the new path (the old `replace … => ../asn1cgo-rt` is gone) and the
+   imports use `github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt`.
+2. Update hand-written imports of the old `…/asn1cgo-rt/rt` path to
+   `github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt`.
+3. Run `go mod tidy` in each generated dir (fetch mode), or set
+   `ASN1CGO_RT_LOCAL` (local mode). The `../asn1cgo-rt` copy beside the
+   generated dirs is no longer used; delete it. An existing `go.work`
+   that still lists `./asn1cgo-rt` keeps working: the entry is kept
+   while that directory exists and pruned by the next run once it is
+   gone (you may also just delete the line). Delete a stale `go.sum`
+   line for the old module if you have one.
+4. Do not publish the runtime under your own prefix any more; that
+   workflow was removed.
 
 ## Environment variables
 
@@ -395,8 +436,9 @@ republish the pair together.
 | `ASN1C_DESTDIR` | Optional override. By default the Go pass reads the C tree from the `-D` directory (`.` when absent) and copies it into `<go-outdir>/internal/cspec`; when set, this names the source of that copy instead. |
 | `ASN1C_PREFIX` | Per-run C symbol prefix (e.g. `EX_`). Prefixed runs keep Go names prefix-free (namespacing is per Go package). |
 | `ASN1CGO_FORK_SKEL` | Optional override of the skeletons directory (default: the `-S` path). The skeletons dir also locates this module's runtime source: `<parent>/libasn1compiler_go/rt/go/rt`. |
-| `ASN1CGO_RT_SRC` | Override for the runtime source directory (defaults to `<fork>/libasn1compiler_go/rt/go/rt`). Every generated tree carries copies of these rt files. |
-| `ASN1CGO_GO_MODULE_PREFIX` | Module path prefix. Set: each spec module becomes `<prefix>/<basename>` with prefixed imports and a matching `require`/`replace` for the rt module. Unset: bare-basename module paths. |
+| `ASN1CGO_RT_LOCAL` | Directory of a runtime checkout (`go.mod` must declare the rt module path; else exit 70). Adds `replace <rt> => <dir>` to the generated `go.mod` and lists `<dir>` in `go.work`. Unset: fetch mode (see Runtime module). |
+| `ASN1CGO_RT_SRC` | Override for the runtime source directory (defaults to `<fork>/libasn1compiler_go/rt/go/rt`, then `<skeletons>/go-rt` when installed). Every generated tree carries copies of these rt files. |
+| `ASN1CGO_GO_MODULE_PREFIX` | Module path prefix. Set: each spec module becomes `<prefix>/<basename>` with prefixed imports. Unset: bare-basename module paths. Does not affect the runtime module path. |
 | `ASN1CGO_DUMP_NAMES` | Write the identifier name rows (owning module, kind, C id, Go name) to the named file. |
 | `ASN1CGO_DUMP_COVERAGE` | Write the per-kind construct coverage tally to the named file. |
 | `ASN1CGO_DUMP_CHOICE_ALTS` | Print the running maximum CHOICE alternative/extension-index counts seen. |

@@ -1,7 +1,12 @@
 0.9.29-go.3:
     FIXES:
-    * Go backend: runtime asn1cgo-rt v0.2.3 (generated code requires it;
-      regenerate and republish the Go tree and runtime together).
+    * Go backend: runtime module renamed to
+      github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go, v0.3.0
+      (breaking; generated code requires it, regenerate). Generated go.mod
+      now fetches it (run `go mod tidy` once); ASN1CGO_RT_LOCAL=<dir> selects
+      a local checkout via replace/go.work. ASN1CGO_GO_MODULE_PREFIX no
+      longer applies to the runtime. `make install` ships the rt C files in
+      <pkgdatadir>/go-rt.
     * Go backend: generated go.mod/go.work minimum Go version lowered from
       1.27.1 to 1.21.0; existing go.work files keep their go line (the
       generator only appends `use` entries).

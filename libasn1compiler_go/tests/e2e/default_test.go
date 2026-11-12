@@ -17,7 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	rt "asn1cgo.test/asn1cgo-rt/rt"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	df "asn1cgo.test/go/defaults"
 )
 

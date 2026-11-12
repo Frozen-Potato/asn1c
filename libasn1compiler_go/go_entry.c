@@ -41,7 +41,7 @@
 
 /* The rt runtime version every generated go.mod requires (single source:
  * the release script reads this same literal). */
-#define ASN1CGO_RT_VERSION "v0.2.3"
+#define ASN1CGO_RT_VERSION "v0.3.0"
 
 #include "asn1c_internal.h"
 #include "asn1c_misc.h"
@@ -280,9 +280,7 @@ conv_module_pkg(const char *module_name) {
  *   internal/cspec/cgo.go            the minimal cgo package file
  *   internal/cspec/rt headers        header-only rt copy (gated
  *                                    byte-identical to asn1cgo-rt's)
- * plus the asn1cgo-rt module skeleton at <go_outdir>/../asn1cgo-rt when
- * absent, <go_outdir>/go.mod's rt require/replace lines, and go.work when
- * absent. Returns 0/-1.
+ * plus <go_outdir>/go.mod's rt require (and replace in ASN1CGO_RT_LOCAL mode). Returns 0/-1.
  * ------------------------------------------------------------------------- */
 
 /* rt cgo.go text (byte-stable). RETIRED by the single-source rt move: the
@@ -452,7 +450,8 @@ static char *conv_path_sk_probe(const char *nm) {
  * <fork>/libasn1compiler_go/go_entry.c, the source is <fork>/
  * libasn1compiler_go/rt/go/rt. The path is taken from ASN1CGO_RT_SRC when
  * set (an explicit override), else derived from ASN1CGO_FORK_SKEL's
- * parent (the fork root whose skeletons/ that variable names).
+ * parent (the fork root whose skeletons/ that variable names), else
+ * <skeletons>/go-rt (the installed layout).
  * Returns a malloc'd path (caller frees) or NULL when unresolvable. */
 static char *rt_src_file(const char *name) {
     const char *o = getenv("ASN1CGO_RT_SRC");
@@ -473,6 +472,16 @@ static char *rt_src_file(const char *name) {
                 if(stat(p, &st) == 0 && S_ISREG(st.st_mode)) return p;
             }
             free(p);
+        }
+        /* installed layout: `make install` puts the rt C files the
+         * generator copies in <pkgdatadir>/go-rt, and -S defaults to
+         * <pkgdatadir> */
+        char *q = malloc(strlen(sk) + strlen("/go-rt/") + strlen(name) + 1);
+        if(q) {
+            sprintf(q, "%s/go-rt/%s", sk, name);
+            struct stat st;
+            if(stat(q, &st) == 0 && S_ISREG(st.st_mode)) return q;
+            free(q);
         }
     }
     return NULL;
@@ -577,6 +586,47 @@ static const char *skel_header_files[] = {
  * The generator's obligations shrink to: the rt FILES the generated tree
  * itself needs in place (c/rt + internal/cspec/rt header copies), and the
  * versioned require in <go_outdir>/go.mod. */
+
+
+/* ASN1CGO_RT_LOCAL support. Resolves the env dir against the -Fgo dir's
+ * parent: *gomod_rel = the `replace` target (relative to the -Fgo dir, i.e.
+ * "../<sub>", when the dir is inside the parent; absolute otherwise),
+ * *work_entry = the go.work `use` entry ("./<sub>" or absolute). Both
+ * malloc'd; both NULL when the env var is unset. Returns 0, -1 on error. */
+static int
+rt_local_paths(const char *go_outdir, char **gomod_rel, char **work_entry) {
+    *gomod_rel = NULL; *work_entry = NULL;
+    const char *loc = getenv("ASN1CGO_RT_LOCAL");
+    if(!loc || !*loc) return 0;
+    char *rl = realpath(loc, NULL);
+    if(!rl) {
+        fprintf(stderr, "asn1cgo: ASN1CGO_RT_LOCAL '%s': %s\n", loc,
+                strerror(errno));
+        return -1;
+    }
+    const char *slash = strrchr(go_outdir, '/');
+    char *par = NULL;
+    if(!slash) par = realpath(".", NULL);
+    else if(slash == go_outdir) par = strdup("/");
+    else {
+        char *tmp = strndup(go_outdir, (size_t)(slash - go_outdir));
+        par = tmp ? realpath(tmp, NULL) : NULL;
+        free(tmp);
+    }
+    size_t pl = par ? strlen(par) : 0;
+    if(par && pl > 1 && strncmp(rl, par, pl) == 0 && rl[pl] == '/') {
+        *gomod_rel = cfmt("../%s", rl + pl + 1);
+        *work_entry = cfmt("./%s", rl + pl + 1);
+    } else if(par && strcmp(rl, par) == 0) {
+        *gomod_rel = strdup("..");
+        *work_entry = strdup(".");
+    } else {
+        *gomod_rel = strdup(rl);
+        *work_entry = strdup(rl);
+    }
+    free(par); free(rl);
+    return (*gomod_rel && *work_entry) ? 0 : -1;
+}
 
 /* Copy every regular file of srcdir into dstdir (flat). */
 static int conv_copy_dir_files(const char *srcdir, const char *dstdir);
@@ -1095,34 +1145,35 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             fclose(f);
         }
         if(txt) {
-            /* the require names the rt module at its embedded version; the
-             * replace points at ../asn1cgo-rt, which the operator now
-             * supplies from the single source (go.work/replace also works
-             * — the replace here keeps a bare `go build` of one tree
-             * functional when the operator stages the rt module beside it,
-             * the pre-single-source layout). The required module path is
-             * the prefix-aware rt path (go_rt_module). */
-            if(!strstr(txt, "asn1cgo-rt")) {
-                const char *rtm = (go_rt_module && *go_rt_module)
-                                      ? go_rt_module : "asn1cgo-rt";
-                /* rewrite with the require/replace appended */
-                FILE *o = fopen(gm, "w");
-                if(!o) {
-                    fprintf(stderr, "asn1cgo: conv: cannot write '%s': %s\n",
-                            gm, strerror(errno));
+            /* Fetch mode (default): `require <rt> <version>` only; the
+             * user runs `go mod tidy` once to record the go.sum hash.
+             * Local mode (ASN1CGO_RT_LOCAL): plus `replace <rt> => <dir>`. */
+            if(!strstr(txt, ASN1CGO_RT_MODULE)) {
+                char *rel = NULL, *wk = NULL;
+                if(rt_local_paths(go_outdir, &rel, &wk) < 0) {
                     conv_failed_set();
                 } else {
-                    int ok = fprintf(o, "%s", txt) >= 0
-                        && fprintf(o, "\nrequire %s %s\n", rtm,
-                                   ASN1CGO_RT_VERSION) >= 0
-                        && fprintf(o, "replace %s => ../asn1cgo-rt\n", rtm) >= 0;
-                    if(fclose(o) != 0) ok = 0;
-                    if(!ok) {
-                        fprintf(stderr, "asn1cgo: conv: write failed: %s: %s\n",
+                    FILE *o = fopen(gm, "w");
+                    if(!o) {
+                        fprintf(stderr, "asn1cgo: conv: cannot write '%s': %s\n",
                                 gm, strerror(errno));
                         conv_failed_set();
+                    } else {
+                        int ok = fprintf(o, "%s", txt) >= 0
+                            && fprintf(o, "\nrequire %s %s\n", ASN1CGO_RT_MODULE,
+                                       ASN1CGO_RT_VERSION) >= 0;
+                        if(ok && rel)
+                            ok = fprintf(o, "replace %s => %s\n",
+                                         ASN1CGO_RT_MODULE, rel) >= 0;
+                        if(fclose(o) != 0) ok = 0;
+                        if(!ok) {
+                            fprintf(stderr, "asn1cgo: conv: write failed: %s: %s\n",
+                                    gm, strerror(errno));
+                            conv_failed_set();
+                        }
                     }
                 }
+                free(rel); free(wk);
             }
             free(txt);
         } else {
@@ -1255,8 +1306,15 @@ go_workfile_plan(const char *go_outdir, char **new_text) {
     if(rc < 0) { free(cur); free(gw); free(parent); return -1; }
 
     if(n == 0) {                       /* absent or empty: mint */
-        *new_text = cfmt("go " GO_MOD_GO_VERSION
-                         "\n\nuse (\n\t./asn1cgo-rt\n\t./%s\n)\n", base);
+        char *rel = NULL, *wk = NULL;
+        if(rt_local_paths(go_outdir, &rel, &wk) < 0) rc = -1;
+        else if(wk)
+            *new_text = cfmt("go " GO_MOD_GO_VERSION
+                             "\n\nuse (\n\t%s\n\t./%s\n)\n", wk, base);
+        else
+            *new_text = cfmt("go " GO_MOD_GO_VERSION
+                             "\n\nuse (\n\t./%s\n)\n", base);
+        free(rel); free(wk);
     } else {
         char *rp = strrchr(cur, ')');
         char *ub = strstr(cur, "use (");
@@ -1285,19 +1343,21 @@ go_workfile_plan(const char *go_outdir, char **new_text) {
             while(rc == 0 && l < (const char *)rp) {
                 const char *eol2 = strchr(l, '\n');
                 if(!eol2 || eol2 > (const char *)rp) eol2 = (const char *)rp;
-                if(eol2 > l + 1 && l[0] == '\t' && l[1] == '.') {
+                if(eol2 > l + 1 && l[0] == '\t' && (l[1] == '.' || l[1] == '/')) {
                     size_t el0 = (size_t)(eol2 - l) - 1;
                     char *entry = malloc(el0 + 1);
                     if(!entry) { rc = -1; break; }
                     memcpy(entry, l + 1, el0);
                     entry[el0] = 0;
                     int keep;
-                    if(strcmp(entry, "./asn1cgo-rt") == 0) {
-                        keep = 1;
-                    } else {
-                        char *dirp = cfmt("%s/%s", parent, entry + 2);
+                    {
+                        /* keep an entry only while its dir exists (a stale
+                         * ./asn1cgo-rt from the old layout survives as long
+                         * as the dir does). Absolute entries: as-is. */
+                        char *dirp = entry[0] == '/' ? strdup(entry)
+                                                     : cfmt("%s/%s", parent, entry + 2);
                         struct stat st3;
-                        keep = stat(dirp, &st3) == 0;
+                        keep = dirp && stat(dirp, &st3) == 0;
                         free(dirp);
                     }
                     for(int i = 0; keep && i < n_seen; i++)
@@ -1318,8 +1378,21 @@ go_workfile_plan(const char *go_outdir, char **new_text) {
             }
             if(rc == 0) {
                 int have_base = 0;
+                char *lrel = NULL, *lwk = NULL;
+                if(rt_local_paths(go_outdir, &lrel, &lwk) < 0) rc = -1;
                 for(int i = 0; i < n_seen; i++)
                     if(strcmp(seen[i], base_path) == 0) have_base = 1;
+                if(rc == 0 && lwk) {
+                    int have = 0;
+                    for(int i = 0; i < n_seen; i++)
+                        if(strcmp(seen[i], lwk) == 0) have = 1;
+                    if(!have) {
+                        char *ln = cfmt("\t%s\n", lwk);
+                        GW_APPEND(ln, strlen(ln));
+                        free(ln);
+                    }
+                }
+                free(lrel); free(lwk);
                 if(!have_base) {
                     char *ln = cfmt("\t./%s\n", base);
                     GW_APPEND(ln, strlen(ln));

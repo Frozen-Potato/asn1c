@@ -28,7 +28,7 @@ import (
 	"sync"
 	"testing"
 
-	rt "asn1cgo.test/asn1cgo-rt/rt"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	deep "asn1cgo.test/go/deep"
 	ex "asn1cgo.test/go/synth_example"
 )

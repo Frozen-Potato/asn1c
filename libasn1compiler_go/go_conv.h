@@ -28,6 +28,11 @@
  * not the development toolchain. Keep in sync with rt/go/go.mod. */
 #define GO_MOD_GO_VERSION "1.21.0"
 
+/* The runtime module's path (fixed; ASN1CGO_GO_MODULE_PREFIX does not
+ * apply). Keep in sync with rt/go/go.mod. */
+#define ASN1CGO_RT_MODULE \
+    "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go"
+
 /* Record one IOC dispatch row of a spec node's object set (the IOC
  * dispatch-row rule: (id_member, id, criticality, present, alt_token,
  * alt_msg), one row per object-set row).
@@ -142,10 +147,8 @@ const char *go_conv_ir_member_label(const void *m);
  *                                    by that rule (prefix + layout rules)
  *   internal/cspec/cgo.go            the minimal cgo package file
  *   internal/cspec/rt headers        header-only rt copy (gated
- *                                    byte-identical to asn1cgo-rt's)
- * plus the asn1cgo-rt module skeleton at <go_outdir>/../asn1cgo-rt when
- * absent (fork skeletons .c subset + asn1cgo rt helpers + cgo.go, built
- * once; per-spec prefix and cspec layout) and <go_outdir>/go.mod's asn1cgo-rt require/replace.
+ *                                    byte-identical to the rt module's)
+ * plus <go_outdir>/go.mod's rt require (and replace in ASN1CGO_RT_LOCAL mode).
  * Returns 0/-1. */
 int go_conv_emit(const char *go_outdir, const char *go_rt_module);
 

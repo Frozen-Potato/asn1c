@@ -44,6 +44,7 @@ while [ "$r" -le "$ROUNDS" ]; do
     while [ "$i" -le "$N" ]; do
         (
             mkdir -p "$parent/c$i"
+            ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
             "$asn1c" -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
                 -fno-include-deps -gen-PER -pdu=auto -D "$parent/c$i" \
                 -Fgo="$parent/g$i" "$tmp/t.asn"
