@@ -392,7 +392,7 @@ repository:
   `ASN1CGO_GO_MODULE_PREFIX` does not affect it; it only prefixes the
   generated modules.
 - **Fetch (default).** The generated `go.mod` contains
-  `require github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go v0.3.0` and nothing else about the runtime; `go.work`
+  `require github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go v0.3.1` and nothing else about the runtime; `go.work`
   lists only the generated modules. Go downloads the runtime from the
   public repository, so no copy of the runtime is needed. The generator
   cannot compute the module hash offline, so run **once** after
@@ -422,8 +422,8 @@ repository:
   module-path-relative tag and push it:
 
   ```sh
-  git tag libasn1compiler_go/rt/go/v0.3.0 <commit>
-  git push origin libasn1compiler_go/rt/go/v0.3.0
+  git tag libasn1compiler_go/rt/go/v0.3.1 <commit>
+  git push origin libasn1compiler_go/rt/go/v0.3.1
   ```
 
   A generated tree is only fetchable once that tag exists; before it,

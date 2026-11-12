@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fetch-mode test for the Go runtime module, with no network and no real tag.
 # Builds a file:// GOPROXY holding the rt module (from this source tree) as
-# v0.3.0, generates tests/e2e/ex.asn in the DEFAULT mode (no
+# v0.3.1, generates tests/e2e/ex.asn in the DEFAULT mode (no
 # ASN1CGO_RT_LOCAL: go.mod only `require`s the rt, no replace, go.work does
 # not list it), and checks that
 #   1. before `go mod tidy` a build (GOWORK=off: in workspace mode the go
@@ -18,7 +18,7 @@ asn1c="$repo/asn1c/asn1c"
 rtsrc="$repo/libasn1compiler_go/rt/go"
 modpath=github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go
 escpath=github.com/!frozen-!potato/asn1c/libasn1compiler_go/rt/go
-ver=v0.3.0
+ver=v0.3.1
 
 if ! command -v go >/dev/null 2>&1; then
     echo "run-rt-fetch: SKIP: 'go' not found" >&2

@@ -1,11 +1,17 @@
-0.9.29-go.5 (unreleased)
+0.9.29-go.5:
+    NEW:
+    * Go backend: named-bit BIT STRING (`BIT STRING { a(0), b(1) }`) is now
+      supported. The value is the plain BitString, and each named bit
+      becomes an int bit-position constant <Type><Bit>, following the
+      ENUMERATED naming scheme: <Parent><Member> for an inline member,
+      <Choice><Alt> for a CHOICE alternative. Still refused, with a
+      message: a DEFAULT on a named-bit type, and SEQUENCE OF an inline
+      named-bit BIT STRING.
+    * Go backend: generated go.mod files now require rt v0.3.1; run
+      `go mod tidy` once after regenerating. Not breaking: same module
+      path, no API change.
+
     FIXES:
-    * Go backend / runtime: no more `"_REENTRANT" redefined` cgo warning
-      (cgo's -pthread predefines it). The "for Sun" feature macros in
-      GeneralizedTime.c and _ISOC99_SOURCE in REAL.c are now #ifndef-guarded,
-      in skeletons/ and rt/go/rt alike. The fix reaches fetch-mode users
-      only once rt v0.3.1 is tagged. New tests/run-rt-skeleton-sync.sh
-      checks rt/skeleton identity and a -Werror=cpp compile of the rt.
     * Go backend: CRITICAL. Encoding a PRESENT inline OPTIONAL BIT STRING
       member (C: BIT_STRING_t *x) failed: the glue wrote the BIT STRING
       record into the pointer slot instead of allocating it and storing a
@@ -14,6 +20,15 @@
       go.1) are affected, e.g. E2AP TNLinformation.tnlPort present. Programs
       built from earlier output must be REGENERATED with the fixed asn1c;
       no runtime change is needed.
+    * Go backend / runtime: no more `"_REENTRANT" redefined` cgo warning
+      (cgo's -pthread predefines it). The "for Sun" feature macros in
+      GeneralizedTime.c and _ISOC99_SOURCE in REAL.c are now #ifndef-guarded,
+      in skeletons/ and rt/go/rt alike. The runtime is now v0.3.1 and
+      carries the fix. New tests/run-rt-skeleton-sync.sh
+      checks rt/skeleton identity and a -Werror=cpp compile of the rt.
+    * Runtime (affects plain C users too): NativeEnumerated_encode_aper
+      stores the bsearch result as const (fixes -Wdiscarded-qualifiers).
+      Ships in rt v0.3.1.
     * Go backend: several modules that each own BIT STRING members in one
       -Fgo run now build. A module's glue helpers use its own BitString (they
       named the first module's, whose package was not imported). A module
