@@ -1,5 +1,34 @@
 0.9.29-go.6 (unreleased):
+    NEW:
+    * Go backend: SEQUENCE OF with an inline element type (INTEGER, BOOLEAN,
+      OCTET STRING, BIT STRING, REAL, PrintableString, NULL, ENUMERATED,
+      SEQUENCE, CHOICE, SEQUENCE OF), as a top-level type, a member, an
+      OPTIONAL member and a CHOICE alternative. Inline elements are named
+      <Owner>Member.
+    * Go backend: an anonymous SEQUENCE or CHOICE as a SEQUENCE member
+      (required or OPTIONAL), as a CHOICE alternative, nested, and as an
+      inline SEQUENCE OF element.
+    * Go backend: INTEGER members, OPTIONAL members, CHOICE alternatives and
+      SEQUENCE OF elements whose range does not fit a C long (INTEGER_t) now
+      use the same INTEGER_t <-> uint64/int64 conversion as a top-level
+      type. A range that fits neither int64 nor uint64 is refused with a
+      clear message. (The C runtime's PER codec itself cannot encode values
+      of an INTEGER (0..2^64-1); Encode reports the same error as
+      converter-example.)
+    * Go backend: a CHOICE alternative named `present` is generated as the
+      field PresentAlt (the discriminant Present is unchanged; the constant
+      is still <Choice>PrPresent). This was a "collision" refusal before.
+
     FIXES:
+    * Go backend: extension additions without OPTIONAL
+      (`SEQUENCE { a ..., ..., b BOOLEAN, c INTEGER }`) generated Go that
+      did not compile (types.go declared `B bool`, the glue tested
+      `v.B != nil`). Extension additions are now always pointers in Go,
+      OPTIONAL or not, like the C struct members. Not breaking: OPTIONAL
+      additions were already pointers, and mandatory ones did not compile.
+      Encode of a nil addition encodes it as absent (the C encoder's
+      behaviour for a NULL pointer); an addition with a DEFAULT remains a
+      plain value.
     * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region
       undercounted by N" when a struct whose C size is not a multiple of 8
       (e.g. a SEQUENCE holding one ENUMERATED, 4 bytes) is held through a

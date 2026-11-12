@@ -72,6 +72,30 @@ arm_prim_from(void *t, void *m, const char *in_acc, const char *out_acc) {
     int stars = go_flat_ir_member_stars(m);
     char *label = conv_type_label(t);   /* display label */
     char *s = cstrdup("");
+    if(go_flat_ir_member_wide(m) && prim
+       && (strcmp(prim, "uint64_t") == 0 || strcmp(prim, "int64_t") == 0)) {
+        /* INTEGER_t-backed wide member: read through the INTEGER2[iu]max verb. */
+        int u = strcmp(prim, "uint64_t") == 0;
+        const char *fn = u ? "asn_INTEGER2umax" : "asn_INTEGER2imax";
+        const char *vt = u ? "uintmax_t" : "intmax_t";
+        const char *ft = u ? "uint64_t" : "int64_t";
+        if(stars) {
+            { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        %s v;\n", vt); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (%s((const INTEGER_t *)%s, &v) != 0)\n", fn, in_acc); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        %s = (%s *)asn1cgo_arena_alloc(ar, sizeof(*%s), _Alignof(%s));\n", out_acc, ft, out_acc, ft); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        *%s = (%s)v;\n    } else %s = NULL;\n", out_acc, ft, out_acc); s = ca(s, _cf); free(_cf); }
+        } else {
+            { char *_cf = cfmt("    {\n        %s v;\n", vt); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (%s((const INTEGER_t *)&%s, &v) != 0)\n", fn, in_acc); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        %s = (%s)v;\n    }\n", out_acc, ft); s = ca(s, _cf); free(_cf); }
+        }
+        free(mlab); free(label);
+        return s;
+    }
     if(stars) {
         /* OPTIONAL OCTET/BIT STRING member (the pointer bytes slot):
          * arena-alloc the bytes/bits Flat, copy; NULL = absent. */
@@ -304,9 +328,12 @@ choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
     for(int i = 0; i < nm; i++) {
         void *mtmp = go_flat_ir_member(t, i);
         const char *tok = go_flat_ir_member_token(mtmp);
+        /* the C tree's name of the alt (differs from the Flat member token
+         * only for an alt named `present`, see go_flat_last_member_tree_token) */
+        const char *ttok = go_flat_ir_member_tree_token(mtmp);
         char *mlab = conv_member_label(mtmp);   /* display label */
         if(strcmp(tok, "present") == 0) { free(mlab); continue; }
-        char *pr = cfmt("%s_PR_%s", prbase, tok);
+        char *pr = cfmt("%s_PR_%s", prbase, ttok);
         int stars = go_flat_ir_member_stars(mtmp);
         /* NULL alt: no Flat slot; present set, nothing converted. */
         if(conv_is_null_alt(go_flat_ir_cid(t), tok)) {
@@ -320,26 +347,47 @@ choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
             const char *prim = go_flat_ir_member_prim(mtmp);
             void *rt = NULL; (void)rt;
             if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
-                { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n", out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        if (%s%s%s.len) {\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            %s%s%s.buf = (uint8_t *)asn1cgo_arena_alloc(ar, %s%s%s.len, 1);\n", out_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            if (!%s%s%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            memcpy(%s%s%s.buf, %s%schoice.%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            memcpy(%s%s%s.buf, %s%schoice.%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, ttok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        } else {\n            %s%s%s.buf = NULL;\n        }\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
             } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
-                { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n        %s%s%s.bits_unused = (int32_t)%s%schoice.%s.bits_unused;\n", out_sel, deref, tok, in_sel, deref, tok, out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n        %s%s%s.bits_unused = (int32_t)%s%schoice.%s.bits_unused;\n", out_sel, deref, tok, in_sel, deref, ttok, out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        if (%s%s%s.len) {\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            %s%s%s.buf = (uint8_t *)asn1cgo_arena_alloc(ar, %s%s%s.len, 1);\n", out_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            if (!%s%s%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            memcpy(%s%s%s.buf, %s%schoice.%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            memcpy(%s%s%s.buf, %s%schoice.%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, ttok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        } else {\n            %s%s%s.buf = NULL;\n        }\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+            } else if(go_flat_ir_member_wide(mtmp) && prim
+                      && (strcmp(prim, "uint64_t") == 0 || strcmp(prim, "int64_t") == 0)) {
+                /* INTEGER_t-backed wide alt */
+                int u = strcmp(prim, "uint64_t") == 0;
+                const char *fn = u ? "asn_INTEGER2umax" : "asn_INTEGER2imax";
+                const char *vt = u ? "uintmax_t" : "intmax_t";
+                const char *ft = u ? "uint64_t" : "int64_t";
+                const char *amp = stars ? "" : "&";
+                { char *_cf = cfmt("        {\n            %s v = 0;\n", vt); s = ca(s, _cf); free(_cf); }
+                if(stars) { char *_cf = cfmt("            if (!%s%schoice.%s) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"alt NULL\");\n", in_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (%s((const INTEGER_t *)%s%s%schoice.%s, &v) != 0)\n", fn, amp, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("                return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+                if(stars) {
+                    char *oslot = cfmt("%s%s%s", out_sel, deref, tok);
+                    { char *_cf = cfmt("            %s = (%s *)asn1cgo_arena_alloc(ar, sizeof(*%s), _Alignof(%s));\n", oslot, ft, oslot, ft); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("            if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", oslot, label, mlab); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("            *%s = (%s)v;\n        }\n", oslot, ft); s = ca(s, _cf); free(_cf); }
+                    free(oslot);
+                } else {
+                    { char *_cf = cfmt("            %s%s%s = (%s)v;\n        }\n", out_sel, deref, tok, ft); s = ca(s, _cf); free(_cf); }
+                }
             } else if(prim && strcmp(prim, "_bool32") == 0) {
                 /* BOOLEAN Flat column is int32_t (0/1): canonicalize a
                  * decoded tree BOOLEAN to 0/1 at the Flat boundary. */
-                { char *_cf = cfmt("        %s%s%s = %s%schoice.%s ? 1 : 0;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s%s%s = %s%schoice.%s ? 1 : 0;\n", out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
             } else {
                 const char *ft = flat_scalar(prim);
-                { char *_cf = cfmt("        %s%s%s = (%s)%s%schoice.%s;\n", out_sel, deref, tok, ft, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s%s%s = (%s)%s%schoice.%s;\n", out_sel, deref, tok, ft, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
             }
             s = ca(s, "        break;\n");
             free(pr); free(mlab);
@@ -365,47 +413,47 @@ choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
                  * would redeclare); guard, call, decrement, test inline */
                 s = ca(s, "        if (++err->depth > ASN1CGO_MAX_DEPTH)\n");
                 { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (%s_from_tree(ar, %s%schoice.%s, %s, err)) { err->depth--; return err->code; }\n", rb, in_sel, deref, tok, oslot); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s_from_tree(ar, %s%schoice.%s, %s, err)) { err->depth--; return err->code; }\n", rb, in_sel, deref, ttok, oslot); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "        err->depth--;\n");
             } else {
-                { char *_cf = cfmt("        if (%s_from_tree(ar, %s%schoice.%s, %s, err)) return err->code;\n", rb, in_sel, deref, tok, oslot); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s_from_tree(ar, %s%schoice.%s, %s, err)) return err->code;\n", rb, in_sel, deref, ttok, oslot); s = ca(s, _cf); free(_cf); }
             }
             free(oslot);
         } else {
             if(conv_is_wide(go_flat_ir_cid(r))) {
                 { char *_cf = cfmt("        {\n            uintmax_t v = 0;\n"); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            if (asn_INTEGER2umax((const INTEGER_t *)&in%schoice.%s, &v) != 0)\n", deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (asn_INTEGER2umax((const INTEGER_t *)&in%schoice.%s, &v) != 0)\n", deref, ttok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("                return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"asn_INTEGER2umax failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            %s%s%s = (uint64_t)v;\n        }\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
             } else if(go_flat_ir_is_leaf(r)) {
                 const char *prim = go_flat_ir_prim(r);
                 if(prim && (strcmp(prim, "asn1cgo_bytes_flat") == 0
                             || strcmp(prim, "asn1cgo_bits_flat") == 0)) {
-                    { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n", out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                     if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0)
-                        { char *_cf = cfmt("        %s%s%s.bits_unused = (int32_t)%s%schoice.%s.bits_unused;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                        { char *_cf = cfmt("        %s%s%s.bits_unused = (int32_t)%s%schoice.%s.bits_unused;\n", out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                     { char *_cf = cfmt("        if (%s%s%s.len) {\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                     { char *_cf = cfmt("            %s%s%s.buf = (uint8_t *)asn1cgo_arena_alloc(ar, %s%s%s.len, 1);\n", out_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                     { char *_cf = cfmt("            if (!%s%s%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("            memcpy(%s%s%s.buf, %s%schoice.%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("            memcpy(%s%s%s.buf, %s%schoice.%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, ttok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                     { char *_cf = cfmt("        } else {\n            %s%s%s.buf = NULL;\n        }\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 } else if(prim && strcmp(prim, "_bool32") == 0) {
                     /* BOOLEAN (0/1): canonicalize at the Flat boundary. */
-                    { char *_cf = cfmt("        %s%s%s = %s%schoice.%s ? 1 : 0;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        %s%s%s = %s%schoice.%s ? 1 : 0;\n", out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                 } else {
                     const char *ft = flat_scalar(prim);
-                    { char *_cf = cfmt("        %s%s%s = (%s)%s%schoice.%s;\n", out_sel, deref, tok, ft, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        %s%s%s = (%s)%s%schoice.%s;\n", out_sel, deref, tok, ft, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                 }
             } else {
                 if(r && conv_is_scc(t) && conv_is_scc(r)) {
                     /* depth mirror: a by-value CHOICE alt into a recursion-
                      * SCC type; guard the entry, call, decrement, test. */
                     { char *_cf = cfmt("        if (++err->depth > ASN1CGO_MAX_DEPTH) return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("        int itrc = %s_from_tree(ar, &%s%schoice.%s, &%s%s%s, err);\n", rb, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        int itrc = %s_from_tree(ar, &%s%schoice.%s, &%s%s%s, err);\n", rb, in_sel, deref, ttok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                     s = ca(s, "        err->depth--;\n");
                     s = ca(s, "        if (itrc) return err->code;\n");
                 } else {
-                    { char *_cf = cfmt("        if (%s_from_tree(ar, &%s%schoice.%s, &%s%s%s, err)) return err->code;\n", rb, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        if (%s_from_tree(ar, &%s%schoice.%s, &%s%s%s, err)) return err->code;\n", rb, in_sel, deref, ttok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 }
             }
         }

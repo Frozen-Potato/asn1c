@@ -70,6 +70,17 @@ void go_flat_label_last_member(const char *label);
  * post-C-pass EM_INDIRECT bit). The conv arms read both. */
 void go_flat_last_member_default(int tree_ptr);
 
+/* Mark the LAST member row as an INTEGER_t-backed wide int64/uint64 member:
+ * the Flat slot is the native 8-byte scalar, the C tree slot an INTEGER_t
+ * (asn_imax2INTEGER / asn_umax2INTEGER and back in the conv). */
+void go_flat_last_member_wide(void);
+
+/* Record the C tree's name for the LAST member row when it differs from the
+ * Flat member token: a CHOICE alt named `present` is the Flat member
+ * `presentAlt` (the Flat struct already has the discriminant `present`) but
+ * the tree member `choice.present` and the enumerator <X>_PR_present. */
+void go_flat_last_member_tree_token(const char *tree_token);
+
 /* The same mint keyed by the walk's GLEAF_* kind (the SAME int the Go side
  * passed row_set_leaf — one classification, both columns; the C-prim token
  * derives from the identical table go_types.c maps to the Go column). */

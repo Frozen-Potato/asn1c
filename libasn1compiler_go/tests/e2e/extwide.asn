@@ -1,0 +1,85 @@
+ExtWide DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- AC1: extension additions are pointers in Go, OPTIONAL or not.
+
+	-- the "old version" of ExtNew: a sender that predates b and c
+	ExtOld ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...
+	}
+
+	ExtNew ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...,
+		b	BOOLEAN,
+		c	INTEGER (0..7)
+	}
+
+	-- mandatory and OPTIONAL additions side by side
+	ExtMix ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...,
+		b	BOOLEAN OPTIONAL,
+		c	INTEGER (0..7),
+		d	OCTET STRING (SIZE(1..2))
+	}
+
+	-- a DEFAULT addition stays a plain value (go.4 rules)
+	ExtDef ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...,
+		b	BOOLEAN DEFAULT TRUE,
+		c	INTEGER (0..7)
+	}
+
+	-- AC2: INTEGER wider than the C runtime's native long, as a member, an
+	-- OPTIONAL member, a CHOICE alternative and a SEQUENCE OF element. The range
+	-- 0..2^40-1 is INTEGER_t in C and uint64 in Go, and the C codec encodes it.
+	WideMem ::= SEQUENCE {
+		a	INTEGER (0..1099511627775),
+		b	INTEGER (0..1099511627775) OPTIONAL,
+		c	BOOLEAN
+	}
+
+	WideAlt ::= CHOICE {
+		a	INTEGER (0..1099511627775),
+		b	BOOLEAN
+	}
+
+	WideList ::= SEQUENCE (SIZE(1..3)) OF INTEGER (0..1099511627775)
+
+	WideInSeq ::= SEQUENCE {
+		l	SEQUENCE (SIZE(1..2)) OF INTEGER (0..1099511627775),
+		x	CHOICE { p INTEGER (0..1099511627775), q BOOLEAN }
+	}
+
+	-- The full unsigned 64-bit range. The generated C compiles and converts,
+	-- but the C runtime's PER codec keeps bounds in a long, so it cannot encode
+	-- a present value (see extwide_test.go: Go and converter-example agree).
+	U64Mem ::= SEQUENCE {
+		a	INTEGER (0..18446744073709551615)
+	}
+
+	U64Opt ::= SEQUENCE {
+		a	BOOLEAN,
+		b	INTEGER (0..18446744073709551615) OPTIONAL
+	}
+
+	U64Alt ::= CHOICE {
+		a	INTEGER (0..18446744073709551615),
+		b	BOOLEAN
+	}
+
+	-- AC3: a CHOICE alternative named `present`
+	PresChoice ::= CHOICE {
+		present	INTEGER (0..3),
+		b	BOOLEAN
+	}
+
+	PresSeqAlt ::= CHOICE {
+		b	BOOLEAN,
+		present	SEQUENCE { q INTEGER (0..3) }
+	}
+
+END

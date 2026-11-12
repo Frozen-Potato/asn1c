@@ -154,3 +154,17 @@ func TestAllocFaultSweepInlConstr(t *testing.T) {
 		sweep(t, c.name+" Decode", func() error { return c.dec(wire) })
 	}
 }
+
+// Mandatory extension additions, INTEGER members wider than int64 and the
+// `present` alternative: every case of extwide_test.go, encode and decode.
+func TestAllocFaultSweepExtWide(t *testing.T) {
+	for _, c := range ewCases() {
+		c := c
+		wire, err := c.enc()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		sweep(t, c.name+" Encode", func() error { _, err := c.enc(); return err })
+		sweep(t, c.name+" Decode", func() error { return c.dec(wire) })
+	}
+}

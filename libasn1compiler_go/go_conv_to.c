@@ -260,9 +260,12 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
     for(int i = 0; i < nm; i++) {
         void *mtmp = go_flat_ir_member(t, i);
         const char *tok = go_flat_ir_member_token(mtmp);
+        /* the C tree's name of the alt (differs from the Flat member token
+         * only for an alt named `present`, see go_flat_last_member_tree_token) */
+        const char *ttok = go_flat_ir_member_tree_token(mtmp);
         char *mlab = conv_member_label(mtmp);   /* display label */
         if(strcmp(tok, "present") == 0) { free(mlab); continue; }
-        char *pr = cfmt("%s_PR_%s", prbase, tok);
+        char *pr = cfmt("%s_PR_%s", prbase, ttok);
         int stars = go_flat_ir_member_stars(mtmp);
         /* NULL alt carries no slot, no arm work — bare break. */
         if(conv_is_null_alt(go_flat_ir_cid(t), tok)) {
@@ -276,23 +279,38 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
             { char *_cf = cfmt("    case %s:\n", pr); s = ca(s, _cf); free(_cf); }
             if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
                 { char *_cf = cfmt("        if (%s%s%s.len) {\n", in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "        }\n");
-                { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
             } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
                 { char *_cf = cfmt("        if (%s%s%s.len) {\n", in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "        }\n");
-                { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n        %s%schoice.%s.bits_unused = (int)%s%s%s.bits_unused;\n", out_sel, deref, tok, in_sel, deref, tok, out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n        %s%schoice.%s.bits_unused = (int)%s%s%s.bits_unused;\n", out_sel, deref, ttok, in_sel, deref, tok, out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+            } else if(go_flat_ir_member_wide(mtmp) && prim
+                      && (strcmp(prim, "uint64_t") == 0 || strcmp(prim, "int64_t") == 0)) {
+                /* INTEGER_t-backed wide alt (range beyond native long) */
+                int u = strcmp(prim, "uint64_t") == 0;
+                const char *fn = u ? "asn_umax2INTEGER" : "asn_imax2INTEGER";
+                const char *ct = u ? "uintmax_t" : "intmax_t";
+                if(stars) {
+                    { char *_cf = cfmt("        if (!%s%s%s) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"alt NULL\");\n", in_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        %s%schoice.%s = asn1cgo_calloc(1, sizeof(*%s%schoice.%s));\n", out_sel, deref, ttok, out_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        if (!%s%schoice.%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        if (%s((INTEGER_t *)%s%schoice.%s, (%s)*%s%s%s) != 0)\n", fn, out_sel, deref, ttok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                } else {
+                    { char *_cf = cfmt("        if (%s((INTEGER_t *)&%s%schoice.%s, (%s)%s%s%s) != 0)\n", fn, out_sel, deref, ttok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                }
+                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
             } else {
                 /* inline scalar alt slot: by value (leaf CHOICEs are all
                  * inline; long/int32/double) */
                 const char *ct = tree_scalar(prim);
-                { char *_cf = cfmt("        %s%schoice.%s = (%s)%s%s%s;\n", out_sel, deref, tok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s%schoice.%s = (%s)%s%s%s;\n", out_sel, deref, ttok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
             }
             s = ca(s, "        break;\n");
             free(pr); free(mlab);
@@ -317,23 +335,23 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
             if(!r || !*rb) {
                 { char *_cf = cfmt("        if (!%s%s%s) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"alt NULL\");\n", in_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
             }
-            { char *_cf = cfmt("        %s%schoice.%s = asn1cgo_calloc(1, sizeof(*%s%schoice.%s));\n", out_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("        if (!%s%schoice.%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        %s%schoice.%s = asn1cgo_calloc(1, sizeof(*%s%schoice.%s));\n", out_sel, deref, ttok, out_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (!%s%schoice.%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
             if(conv_is_scc(t) && r && conv_is_scc(r)) {
                 /* the arm declares no local (an unbraced switch arm cannot:
                  * a second guarded arm in the same switch would redeclare);
                  * guard, call, decrement, test inline */
                 s = ca(s, "        if (++err->depth > ASN1CGO_MAX_DEPTH)\n");
                 { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (%s_to_tree(%s%s%s, %s%schoice.%s, err)) { err->depth--; return err->code; }\n", rb, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s_to_tree(%s%s%s, %s%schoice.%s, err)) { err->depth--; return err->code; }\n", rb, in_sel, deref, tok, out_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "        err->depth--;\n");
             } else {
-                { char *_cf = cfmt("        if (%s_to_tree(%s%s%s, %s%schoice.%s, err)) return err->code;\n", rb, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s_to_tree(%s%s%s, %s%schoice.%s, err)) return err->code;\n", rb, in_sel, deref, tok, out_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
             }
         } else {
             if(r && conv_is_wide(go_flat_ir_cid(r))) {
                 /* wide-INTEGER inline alt (native Flat width) */
-                { char *_cf = cfmt("        if (asn_umax2INTEGER((INTEGER_t *)&%s%schoice.%s, (uintmax_t)%s%s%s) != 0)\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (asn_umax2INTEGER((INTEGER_t *)&%s%schoice.%s, (uintmax_t)%s%s%s) != 0)\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"asn_umax2INTEGER failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
             } else if(r && go_flat_ir_is_leaf(r)) {
                 /* an inline leaf alt reference (scalar leaf): by value */
@@ -343,15 +361,15 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
                 if(prim && (strcmp(prim, "asn1cgo_bytes_flat") == 0
                             || strcmp(prim, "asn1cgo_bits_flat") == 0)) {
                     { char *_cf = cfmt("        if (%s%s%s.len) {\n", in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, tok, label, mlab); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, tok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("            if (!%s%schoice.%s.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_sel, deref, ttok, label, mlab); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("            memcpy(%s%schoice.%s.buf, %s%s%s.buf, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                     s = ca(s, "        }\n");
                     if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0)
-                        { char *_cf = cfmt("        %s%schoice.%s.bits_unused = (int)%s%s%s.bits_unused;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, tok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                        { char *_cf = cfmt("        %s%schoice.%s.bits_unused = (int)%s%s%s.bits_unused;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 } else {
-                    { char *_cf = cfmt("        %s%schoice.%s = (%s)%s%s%s;\n", out_sel, deref, tok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        %s%schoice.%s = (%s)%s%s%s;\n", out_sel, deref, ttok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 }
             } else {
                 if(r && conv_is_scc(t) && conv_is_scc(r)) {
@@ -359,11 +377,11 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
                      * (the whole E2SM-RC ranParameter-Testing graph); guard
                      * the entry, call, decrement, test inline. */
                     { char *_cf = cfmt("        if (++err->depth > ASN1CGO_MAX_DEPTH) return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("        int itrc = %s_to_tree(&%s%s%s, &%s%schoice.%s, err);\n", rb, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        int itrc = %s_to_tree(&%s%s%s, &%s%schoice.%s, err);\n", rb, in_sel, deref, tok, out_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                     s = ca(s, "        err->depth--;\n");
                     s = ca(s, "        if (itrc) return err->code;\n");
                 } else {
-                    { char *_cf = cfmt("        if (%s_to_tree(&%s%s%s, &%s%schoice.%s, err)) return err->code;\n", rb, in_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    { char *_cf = cfmt("        if (%s_to_tree(&%s%s%s, &%s%schoice.%s, err)) return err->code;\n", rb, in_sel, deref, tok, out_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                 }
             }
         }
@@ -491,6 +509,26 @@ arm_prim_to(void *t, void *m, const char *in_acc, const char *out_acc) {
     int stars = go_flat_ir_member_stars(m);
     char *label = conv_type_label(t);
     char *s = cstrdup("");
+    if(go_flat_ir_member_wide(m) && prim
+       && (strcmp(prim, "uint64_t") == 0 || strcmp(prim, "int64_t") == 0)) {
+        /* INTEGER_t-backed wide member (range beyond native long): the same
+         * verb pair as the top-level wide leaf. */
+        int u = strcmp(prim, "uint64_t") == 0;
+        const char *fn = u ? "asn_umax2INTEGER" : "asn_imax2INTEGER";
+        const char *ct = u ? "uintmax_t" : "intmax_t";
+        if(stars) {
+            { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        %s = asn1cgo_calloc(1, sizeof(*%s));\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        if (%s((INTEGER_t *)%s, (%s)*%s) != 0)\n", fn, out_acc, ct, in_acc); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"%s failed\");\n    }\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+        } else {
+            { char *_cf = cfmt("    if (%s((INTEGER_t *)&%s, (%s)%s) != 0)\n", fn, out_acc, ct, in_acc); s = ca(s, _cf); free(_cf); }
+            { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+        }
+        free(mlab); free(label);
+        return s;
+    }
     if(stars) {
         /* OPTIONAL scalar member (the to_tree OPTIONAL rule): calloc then
          * copy. An

@@ -3,7 +3,7 @@ bitstr-unconstr	OK
 bool-top	OK
 charstring	REFUSED	asn1cgo: CHARACTER STRING in module Probe
 choice-ext-alts	OK
-choice-present	KNOWN-BROKEN	AC
+choice-present	OK
 choice-seqof-ref-alt	OK
 components-of	OK
 dflt-enum-ok	OK
@@ -14,8 +14,8 @@ dflt-seq	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 embedded	REFUSED	asn1cgo: EMBEDDED PDV in module Probe
 enum-ext	OK
 explicit	OK
-ext-mandatory	KNOWN-BROKEN	AC
-ext-mandatory2	KNOWN-BROKEN	AC
+ext-mandatory	OK
+ext-mandatory2	OK
 external	REFUSED	asn1cgo: EXTERNAL in module Probe
 extgroup	REFUSED	asn1cgo: Extension addition group [[ ]] in module Probe
 gentime	REFUSED	asn1cgo: GeneralizedTime in module Probe
@@ -35,8 +35,8 @@ inl-seq-mem-deep	OK
 inl-seq-mem-deep-opt	OK
 inl-seq-mem-ext	OK
 inl-seq-mem-opt	OK
-int-u64-mem	KNOWN-BROKEN	AC
-int-u64-mem-opt	KNOWN-BROKEN	AC
+int-u64-mem	OK
+int-u64-mem-opt	OK
 int-u64top	OK
 int-unconstr	OK
 null-alt	OK
@@ -130,3 +130,5 @@ str-utf8string	REFUSED	asn1cgo: UTF8String in module Probe
 str-videotexstring	REFUSED	asn1cgo: VideotexString in module Probe
 str-visiblestring	REFUSED	asn1cgo: VisibleString in module Probe
 utctime	REFUSED	asn1cgo: UTCTime in module Probe
+int-wide-refused	REFUSED	asn1cgo: INTEGER T.a range [-1..18446744073709551615] fits neither int64 nor uint64
+int-wide-refused-alt	REFUSED	fits neither int64 nor uint64

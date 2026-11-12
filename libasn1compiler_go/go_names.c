@@ -1326,6 +1326,11 @@ struct walk_ctx {
      * its own; its Flat node is <Owner>__Member) and wide_hit is raised. */
     const char *wide_cid;
     int wide_hit;
+    /* classify_integer_leaf: set while classifying an inline MEMBER / CHOICE
+     * ALT leaf. Such a leaf has no node of its own, so nothing is recorded in
+     * the wide-leaf registry; the caller reads wide_hit and flags the Flat
+     * member row itself (go_flat_last_member_wide). */
+    int wide_nr;
 };
 
 /* ------------------------------------------------------------------------- */
@@ -1491,15 +1496,17 @@ classify_integer_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
        && right.value <= (asn1c_integer_t)18446744073709551615ULL) {
         /* record the wide-INTEGER leaf (its converters use the
          * asn_umax2INTEGER/asn_INTEGER2umax verb pair, not a scalar mirror). */
-        go_conv_record_wide_integer(ctx->wide_cid ? ctx->wide_cid
-                                                  : GO_MKID(terminal));
+        if(!ctx->wide_nr)
+            go_conv_record_wide_integer(ctx->wide_cid ? ctx->wide_cid
+                                                      : GO_MKID(terminal));
         ctx->wide_hit = 1;
         return GLEAF_UINT64;
     }
     if(left.value >= (asn1c_integer_t)(-9223372036854775807LL - 1)
        && right.value <= (asn1c_integer_t)9223372036854775807LL) {
-        go_conv_record_wide_integer(ctx->wide_cid ? ctx->wide_cid
-                                                  : GO_MKID(terminal));
+        if(!ctx->wide_nr)
+            go_conv_record_wide_integer(ctx->wide_cid ? ctx->wide_cid
+                                                      : GO_MKID(terminal));
         ctx->wide_hit = 1;
         return GLEAF_INT64;
     }
@@ -1510,9 +1517,12 @@ classify_integer_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
         char lb[64], rb[64];
         asn1p_itoa_s(lb, sizeof lb, left.value);
         asn1p_itoa_s(rb, sizeof rb, right.value);
+        /* asn1p_itoa_s tags an unsigned-long-long-sized value with a C "U". */
+        for(char *e = lb + strlen(lb); e > lb && e[-1] == 'U'; ) *--e = 0;
+        for(char *e = rb + strlen(rb); e > rb && e[-1] == 'U'; ) *--e = 0;
         fprintf(stderr,
-                "asn1cgo: INTEGER %s range [%s..%s] fits neither int64 nor uint64 "
-                "(failure) in module %s\n",
+                "asn1cgo: INTEGER %s range [%s..%s] fits neither int64 nor "
+                "uint64, so it has no Go representation (refused) in module %s\n",
                 path_for_diag ? path_for_diag : "?", lb, rb,
                 ctx->module ? ctx->module : "?");
     }
@@ -2228,8 +2238,15 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 continue;
             }
             char *path = make_path(parent_path, alt->Identifier);
+            /* An alt whose field name would be `Present` collides with the
+             * discriminant field (public API, kept as is): the FIELD gets the
+             * deterministic name PresentAlt. The <Choice>Pr<Alt> constant
+             * (TPrPresent) and the inline type name keep altgo. The renamed
+             * field is registered like any other, so an alt literally named
+             * `presentAlt` is still reported as a collision. */
             emit_name(ctx->bag, ctx->module, path, GK_FIELD,
-                      own(altcid), strdup(altgo));
+                      own(strcmp(altcid, "present") == 0 ? "presentAlt" : altcid),
+                      strdup(strcmp(altgo, "Present") == 0 ? "PresentAlt" : altgo));
             /* Flat slot: a POINTER iff asn1c's union member for
              * this alt is one — the EM_INDIRECT marker expr_break_recursion
              * stamped (masked test; leaf CHOICEs are
@@ -2242,6 +2259,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
              * classify_leaf table). */
             {
                 int cstars = 0;
+                int cwide = 0;
                 char *ccid = NULL;
                 const char *cprim = NULL;
                 const char *star_tok = go_mk_suffix(alt);
@@ -2272,7 +2290,10 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     ccid = own(GO_MKID(aterm));
                 } else {
                     /* a plain inline leaf alt: the mapping-table Flat prim slot. */
+                    ctx->wide_nr = 1; ctx->wide_hit = 0;
                     int lk = classify_leaf(ctx, aterm, parent_path);
+                    cwide = ctx->wide_hit;
+                    ctx->wide_nr = 0; ctx->wide_hit = 0;
                     static const struct { int k; const char *p; } lk2p[] = {
                         {1, "int64_t"}, {2, "uint64_t"}, {3, "_bool32"},
                         {5, "double"}, {6, "asn1cgo_bytes_flat"},
@@ -2287,14 +2308,18 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     /* altcid borrows the shared static buffer (go_mk_suffix);
                      * own it before the mint (the same aliasing trap). */
                     char *flat_acid = own(altcid);
-                    char *flat_atok = own(altcid);
-                    if(cprim)
+                    int alt_is_present = strcmp(altcid, "present") == 0;
+                    char *flat_atok = own(alt_is_present ? "presentAlt" : altcid);
+                    if(cprim) {
                         go_flat_member_prim(cprim, flat_atok, cstars);
-                    else if(ccid)
+                        if(cwide) go_flat_last_member_wide();
+                    } else if(ccid)
                         go_flat_member_ref(ccid, flat_atok, cstars);
                     /* CHOICE alt member label = the alt's own ASN.1
                      * Identifier (the td-member name). */
                     go_flat_label_last_member(alt->Identifier);
+                    if(alt_is_present && (cprim || ccid))
+                        go_flat_last_member_tree_token("present");
                     free(flat_acid); free(flat_atok);
                 }
                 free(ccid);
@@ -2321,7 +2346,9 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     free(tgo);
                 } else {
                     /* A plain inline leaf alt: the shared mapping table. */
+                    ctx->wide_nr = 1;
                     int lk = classify_leaf(ctx, aterm, parent_path);
+                    ctx->wide_nr = 0; ctx->wide_hit = 0;
                     const char *under = go_types_leaf_underlying(lk);
                     if(under) ft = own(under);
                 }
@@ -3363,6 +3390,16 @@ member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path) {
             ctx->last_opt_extra = child->marker.flags & ~EM_OPTIONAL;
         return "*";
     }
+    /* An extension ADDITION (a member after the first `...` of an extensible
+     * SEQUENCE) without OPTIONAL: the C pass stamps EM_OMITABLE|EM_INDIRECT on
+     * every such member (asn1c_C.c:362), because a sender that implements an
+     * older version of the spec leaves it out of the encoding (X.691). The C
+     * struct member is a pointer and NULL means "absent", so the Go field is a
+     * pointer too, exactly as for OPTIONAL. A DEFAULT addition never reaches
+     * here (handled above: a plain value). Plain mandatory members carry at
+     * most EM_INDIRECT|EM_UNRECURSE, never the EM_OMITABLE bit. */
+    if((child->marker.flags & EM_OMITABLE) == EM_OMITABLE)
+        return "*";
     return "";
 }
 
@@ -4796,7 +4833,10 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * branch at the top of this function (the minted named type), so
          * the NULL return leaves the row unset only for genuinely
          * unclassifiable terminals (classify_leaf already failed those). */
+        ctx->wide_nr = 1; ctx->wide_hit = 0;
         int lk = classify_leaf(ctx, terminal, parent_path);
+        int mwide = ctx->wide_hit;
+        ctx->wide_nr = 0; ctx->wide_hit = 0;
         if(ctx->bag->failed) return -1;
         const char *under = go_types_leaf_underlying(lk);
         if(under) {
@@ -4817,6 +4857,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                 if(fprim) {
                     char *fpm = go_mk_member(child);
                     go_flat_member_prim(fprim, fpm, flat_star);
+                    if(mwide) go_flat_last_member_wide();
                     go_flat_label_last_member(child->Identifier);
                     if(is_dflt) go_flat_last_member_default(tree_ptr);
                     free(fpm);

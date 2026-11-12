@@ -2460,7 +2460,12 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
             continue;
         }
         char *gu1 = gown(unqual(prtype_q));
-        char *gu2 = gown(alt_field);
+        /* the <Choice>Pr<Alt> constant is named after the alt's C/ASN.1 name,
+         * not its Go field: an alt `present` has the field PresentAlt but
+         * the constant TPrPresent. */
+        const char *ttok_alt = go_flat_ir_member_tree_token(m);
+        char *gu2 = (ttok_alt && strcmp(ttok_alt, tok) != 0)
+                        ? gown(gcamel(ttok_alt)) : gown(alt_field);
         char *cstname = qcconst(gu1, gu2);
         free(gu1); free(gu2);
         (*E->fill) = gam((*E->fill), gfmt("\tcase %s:\n", cstname));

@@ -148,6 +148,10 @@ struct flat_member {
     int stars;         /* 1 = a pointer slot                                */
     int is_default;    /* DEFAULT member: Flat slot by value (stars=0)      */
     int tree_ptr;      /* DEFAULT member: the C tree slot is a pointer      */
+    char *tree_token;  /* CHOICE alt: the C tree's member name when it differs
+                        * from token (an alt `present`); NULL = same         */
+    int wide;          /* INTEGER_t-backed int64/uint64 member (the tree slot
+                        * is an INTEGER_t, not a native long)               */
     unsigned long offset;  /* computed (x86-64 SysV layout rule)              */
 };
 
@@ -549,6 +553,20 @@ go_flat_last_member_default(int tree_ptr) {
 }
 
 void
+go_flat_last_member_tree_token(const char *tree_token) {
+    flat_type *t = flat_at(g_flat_last_member_owner);
+    if(!t || t->n_members <= 0 || !tree_token) return;
+    t->members[t->n_members - 1].tree_token = fstrdup(tree_token);
+}
+
+void
+go_flat_last_member_wide(void) {
+    flat_type *t = flat_at(g_flat_last_member_owner);
+    if(!t || t->n_members <= 0) return;
+    t->members[t->n_members - 1].wide = 1;
+}
+
+void
 go_flat_member_prim_on(int ix, const char *prim, const char *token, int stars) {
     if(ix < 0) ix = g_flat_last_nest;
     g_flat_last_member_owner = ix;
@@ -662,6 +680,10 @@ const char *go_flat_ir_type_label(flat_type *t) { return t ? t->label : NULL; }
 int go_flat_ir_member_stars(flat_member *m) { return m ? m->stars : 0; }
 int go_flat_ir_member_is_default(flat_member *m) { return m ? m->is_default : 0; }
 int go_flat_ir_member_tree_ptr(flat_member *m) { return m ? m->tree_ptr : 0; }
+int go_flat_ir_member_wide(flat_member *m) { return m ? m->wide : 0; }
+const char *go_flat_ir_member_tree_token(flat_member *m) {
+    return m ? (m->tree_token ? m->tree_token : m->token) : NULL;
+}
 int go_flat_ir_member_nested_ix(flat_member *m) { return m ? m->nested_ix : -1; }
 /* Glue scope: the computed layout VALUES behind the layout.go consts
  * (the glue's self-contained local copies of FOREIGN-type fns need the

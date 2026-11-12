@@ -438,6 +438,61 @@ struct tag. `tests/e2e/inlconstr.asn` and `inlconstr_test.go` cover every
 shape (APER and XER round trips against the C converter, absent and present
 OPTIONALs, every alternative, `-race` and the allocation-fault sweep).
 
+### Extension additions
+
+A member after the first `...` of an extensible SEQUENCE is an *extension
+addition*. It can be absent on the wire whenever the sender implements an
+older version of the spec (X.691), so in Go **every extension addition is a
+pointer** (`*bool`, `*int64`, ...), whether or not it is marked `OPTIONAL`,
+exactly as the C struct member is:
+
+```asn1
+T ::= SEQUENCE { a INTEGER (0..3), ..., b BOOLEAN, c INTEGER (0..7) }
+```
+```go
+type T struct { A int64; B *bool; C *int64 }
+```
+
+`Decode` leaves an addition `nil` when the sender did not send it. `Encode`
+of a `nil` addition, mandatory or not, encodes it as absent and returns no
+error: the C encoder treats a NULL pointer that way (it only fails for a
+missing mandatory member of the *root*). An addition with a `DEFAULT` is not a
+pointer: it follows the DEFAULT rules above (a plain value, omitted from the
+encoding when equal to its DEFAULT, filled in on decode).
+
+### INTEGER wider than a C `long`
+
+An INTEGER whose range does not fit the C `long` is `INTEGER_t` in the C tree
+and `uint64` (lower bound >= 0, upper bound <= 2^64-1) or `int64` in Go, at top
+level, as a SEQUENCE member, an OPTIONAL member, a CHOICE alternative and a
+SEQUENCE OF element, all with the same conversion. A range that fits neither
+(`INTEGER (-1..18446744073709551615)`) is refused at generation with
+`asn1cgo: INTEGER <path> range [..] fits neither int64 nor uint64 ... (refused)`.
+
+The C runtime's own limit applies to the encoded values: its PER codec and its
+generated constraint check keep bounds in a `long`, so it cannot encode a
+present value of a type like `INTEGER (0..18446744073709551615)` (and the
+constraint check rejects values above `LONG_MAX`). `Encode` returns the error
+that `converter-example` reports for the same value. Ranges that stay within
+`long` but exceed 32 bits, such as `INTEGER (0..1099511627775)`, are
+`INTEGER_t` in C and encode fine.
+
+### A CHOICE alternative named `present`
+
+The discriminant field of every CHOICE struct is `Present` and is public API.
+An alternative whose Go name would also be `Present` therefore gets the field
+name **`PresentAlt`**; its `Pr` constant keeps the plain name:
+
+```go
+// T ::= CHOICE { present INTEGER (0..3), b BOOLEAN }
+type T struct { Present TPr; PresentAlt *int64; B *bool }
+const TPrPresent TPr = 1
+```
+
+`PresentAlt` is registered like every other generated name, so an alternative
+literally named `presentAlt` next to `present` is still reported as a
+collision.
+
 ## Runtime module
 
 Generated code imports the runtime module (error model + arena + the asn1c
@@ -525,6 +580,8 @@ a breaking change: the module path changed from `asn1cgo-rt` (or
 | `ASN1CGO_FLATDBG` | Trace the Flat layout engine. |
 
 ## Platform and limits
+
+Known bugs and open limitations are listed in [KNOWN-ISSUES.md](KNOWN-ISSUES.md).
 
 - **amd64-only**: the Flat C layout model mirrors the x86-64 SysV ABI;
   every generated `.go` file carries `//go:build amd64`.
