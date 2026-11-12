@@ -1446,19 +1446,16 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
     char *tsz = qconst(go_flat_ir_name(r), g_szconst(go_flat_ir_name(r)));
     {
         /* The target struct is allocated behind a pointer slot with
-         * alignInt64 bump-pointer placement, so a node whose size is not a
-         * multiple of 8 (an inline SEQUENCE { z BOOLEAN } is 4 bytes) forces
-         * padding up to the next 8-aligned allocation that the narrow sizeof
-         * never reserves ("fixed-region undercounted by 4"). Alloc and size
-         * both use the padded footprint, so consumption stays exactly the
-         * reservation. Sizes that are multiples of 8 keep the const name.
-         * Limited to inline constructs (inline_elem nodes, new with this
-         * support): a NAMED 4-byte node behind a pointer keeps its narrow
-         * sizeof, which is exact only when it is the last allocation (a
-         * latent sizing bug the shipped E2SM-RC output depends on being
-         * byte-identical -- see the README follow-ups). */
+         * alignInt64 bump-pointer placement, so a node whose C size is not a
+         * multiple of 8 (a 4-byte SEQUENCE { e ENUMERATED }, an inline
+         * SEQUENCE { z BOOLEAN }) forces padding up to the next 8-aligned
+         * allocation that the narrow sizeof never reserves ("fixed-region
+         * undercounted by 4"). Alloc and size both use the padded footprint
+         * (tsz feeds BOTH), so consumption stays exactly the reservation.
+         * Sizes that are multiples of 8 keep the const name, so unaffected
+         * types emit byte-identical glue. */
         long nsz = go_flat_ir_node_size(r);
-        if(go_flat_ir_inline_elem(r) && nsz % 8) {
+        if(nsz % 8) {
             free(tsz);
             tsz = gfmt("%ld", nsz + 8 - nsz % 8);
         }
@@ -2739,12 +2736,20 @@ emit_items_helper(flat_type *er) {
      * payload, not just n*stride (the fill helper's loop is the mirror).
      * A prim element is exactly one stride slot, no sub-allocation. */
     int scc_elem = conv_is_scc(er);
+    /* the item array is ONE allocStruct(.., alignInt64): when the element
+     * stride is not a multiple of 8, an odd-length array ends mid-word and
+     * the next 8-aligned allocation pays the pad. Size and fill both reserve
+     * / consume the array rounded up to 8 (only for such strides, so the
+     * common helpers stay byte-identical). */
+    int arr_pad = go_flat_ir_node_size(er) % 8 != 0;
+    char *arr_sz = arr_pad ? gfmt("alignUp(n*uintptr(%s), alignInt64)", stride)
+                           : gfmt("n * uintptr(%s)", stride);
     char *s = gfmt(
         "func size%sItems(f *uintptr, p *uintptr, items []%s%s) error {\n"
         "\tif items == nil {\n\t\treturn nil\n\t}\n"
         "\tn := uintptr(len(items))\n"
-        "\t*f += n * uintptr(%s)\n",
-        cam, qt, scc_elem ? ", depth int" : "", stride);
+        "\t*f += %s\n",
+        cam, qt, scc_elem ? ", depth int" : "", arr_sz);
     if(!prim_elem) {
         /* an SCC element must observe the HOST's depth (each item
          * sizes at host depth; the element's own guard+threading carries
@@ -2781,9 +2786,10 @@ emit_items_helper(flat_type *er) {
         "\t\tstorePtr(hdr, nil)\n"
         "\t\treturn nil\n"
         "\t}\n"
-        "\tarr := fa.allocStruct(uintptr(n)*stride, alignInt64)\n"
+        "\tarr := fa.allocStruct(%s, alignInt64)\n"
         "\tstorePtr(hdr, arr)\n",
-        cam, qt, scc_elem ? ", depth int" : "");
+        cam, qt, scc_elem ? ", depth int" : "",
+        arr_pad ? "alignUp(uintptr(n)*stride, alignInt64)" : "uintptr(n)*stride");
     if(prim_elem) {
         char *stx = gconv_store(prim, gt ? gt : "int64", "items[j]");
         fl = gam(fl, gfmt(
@@ -2840,7 +2846,7 @@ emit_items_helper(flat_type *er) {
     rd = ga(rd, "\treturn out\n}\n\n");
 
     item_helpers_append(s, fl, rd);
-    free(cam); free(qt); free(stride);
+    free(cam); free(qt); free(stride); free(arr_sz);
 }
 
 /* ---------------------------------------------------------------------------

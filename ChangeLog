@@ -1,3 +1,18 @@
+0.9.29-go.6 (unreleased):
+    FIXES:
+    * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region
+      undercounted by N" when a struct whose C size is not a multiple of 8
+      (e.g. a SEQUENCE holding one ENUMERATED, 4 bytes) is held through a
+      pointer (an OPTIONAL member, a CHOICE alternative under
+      -findirect-choice, an OPTIONAL reference) or is the element of a
+      SEQUENCE OF with an odd number of items, and further allocations
+      follow it. The size pass reserved the unpadded size while the arena
+      allocator consumes it rounded up to 8. Example: E2SM-RC
+      TriggerType-Choice-MIMOandBFconfig inside E2SM-RC-EventTrigger-
+      Format4-Item (one item with logicalOR, or two items, panicked). All
+      releases go.1 to go.5 are affected. Programs built from earlier output
+      must be REGENERATED with the fixed asn1c; no runtime change is needed.
+
 0.9.29-go.5:
     NEW:
     * Go backend: named-bit BIT STRING (`BIT STRING { a(0), b(1) }`) is now

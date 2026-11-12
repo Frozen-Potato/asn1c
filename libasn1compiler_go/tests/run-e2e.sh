@@ -47,7 +47,7 @@ run_one() {
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn inlconstr.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn inlconstr.asn padalloc.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
 
@@ -60,7 +60,30 @@ run_one() {
     # members) share this one -Fgo run with default.asn.
     cp "$here/e2e/main_test.go" "$here/e2e/default_test.go" "$here/e2e/nsmall_test.go" "$here/e2e/faults_test.go" \
        "$here/e2e/namedbit_test.go" "$here/e2e/bitstr_test.go" \
-       "$here/e2e/seqofinline_test.go" "$here/e2e/inlconstr_test.go" "$work/go/"
+       "$here/e2e/seqofinline_test.go" "$here/e2e/inlconstr_test.go" \
+       "$here/e2e/randenc_test.go" "$work/go/"
+    # randenc_test.go drives every PDU type: list them from the generated
+    # Encode methods (package dir = module package; type = receiver).
+    {
+        echo "package e2e"
+        echo "import ("
+        echo '	"reflect"'
+        for d in "$work"/go/*/; do
+            n=$(basename "$d")
+            [ -f "$d/glue.go" ] && grep -q '^func (p \*[A-Za-z0-9_]*) Encode()' "$d/glue.go" || continue
+            echo "	p_$n \"asn1cgo.test/go/$n\""
+        done
+        echo ")"
+        echo "func init() {"
+        for d in "$work"/go/*/; do
+            n=$(basename "$d")
+            [ -f "$d/glue.go" ] || continue
+            for ty in $(sed -n 's/^func (p \*\([A-Za-z0-9_]*\)) Encode().*/\1/p' "$d/glue.go"); do
+                echo "	randPDUs = append(randPDUs, randPDU{\"$n.$ty\", reflect.TypeOf((*p_$n.$ty)(nil)).Elem()})"
+            done
+        done
+        echo "}"
+    } >"$work/go/randreg_test.go"
     # The C converter built from the same C tree: the cross-check oracle for
     # APER/UPER/XER in default_test.go.
     (
