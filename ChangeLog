@@ -1,4 +1,4 @@
-0.9.29-go.7 (unreleased):
+0.9.29-go.7:
     NEW:
     * Go backend: a top-level plain NULL type (T ::= NULL) now gets the
       Encode / Decode API like every other PDU type; before, only
