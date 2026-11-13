@@ -1093,7 +1093,8 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 if(!any) { s = ca(s, "/* ---- inline element tree types ---- */\n"); any = 1; }
                 if(ct && strcmp(ct, "struct") == 0) {
                     /* the C type has a struct tag only (an inline CHOICE alt) */
-                    char *_cf = cfmt("typedef struct %s %s_t;\n", base, base); s = ca(s, _cf); free(_cf);
+                    char *cb = conv_c_base(t);
+                    char *_cf = cfmt("typedef struct %s %s_t;\n", cb && *cb ? cb : base, base); s = ca(s, _cf); free(_cf); free(cb);
                 } else {
                     char *_cf = cfmt("typedef %s %s_t;\n", ct && *ct ? ct : base, base); s = ca(s, _cf); free(_cf);
                 }

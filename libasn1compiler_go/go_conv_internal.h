@@ -50,6 +50,7 @@ extern int g_conv_failed_;
  * per call site is unsafe across nested use — RETURNS A MALLOC'D STRING the
  * caller frees. */
 char *conv_tree_base(const void *t);
+char *conv_c_base(const void *t);
 
 /* The flat type name of a node (malloc'd copy of go_flat_ir_name). */
 char *conv_flat_name(const void *t);

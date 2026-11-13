@@ -201,6 +201,13 @@ struct flat_type {
                          * the container clones: Flat ProtocolIE_Container_
                          * 85P0_flat, tree E2AP_ProtocolIE_Container_85P0).
                          * NULL = derive from name (strip _flat).           */
+    char *c_alias_of;   /* top-level `A ::= B` that resolves to a CHOICE B:
+                         * B's cid. C has only `typedef B_t A_t;`, so every
+                         * C-side tag (the _PR enum, the struct tags of the
+                         * inline alternatives) is B's, not A's              */
+    char *c_base;       /* resolved C tree base the node's C spellings use
+                         * (A and A's inline descendants); NULL = the node's
+                         * own tree base. Filled lazily by flat_c_resolve.  */
     int nested_only;    /* 1 = rides inside a parent member (no typedef)    */
     int inline_elem;    /* 1 = an inline (anonymous) element/alt type: the C
                          * tree type has no `<cid>_t` typedef and no exported
@@ -246,6 +253,7 @@ flat_at(int ix) { return ix >= 0 && ix < g_flat.n_types ? &g_flat.types[ix] : NU
 
 static flat_type *flat_new_type(flat_type_kind_e kind, const char *cid,
                                 const char *module);
+static flat_type *flat_ref_resolve(const char *ref);
 
 static flat_type *
 flat_new_type(flat_type_kind_e kind, const char *cid, const char *module) {
@@ -353,6 +361,16 @@ go_flat_choice(const char *cid, const char *module) {
     flat_type *t = flat_new_type(FLT_STRUCT, cid, module);
     if(t) t->is_choice = 1;
     g_flat.cur_ix = t ? (int)(t - g_flat.types) : -1;
+}
+
+/* Record that top-level node `cid` is an alias of the CHOICE `target_cid`
+ * (the chased terminal): its converters spell the C names of the target. */
+void
+go_flat_mark_c_alias(const char *cid, const char *target_cid) {
+    flat_type *t = flat_ref_resolve(cid);
+    if(!t || !target_cid || !*target_cid) return;
+    free(t->c_alias_of);
+    t->c_alias_of = fstrdup(target_cid);
 }
 
 int
@@ -2069,6 +2087,51 @@ const char *go_conv_ir_name(const void *t) {
 }
 const char *go_conv_ir_tree_base_override(const void *t) {
     return t ? ((const flat_type *)t)->tree_base : NULL;
+}
+/* The C tree base the node's C-side spellings (_PR enum, struct tags) use
+ * when it differs from its own tree base: an alias-of-CHOICE node and the
+ * inline nodes minted under it take the target's names (Alias__t2 ->
+ * Orig__t2). NULL = the node's own conv_tree_base. The function and Flat
+ * names are NOT affected. */
+const char *go_conv_ir_c_base(const void *tp) {
+    static int done_n = -1;
+    if(!tp) return NULL;
+    if(done_n != g_flat.n_types) {
+        done_n = g_flat.n_types;
+        for(int i = 0; i < g_flat.n_types; i++) {
+            flat_type *a = &g_flat.types[i];
+            if(!a->c_alias_of) continue;
+            flat_type *r = flat_ref_resolve(a->c_alias_of);
+            if(!r || r == a) continue;
+            const char *rn = r->tree_base ? r->tree_base : r->name;
+            size_t rl = r->tree_base ? strlen(rn) : strlen(rn) - 5;
+            const char *an = a->tree_base ? a->tree_base : a->name;
+            size_t al = a->tree_base ? strlen(an) : strlen(an) - 5;
+            if(!r->tree_base && (strlen(r->name) < 6)) continue;
+            if(!a->tree_base && (strlen(a->name) < 6)) continue;
+            free(a->c_base);
+            a->c_base = malloc(rl + 1);
+            if(!a->c_base) continue;
+            memcpy(a->c_base, rn, rl); a->c_base[rl] = 0;
+            for(int j = 0; j < g_flat.n_types; j++) {
+                flat_type *n = &g_flat.types[j];
+                if(n == a || !(n->inline_elem || n->nested_only)) continue;
+                if(n->module != a->module) continue;
+                size_t nl = strlen(n->name);
+                if(nl < al + 3 + 5 || strncmp(n->name, an, al) != 0
+                   || n->name[al] != '_' || n->name[al + 1] != '_') continue;
+                if(strcmp(n->name + nl - 5, "_flat") != 0) continue;
+                size_t sl = nl - 5 - al;
+                free(n->c_base);
+                n->c_base = malloc(rl + sl + 1);
+                if(!n->c_base) continue;
+                memcpy(n->c_base, rn, rl);
+                memcpy(n->c_base + rl, n->name + al, sl);
+                n->c_base[rl + sl] = 0;
+            }
+        }
+    }
+    return ((const flat_type *)tp)->c_base;
 }
 const char *go_conv_ir_type_label(const void *t) {
     return t ? ((const flat_type *)t)->label : NULL;

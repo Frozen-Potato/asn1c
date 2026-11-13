@@ -143,6 +143,7 @@ void *go_conv_ir_ref_resolve(const char *ref);
 int go_conv_ir_is_choice(const void *t);
 /* tree typedef base override (go_flat.c; container clones). */
 const char *go_conv_ir_tree_base_override(const void *t);
+const char *go_conv_ir_c_base(const void *t);
 /* display labels (recorded ASN.1 Identifiers; go_flat.c). */
 const char *go_conv_ir_type_label(const void *t);
 const char *go_conv_ir_member_label(const void *m);

@@ -298,7 +298,7 @@ static char *
 choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
                        const char *deref) {
     char *label = conv_type_label(t);   /* td->name display label */
-    char *prbase = conv_tree_base(t);   /* <P><X>_PR enum base (prefixed) */
+    char *prbase = conv_c_base(t);      /* <P><X>_PR enum base (prefixed) */
     char *s = cstrdup("");
     /* present assignments */
     { char *_cf = cfmt("    %s%spresent = (%s_PR)%s%spresent;\n", out_sel, deref, prbase, in_sel, deref); s = ca(s, _cf); free(_cf); }

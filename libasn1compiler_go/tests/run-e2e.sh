@@ -47,7 +47,7 @@ run_one() {
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn sofnull.asn inlconstr.asn padalloc.asn extwide.asn strings.asn oids.asn extgroup.asn shadow.asn clash_a.asn clash_b.asn enumhyphen.asn optalias.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn sofnull.asn inlconstr.asn padalloc.asn extwide.asn strings.asn oids.asn extgroup.asn shadow.asn clash_a.asn clash_b.asn enumhyphen.asn optalias.asn aliaschoice.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
 
@@ -69,6 +69,9 @@ run_one() {
     # Likewise the OBJECT IDENTIFIER / RELATIVE-OID helpers and XER entry
     # points of the generated oids package.
     cp "$here/e2e/oids_internal_test.go" "$work/go/oids/"
+    # The alias-of-CHOICE XER cross-check against the C converter (unexported
+    # XER entry points of the generated aliaschoice package).
+    cp "$here/e2e/aliaschoice_internal_test.go" "$work/go/aliaschoice/"
     # randenc_test.go drives every PDU type: list them from the generated
     # Encode methods (package dir = module package; type = receiver).
     {

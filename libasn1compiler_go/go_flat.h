@@ -35,6 +35,7 @@ void go_flat_struct(const char *cid, const char *module);
 /* go_flat_choice: the mint for a CHOICE container (present-first layout;
  * slot stars decided by the caller's EM_INDIRECT read). */
 void go_flat_choice(const char *cid, const char *module);
+void go_flat_mark_c_alias(const char *cid, const char *target_cid);
 
 /* A nested anonymous construct with its own cid (an inline CHOICE wrapper /
  * the open-type __value union): populate via returned handle + mint calls,

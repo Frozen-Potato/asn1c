@@ -11,6 +11,12 @@
       exist, so the member could not be assigned or dereferenced in C. The
       "struct X" spelling now names the constructed type the alias chain ends
       in (`struct Freq *`); `PFL_t` and other spellings are unchanged.
+    * Go backend: a top-level alias of a CHOICE (`Alias ::= Orig`, also an
+      alias of an alias) failed the cgo build: its converters used
+      `Alias_PR` and `struct Alias__t2`, which C does not define (it has only
+      `typedef Orig_t Alias_t;`). They now use the C names of the CHOICE the
+      alias chain ends in (`Orig_PR`, `struct Orig__t2`). The Go types are
+      unchanged; regenerate (asn1c -Fgo).
 
 0.9.29-go.7:
     NEW:

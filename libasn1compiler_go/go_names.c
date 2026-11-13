@@ -5342,6 +5342,12 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
         ctx->parent_cid = save_cid;
     } else if(k == GO_CONSTR_CHOICE) {
         emit_choice(ctx, type_go, type_cid, ident, terminal);
+        if(terminal != expr) {
+            /* `A ::= B` (B a CHOICE): C has only `typedef B_t A_t;` */
+            char *tcid = own_mkid(terminal);
+            go_flat_mark_c_alias(type_cid, tcid);
+            free(tcid);
+        }
     } else if(k == GO_CONSTR_ENUMERATED) {
         emit_enum(ctx, type_go, type_cid, ident, terminal);
     } else if(k == GO_CONSTR_SEQUENCE_OF) {

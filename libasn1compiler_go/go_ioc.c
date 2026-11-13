@@ -32,6 +32,7 @@
 /* The IR label/token accessors (go_flat.c; the same void* surface the other
  * conv TUs use). */
 extern const char *go_conv_ir_tree_base_override(const void *t);
+extern const char *go_conv_ir_c_base(const void *t);
 extern const char *go_conv_ir_type_label(const void *t);
 extern const char *go_conv_ir_member_label(const void *m);
 
@@ -132,6 +133,17 @@ conv_tree_base(const void *t) {
     memcpy(b, nm, n - 5);
     b[n - 5] = '\0';
     return b;
+}
+
+/* The base of the node's C-side tags (the _PR enum, the struct tag of an
+ * inline alternative): the target's for an alias of a CHOICE (C has only
+ * `typedef Orig_t Alias_t;`), else the tree base. Function and Flat names
+ * keep using conv_tree_base. */
+char *
+conv_c_base(const void *t) {
+    const char *c = t ? go_conv_ir_c_base(t) : NULL;
+    if(c && *c) return cstrdup(c);
+    return conv_tree_base(t);
 }
 
 char *

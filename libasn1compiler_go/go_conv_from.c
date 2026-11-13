@@ -362,7 +362,7 @@ static char *
 choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
                          const char *deref) {
     char *label = conv_type_label(t);   /* display label */
-    char *tb_ = conv_tree_base(t);   /* prefixed base for the PR enum */
+    char *tb_ = conv_c_base(t);   /* prefixed base for the PR enum */
     char *prbase = cstrdup(tb_);
     char *s = cstrdup("");
     { char *_cf = cfmt("    %s%spresent = (int32_t)%s%spresent;\n", out_sel, deref, in_sel, deref); s = ca(s, _cf); free(_cf); }
@@ -885,7 +885,7 @@ ioc_node_from_body(void *t) {
                                                    * &criticality column has
                                                    * no criticality member
                                                    * on either side */
-    char *tb_ = conv_tree_base(t);   /* prefixed base for the PR enum */
+    char *tb_ = conv_c_base(t);   /* prefixed base for the PR enum */
     char *prbase = cfmt("%s__value", tb_);   /* the __value PR enum base */
     /* copy id (criticality iff the class carries the column); look the
      * pair up (inverse rows). */

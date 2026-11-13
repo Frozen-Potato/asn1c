@@ -1,3 +1,5 @@
+alias-alias-choice	OK
+alias-choice	OK
 any	REFUSED	asn1cgo: ANY in module Probe
 bits-hyphen	OK
 bitstr-unconstr	OK
