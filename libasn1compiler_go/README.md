@@ -200,6 +200,7 @@ with `rt.ErrDepth`.
 | Restricted strings, UTCTime, GeneralizedTime | `string`; BMPString and UniversalString are converted to and from UTF-8 |
 | OBJECT IDENTIFIER, RELATIVE-OID | `[]uint64` of arcs |
 | SEQUENCE | `struct`, one field per member |
+| SET | `struct`, like SEQUENCE (the codec writes canonical order) |
 | CHOICE | `struct` with `Present <T>Pr` and one pointer field per alternative; constants `<T>Pr<Alt>` |
 | SEQUENCE OF | `[]Elem`; a named type is `type T []Elem`. An inline element type is named `<Owner>Member` |
 | SET OF | `[]Elem`, like SEQUENCE OF; Encode sorts the elements into canonical order (X.691 22.1), so an unsorted slice comes back sorted from Decode |
@@ -323,7 +324,8 @@ FROM, NumericString and time-syntax checks are the C runtime's and surface from
 
 ## Not supported
 
-SET, ANY, EXTERNAL, EMBEDDED PDV, CHARACTER STRING, the DEFAULT forms
+ANY, EXTERNAL, EMBEDDED PDV, CHARACTER STRING, an open-type (information
+object class `&Value`) member of a SET (KNOWN-ISSUES #25), the DEFAULT forms
 listed above, and an INTEGER range that fits neither `int64` nor `uint64` are
 refused at generation with an `asn1cgo: ...` message and exit 70. A bare
 `TYPE-IDENTIFIER.&Type` outside an object-set-governed field is not refused but

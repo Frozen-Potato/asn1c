@@ -1,0 +1,39 @@
+PhcSet DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- SET: the Go type is a struct like SEQUENCE (textual member order); the
+-- codec writes the root members in canonical tag order. SetBasic, SetGrp and
+-- SetTail are the vectors of the C test 171-set-per-OK.
+
+	SetBasic ::= SET { a INTEGER (0..7), b BOOLEAN OPTIONAL, c OCTET STRING, ..., d INTEGER (0..3) OPTIONAL }
+	SetGrp ::= SET { a INTEGER (0..7), ..., [[ g1 BOOLEAN, g2 INTEGER (0..3) OPTIONAL ]] }
+	SetTail ::= SET { a INTEGER (0..7), ..., d INTEGER (0..3) OPTIONAL, ..., e BOOLEAN }
+
+	-- SET as a member, as an OPTIONAL member, as a CHOICE alternative, inline
+	-- (SetMemb and SetOptM are referenced, so they are not PDUs themselves)
+	SetMemb ::= SET { a INTEGER (0..7), b BOOLEAN OPTIONAL, c OCTET STRING, ..., d INTEGER (0..3) OPTIONAL }
+	SetOptM ::= SET { a INTEGER (0..7), ..., [[ g1 BOOLEAN, g2 INTEGER (0..3) OPTIONAL ]] }
+
+	StHold ::= SEQUENCE {
+		s	SetMemb,
+		o	SetOptM OPTIONAL,
+		i	SET { x BOOLEAN, y INTEGER (0..3) OPTIONAL }
+	}
+
+	StAlt ::= CHOICE {
+		s	SetMemb,
+		i	SET { x BOOLEAN, y INTEGER (0..3) OPTIONAL },
+		n	NULL
+	}
+
+	-- SET OF SET
+	StList ::= SET (SIZE(0..3)) OF SET { f BOOLEAN, n INTEGER (0..7) }
+
+	-- DEFAULT members
+	SetDef ::= SET { a INTEGER (0..7) DEFAULT 3, b BOOLEAN DEFAULT TRUE, c INTEGER (0..255) }
+
+END
+
+PhcSetTags DEFINITIONS EXPLICIT TAGS ::= BEGIN
+	SetTags ::= SET { z [2] INTEGER (0..15), y [0] BOOLEAN, x [1] INTEGER (0..3) OPTIONAL }
+	SetCh ::= SET { n [3] INTEGER (0..7), u CHOICE { p [5] BOOLEAN, q [1] NULL } }
+END

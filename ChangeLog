@@ -5,6 +5,13 @@
       nested lists, SET OF a NULL type, extensible SIZE). Encode writes the
       elements in canonical order, so an unsorted slice comes back sorted from
       Decode. Before, a SET OF was refused with exit 70.
+    * Go backend: SET maps to a struct like SEQUENCE (top level, member,
+      OPTIONAL member, CHOICE alternative, inline, SET OF SET, DEFAULT
+      members, extension additions and `[[ ]]` groups as Ext<N>). Encode
+      writes the root members in canonical tag order (X.691 clause 21) and
+      Decode reads them back, so the Go API shows textual order only. Before,
+      a SET was refused with exit 70. An open-type (`&Value`) member of a
+      SET is still refused (the C generator types it as ANY_t).
     * C runtime (also for plain C users): SET OF now has an APER encoder
       (SET_OF_encode_aper). The elements are sorted by their standalone APER
       encodings (X.691 22.1) and then encoded again, in that order, into the

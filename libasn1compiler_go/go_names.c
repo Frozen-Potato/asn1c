@@ -2600,7 +2600,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                      * on the Flat side (flatemit-check flat-name red on the
                      * minted-leaf form). */
                     cprim = "int32_t";
-                } else if(alt->expr_type == ASN_CONSTR_SEQUENCE
+                } else if(go_is_struct_kind(alt->expr_type)
                           || alt->expr_type == ASN_CONSTR_CHOICE
                           || go_is_list_kind(alt->expr_type)) {
                     /* inline constructed alt: pointee = the __-compound cid
@@ -2657,7 +2657,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             {
                 char *ft = NULL;
                 if(alt->expr_type == ASN_BASIC_ENUMERATED
-                   || alt->expr_type == ASN_CONSTR_SEQUENCE
+                   || go_is_struct_kind(alt->expr_type)
                    || alt->expr_type == ASN_CONSTR_CHOICE
                    || go_is_list_kind(alt->expr_type)) {
                     /* An inline constructed alt: typed by its minted
@@ -2703,7 +2703,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
          * SEQUENCE-OF alt mints the slice alias <Choice><Alt> below, with its
          * element named by mint_inline_seqof_elem when that is inline too. */
         if(alt->expr_type == ASN_BASIC_ENUMERATED
-           || alt->expr_type == ASN_CONSTR_SEQUENCE
+           || go_is_struct_kind(alt->expr_type)
            || alt->expr_type == ASN_CONSTR_CHOICE) {
             char *inline_go = str_append(strdup(""), choice_go);
             inline_go = str_append(inline_go, altgo);
@@ -3167,7 +3167,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
                         ctx->asn, ctx->ns, mem);
                     if(r) t = r;
                 }
-                if(t->expr_type == ASN_CONSTR_SEQUENCE
+                if(go_is_struct_kind(t->expr_type)
                    || t->expr_type == ASN_CONSTR_CHOICE
                    || go_is_list_kind(t->expr_type)
                    || t->expr_type == ASN_BASIC_ENUMERATED) {
@@ -4512,7 +4512,8 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
     }
 
     switch(elem->expr_type) {
-    case ASN_CONSTR_SEQUENCE: {
+    case ASN_CONSTR_SEQUENCE:
+    case ASN_CONSTR_SET: {
         emit_name(ctx->bag, ctx->module, strdup(path), GK_INLINE,
                   strdup(inline_cid), strdup(inline_go));
         go_flat_struct(inline_cid, ctx->module);
@@ -4824,7 +4825,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
      * a named Go type <Parent><Member> (the anonymous-inline naming rule)
      * that then parents its own
      * members/enumerators. */
-    if(child->expr_type == ASN_CONSTR_SEQUENCE
+    if(go_is_struct_kind(child->expr_type)
        || child->expr_type == ASN_CONSTR_CHOICE
        || go_is_list_kind(child->expr_type)
        || child->expr_type == ASN_BASIC_ENUMERATED) {
@@ -4979,7 +4980,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             free(inline_go); free(inline_cid); free(inline_path);
             return 0;
         }
-        if(child->expr_type == ASN_CONSTR_SEQUENCE) {
+        if(go_is_struct_kind(child->expr_type)) {
             const char *save_go = ctx->parent_go;
             const char *save_cid = ctx->parent_cid;
             char *save_sf = NULL;
@@ -5720,7 +5721,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                 }
                 char *flat_eterm = own(GO_MKID(eterm));
                 if(eterm->spec_index >= 0
-                   && eterm->expr_type == ASN_CONSTR_SEQUENCE
+                   && go_is_struct_kind(eterm->expr_type)
                    && is_field_shaped_spec(eterm)) {
                     /* the SingleContainer clone: elem = the bare clone id
                      * (the alias node of the resolved ItemIEs Flat — minted

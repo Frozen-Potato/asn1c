@@ -27,6 +27,10 @@ int go_walk_asts(asn1p_t *asn);
  * goes through this predicate. Only the canonical-order sort on Encode and the
  * ASN_SET_ADD / ASN_SEQUENCE_ADD spelling differ.
  */
+/* SET and SEQUENCE share one Go shape (a struct); only the codec (canonical
+ * member order for SET) differs. Every raw expr_type test meaning "a record"
+ * goes through this predicate. */
+#define go_is_struct_kind(t) ((t) == ASN_CONSTR_SEQUENCE || (t) == ASN_CONSTR_SET)
 #define go_is_list_kind(t) ((t) == ASN_CONSTR_SEQUENCE_OF || (t) == ASN_CONSTR_SET_OF)
 
 typedef enum go_construct {

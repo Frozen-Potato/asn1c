@@ -328,6 +328,22 @@ walk_child(struct walk_ctx *ctx, asn1p_expr_t *child,
     asn1p_expr_t *terminal;
 
     if(go_construct_is_open_type(child)) {
+        /* The C generator types an open-type member of a SET as ANY_t (no
+         * <T>_<m>_PR union, no open-type decoder), so there is nothing for the
+         * Go side to mirror. A [[ ]] group inside the SET counts as the SET. */
+        const asn1p_expr_t *par = child->parent_expr;
+        while(par && par->expr_type == ASN_CONSTR_SEQUENCE
+              && par->Identifier == NULL && par->parent_expr)
+            par = par->parent_expr;
+        if(par && par->expr_type == ASN_CONSTR_SET) {
+            fprintf(stderr,
+                    "asn1cgo: open-type member %s%s%s of a SET is out of model "
+                    "in module %s: the C generator does not support it\n",
+                    ctx->toptype ? ctx->toptype : "",
+                    ctx->toptype ? "." : "", path,
+                    ctx->module ? ctx->module : "?");
+            return -1;
+        }
         kind = GO_CONSTR_OPEN_TYPE;
         terminal = child;
         cov_note(kind, ctx->module, ctx->toptype);
@@ -446,7 +462,7 @@ walk_child(struct walk_ctx *ctx, asn1p_expr_t *child,
      * one assignment's inline subtree, so recursion between assignments cannot
      * loop here (it is detected instead via the EM_UNRECURSE marker).
      */
-    if(child->expr_type == ASN_CONSTR_SEQUENCE
+    if(go_is_struct_kind(child->expr_type)
        || child->expr_type == ASN_CONSTR_CHOICE
        || go_is_list_kind(child->expr_type)) {
         if(walk_members(ctx, child, ns, asn, path) < 0)
@@ -577,7 +593,7 @@ walk_expr(struct walk_ctx *ctx, asn1p_expr_t *expr,
      * and termination-safe at the top level too.
      */
     int rc = 0;
-    if(expr->expr_type == ASN_CONSTR_SEQUENCE
+    if(go_is_struct_kind(expr->expr_type)
        || expr->expr_type == ASN_CONSTR_CHOICE
        || go_is_list_kind(expr->expr_type))
         rc = walk_members(ctx, expr, ns, asn, NULL);
@@ -707,7 +723,7 @@ collect_edges_into(struct vertex *dst, asn1p_expr_t *node,
          * `SEQUENCE OF T` where T is a reference is covered above at the
          * element child; the anonymous element of `SEQUENCE OF SEQUENCE{...}`
          * is inline-only (no reference) and recurses here. */
-        if(child->expr_type == ASN_CONSTR_SEQUENCE
+        if(go_is_struct_kind(child->expr_type)
            || child->expr_type == ASN_CONSTR_CHOICE
            || go_is_list_kind(child->expr_type)) {
             collect_edges_into(dst, child, ns, asn, vtab, n_types);

@@ -78,6 +78,7 @@ static const char *const g_hdr_names[] = {
     "GraphicString.h", "TeletexString.h", "T61String.h", "VideotexString.h",
     "ObjectDescriptor.h", "UTCTime.h", "GeneralizedTime.h",
     "OBJECT_IDENTIFIER.h", "RELATIVE-OID.h",
+    "constr_SET.h",
 };
 static unsigned g_hdr_used;
 
@@ -138,7 +139,7 @@ go_construct_name_of(const asn1p_expr_t *t) {
  * classify() maps a *terminal* expression to a kind. The caller has already
  * resolved references (open type, fixed-type class field, plain type ref) and
  * produced the terminal here. meta_type drives the IOC cases; expr_type drives
- * everything else. Anything off the supported list (SET, ...) falls through to UNSUPPORTED.
+ * everything else. Anything off the supported list falls through to UNSUPPORTED.
  *
  * NOTE: GO_CONSTR_OPEN_TYPE and GO_CONSTR_RECURSIVE_REF are NOT produced here.
  * OPEN_TYPE is a reference-shape (lower/uppercase &field), decided before
@@ -157,11 +158,13 @@ go_construct_classify(const asn1p_expr_t *t) {
     switch(t->expr_type) {
     /* Constructed records. */
     case ASN_CONSTR_SEQUENCE:    return GO_CONSTR_SEQUENCE;
+    case ASN_CONSTR_SET:
+        /* copied only for a spec with a SET, so other trees stay unchanged */
+        g_hdr_used |= 1u << 17;
+        return GO_CONSTR_SEQUENCE;
     case ASN_CONSTR_CHOICE:      return GO_CONSTR_CHOICE;
     case ASN_CONSTR_SEQUENCE_OF:
     case ASN_CONSTR_SET_OF:      return GO_CONSTR_SEQUENCE_OF;
-    case ASN_CONSTR_SET:         /* rejected */
-        return GO_CONSTR_UNSUPPORTED;
 
     /* Basic leaves. */
     case ASN_BASIC_BOOLEAN:      return GO_CONSTR_BOOLEAN;
