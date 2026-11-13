@@ -231,6 +231,40 @@ asn1c_type_name(arg_t *arg, asn1p_expr_t *expr, enum tnfmt _format) {
                 asn1f_lookup_symbol_ex(arg->asn, expr_ns, expr, expr->reference) :
                 asn1f_find_terminal_type_ex(arg->asn, expr_ns, expr));
 
+        if(_format == TNF_RSAFE && terminal
+           && !(terminal->expr_type & ASN_CONSTR_MASK)) {
+            /*
+             * "struct X" must name a struct that exists. An alias of an
+             * alias (PFL ::= Freq) has none of its own: follow plain type
+             * references to the constructed type they end in. Anything
+             * else (parameterized, class field, non-constructed end)
+             * keeps the directly referenced symbol.
+             */
+            asn1p_expr_t *cur = terminal;
+            int hops;
+            for(hops = 0; hops < 64 && cur; hops++) {
+                asn1p_expr_t *next;
+                if(cur->expr_type & ASN_CONSTR_MASK) break;
+                if(cur->expr_type != A1TC_REFERENCE
+                   || cur->meta_type != AMT_TYPEREF
+                   || cur->lhs_params || cur->rhs_pspecs
+                   || !cur->reference
+                   || cur->reference->comp_count < 1
+                   || cur->reference->components[
+                          cur->reference->comp_count-1].name[0] == '&') {
+                    cur = 0;
+                    break;
+                }
+                next = WITH_MODULE_NAMESPACE(
+                    cur->module, ref_ns,
+                    asn1f_lookup_symbol_ex(arg->asn, ref_ns, cur,
+                                           cur->reference));
+                cur = next;
+            }
+            if(cur && (cur->expr_type & ASN_CONSTR_MASK))
+                terminal = cur;
+        }
+
         if(_format == TNF_RSAFE) {
 			if(terminal && terminal->expr_type & ASN_CONSTR_MASK) {
 				typename = terminal->Identifier;

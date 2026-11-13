@@ -1,0 +1,366 @@
+
+/*** <<< INCLUDES [Freq] >>> ***/
+
+#include <NativeInteger.h>
+#include <constr_SEQUENCE.h>
+
+/*** <<< TYPE-DECLS [Freq] >>> ***/
+
+typedef struct Freq {
+	long	 f;
+	
+	/* Context for parsing across buffer boundaries */
+	asn_struct_ctx_t _asn_ctx;
+} Freq_t;
+
+/*** <<< FUNC-DECLS [Freq] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Freq;
+extern asn_SEQUENCE_specifics_t asn_SPC_Freq_specs_1;
+extern asn_TYPE_member_t asn_MBR_Freq_1[1];
+
+/*** <<< CODE [Freq] >>> ***/
+
+static int
+memb_f_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	value = *(const long *)sptr;
+	
+	if((value >= 0 && value <= 16383)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+
+/*** <<< STAT-DEFS [Freq] >>> ***/
+
+asn_TYPE_member_t asn_MBR_Freq_1[] = {
+	{ ATF_NOFLAGS, 0, offsetof(struct Freq, f),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (0 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_NativeInteger,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_f_constraint_1 },
+		0, 0, /* No default value */
+		.name = "f"
+		},
+};
+static const ber_tlv_tag_t asn_DEF_Freq_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (16 << 2))
+};
+static const asn_TYPE_tag2member_t asn_MAP_Freq_tag2el_1[] = {
+    { (ASN_TAG_CLASS_CONTEXT | (0 << 2)), 0, 0, 0 } /* f */
+};
+asn_SEQUENCE_specifics_t asn_SPC_Freq_specs_1 = {
+	sizeof(struct Freq),
+	offsetof(struct Freq, _asn_ctx),
+	.tag2el = asn_MAP_Freq_tag2el_1,
+	.tag2el_count = 1,	/* Count of tags in the map */
+	0, 0, 0,	/* Optional elements (not needed) */
+	-1,	/* First extension addition */
+};
+asn_TYPE_descriptor_t asn_DEF_Freq = {
+	"Freq",
+	"Freq",
+	&asn_OP_SEQUENCE,
+	asn_DEF_Freq_tags_1,
+	sizeof(asn_DEF_Freq_tags_1)
+		/sizeof(asn_DEF_Freq_tags_1[0]), /* 1 */
+	asn_DEF_Freq_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Freq_tags_1)
+		/sizeof(asn_DEF_Freq_tags_1[0]), /* 1 */
+	{ 0, 0, SEQUENCE_constraint },
+	asn_MBR_Freq_1,
+	1,	/* Elements count */
+	&asn_SPC_Freq_specs_1	/* Additional specs */
+};
+
+
+/*** <<< INCLUDES [PFL] >>> ***/
+
+#include "Freq.h"
+
+/*** <<< TYPE-DECLS [PFL] >>> ***/
+
+typedef Freq_t	 PFL_t;
+
+/*** <<< FUNC-DECLS [PFL] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_PFL;
+asn_struct_free_f PFL_free;
+asn_struct_print_f PFL_print;
+asn_constr_check_f PFL_constraint;
+ber_type_decoder_f PFL_decode_ber;
+der_type_encoder_f PFL_encode_der;
+xer_type_decoder_f PFL_decode_xer;
+xer_type_encoder_f PFL_encode_xer;
+
+/*** <<< CODE [PFL] >>> ***/
+
+/*
+ * This type is implemented using Freq,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< STAT-DEFS [PFL] >>> ***/
+
+static const ber_tlv_tag_t asn_DEF_PFL_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (16 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_PFL = {
+	"PFL",
+	"PFL",
+	&asn_OP_SEQUENCE,
+	asn_DEF_PFL_tags_1,
+	sizeof(asn_DEF_PFL_tags_1)
+		/sizeof(asn_DEF_PFL_tags_1[0]), /* 1 */
+	asn_DEF_PFL_tags_1,	/* Same as above */
+	sizeof(asn_DEF_PFL_tags_1)
+		/sizeof(asn_DEF_PFL_tags_1[0]), /* 1 */
+	{ 0, 0, SEQUENCE_constraint },
+	asn_MBR_Freq_1,
+	1,	/* Elements count */
+	&asn_SPC_Freq_specs_1	/* Additional specs */
+};
+
+
+/*** <<< INCLUDES [M] >>> ***/
+
+#include <NativeInteger.h>
+#include <constr_SEQUENCE.h>
+
+/*** <<< FWD-DECLS [M] >>> ***/
+
+struct Freq;
+
+/*** <<< TYPE-DECLS [M] >>> ***/
+
+typedef struct M {
+	long	 a;
+	struct Freq	*pf;	/* OPTIONAL */
+	
+	/* Context for parsing across buffer boundaries */
+	asn_struct_ctx_t _asn_ctx;
+} M_t;
+
+/*** <<< FUNC-DECLS [M] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_M;
+
+/*** <<< POST-INCLUDE [M] >>> ***/
+
+#include "PFL.h"
+
+/*** <<< CODE [M] >>> ***/
+
+static int
+memb_a_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	value = *(const long *)sptr;
+	
+	if((value >= 0 && value <= 3)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+
+/*** <<< STAT-DEFS [M] >>> ***/
+
+static asn_TYPE_member_t asn_MBR_M_1[] = {
+	{ ATF_NOFLAGS, 0, offsetof(struct M, a),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (0 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_NativeInteger,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_1 },
+		0, 0, /* No default value */
+		.name = "a"
+		},
+	{ ATF_POINTER, 1, offsetof(struct M, pf),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (1 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_PFL,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		0, 0, /* No default value */
+		.name = "pf"
+		},
+};
+static const ber_tlv_tag_t asn_DEF_M_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (16 << 2))
+};
+static const asn_TYPE_tag2member_t asn_MAP_M_tag2el_1[] = {
+    { (ASN_TAG_CLASS_CONTEXT | (0 << 2)), 0, 0, 0 }, /* a */
+    { (ASN_TAG_CLASS_CONTEXT | (1 << 2)), 1, 0, 0 } /* pf */
+};
+static asn_SEQUENCE_specifics_t asn_SPC_M_specs_1 = {
+	sizeof(struct M),
+	offsetof(struct M, _asn_ctx),
+	.tag2el = asn_MAP_M_tag2el_1,
+	.tag2el_count = 2,	/* Count of tags in the map */
+	0, 0, 0,	/* Optional elements (not needed) */
+	-1,	/* First extension addition */
+};
+asn_TYPE_descriptor_t asn_DEF_M = {
+	"M",
+	"M",
+	&asn_OP_SEQUENCE,
+	asn_DEF_M_tags_1,
+	sizeof(asn_DEF_M_tags_1)
+		/sizeof(asn_DEF_M_tags_1[0]), /* 1 */
+	asn_DEF_M_tags_1,	/* Same as above */
+	sizeof(asn_DEF_M_tags_1)
+		/sizeof(asn_DEF_M_tags_1[0]), /* 1 */
+	{ 0, 0, SEQUENCE_constraint },
+	asn_MBR_M_1,
+	2,	/* Elements count */
+	&asn_SPC_M_specs_1	/* Additional specs */
+};
+
+
+/*** <<< INCLUDES [C] >>> ***/
+
+#include <NativeInteger.h>
+#include <constr_CHOICE.h>
+
+/*** <<< DEPS [C] >>> ***/
+
+typedef enum C_PR {
+	C_PR_NOTHING,	/* No components present */
+	C_PR_a,
+	C_PR_pf
+} C_PR;
+
+/*** <<< FWD-DECLS [C] >>> ***/
+
+struct Freq;
+
+/*** <<< TYPE-DECLS [C] >>> ***/
+
+typedef struct C {
+	C_PR present;
+	union C_u {
+		long	 a;
+		struct Freq	*pf;
+	} choice;
+	
+	/* Context for parsing across buffer boundaries */
+	asn_struct_ctx_t _asn_ctx;
+} C_t;
+
+/*** <<< FUNC-DECLS [C] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_C;
+
+/*** <<< POST-INCLUDE [C] >>> ***/
+
+#include "PFL.h"
+
+/*** <<< CODE [C] >>> ***/
+
+static int
+memb_a_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	value = *(const long *)sptr;
+	
+	if((value >= 0 && value <= 3)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+
+/*** <<< STAT-DEFS [C] >>> ***/
+
+static asn_TYPE_member_t asn_MBR_C_1[] = {
+	{ ATF_NOFLAGS, 0, offsetof(struct C, choice.a),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (0 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_NativeInteger,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_1 },
+		0, 0, /* No default value */
+		.name = "a"
+		},
+	{ ATF_POINTER, 0, offsetof(struct C, choice.pf),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (1 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_PFL,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		0, 0, /* No default value */
+		.name = "pf"
+		},
+};
+static const asn_TYPE_tag2member_t asn_MAP_C_tag2el_1[] = {
+    { (ASN_TAG_CLASS_CONTEXT | (0 << 2)), 0, 0, 0 }, /* a */
+    { (ASN_TAG_CLASS_CONTEXT | (1 << 2)), 1, 0, 0 } /* pf */
+};
+static asn_CHOICE_specifics_t asn_SPC_C_specs_1 = {
+	sizeof(struct C),
+	offsetof(struct C, _asn_ctx),
+	offsetof(struct C, present),
+	sizeof(((struct C *)0)->present),
+	.tag2el = asn_MAP_C_tag2el_1,
+	.tag2el_count = 2,	/* Count of tags in the map */
+	0, 0,
+	.first_extension = -1	/* Extensions start */
+};
+asn_TYPE_descriptor_t asn_DEF_C = {
+	"C",
+	"C",
+	&asn_OP_CHOICE,
+	0,	/* No effective tags (pointer) */
+	0,	/* No effective tags (count) */
+	0,	/* No tags (pointer) */
+	0,	/* No tags (count) */
+	{ 0, 0, CHOICE_constraint },
+	asn_MBR_C_1,
+	2,	/* Elements count */
+	&asn_SPC_C_specs_1	/* Additional specs */
+};
+

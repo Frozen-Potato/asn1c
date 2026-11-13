@@ -5,6 +5,12 @@
       the member with `_<digit>` in its C name now keeps the underscore
       (`DriftD1`, `DriftD_1`); lists without such a clash are unchanged.
       examples/rrc-7.1.0.asn1 gets past this.
+    * C generator (also for plain C users): with -findirect-choice, a
+      member or CHOICE alternative whose type is an alias of an alias
+      (`PFL ::= Freq`) was declared `struct PFL *`, a struct that does not
+      exist, so the member could not be assigned or dereferenced in C. The
+      "struct X" spelling now names the constructed type the alias chain ends
+      in (`struct Freq *`); `PFL_t` and other spellings are unchanged.
 
 0.9.29-go.7:
     NEW:

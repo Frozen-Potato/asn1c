@@ -47,7 +47,7 @@ run_one() {
         "$tmp/bin/asn1c" \
             -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
             -findirect-choice -fno-include-deps -gen-PER "$@" \
-            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn sofnull.asn inlconstr.asn padalloc.asn extwide.asn strings.asn oids.asn extgroup.asn shadow.asn clash_a.asn clash_b.asn enumhyphen.asn
+            -pdu=auto -D "$work/c" -Fgo="$work/go" ex.asn ioc.asn default.asn nsmall.asn namedbit.asn bitstr.asn seqofinline.asn sofnull.asn inlconstr.asn padalloc.asn extwide.asn strings.asn oids.asn extgroup.asn shadow.asn clash_a.asn clash_b.asn enumhyphen.asn optalias.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
 
@@ -61,7 +61,7 @@ run_one() {
     cp "$here/e2e/main_test.go" "$here/e2e/default_test.go" "$here/e2e/nsmall_test.go" "$here/e2e/faults_test.go" \
        "$here/e2e/namedbit_test.go" "$here/e2e/bitstr_test.go" \
        "$here/e2e/seqofinline_test.go" "$here/e2e/sofnull_test.go" "$here/e2e/inlconstr_test.go" \
-       "$here/e2e/extwide_test.go" "$here/e2e/extgroup_test.go" "$here/e2e/strings_test.go" "$here/e2e/oids_test.go" "$here/e2e/shadow_test.go" "$here/e2e/clash_test.go" "$here/e2e/enumhyphen_test.go" \
+       "$here/e2e/extwide_test.go" "$here/e2e/extgroup_test.go" "$here/e2e/strings_test.go" "$here/e2e/oids_test.go" "$here/e2e/shadow_test.go" "$here/e2e/clash_test.go" "$here/e2e/enumhyphen_test.go" "$here/e2e/optalias_test.go" \
        "$here/e2e/randenc_test.go" "$work/go/"
     # The BMPString / UniversalString helpers are unexported: their test lives
     # in the generated strs package.
