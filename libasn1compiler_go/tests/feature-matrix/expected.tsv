@@ -94,8 +94,10 @@ seqof-alias-inline	OK
 seqof-alias-inline-seq	OK
 seqof-ref-top	OK
 set	REFUSED	asn1cgo: SET in module Probe
-setof	REFUSED	asn1cgo: SET OF in module Probe
-setof-mem	REFUSED	asn1cgo: SET OF in module Probe
+setof	OK
+setof-mem	OK
+setof-alt	OK
+setof-nested	OK
 sof-bitstr-mem	OK
 sof-bitstr-top	OK
 sof-bmpstring-top	OK

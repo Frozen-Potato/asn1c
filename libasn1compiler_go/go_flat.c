@@ -197,6 +197,7 @@ struct flat_type {
     int strz;           /* FLT_LEAF bytes: see flat_member.strz             */
     char *elem;         /* FLT_SEQOF element cid (or prim token)            */
     int elem_prim;      /* 1 = elem is a primitive token                    */
+    int is_set_of;      /* 1 = SET OF list (converter spells ASN_SET_ADD)   */
     char *alias_of;     /* FLT_ALIAS target cid                             */
     char *tree_base;    /* tree typedef base override (a bare-
                          * named FLAT whose ORACLE typedef is prefixed —
@@ -475,9 +476,10 @@ go_flat_mark_inline_elem(const char *tree_ctype, const char *go_type) {
 
 int
 go_flat_seqof(const char *cid, const char *elem_cid_or_prim, int elem_is_prim,
-              const char *module) {
+              int is_set_of, const char *module) {
     flat_type *t = flat_new_type(FLT_SEQOF, cid, module);
     if(!t) return -1;
+    t->is_set_of = is_set_of;
     t->elem = fstrdup(elem_cid_or_prim);
     t->elem_prim = elem_is_prim;
     if(t->nested_only) t->nested_only = 0;   /* named SEQ OF typedef */
@@ -663,7 +665,7 @@ go_flat_member_nested_on(int on_ix, int nested_ix, const char *token,
  * value, or * behind a star): mint the nested seqof node on the fly. */
 static void
 flat_member_seqof_at(int tgt_ix, const char *elem_cid, int elem_is_prim,
-                     const char *token, int stars) {
+                     int is_set_of, const char *token, int stars) {
     /* MINT the node FIRST (g_flat.types reallocs inside), and only then
      * resolve the target pointer — a pointer taken before the mint would
      * dangle after the realloc (the heap-corruption bug this comment
@@ -672,6 +674,7 @@ flat_member_seqof_at(int tgt_ix, const char *elem_cid, int elem_is_prim,
     if(!n) return;
     n->elem = fstrdup(elem_cid);
     n->elem_prim = elem_is_prim;
+    n->is_set_of = is_set_of;
     n->nested_only = 1;
     flat_add_member(flat_at(tgt_ix), FT_NESTED, NULL, NULL,
                     (int)(n - g_flat.types), token, stars);
@@ -679,20 +682,21 @@ flat_member_seqof_at(int tgt_ix, const char *elem_cid, int elem_is_prim,
 }
 
 void
-go_flat_member_seqof(const char *elem_cid, int elem_is_prim, const char *token,
-                     int stars) {
-    flat_member_seqof_at(g_flat.cur_ix, elem_cid, elem_is_prim,
+go_flat_member_seqof(const char *elem_cid, int elem_is_prim, int is_set_of,
+                     const char *token, int stars) {
+    flat_member_seqof_at(g_flat.cur_ix, elem_cid, elem_is_prim, is_set_of,
                          token, stars);
 }
 
 void
 go_flat_member_seqof_on(int nest_ix, const char *elem_cid,
-                        int elem_is_prim, const char *token, int stars) {
+                        int elem_is_prim, int is_set_of, const char *token,
+                        int stars) {
     /* the member ROW lands on the ENCLOSING struct (cur) pointing at the new
      * {items,count} node; nest_ix (a pre-minted FLT_STRUCT for the same
      * construct, whose members instead ride the seqof node) stays empty —
      * empty nested nodes emit nothing. */
-    flat_member_seqof_at(g_flat.cur_ix, elem_cid, elem_is_prim,
+    flat_member_seqof_at(g_flat.cur_ix, elem_cid, elem_is_prim, is_set_of,
                          token, stars);
     (void)nest_ix;
 }
@@ -769,6 +773,7 @@ long go_flat_ir_member_offset(flat_member *m) { return m ? (long)m->offset : -1;
 long go_flat_ir_node_size(flat_type *t) { return t ? (long)t->size : -1; }
 const char *go_flat_ir_elem(flat_type *t) { return t ? t->elem : NULL; }
 int go_flat_ir_elem_prim(flat_type *t) { return t ? t->elem_prim : 0; }
+int go_flat_ir_is_set_of(flat_type *t) { return t ? t->is_set_of : 0; }
 int go_flat_ir_inline_elem(flat_type *t) { return t ? t->inline_elem : 0; }
 int go_flat_ir_null_leaf(flat_type *t) { return t ? t->null_leaf : 0; }
 const char *go_flat_ir_tree_ctype(flat_type *t) { return t ? t->tree_ctype : NULL; }

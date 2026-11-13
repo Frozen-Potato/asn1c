@@ -1,5 +1,10 @@
 0.9.29-go.8 (unreleased):
     NEW:
+    * Go backend: SET OF maps to []T like SEQUENCE OF (named or inline
+      elements, top level, member, OPTIONAL member, CHOICE alternative,
+      nested lists, SET OF a NULL type, extensible SIZE). Encode writes the
+      elements in canonical order, so an unsorted slice comes back sorted from
+      Decode. Before, a SET OF was refused with exit 70.
     * C runtime (also for plain C users): SET OF now has an APER encoder
       (SET_OF_encode_aper). The elements are sorted by their standalone APER
       encodings (X.691 22.1) and then encoded again, in that order, into the

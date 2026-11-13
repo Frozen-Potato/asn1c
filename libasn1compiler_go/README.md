@@ -202,6 +202,7 @@ with `rt.ErrDepth`.
 | SEQUENCE | `struct`, one field per member |
 | CHOICE | `struct` with `Present <T>Pr` and one pointer field per alternative; constants `<T>Pr<Alt>` |
 | SEQUENCE OF | `[]Elem`; a named type is `type T []Elem`. An inline element type is named `<Owner>Member` |
+| SET OF | `[]Elem`, like SEQUENCE OF; Encode sorts the elements into canonical order (X.691 22.1), so an unsorted slice comes back sorted from Decode |
 | Inline SEQUENCE / CHOICE | a named type `<Parent><Member>` (`<Choice><Alt>` for an alternative), one more segment per nesting level |
 | OPTIONAL member | pointer (`*T`); `nil` = absent |
 | Extension addition | always a pointer, `OPTIONAL` or not; `nil` = absent |
@@ -322,7 +323,7 @@ FROM, NumericString and time-syntax checks are the C runtime's and surface from
 
 ## Not supported
 
-SET, SET OF, ANY, EXTERNAL, EMBEDDED PDV, CHARACTER STRING, the DEFAULT forms
+SET, ANY, EXTERNAL, EMBEDDED PDV, CHARACTER STRING, the DEFAULT forms
 listed above, and an INTEGER range that fits neither `int64` nor `uint64` are
 refused at generation with an `asn1cgo: ...` message and exit 70. A bare
 `TYPE-IDENTIFIER.&Type` outside an object-set-governed field is not refused but

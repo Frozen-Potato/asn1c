@@ -448,7 +448,7 @@ walk_child(struct walk_ctx *ctx, asn1p_expr_t *child,
      */
     if(child->expr_type == ASN_CONSTR_SEQUENCE
        || child->expr_type == ASN_CONSTR_CHOICE
-       || child->expr_type == ASN_CONSTR_SEQUENCE_OF) {
+       || go_is_list_kind(child->expr_type)) {
         if(walk_members(ctx, child, ns, asn, path) < 0)
             return -1;
     }
@@ -579,7 +579,7 @@ walk_expr(struct walk_ctx *ctx, asn1p_expr_t *expr,
     int rc = 0;
     if(expr->expr_type == ASN_CONSTR_SEQUENCE
        || expr->expr_type == ASN_CONSTR_CHOICE
-       || expr->expr_type == ASN_CONSTR_SEQUENCE_OF)
+       || go_is_list_kind(expr->expr_type))
         rc = walk_members(ctx, expr, ns, asn, NULL);
 
     ctx->toptype = save_toptype;
@@ -709,7 +709,7 @@ collect_edges_into(struct vertex *dst, asn1p_expr_t *node,
          * is inline-only (no reference) and recurses here. */
         if(child->expr_type == ASN_CONSTR_SEQUENCE
            || child->expr_type == ASN_CONSTR_CHOICE
-           || child->expr_type == ASN_CONSTR_SEQUENCE_OF) {
+           || go_is_list_kind(child->expr_type)) {
             collect_edges_into(dst, child, ns, asn, vtab, n_types);
         }
     }

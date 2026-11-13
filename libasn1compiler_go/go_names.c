@@ -2602,7 +2602,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     cprim = "int32_t";
                 } else if(alt->expr_type == ASN_CONSTR_SEQUENCE
                           || alt->expr_type == ASN_CONSTR_CHOICE
-                          || alt->expr_type == ASN_CONSTR_SEQUENCE_OF) {
+                          || go_is_list_kind(alt->expr_type)) {
                     /* inline constructed alt: pointee = the __-compound cid
                      * the mint below creates; prim-form slot when inline */
                     const char *ac = go_mk_suffix(alt);
@@ -2659,7 +2659,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 if(alt->expr_type == ASN_BASIC_ENUMERATED
                    || alt->expr_type == ASN_CONSTR_SEQUENCE
                    || alt->expr_type == ASN_CONSTR_CHOICE
-                   || alt->expr_type == ASN_CONSTR_SEQUENCE_OF) {
+                   || go_is_list_kind(alt->expr_type)) {
                     /* An inline constructed alt: typed by its minted
                      * <Choice><Alt> name (the anonymous-inline naming
                      * rule), same-module. */
@@ -2781,7 +2781,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             char *bit_path = make_path(parent_path, alt->Identifier);
             emit_bit_names(ctx, bit_go, bit_cid, bit_path, alt);
             free(bit_go); free(bit_cid); free(bit_path);
-        } else if(alt->expr_type == ASN_CONSTR_SEQUENCE_OF) {
+        } else if(go_is_list_kind(alt->expr_type)) {
             /* An inline SEQUENCE OF alt: the named slice `type <Choice><Alt>
              * []Elem`, a package-scoped Flat {items,count} node of the C
              * cid <choice>__<alt> (the alt slot is a pointer to it). The C
@@ -2815,7 +2815,9 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             }
             if(mrc >= 0 && !ctx->bag->failed) {
                 row_set_slice_elem_at(ctx->bag, sq_row, ge);
-                (void)go_flat_seqof(sq_cid, fc, 0, ctx->module);
+                (void)go_flat_seqof(sq_cid, fc, 0,
+                                     alt->expr_type == ASN_CONSTR_SET_OF,
+                                     ctx->module);
                 go_flat_mark_inline_elem("struct", NULL);
                 go_flat_cur_restore(save_fcur);
             }
@@ -3167,7 +3169,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
                 }
                 if(t->expr_type == ASN_CONSTR_SEQUENCE
                    || t->expr_type == ASN_CONSTR_CHOICE
-                   || t->expr_type == ASN_CONSTR_SEQUENCE_OF
+                   || go_is_list_kind(t->expr_type)
                    || t->expr_type == ASN_BASIC_ENUMERATED) {
                     char *tgo = go_type_go(t);
                     ft = str_append(strdup(""), tgo);
@@ -4548,7 +4550,8 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
         *go_elem = strdup(inline_go);
         break;
     }
-    case ASN_CONSTR_SEQUENCE_OF: {
+    case ASN_CONSTR_SEQUENCE_OF:
+    case ASN_CONSTR_SET_OF: {
         emit_name(ctx->bag, ctx->module, strdup(path), GK_INLINE,
                   strdup(inline_cid), strdup(inline_go));
         int row_ix = ctx->bag->n_rows - 1;
@@ -4571,7 +4574,8 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
         }
         if(rc < 0 || ctx->bag->failed) { free(ig); free(ic); rc = -1; break; }
         row_set_slice_elem_at(ctx->bag, row_ix, ig);
-        (void)go_flat_seqof(inline_cid, ic, 0, ctx->module);
+        (void)go_flat_seqof(inline_cid, ic, 0,
+                           elem->expr_type == ASN_CONSTR_SET_OF, ctx->module);
         go_flat_mark_inline_elem(NULL, NULL);
         free(ig); free(ic);
         *go_elem = strdup(inline_go);
@@ -4822,7 +4826,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
      * members/enumerators. */
     if(child->expr_type == ASN_CONSTR_SEQUENCE
        || child->expr_type == ASN_CONSTR_CHOICE
-       || child->expr_type == ASN_CONSTR_SEQUENCE_OF
+       || go_is_list_kind(child->expr_type)
        || child->expr_type == ASN_BASIC_ENUMERATED) {
 
         /* inline record goName = <Parent><Member> (the anonymous-inline
@@ -4904,7 +4908,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                 if(is_dflt) go_flat_last_member_default(tree_ptr);
                 free(m);
             }
-        } else if(child->expr_type == ASN_CONSTR_SEQUENCE_OF) {
+        } else if(go_is_list_kind(child->expr_type)) {
             /* the SEQ OF tail attaches the ONE member row itself (a nested
              * {items,count} behind the member star) — no pre-mint attach here
              * (a second attach duplicated the member token). */
@@ -5072,8 +5076,9 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                 char *flat_selem = inl_flat_cid ? strdup(inl_flat_cid)
                                    : se_ ? own(GO_MKID(se_)) : strdup("");
                 char *flat_mtok = go_mk_member(child);
-                go_flat_member_seqof(flat_selem, 0, flat_mtok,
-                                     stars && *stars == '*');
+                go_flat_member_seqof(flat_selem, 0,
+                                     child->expr_type == ASN_CONSTR_SET_OF,
+                                     flat_mtok, stars && *stars == '*');
                 go_flat_label_last_member(child->Identifier);
                 free(flat_selem); free(flat_mtok);
             }
@@ -5240,7 +5245,9 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             }
             char *flat_selem = own(GO_MKID(sterm));
             char *flat_mtok = go_mk_member(child);
-            go_flat_member_seqof(flat_selem, 0, flat_mtok, flat_star);
+            go_flat_member_seqof(flat_selem, 0,
+                                 terminal->expr_type == ASN_CONSTR_SET_OF,
+                                 flat_mtok, flat_star);
             go_flat_label_last_member(child->Identifier);
             free(flat_selem); free(flat_mtok);
         } else if(tk == GO_CONSTR_SEQUENCE_OF) {
@@ -5683,7 +5690,9 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
             free(ogo); free(ocid);
             if(mrc < 0) { free(ge); free(fc); return -1; }
             row_set_slice_elem_at(ctx->bag, owner_row, ge);
-            (void)go_flat_seqof(type_cid, fc, 0, ctx->module);
+            (void)go_flat_seqof(type_cid, fc, 0,
+                               terminal->expr_type == ASN_CONSTR_SET_OF,
+                               ctx->module);
             go_flat_label_cur(terminal->Identifier);
             free(ge); free(fc);
             return 0;
@@ -5731,7 +5740,9 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                     const char *of_bare = flat_eterm;
                     if(pl && strncmp(of_bare, pfx, pl) == 0)
                         of_bare += pl;
-                    (void)go_flat_seqof(type_cid, bare, 0, ctx->module);
+                    (void)go_flat_seqof(type_cid, bare, 0,
+                                       terminal->expr_type == ASN_CONSTR_SET_OF,
+                                       ctx->module);
                     go_flat_label_cur(terminal->Identifier);
                     if(strcmp(bare, of_bare) != 0) {
                         char *alias_cid = own(bare);
@@ -5742,6 +5753,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                     free(bare);
                 } else {
                     (void)go_flat_seqof(type_cid, flat_eterm, 0,
+                                        terminal->expr_type == ASN_CONSTR_SET_OF,
                                         ctx->module);
                     go_flat_label_cur(terminal->Identifier);
                 }

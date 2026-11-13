@@ -21,10 +21,18 @@
  */
 int go_walk_asts(asn1p_t *asn);
 
+/*
+ * SEQUENCE OF and SET OF share one C layout (A_SEQUENCE_OF(T) is A_SET_OF(T))
+ * and one Go shape ([]Elem), so every raw expr_type test that means "a list"
+ * goes through this predicate. Only the canonical-order sort on Encode and the
+ * ASN_SET_ADD / ASN_SEQUENCE_ADD spelling differ.
+ */
+#define go_is_list_kind(t) ((t) == ASN_CONSTR_SEQUENCE_OF || (t) == ASN_CONSTR_SET_OF)
+
 typedef enum go_construct {
     GO_CONSTR_SEQUENCE,         /* SEQUENCE (record)            asn1p_expr.h ASN_CONSTR_SEQUENCE  */
     GO_CONSTR_CHOICE,           /* CHOICE                        ASN_CONSTR_CHOICE  */
-    GO_CONSTR_SEQUENCE_OF,      /* SEQUENCE OF                   ASN_CONSTR_SEQUENCE_OF  */
+    GO_CONSTR_SEQUENCE_OF,      /* SEQUENCE OF / SET OF          ASN_CONSTR_SEQUENCE_OF ASN_CONSTR_SET_OF  */
     GO_CONSTR_ENUMERATED,       /* ENUMERATED                    ASN_BASIC_ENUMERATED  */
     GO_CONSTR_OPTIONAL,         /* OPTIONAL member (marker)      EM_OPTIONAL  */
     GO_CONSTR_DEFAULT,          /* DEFAULT member (marker)       EM_DEFAULT  */

@@ -104,6 +104,7 @@ const char *go_flat_ir_module(flat_type *t);
 const char *go_flat_ir_prim(flat_type *t);
 const char *go_flat_ir_elem(flat_type *t);
 int go_flat_ir_elem_prim(flat_type *t);
+int go_flat_ir_is_set_of(flat_type *t);   /* SET OF list: ASN_SET_ADD */
 int go_flat_ir_inline_elem(flat_type *t);
 int go_flat_ir_null_leaf(flat_type *t);
 const char *go_flat_ir_tree_ctype(flat_type *t);

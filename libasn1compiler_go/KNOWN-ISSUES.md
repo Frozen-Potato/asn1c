@@ -12,7 +12,7 @@ Status: `Open`, `Fixed (<version>)`, `Wontfix`.
 | 3 | Type names that exist in several modules of one `-Fgo` run (the same name in two input files) make the generated conversion code refer to `struct <Name>` instead of the module-prefixed C name, so the cgo package fails to compile (`invalid application of 'sizeof' to incomplete type`). Workaround: give the types unique names. | Fixed (go.7) |
 | 4 | A field of an inline `SEQUENCE` was checked for name collisions against the fields of the enclosing struct, so valid specifications (e.g. `examples/rrc-7.1.0.asn1`'s `completeSIB-List`) were refused. Output was never wrong. `rrc-7.1.0.asn1` now stops at #16. | Fixed (go.7) |
 | 5 | `SEQUENCE OF` an inline unsigned `INTEGER` wider than 32 bits is not supported as an element (`INTEGER (0..4294967295)`): the C generator emits unusable C (`asn_DEF_Member_2` undeclared). | Fixed (go.7) |
-| 6 | `SEQUENCE OF SEQUENCE OF {SEQUENCE \| CHOICE}` (and the `SET OF` forms): the C generator emitted unusable C. The Go backend handles the `SEQUENCE OF` forms; the `SET OF` forms are still refused by it (`SET OF` is not supported). | Fixed (go.7) |
+| 6 | `SEQUENCE OF SEQUENCE OF {SEQUENCE \| CHOICE}` (and the `SET OF` forms): the C generator emitted unusable C. The Go backend handles both the `SEQUENCE OF` and the `SET OF` forms. | Fixed (go.7) |
 | 7 | `SEQUENCE OF` a reference to a NULL type fails with `asn1cgo: conv: unresolved seqof elem`. | Fixed (go.7) |
 | 8 | `SEQUENCE OF` with a `SIZE` constraint on both the outer and inner list makes asn1c abort in the parser (`asn1p_y.y` assertion). | Fixed (go.7) |
 | 9 | `ISO646String` makes asn1c abort (`asn1fix_constraint_compat.c`, `asn1constraint_default_alphabet` assertion). | Open (asn1fix) |

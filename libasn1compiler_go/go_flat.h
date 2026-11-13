@@ -98,7 +98,7 @@ int go_flat_leaf_gleaf(const char *cid, int gleaf, const char *module);
  * count; } <P><CIdent>_flat;`. elem is the ELEMENT cid (or a prim token
  * when elem_is_prim). */
 int go_flat_seqof(const char *cid, const char *elem, int elem_is_prim,
-                  const char *module);
+                  int is_set_of, const char *module);
 
 /* An alias (the SingleContainer clone form): `typedef <of>_flat
  * <P><CIdent>_flat;`. */
@@ -129,7 +129,7 @@ void go_flat_member_ref_on(int ix, const char *cid, const char *token, int stars
 /* An inline SEQ OF member ({items,count} nested anonymous): minted
  * and attached in one call. */
 void go_flat_member_seqof(const char *elem_cid, int elem_is_prim,
-                          const char *token, int stars);
+                          int is_set_of, const char *token, int stars);
 /* Mark the CUR node (the one just minted) an inline element/alt type: no
  * `<cid>_t` typedef and no asn_DEF_<cid> exist in the C tree (the element is
  * an anonymous type inside its SEQUENCE OF / CHOICE). tree_ctype = the C
@@ -141,7 +141,8 @@ void go_flat_mark_inline_elem(const char *tree_ctype, const char *go_type);
 /* the _on form: attach onto the ENCLOSING struct's nested node index (the
  * inline-SEQ-OF member whose node was pre-minted by go_flat_struct_nested). */
 void go_flat_member_seqof_on(int nest_ix, const char *elem_cid,
-                             int elem_is_prim, const char *token, int stars);
+                             int elem_is_prim, int is_set_of,
+                             const char *token, int stars);
 
 /* A BARE-NAMED alias (the SingleContainer collapse): `typedef
  * <of_cid>_flat <cid>_flat;` — NO run prefix on either side (clone family
