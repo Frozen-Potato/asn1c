@@ -13,7 +13,7 @@ Status: `Open`, `Fixed (<version>)`, `Wontfix`.
 | 4 | A field of an inline `SEQUENCE` was checked for name collisions against the fields of the enclosing struct, so valid specifications (e.g. `examples/rrc-7.1.0.asn1`'s `completeSIB-List`) were refused. Output was never wrong. `rrc-7.1.0.asn1` now stops at #16. | Fixed (go.7) |
 | 5 | `SEQUENCE OF` an inline unsigned `INTEGER` wider than 32 bits is not supported as an element (`INTEGER (0..4294967295)`): the C generator emits unusable C (`asn_DEF_Member_2` undeclared). | Open (C generator) |
 | 6 | `SEQUENCE OF SEQUENCE OF {SEQUENCE \| CHOICE}`: the C generator emits unusable C. | Open (C generator) |
-| 7 | `SEQUENCE OF` a reference to a NULL type fails with `asn1cgo: conv: unresolved seqof elem`. | Open |
+| 7 | `SEQUENCE OF` a reference to a NULL type fails with `asn1cgo: conv: unresolved seqof elem`. | Fixed (go.7) |
 | 8 | `SEQUENCE OF` with a `SIZE` constraint on both the outer and inner list makes asn1c abort in the parser (`asn1p_y.y` assertion). | Open (parser) |
 | 9 | `ISO646String` makes asn1c abort (`asn1fix_constraint_compat.c`, `asn1constraint_default_alphabet` assertion). | Open (asn1fix) |
 | 10 | A top-level wide `INTEGER_t` leaf is always converted with the unsigned verbs, even when its Go type is `int64`. Only reachable with `-fwide-types`. | Open |

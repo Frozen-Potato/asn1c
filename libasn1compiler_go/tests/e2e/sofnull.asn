@@ -1,0 +1,32 @@
+SofNull DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- SEQUENCE OF a named NULL type (directly and through an alias): top level,
+-- as a SEQUENCE member, as an OPTIONAL member and as a CHOICE alternative.
+-- Also a plain member / alternative of the NULL type itself.
+
+	SnN ::= NULL
+	SnN2 ::= SnN
+
+	SnTop ::= SEQUENCE (SIZE(0..4)) OF SnN
+	SnAlias ::= SEQUENCE (SIZE(0..4)) OF SnN2
+
+	SnMem ::= SEQUENCE {
+		a	SEQUENCE (SIZE(0..4)) OF SnN,
+		b	SEQUENCE (SIZE(0..4)) OF SnN2 OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	SnAlt ::= CHOICE {
+		a	SEQUENCE (SIZE(0..4)) OF SnN,
+		b	SnN,
+		c	BOOLEAN
+	}
+
+	SnPlain ::= SEQUENCE {
+		n	SnN,
+		o	SnN OPTIONAL,
+		flag	BOOLEAN
+	}
+
+END

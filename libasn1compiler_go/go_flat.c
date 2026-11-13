@@ -204,6 +204,9 @@ struct flat_type {
                          * tree type has no `<cid>_t` typedef and no exported
                          * asn_DEF_<cid>; the conv file declares the _t alias
                          * from tree_ctype and frees through the owning tree */
+    int null_leaf;      /* 1 = the hidden leaf of a NULL TYPE assignment: an
+                         * int32 placeholder slot, Go type = the named struct
+                         * type; only SEQUENCE OF elements resolve to it    */
     char *tree_ctype;   /* inline_elem: the C spelling of the tree type     */
     char *go_type;      /* inline_elem leaf: the Go element type text (the
                          * unnamed leaf mapping, e.g. int64); NULL = a named
@@ -449,6 +452,14 @@ go_flat_leaf_gleaf(const char *cid, int gleaf, const char *module) {
         flat_at(ix)->strz = z;
     }
     return ix;
+}
+
+/* Mark the CUR node (just minted) as the hidden leaf of a NULL type
+ * assignment (see null_leaf). */
+void
+go_flat_mark_null_leaf(void) {
+    flat_type *t = flat_at(g_flat.cur_ix);
+    if(t) t->null_leaf = 1;
 }
 
 /* Mark the CUR node (just minted) as an inline element/alt type: see the
@@ -748,6 +759,7 @@ long go_flat_ir_node_size(flat_type *t) { return t ? (long)t->size : -1; }
 const char *go_flat_ir_elem(flat_type *t) { return t ? t->elem : NULL; }
 int go_flat_ir_elem_prim(flat_type *t) { return t ? t->elem_prim : 0; }
 int go_flat_ir_inline_elem(flat_type *t) { return t ? t->inline_elem : 0; }
+int go_flat_ir_null_leaf(flat_type *t) { return t ? t->null_leaf : 0; }
 const char *go_flat_ir_tree_ctype(flat_type *t) { return t ? t->tree_ctype : NULL; }
 const char *go_flat_ir_go_type(flat_type *t) { return t ? t->go_type : NULL; }
 const char *go_flat_ir_alias_of(flat_type *t) { return t ? t->alias_of : NULL; }

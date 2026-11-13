@@ -5268,7 +5268,13 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
         row_set_leaf(ctx->bag, lk);
         /* Flat: the leaf mint rides the SAME classification (one decision,
          * both columns; leaf = bare typedef of the mapping-table Flat prim). */
-        go_flat_leaf_gleaf(type_cid, lk, ctx->module);
+        if(lk == GLEAF_NULL) {
+            /* a NULL type mints a hidden int32 placeholder leaf, only so
+             * that a SEQUENCE OF this type has an element to resolve */
+            (void)go_flat_leaf(type_cid, "int32_t", ctx->module);
+            go_flat_mark_null_leaf();
+        } else
+            go_flat_leaf_gleaf(type_cid, lk, ctx->module);
         go_flat_label_cur(terminal->Identifier);   /* td->name label */
     }
 

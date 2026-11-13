@@ -761,6 +761,8 @@ node_from_body(void *t) {
                 "            out->buf = NULL;\n"
                 "        }\n"
                 "    }\n", label); s = ca(s, _cf); free(_cf); }
+        } else if(go_flat_ir_null_leaf(t)) {
+            s = ca(s, "    (void)in;\n    *out = 0;\n");
         } else if(go_flat_ir_inline_elem(t) && go_flat_ir_tree_ctype(t)) {
             /* inline SEQUENCE OF element leaf: read through its exact C
              * tree type (see leaf_to_body) */

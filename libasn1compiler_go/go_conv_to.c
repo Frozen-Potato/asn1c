@@ -551,6 +551,8 @@ leaf_to_body(void *t, const char *label) {
     /* an inline SEQUENCE OF element leaf knows its exact C tree type (long,
      * unsigned long, BOOLEAN_t, NULL_t, double): store through it, so a
      * 4-byte BOOLEAN_t / NULL_t slot is never written as a long. */
+    if(go_flat_ir_null_leaf(t))
+        return cstrdup("    (void)in;\n    *(NULL_t *)out = 0;\n");
     if(go_flat_ir_inline_elem(t) && go_flat_ir_tree_ctype(t)) {
         const char *ct = go_flat_ir_tree_ctype(t);
         if(strcmp(ct, "NULL_t") == 0)

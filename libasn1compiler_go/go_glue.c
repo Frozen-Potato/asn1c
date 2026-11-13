@@ -1851,7 +1851,28 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
             szc = gfmt("uintptr(%d)", gw0);
         }
         const char *szexpr = szc;
-        if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
+        if(go_flat_ir_null_leaf(r)) {
+            /* a member of a NULL type: the Flat slot is an int32 placeholder
+             * (the Go value carries nothing but its presence). */
+            int ft_ptr = ft && *ft == '*';
+            if(stars) {
+                (*E->fill) = gam((*E->fill), gfmt(
+                    "\tif %s != nil {\n"
+                    "\t\twv := fa.allocStruct(%s, alignInt64)\n"
+                    "\t\t*(*int32)(wv) = 0\n"
+                    "\t\tstorePtr(%s, wv)\n\t}\n", acc, szexpr, slot));
+                (*E->read) = gam((*E->read), gfmt(
+                    "\tif p := *(**byte)(%s); p != nil {\n"
+                    "\t\t%s = &%s{}\n\t}\n", slot, acc, cast));
+                (*E->szt) = gam((*E->szt), gfmt(
+                    "\tif %s != nil {\n\t\tfixed += %s\n\t}\n", acc, szexpr));
+            } else {
+                (*E->fill) = gam((*E->fill), gfmt(
+                    "\t*(*int32)(%s) = 0\n", slot));
+                (*E->read) = gam((*E->read), gfmt(
+                    "\t%s = %s%s{}\n", acc, ft_ptr ? "&" : "", cast));
+            }
+        } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
             /* the union-ALT form: a Go star-string / star-byte-slice /
              * star-alias field whose
              * Flat member is an INLINE bytes_flat record (no pointer slot) —
@@ -3132,6 +3153,11 @@ emit_type_fn(flat_type *t) {
                 lbs, (alq && *alq) ? alq : lbs));
             free(lbs);
             (*E.szt) = ga((*E.szt), "\tpayload += uintptr(len((*v).Bytes))\n");
+        } else if(go_flat_ir_null_leaf(t)) {
+            /* the hidden leaf of a NULL type assignment, the element of a
+             * SEQUENCE OF it: a placeholder slot, the Go value is `alq{}` */
+            (*E.fill) = ga((*E.fill), "\t*(*int32)(slot) = 0\n\t_ = v\n");
+            (*E.read) = gam((*E.read), gfmt("\t*v = %s{}\n", (alq && *alq) ? alq : "struct{}"));
         } else if(go_flat_ir_go_type(t)
                   && strcmp(go_flat_ir_go_type(t), "struct{}") == 0) {
             /* a hidden NULL element: one int32 placeholder slot per item

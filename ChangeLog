@@ -1,5 +1,12 @@
 0.9.29-go.7 (unreleased):
     FIXES:
+    * Go backend: a SEQUENCE OF a reference to a NULL type (N ::= NULL,
+      L ::= SEQUENCE OF N, also through an alias N2 ::= N) was refused with
+      "conv: unresolved seqof elem", at top level, as a member, as an
+      OPTIONAL member and as a CHOICE alternative. It now maps to []N (type N
+      struct{}) and round-trips the element count. A plain member of a NULL
+      type (T ::= SEQUENCE { n N }), which stopped with "flat: unresolved
+      ref", works too.
     * Go backend: a field of an inline SEQUENCE (or of an inline CHOICE
       alternative) was checked for name collisions against the fields of the
       enclosing struct, so a valid specification such as

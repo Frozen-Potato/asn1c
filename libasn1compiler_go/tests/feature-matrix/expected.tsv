@@ -116,11 +116,14 @@ sof-int-unconstr-top	OK
 sof-int-wide-top	OK
 sof-name-clash	REFUSED	asn1cgo: collision in module Probe
 sof-name-clash2	REFUSED	asn1cgo: collision in module Probe
+sof-named-null-alias	OK
+sof-named-null-mem	OK
+sof-named-null-top	OK
 sof-namedbit-mem	OK
 sof-namedbit-top	OK
 sof-null-alt	OK
 sof-null-mem	OK
-sof-null-ref	KNOWN-BROKEN	followup-null-ref
+sof-null-ref	OK
 sof-null-top	OK
 sof-octet-mem-opt	OK
 sof-octet-top	OK

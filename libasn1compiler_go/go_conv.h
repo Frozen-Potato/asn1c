@@ -104,6 +104,7 @@ const char *go_flat_ir_prim(flat_type *t);
 const char *go_flat_ir_elem(flat_type *t);
 int go_flat_ir_elem_prim(flat_type *t);
 int go_flat_ir_inline_elem(flat_type *t);
+int go_flat_ir_null_leaf(flat_type *t);
 const char *go_flat_ir_tree_ctype(flat_type *t);
 const char *go_flat_ir_go_type(flat_type *t);
 const char *go_flat_ir_alias_of(flat_type *t);

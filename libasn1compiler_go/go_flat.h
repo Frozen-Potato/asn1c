@@ -133,6 +133,7 @@ void go_flat_member_seqof(const char *elem_cid, int elem_is_prim,
  * an anonymous type inside its SEQUENCE OF / CHOICE). tree_ctype = the C
  * spelling the conv file aliases `<cid>_t` to; go_type = the unnamed Go
  * element type for a hidden leaf (NULL when the Go type is a named one). */
+void go_flat_mark_null_leaf(void);
 void go_flat_mark_inline_elem(const char *tree_ctype, const char *go_type);
 
 /* the _on form: attach onto the ENCLOSING struct's nested node index (the
