@@ -1,5 +1,15 @@
 0.9.29-go.8 (unreleased):
+    NEW:
+    * C runtime (also for plain C users): SET OF now has an APER encoder
+      (SET_OF_encode_aper). The elements are sorted by their standalone APER
+      encodings (X.691 22.1) and then encoded again, in that order, into the
+      output, so alignment padding is right. Before, a SET OF PDU was
+      rejected by `-oaper`.
     FIXES:
+    * C runtime (also for plain C users): SET_OF_encode_uper used the sorted
+      element buffers without checking for NULL (allocation or element
+      encode failure) and went on to encode; it now fails the encode and
+      frees the buffers on every path.
     * Go backend: SEQUENCE fields, CHOICE alternatives, type names and typed
       INTEGER value names that differ only by a hyphen before a digit
       (`a1` / `a-1`, `T1` / `T-1`) were refused as a name collision. The

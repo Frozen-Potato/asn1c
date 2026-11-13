@@ -273,6 +273,7 @@ struct _el_buffer {
 	size_t length;
 	size_t allocated_size;
     unsigned bits_unused;
+    const void *el_ptr;   /* The element this buffer encodes */
 };
 /* Append bytes to the above structure */
 static int _el_addbytes(const void *buffer, size_t size, void *el_buf_ptr) {
@@ -349,7 +350,8 @@ SET_OF__encode_sorted_free(struct _el_buffer *el_buf, size_t count) {
 
 enum SET_OF__encode_method {
     SOES_DER,   /* Distinguished Encoding Rules */
-    SOES_CUPER  /* Canonical Unaligned Packed Encoding Rules */
+    SOES_CUPER, /* Canonical Unaligned Packed Encoding Rules */
+    SOES_CAPER  /* Canonical Aligned Packed Encoding Rules */
 };
 
 static struct _el_buffer *
@@ -360,7 +362,8 @@ SET_OF__encode_sorted(const asn_TYPE_member_t *elm,
     int edx;
 
     encoded_els =
-        (struct _el_buffer *)CALLOC(list->count, sizeof(encoded_els[0]));
+        (struct _el_buffer *)CALLOC(list->count ? list->count : 1,
+                                    sizeof(encoded_els[0]));
     if(encoded_els == NULL) {
         return NULL;
     }
@@ -374,6 +377,7 @@ SET_OF__encode_sorted(const asn_TYPE_member_t *elm,
         asn_enc_rval_t erval = {0,0,0};
 
         if(!memb_ptr) break;
+        encoding_el->el_ptr = memb_ptr;
 
         /*
 		 * Encode the member into the prepared space.
@@ -385,6 +389,16 @@ SET_OF__encode_sorted(const asn_TYPE_member_t *elm,
             break;
         case SOES_CUPER:
             erval = uper_encode(elm->type,
+                                elm->encoding_constraints.per_constraints,
+                                memb_ptr, _el_addbytes, encoding_el);
+            if(erval.encoded != -1) {
+                size_t extra_bits = erval.encoded % 8;
+                assert(encoding_el->length == (size_t)(erval.encoded + 7) / 8);
+                encoding_el->bits_unused = (8 - extra_bits) & 0x7;
+            }
+            break;
+        case SOES_CAPER:
+            erval = aper_encode(elm->type,
                                 elm->encoding_constraints.per_constraints,
                                 memb_ptr, _el_addbytes, encoding_el);
             if(erval.encoded != -1) {
@@ -1060,6 +1074,7 @@ SET_OF_encode_uper(const asn_TYPE_descriptor_t *td,
      * according to their encodings. Build an array of the encoded elements.
      */
     encoded_els = SET_OF__encode_sorted(elm, list, SOES_CUPER);
+    if(!encoded_els) ASN__ENCODE_FAILED;
 
     for(encoded_edx = 0; (ssize_t)encoded_edx < list->count;) {
         ssize_t may_encode;
@@ -1071,7 +1086,10 @@ SET_OF_encode_uper(const asn_TYPE_descriptor_t *td,
         } else {
             may_encode =
                 uper_put_length(po, list->count - encoded_edx, &need_eom);
-            if(may_encode < 0) ASN__ENCODE_FAILED;
+            if(may_encode < 0) {
+                SET_OF__encode_sorted_free(encoded_els, list->count);
+                ASN__ENCODE_FAILED;
+            }
         }
 
         for(edx = encoded_edx; edx < encoded_edx + may_encode; edx++) {
@@ -1082,9 +1100,12 @@ SET_OF_encode_uper(const asn_TYPE_descriptor_t *td,
             }
         }
 
-        if(need_eom && uper_put_length(po, 0, 0))
+        if(need_eom && uper_put_length(po, 0, 0)) {
+            SET_OF__encode_sorted_free(encoded_els, list->count);
             ASN__ENCODE_FAILED; /* End of Message length */
+        }
 
+        if(edx != encoded_edx + may_encode) break; /* Element put failed */
         encoded_edx += may_encode;
     }
 
@@ -1095,6 +1116,95 @@ SET_OF_encode_uper(const asn_TYPE_descriptor_t *td,
     } else {
         ASN__ENCODE_FAILED;
     }
+}
+
+asn_enc_rval_t
+SET_OF_encode_aper(const asn_TYPE_descriptor_t *td,
+                   const asn_per_constraints_t *constraints, const void *sptr,
+                   asn_per_outp_t *po) {
+    const asn_anonymous_set_ *list;
+    const asn_per_constraint_t *ct;
+    const asn_TYPE_member_t *elm = td->elements;
+    struct _el_buffer *encoded_els;
+    asn_enc_rval_t er = {0,0,0};
+    int seq;
+
+    if(!sptr) ASN__ENCODE_FAILED;
+
+    list = _A_CSET_FROM_VOID(sptr);
+
+    er.encoded = 0;
+
+    ASN_DEBUG("Encoding %s as SET OF (%d) using ALIGNED PER", td->name,
+              list->count);
+
+    if(constraints) ct = &constraints->size;
+    else if(td->encoding_constraints.per_constraints)
+        ct = &td->encoding_constraints.per_constraints->size;
+    else ct = 0;
+
+    /* If extensible constraint, check if size is in root */
+    if(ct) {
+        int not_in_root =
+            (list->count < ct->lower_bound || list->count > ct->upper_bound);
+        if(ct->flags & APC_EXTENSIBLE) {
+            /* Declare whether size is in extension root */
+            if(per_put_few_bits(po, not_in_root, 1)) ASN__ENCODE_FAILED;
+            if(not_in_root) ct = 0;
+        } else if(not_in_root && ct->effective_bits >= 0) {
+            ASN__ENCODE_FAILED;
+        }
+    }
+
+    if(ct && ct->effective_bits >= 0) {
+        /* X.691, #19.5: No length determinant */
+        if(aper_put_length(po, ct->upper_bound - ct->lower_bound + 1,
+                           list->count - ct->lower_bound) < 0)
+            ASN__ENCODE_FAILED;
+    }
+
+    if(list->count == 0) {
+        if(!(ct && ct->effective_bits >= 0)
+           && aper_put_length(po, -1, 0) < 0)
+            ASN__ENCODE_FAILED;
+        ASN__ENCODED_OK(er);
+    }
+
+    /*
+     * Canonical order (X.691 #22.1): sort by the standalone encodings, then
+     * encode each element again, in that order, into the output stream
+     * (padding depends on the absolute position).
+     */
+    encoded_els = SET_OF__encode_sorted(elm, list, SOES_CAPER);
+    if(!encoded_els) ASN__ENCODE_FAILED;
+
+    for(seq = -1; seq < list->count;) {
+        ssize_t may_encode;
+        if(seq < 0) seq = 0;
+        if(ct && ct->effective_bits >= 0) {
+            may_encode = list->count;
+        } else {
+            may_encode = aper_put_length(po, -1, list->count - seq);
+            if(may_encode < 0) {
+                SET_OF__encode_sorted_free(encoded_els, list->count);
+                ASN__ENCODE_FAILED;
+            }
+        }
+
+        while(may_encode--) {
+            void *memb_ptr = (void *)encoded_els[seq++].el_ptr;
+            er = elm->type->op->aper_encoder(
+                elm->type, elm->encoding_constraints.per_constraints, memb_ptr,
+                po);
+            if(er.encoded == -1) {
+                SET_OF__encode_sorted_free(encoded_els, list->count);
+                ASN__ENCODE_FAILED;
+            }
+        }
+    }
+
+    SET_OF__encode_sorted_free(encoded_els, list->count);
+    ASN__ENCODED_OK(er);
 }
 
 asn_dec_rval_t
@@ -1293,7 +1403,7 @@ asn_TYPE_operation_t asn_OP_SET_OF = {
 	SET_OF_decode_uper,
 	SET_OF_encode_uper,
 	SET_OF_decode_aper,
-	0,	/* SET_OF_encode_aper */
+	SET_OF_encode_aper,
 #endif /* ASN_DISABLE_PER_SUPPORT */
 	SET_OF_random_fill,
 	0	/* Use generic outmost tag fetcher */
