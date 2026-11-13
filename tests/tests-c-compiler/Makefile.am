@@ -66,6 +66,7 @@ TESTS += check-src/check-167.-gen-PER.c
 TESTS += check-src/check-168.-fcompound-names.-gen-PER.c
 TESTS += check-src/check-169.-findirect-choice.c
 TESTS += check-src/check-170.-gen-PER.c
+TESTS += check-src/check-171.-gen-PER.c
 
 if TEST_64BIT
 TESTS += check-src/check64-134.-gen-PER.c

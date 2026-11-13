@@ -40,6 +40,15 @@ typedef struct asn_SET_specifics_s {
 	 */
 	int extensible;                             /* Whether SET is extensible */
 	const unsigned int *_mandatory_elements;    /* Bitmask of mandatory ones */
+
+	/*
+	 * PER (X.691 clause 21): which members are extension additions.
+	 * Root members are [0, first_extension) and [ext_end, elements_count);
+	 * additions are [first_extension, ext_end). first_extension is -1 when
+	 * the SET has no extension marker.
+	 */
+	signed first_extension;     /* First extension addition, or -1 */
+	unsigned ext_end;           /* One past the last extension addition */
 } asn_SET_specifics_t;
 
 /*
@@ -55,6 +64,8 @@ xer_type_decoder_f SET_decode_xer;
 xer_type_encoder_f SET_encode_xer;
 per_type_decoder_f SET_decode_uper;
 per_type_encoder_f SET_encode_uper;
+per_type_decoder_f SET_decode_aper;
+per_type_encoder_f SET_encode_aper;
 asn_random_fill_f  SET_random_fill;
 extern asn_TYPE_operation_t asn_OP_SET;
 

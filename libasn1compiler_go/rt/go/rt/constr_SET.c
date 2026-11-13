@@ -5,6 +5,8 @@
  */
 #include <asn_internal.h>
 #include <constr_SET.h>
+#include <OPEN_TYPE.h>
+#include <per_opentype.h>
 
 /* Check that all the mandatory members are present */
 static int _SET_is_populated(const asn_TYPE_descriptor_t *td, const void *st);
@@ -1061,6 +1063,452 @@ SET_compare(const asn_TYPE_descriptor_t *td, const void *aptr,
 }
 
 
+#ifndef ASN_DISABLE_PER_SUPPORT
+
+/*
+ * PER (X.691 clause 21): a SET is encoded like a SEQUENCE whose root
+ * components are in canonical tag order (X.680 8.6). Extension additions
+ * keep their textual order.
+ */
+
+static int
+SET__is_root(const asn_SET_specifics_t *specs, size_t edx) {
+    return specs->first_extension < 0 || edx < (size_t)specs->first_extension
+           || edx >= specs->ext_end;
+}
+
+static size_t
+SET__ext_end(const asn_TYPE_descriptor_t *td,
+             const asn_SET_specifics_t *specs) {
+    return specs->ext_end < td->elements_count ? specs->ext_end
+                                               : td->elements_count;
+}
+
+/*
+ * Fill order[] with the root member indices in canonical order: each root
+ * member at its first appearance in the (tag-sorted) tag2el map, so an
+ * untagged CHOICE sorts by the smallest tag of its alternatives.
+ * Returns the number of root members, or -1 if some root member is not
+ * reachable through the map.
+ */
+static int
+SET__canonical_order(const asn_TYPE_descriptor_t *td,
+                     const asn_SET_specifics_t *specs, size_t *order,
+                     uint8_t *seen) {
+    size_t i, n = 0, roots = 0;
+
+    for(i = 0; i < td->elements_count; i++) {
+        seen[i] = 0;
+        if(SET__is_root(specs, i)) roots++;
+    }
+    for(i = 0; i < specs->tag2el_count; i++) {
+        size_t el = specs->tag2el[i].el_no;
+        if(el >= td->elements_count || seen[el] || !SET__is_root(specs, el))
+            continue;
+        seen[el] = 1;
+        order[n++] = el;
+    }
+    return n == roots ? (int)n : -1;
+}
+
+static int
+SET__fail_flags(const asn_TYPE_member_t *elm) {
+    return (elm->flags & ATF_OPEN_TYPE) != 0;
+}
+
+static int
+SET__extensions(const asn_TYPE_descriptor_t *td, const void *sptr,
+                asn_per_outp_t *po1, asn_per_outp_t *po2, int aper) {
+    const asn_SET_specifics_t *specs =
+        (const asn_SET_specifics_t *)td->specifics;
+    int exts_present = 0;
+    int exts_count = 0;
+    size_t edx;
+
+    if(specs->first_extension < 0) return 0;
+
+    for(edx = specs->first_extension; edx < SET__ext_end(td, specs); edx++) {
+        asn_TYPE_member_t *elm = &td->elements[edx];
+        const void *memb_ptr;
+        const void *const *memb_ptr2;
+        int present;
+
+        if(elm->flags & ATF_POINTER) {
+            memb_ptr2 =
+                (const void *const *)((const char *)sptr + elm->memb_offset);
+            present = (*memb_ptr2 != 0);
+        } else {
+            memb_ptr = (const void *)((const char *)sptr + elm->memb_offset);
+            memb_ptr2 = &memb_ptr;
+            present = 1;
+        }
+        if(present && elm->default_value_cmp
+           && elm->default_value_cmp(*memb_ptr2) == 0)
+            present = 0;
+
+        exts_count++;
+        exts_present += present;
+
+        if(po1 && per_put_few_bits(po1, present, 1)) return -1;
+        if(po2 && present
+           && (aper ? aper_open_type_put : uper_open_type_put)(
+                  elm->type, elm->encoding_constraints.per_constraints,
+                  *memb_ptr2, po2))
+            return -1;
+    }
+
+    return exts_present ? exts_count : 0;
+}
+
+static asn_enc_rval_t
+SET__encode_per(const asn_TYPE_descriptor_t *td, const void *sptr,
+                asn_per_outp_t *po, int aper) {
+    const asn_SET_specifics_t *specs =
+        (const asn_SET_specifics_t *)td->specifics;
+    asn_enc_rval_t er = {0, 0, 0};
+    size_t *order;
+    uint8_t *seen;
+    int n_extensions = 0;
+    int nroots;
+    size_t i;
+
+    if(!sptr) ASN__ENCODE_FAILED;
+
+    order = (size_t *)MALLOC((td->elements_count + 1) * sizeof(size_t));
+    seen = (uint8_t *)MALLOC(td->elements_count + 1);
+    if(!order || !seen) {
+        FREEMEM(order);
+        FREEMEM(seen);
+        ASN__ENCODE_FAILED;
+    }
+    nroots = SET__canonical_order(td, specs, order, seen);
+    FREEMEM(seen);
+    if(nroots < 0) {
+        FREEMEM(order);
+        ASN__ENCODE_FAILED;
+    }
+    for(i = 0; i < td->elements_count; i++) {
+        if(SET__fail_flags(&td->elements[i])) {
+            FREEMEM(order);
+            ASN__ENCODE_FAILED;
+        }
+    }
+
+    if(specs->first_extension >= 0) {
+        n_extensions = SET__extensions(td, sptr, 0, 0, aper);
+        if(n_extensions < 0
+           || per_put_few_bits(po, n_extensions ? 1 : 0, 1)) {
+            FREEMEM(order);
+            ASN__ENCODE_FAILED;
+        }
+    }
+
+    /* Presence bitmap of the optional root members, canonical order. */
+    for(i = 0; i < (size_t)nroots; i++) {
+        asn_TYPE_member_t *elm = &td->elements[order[i]];
+        const void *memb_ptr;
+        const void *const *memb_ptr2;
+        int present;
+
+        if(!elm->optional) continue;
+        if(elm->flags & ATF_POINTER) {
+            memb_ptr2 =
+                (const void *const *)((const char *)sptr + elm->memb_offset);
+            present = (*memb_ptr2 != 0);
+        } else {
+            memb_ptr = (const void *)((const char *)sptr + elm->memb_offset);
+            memb_ptr2 = &memb_ptr;
+            present = 1;
+        }
+        if(present && elm->default_value_cmp
+           && elm->default_value_cmp(*memb_ptr2) == 0)
+            present = 0;
+        if(per_put_few_bits(po, present, 1)) {
+            FREEMEM(order);
+            ASN__ENCODE_FAILED;
+        }
+    }
+
+    for(i = 0; i < (size_t)nroots; i++) {
+        asn_TYPE_member_t *elm = &td->elements[order[i]];
+        const void *memb_ptr;
+        const void *const *memb_ptr2;
+
+        if(elm->flags & ATF_POINTER) {
+            memb_ptr2 =
+                (const void *const *)((const char *)sptr + elm->memb_offset);
+            if(!*memb_ptr2) {
+                if(elm->optional) continue;
+                FREEMEM(order);
+                ASN__ENCODE_FAILED; /* Mandatory member is missing */
+            }
+        } else {
+            memb_ptr = (const void *)((const char *)sptr + elm->memb_offset);
+            memb_ptr2 = &memb_ptr;
+        }
+        if(elm->default_value_cmp && elm->default_value_cmp(*memb_ptr2) == 0)
+            continue;
+
+        er = aper ? elm->type->op->aper_encoder(
+                        elm->type, elm->encoding_constraints.per_constraints,
+                        *memb_ptr2, po)
+                  : elm->type->op->uper_encoder(
+                        elm->type, elm->encoding_constraints.per_constraints,
+                        *memb_ptr2, po);
+        if(er.encoded == -1) {
+            FREEMEM(order);
+            return er;
+        }
+    }
+    FREEMEM(order);
+
+    if(!n_extensions) ASN__ENCODED_OK(er);
+
+    if((aper ? aper_put_nslength(po, n_extensions)
+             : uper_put_nslength(po, n_extensions)))
+        ASN__ENCODE_FAILED;
+    if(SET__extensions(td, sptr, po, 0, aper) != n_extensions)
+        ASN__ENCODE_FAILED;
+    if(SET__extensions(td, sptr, 0, po, aper) != n_extensions)
+        ASN__ENCODE_FAILED;
+
+    ASN__ENCODED_OK(er);
+}
+
+static asn_dec_rval_t
+SET__decode_per(const asn_codec_ctx_t *opt_codec_ctx,
+                const asn_TYPE_descriptor_t *td, void **sptr,
+                asn_per_data_t *pd, int aper) {
+    const asn_SET_specifics_t *specs =
+        (const asn_SET_specifics_t *)td->specifics;
+    void *st = *sptr;
+    int extpresent = 0;
+    uint8_t *opres = 0;
+    uint8_t *seen = 0;
+    size_t *order = 0;
+    asn_per_data_t opmd;
+    asn_dec_rval_t rv;
+    size_t edx, i, roms = 0;
+    int nroots;
+
+    if(ASN__STACK_OVERFLOW_CHECK(opt_codec_ctx)) ASN__DECODE_FAILED;
+
+    if(!st) {
+        st = *sptr = CALLOC(1, specs->struct_size);
+        if(!st) ASN__DECODE_FAILED;
+    }
+
+    for(i = 0; i < td->elements_count; i++)
+        if(SET__fail_flags(&td->elements[i])) ASN__DECODE_FAILED;
+
+    order = (size_t *)MALLOC((td->elements_count + 1) * sizeof(size_t));
+    seen = (uint8_t *)MALLOC(td->elements_count + 1);
+    if(!order || !seen) {
+        FREEMEM(order);
+        FREEMEM(seen);
+        ASN__DECODE_FAILED;
+    }
+    nroots = SET__canonical_order(td, specs, order, seen);
+    FREEMEM(seen);
+    if(nroots < 0) {
+        FREEMEM(order);
+        ASN__DECODE_FAILED;
+    }
+
+#define SET__DEC_FAIL_STARVED do { FREEMEM(order); FREEMEM(opres); \
+        ASN__DECODE_STARVED; } while(0)
+
+    if(specs->first_extension >= 0) {
+        extpresent = per_get_few_bits(pd, 1);
+        if(extpresent < 0) SET__DEC_FAIL_STARVED;
+    }
+
+    for(i = 0; i < (size_t)nroots; i++)
+        if(td->elements[order[i]].optional) roms++;
+
+    memset(&opmd, 0, sizeof(opmd));
+    if(roms) {
+        opres = (uint8_t *)MALLOC(((roms + 7) >> 3) + 1);
+        if(!opres) {
+            FREEMEM(order);
+            ASN__DECODE_FAILED;
+        }
+        if(per_get_many_bits(pd, opres, 0, roms)) SET__DEC_FAIL_STARVED;
+        opmd.buffer = opres;
+        opmd.nbits = roms;
+    }
+
+    for(i = 0; i < (size_t)nroots; i++) {
+        asn_TYPE_member_t *elm;
+        void *memb_ptr;
+        void **memb_ptr2;
+
+        edx = order[i];
+        elm = &td->elements[edx];
+        if(elm->flags & ATF_POINTER) {
+            memb_ptr2 = (void **)((char *)st + elm->memb_offset);
+        } else {
+            memb_ptr = (char *)st + elm->memb_offset;
+            memb_ptr2 = &memb_ptr;
+        }
+
+        if(elm->optional) {
+            int present = per_get_few_bits(&opmd, 1);
+            if(present == 0) {
+                if(elm->default_value_set
+                   && elm->default_value_set(memb_ptr2)) {
+                    FREEMEM(order);
+                    FREEMEM(opres);
+                    ASN__DECODE_FAILED;
+                }
+                continue;
+            }
+        }
+
+        rv = aper ? elm->type->op->aper_decoder(
+                        opt_codec_ctx, elm->type,
+                        elm->encoding_constraints.per_constraints, memb_ptr2,
+                        pd)
+                  : elm->type->op->uper_decoder(
+                        opt_codec_ctx, elm->type,
+                        elm->encoding_constraints.per_constraints, memb_ptr2,
+                        pd);
+        if(rv.code != RC_OK) {
+            FREEMEM(order);
+            FREEMEM(opres);
+            return rv;
+        }
+        ASN_SET_MKPRESENT((char *)st + specs->pres_offset, edx);
+    }
+    FREEMEM(order);
+    order = 0;
+    FREEMEM(opres);
+    opres = 0;
+
+    if(extpresent) {
+        ssize_t bmlength;
+        uint8_t *epres;
+        asn_per_data_t epmd;
+
+        bmlength = aper ? aper_get_nslength(pd) : uper_get_nslength(pd);
+        if(bmlength < 0) ASN__DECODE_STARVED;
+
+        epres = (uint8_t *)MALLOC((bmlength + 15) >> 3);
+        if(!epres) ASN__DECODE_STARVED;
+        if(per_get_many_bits(pd, epres, 0, bmlength)) {
+            FREEMEM(epres);
+            ASN__DECODE_STARVED;
+        }
+        memset(&epmd, 0, sizeof(epmd));
+        epmd.buffer = epres;
+        epmd.nbits = bmlength;
+
+        for(edx = specs->first_extension; edx < SET__ext_end(td, specs);
+            edx++) {
+            asn_TYPE_member_t *elm = &td->elements[edx];
+            void *memb_ptr;
+            void **memb_ptr2;
+            int present;
+
+            if(elm->flags & ATF_POINTER) {
+                memb_ptr2 = (void **)((char *)st + elm->memb_offset);
+            } else {
+                memb_ptr = (char *)st + elm->memb_offset;
+                memb_ptr2 = &memb_ptr;
+            }
+            present = per_get_few_bits(&epmd, 1);
+            if(present <= 0) {
+                if(present < 0) break;
+                continue;
+            }
+            rv = aper ? aper_open_type_get(
+                            opt_codec_ctx, elm->type,
+                            elm->encoding_constraints.per_constraints,
+                            memb_ptr2, pd)
+                      : uper_open_type_get(
+                            opt_codec_ctx, elm->type,
+                            elm->encoding_constraints.per_constraints,
+                            memb_ptr2, pd);
+            if(rv.code != RC_OK) {
+                FREEMEM(epres);
+                return rv;
+            }
+            ASN_SET_MKPRESENT((char *)st + specs->pres_offset, edx);
+        }
+
+        /* Skip overflow extensions unknown to this version. */
+        for(;;) {
+            int bit = per_get_few_bits(&epmd, 1);
+            if(bit < 0) break;
+            if(bit == 0) continue;
+            if(aper ? aper_open_type_skip(opt_codec_ctx, pd)
+                    : uper_open_type_skip(opt_codec_ctx, pd)) {
+                FREEMEM(epres);
+                ASN__DECODE_STARVED;
+            }
+        }
+        FREEMEM(epres);
+    }
+
+    if(specs->first_extension >= 0) {
+        /* Fill DEFAULT in absent extension additions (they are pointers). */
+        for(edx = specs->first_extension; edx < SET__ext_end(td, specs);
+            edx++) {
+            asn_TYPE_member_t *elm = &td->elements[edx];
+            void **memb_ptr2;
+
+            if(!elm->default_value_set || !(elm->flags & ATF_POINTER))
+                continue;
+            memb_ptr2 = (void **)((char *)st + elm->memb_offset);
+            if(*memb_ptr2) continue;
+            if(elm->default_value_set(memb_ptr2)) ASN__DECODE_FAILED;
+        }
+    }
+
+    if(!_SET_is_populated(td, st)) ASN__DECODE_FAILED;
+
+    rv.consumed = 0;
+    rv.code = RC_OK;
+    return rv;
+}
+
+asn_dec_rval_t
+SET_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
+                const asn_TYPE_descriptor_t *td,
+                const asn_per_constraints_t *constraints, void **sptr,
+                asn_per_data_t *pd) {
+    (void)constraints;
+    return SET__decode_per(opt_codec_ctx, td, sptr, pd, 0);
+}
+
+asn_enc_rval_t
+SET_encode_uper(const asn_TYPE_descriptor_t *td,
+                const asn_per_constraints_t *constraints, const void *sptr,
+                asn_per_outp_t *po) {
+    (void)constraints;
+    return SET__encode_per(td, sptr, po, 0);
+}
+
+asn_dec_rval_t
+SET_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
+                const asn_TYPE_descriptor_t *td,
+                const asn_per_constraints_t *constraints, void **sptr,
+                asn_per_data_t *pd) {
+    (void)constraints;
+    return SET__decode_per(opt_codec_ctx, td, sptr, pd, 1);
+}
+
+asn_enc_rval_t
+SET_encode_aper(const asn_TYPE_descriptor_t *td,
+                const asn_per_constraints_t *constraints, const void *sptr,
+                asn_per_outp_t *po) {
+    (void)constraints;
+    return SET__encode_per(td, sptr, po, 1);
+}
+
+#endif /* ASN_DISABLE_PER_SUPPORT */
+
+
 asn_TYPE_operation_t asn_OP_SET = {
 	SET_free,
 	SET_print,
@@ -1071,10 +1519,17 @@ asn_TYPE_operation_t asn_OP_SET = {
 	SET_encode_xer,
 	0,	/* SET_decode_oer */
 	0,	/* SET_encode_oer */
-	0,	/* SET_decode_uper */
-	0,	/* SET_encode_uper */
-	0,	/* SET_decode_aper */
-	0,	/* SET_encode_aper */
+#ifdef ASN_DISABLE_PER_SUPPORT
+	0,
+	0,
+	0,
+	0,
+#else
+	SET_decode_uper,
+	SET_encode_uper,
+	SET_decode_aper,
+	SET_encode_aper,
+#endif /* ASN_DISABLE_PER_SUPPORT */
 	SET_random_fill,
 	0	/* Use generic outmost tag fetcher */
 };

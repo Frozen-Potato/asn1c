@@ -729,6 +729,8 @@ asn1c_lang_C_type_SET_def(arg_t *arg) {
 	int all_tags_count;
 	enum tvm_compat tv_mode;
 	const char *p;
+	int first_extension = -1;	/* First extension addition */
+	int ext_end = 0;		/* One past the last addition */
 	int saved_target = arg->target->target;
 
 	/*
@@ -769,11 +771,17 @@ asn1c_lang_C_type_SET_def(arg_t *arg) {
 		INDENTED(TQ_FOR(v, &(expr->members), next) {
 			if(v->expr_type == A1TC_EXTENSIBLE) {
 				if(comp_mode < 3) comp_mode++;
+				if(comp_mode == 1)
+					first_extension = elements;
+				if(comp_mode == 2)
+					ext_end = elements;
 			} else {
 				emit_member_table(arg, v, NULL);
 				elements++;
 			}
 		});
+		if(first_extension >= 0 && comp_mode < 2)
+			ext_end = elements;
 		OUT("};\n");
 	} else {
 		elements = 0;
@@ -841,8 +849,10 @@ asn1c_lang_C_type_SET_def(arg_t *arg) {
 			tag2el_cxer_count);
 		OUT("%d,\t/* Whether extensible */\n",
 			compute_extensions_start(expr) == -1 ? 0 : 1);
-		OUT("(const unsigned int *)asn_MAP_%s_mmap_%d\t/* Mandatory elements map */\n",
+		OUT("(const unsigned int *)asn_MAP_%s_mmap_%d,\t/* Mandatory elements map */\n",
 			p, expr->_type_unique_index);
+		OUT("%d,\t/* First extension addition */\n", first_extension);
+		OUT("%d\t/* One past the last extension addition */\n", ext_end);
 	);
 	OUT("};\n");
 

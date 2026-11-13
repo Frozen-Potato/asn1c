@@ -453,7 +453,9 @@ asn_SET_specifics_t asn_SPC_Stuff_specs_1 = {
 	asn_MAP_Stuff_tag2el_cxer_1,
 	3,	/* Count of tags in the CXER map */
 	1,	/* Whether extensible */
-	(const unsigned int *)asn_MAP_Stuff_mmap_1	/* Mandatory elements map */
+	(const unsigned int *)asn_MAP_Stuff_mmap_1,	/* Mandatory elements map */
+	2,	/* First extension addition */
+	3	/* One past the last extension addition */
 };
 asn_TYPE_descriptor_t asn_DEF_Stuff = {
 	"Stuff",

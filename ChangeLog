@@ -10,6 +10,10 @@
       encodings (X.691 22.1) and then encoded again, in that order, into the
       output, so alignment padding is right. Before, a SET OF PDU was
       rejected by `-oaper`.
+    * C runtime (also for plain C users): SET now supports UPER and APER
+      (X.691 clause 21: canonical order of the root components). Generated
+      asn_SET_specifics_t gained first_extension and ext_end (at the end, so
+      older initializers still compile; regenerate to use PER on a SET).
     FIXES:
     * C runtime (also for plain C users): SET_OF_encode_uper used the sorted
       element buffers without checking for NULL (allocation or element

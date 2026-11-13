@@ -1,0 +1,9 @@
+PhcSet DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+SetBasic ::= SET { a INTEGER (0..7), b BOOLEAN OPTIONAL, c OCTET STRING, ..., d INTEGER (0..3) OPTIONAL }
+SetGrp ::= SET { a INTEGER (0..7), ..., [[ g1 BOOLEAN, g2 INTEGER (0..3) OPTIONAL ]] }
+SetTail ::= SET { a INTEGER (0..7), ..., d INTEGER (0..3) OPTIONAL, ..., e BOOLEAN }
+END
+PhcSetTags DEFINITIONS EXPLICIT TAGS ::= BEGIN
+SetTags ::= SET { z [2] INTEGER (0..15), y [0] BOOLEAN, x [1] INTEGER (0..3) OPTIONAL }
+SetCh ::= SET { n [3] INTEGER (0..7), u CHOICE { p [5] BOOLEAN, q [1] NULL } }
+END

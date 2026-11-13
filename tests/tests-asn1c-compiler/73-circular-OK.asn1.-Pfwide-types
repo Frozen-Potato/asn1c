@@ -570,7 +570,9 @@ asn_SET_specifics_t asn_SPC_Ypet_specs_1 = {
 	asn_MAP_Ypet_tag2el_1,	/* Same as above */
 	5,	/* Count of tags in the CXER map */
 	0,	/* Whether extensible */
-	(const unsigned int *)asn_MAP_Ypet_mmap_1	/* Mandatory elements map */
+	(const unsigned int *)asn_MAP_Ypet_mmap_1,	/* Mandatory elements map */
+	-1,	/* First extension addition */
+	0	/* One past the last extension addition */
 };
 asn_TYPE_descriptor_t asn_DEF_Ypet = {
 	"Ypet",
