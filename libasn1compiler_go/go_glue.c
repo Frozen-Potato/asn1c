@@ -1024,7 +1024,10 @@ static char *gtype_q(flat_type *t) {
                 if(ri >= 0) {
                     const char *ft_v = go_names_row_field_type(ri);
                     {
-                        const char *alias = (*ft_v == '*') ? ft_v + 1 : ft_v;
+                        /* the field row's spelling may already carry the
+                         * REFERENCING module's package qualifier; it is
+                         * re-qualified below from g_emit_mod's view. */
+                        const char *alias = unqual((*ft_v == '*') ? ft_v + 1 : ft_v);
                         const char *rtm = go_flat_ir_module(t);
                         char *out;
                         if(rtm && g_emit_mod && strcmp(rtm, g_emit_mod) != 0) {

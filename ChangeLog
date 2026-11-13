@@ -23,6 +23,12 @@
       but the converters wrote `choice.explicit`. They now use the upper-cased
       member and keep the lower-case `_PR` constant (`C_PR_explicit`). The Go
       names are unchanged; regenerate (asn1c -Fgo).
+    * Go backend: a named SEQUENCE OF imported from another module
+      (`l ItemList` with `IMPORTS ItemList FROM ModA`) generated
+      `moda.moda.ItemList` in the importing package's glue.go, which does not
+      compile (inside the owning package the same bug wrote a self-qualified
+      name). The package qualifier is now taken off the field spelling before
+      it is qualified for the package being emitted. Regenerate (asn1c -Fgo).
 
 0.9.29-go.7:
     NEW:

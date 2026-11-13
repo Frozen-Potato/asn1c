@@ -195,3 +195,4 @@ str-videotexstring-mem	OK
 str-visiblestring	OK
 str-visiblestring-mem	OK
 utctime	OK
+import-seqof	OK
