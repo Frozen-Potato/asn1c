@@ -39,9 +39,11 @@ echo "$out" | grep -q "FATAL" && { echo "FAIL: 165 reported FATAL"; fail=1; }
 
 # 3. Go backend (-Fgo): the constants of a named-bit BIT STRING (type X, bit
 #    B1 -> XB1) collide with a type named XB1, with another bit of the same
-#    type, and (inline member) with a type named like the member's constants.
-#    Exit 70, a collision diagnostic naming both, no Go tree written. The same
-#    module minus the collision is accepted.
+#    type after the _<digit> rule (bits b1 and b-1 give XB1 and XB_1, so only
+#    a type named XB-1 still collides), and (inline member) with a type named
+#    like the member's constants. Exit 70, a collision diagnostic naming both,
+#    no Go tree written. The same module minus the collision is accepted, as
+#    are two bits differing only by a hyphen.
 n_go=0
 go_clash() {
 	name=$1; asn=$2; want=$3; shift 3
@@ -69,7 +71,11 @@ XB1 ::= INTEGER
 END" "XB1 <- X.b1 (enum-const) and XB1 (type)" $flags
 	go_clash bit-vs-bit "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 X ::= BIT STRING { b1(0), b-1(1) }
-END" "XB1 <- X.b1 (enum-const) and X.b-1 (enum-const)" $flags
+END" "" $flags
+	go_clash bit-vs-type-hyphen "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+X ::= BIT STRING { b1(0), b-1(1) }
+XB-1 ::= INTEGER
+END" "XB1 <- X.b1 (enum-const) and XB-1 (type)" $flags
 	go_clash inline-vs-type "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 T ::= SEQUENCE { m BIT STRING { b1(0) } }
 TMB1 ::= INTEGER

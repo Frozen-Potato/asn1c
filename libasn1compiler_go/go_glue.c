@@ -981,6 +981,7 @@ static int g_rh_n = -1;
 
 static void refhost_index(void) {
     int n = go_flat_ir_n_types();
+    if(n < 0) n = 0;
     if(n == g_rh_n) return;
     free(g_rh_start); free(g_rh_host); free(g_rh_mem);
     g_rh_start = calloc((size_t)n + 2, sizeof(int));
