@@ -259,14 +259,14 @@ go_construct_is_classfield_fixedtype(const asn1p_expr_t *expr) {
 
 /* ------------------------------------------------------------------------- */
 /*
- * No "[[ ... ]]" bracket-group predicate is provided. The C emit pass mints an
+ * No "[[ ... ]]" bracket-group predicate is needed. The C emit pass mints an
  * `ext<N>` Identifier on the shared AST for each bracket group
  * (asn1c-fork/libasn1compiler/asn1c_C.c:378-385 / :618-633:
  * `sprintf(ext_name,"ext%d",...); v->Identifier=strdup(ext_name);` under guard
  * `(ASN_CONSTR_SEQUENCE) && (flags & EM_OPTIONAL) && (Identifier==NULL)`).
- * asn1_compile runs before the Go dispatch (asn1c.c:450), so by the time this
- * classifier sees the node it has a non-NULL Identifier and is byte-identical to
- * a hand-written `f SEQUENCE{...} OPTIONAL` -- no flag or field distinguishes
- * them. A bracket-group reject therefore cannot fire from the AST we receive;
- * tools/f13_check.sh guards that `[[` stays absent from specs/ instead.
+ * asn1_compile runs before the Go dispatch (asn1c.c:450), so by the time the
+ * walker sees the node it is an OPTIONAL inline SEQUENCE member named ext<N>
+ * and takes the ordinary inline-SEQUENCE path: field `Ext<N> *<T>Ext<N>`.
+ * The numbering therefore matches C by construction, and the names go through
+ * the usual clash finder.
  */

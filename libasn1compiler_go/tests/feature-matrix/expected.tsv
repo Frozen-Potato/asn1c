@@ -23,7 +23,12 @@ explicit	OK
 ext-mandatory	OK
 ext-mandatory2	OK
 external	REFUSED	asn1cgo: EXTERNAL in module Probe
-extgroup	REFUSED	asn1cgo: Extension addition group [[ ]] in module Probe
+extgroup	OK
+extgroup-clash	REFUSED	asn1cgo: collision in module Probe
+extgroup-inline	OK
+extgroup-mixed	OK
+extgroup-multi	OK
+extgroup-optdef	OK
 gentime	OK
 inl-choice-alt-deep	OK
 inl-choice-alt-mid	OK

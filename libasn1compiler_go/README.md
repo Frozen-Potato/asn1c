@@ -99,7 +99,7 @@ path that exists but is not a directory is refused.
 straight into `-D` (stock behaviour) before the Go pass runs. Rejects that do
 not depend on the C pass run first, as a pre-flight, so those leave `-D`
 untouched and exit 70 with `no C output was written`: the construct rejects
-(unsupported DEFAULT forms, `[[ ]]` version brackets, unsupported types such as SET /
+(unsupported DEFAULT forms, unsupported types such as SET /
 SET OF, a DEFAULT of a named-bit BIT STRING, unresolvable references) an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`, and (without a prefix) a `-Fgo` basename that is a standard-library top-level name.
 The remaining Go-pass failures can only be detected after the C pass, because
 the name pass reads the `EM_INDIRECT` / `EM_UNRECURSE` markers it stamps: Go
@@ -602,8 +602,16 @@ Known bugs and open limitations are listed in [KNOWN-ISSUES.md](KNOWN-ISSUES.md)
   trees that decode within the budget but exceed 64 units. Lower the budget
   for small thread stacks (musl: 128 KiB), but not below the measured need
   of your deepest recursive type.
-- **`[[ ]]` extension-addition groups**: rejected at generation (the
-  post-parse AST cannot distinguish them from plain members).
+- **`[[ ]]` extension-addition groups** in a SEQUENCE: each group is one
+  optional nested struct, `Ext<N> *<T>Ext<N>`, in declaration order among
+  the other extension additions. N counts the groups of one SEQUENCE from 1,
+  as the C backend's `ext<N>` member does (plain additions are not counted;
+  an inline SEQUENCE numbers its own). The group's members follow the usual
+  rules (mandatory = value, OPTIONAL = pointer, DEFAULT = value plus a
+  `<Type><Field>Default` constant). A nil group is absent on `Encode`; an
+  absent group decodes to nil. A member literally named `ext1` next to a
+  group is reported as a name collision. (A group in a CHOICE is a syntax
+  error in asn1c itself.)
 - **`DEFAULT` members**: supported for exactly the members the C generator
   emits default callbacks for (see "DEFAULT members" under "Using the
   generated code"); every other DEFAULT form is rejected at generation (out

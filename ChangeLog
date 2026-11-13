@@ -31,6 +31,11 @@
       SEQUENCE OF elements). The C runtime holds an arc in 32 bits, so
       Encode returns an rt.ErrConstraint for an arc above 4294967295; it
       also returns one for a value OBJECT_IDENTIFIER_set_arcs rejects.
+    * Go backend: `[[ ]]` extension addition groups in SEQUENCE map to an
+      optional nested struct, `Ext<N> *<T>Ext<N>` (N numbers the groups of
+      one SEQUENCE exactly like the C backend's ext<N>). A nil group is
+      absent on Encode and an absent group decodes to nil. This was a
+      refusal before.
 
     FIXES:
     * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region

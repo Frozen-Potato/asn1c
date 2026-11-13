@@ -198,3 +198,18 @@ func TestAllocFaultSweepOids(t *testing.T) {
 		sweep(t, c.name+" Decode", func() error { return c.dec(wire) })
 	}
 }
+
+// "[[ ]]" extension addition groups: every case of extgroup_test.go (groups
+// absent and present, plain additions between groups, groups in an inline
+// SEQUENCE, OPTIONAL and DEFAULT members in a group), encode and decode.
+func TestAllocFaultSweepExtGroup(t *testing.T) {
+	for _, c := range egCases() {
+		c := c
+		wire, err := c.enc()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		sweep(t, c.name+" Encode", func() error { _, err := c.enc(); return err })
+		sweep(t, c.name+" Decode", func() error { return c.dec(wire) })
+	}
+}

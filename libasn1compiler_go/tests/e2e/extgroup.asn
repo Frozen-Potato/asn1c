@@ -1,0 +1,63 @@
+ExtGroup DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- "[[ ]]" extension addition groups: each group is one optional nested
+-- struct, Ext<N> *<T>Ext<N>, numbered like the C backend's ext<N>.
+
+	-- the "old version": a sender that predates every group below
+	GrpOld ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...
+	}
+
+	GrpOne ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...,
+		[[ b BOOLEAN, c INTEGER (0..7) ]]
+	}
+
+	GrpMulti ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...,
+		[[ b BOOLEAN ]],
+		[[ c BOOLEAN, d INTEGER (0..7) OPTIONAL ]]
+	}
+
+	-- groups between plain additions: ext1 and ext2 count groups only
+	GrpMixed ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...,
+		x	BOOLEAN OPTIONAL,
+		[[ b BOOLEAN ]],
+		y	INTEGER (0..7),
+		[[ c BOOLEAN, d BOOLEAN OPTIONAL ]],
+		z	BOOLEAN OPTIONAL
+	}
+
+	-- groups in an inline SEQUENCE: each SEQUENCE numbers its own groups
+	GrpInline ::= SEQUENCE {
+		s	SEQUENCE {
+			p	BOOLEAN,
+			...,
+			[[ q BOOLEAN ]],
+			[[ r BOOLEAN ]]
+		},
+		o	SEQUENCE {
+			p	BOOLEAN,
+			...,
+			[[ q INTEGER (0..3) ]]
+		} OPTIONAL,
+		...,
+		[[ t BOOLEAN ]]
+	}
+
+	-- an OPTIONAL and DEFAULT members inside a group (go.4 DEFAULT rules)
+	GrpDef ::= SEQUENCE {
+		a	INTEGER (0..3),
+		...,
+		[[ b BOOLEAN OPTIONAL,
+		   c INTEGER (0..9) DEFAULT 4,
+		   d BOOLEAN DEFAULT TRUE ]]
+	}
+
+END

@@ -114,10 +114,9 @@ int go_construct_is_classfield_fixedtype(const asn1p_expr_t *expr);
 
 /*
  * No "[[ ... ]]" bracket-group predicate: the C emit pass mints `ext<N>` on the
- * shared AST (asn1c_C.c:378-385/618-633) before this walker runs, leaving no
- * discriminating trace, so a bracket-group reject cannot fire from the AST we
- * receive. `[[` absence in the specs is a property of the spec corpus,
- * checkable directly against specs/. See go_constructs.c.
+ * shared AST (asn1c_C.c:378-385/618-633) before this walker runs, so a group
+ * is an OPTIONAL inline SEQUENCE member named ext<N> and needs no special
+ * case. See go_constructs.c.
  *
  * A named-bit BIT STRING (`BIT STRING { a(0), b(1) }`) is supported: it maps
  * exactly like a plain BIT STRING (the value type is unchanged) and only adds
