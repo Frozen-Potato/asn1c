@@ -207,6 +207,7 @@ str-videotexstring	OK
 str-videotexstring-mem	OK
 str-visiblestring	OK
 str-visiblestring-mem	OK
+two-inline-choice	OK
 type-hyphen	OK
 utctime	OK
 value-hyphen	OK

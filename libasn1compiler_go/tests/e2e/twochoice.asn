@@ -1,0 +1,23 @@
+TwoChoice DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A SEQUENCE with more than one inline CHOICE member.
+
+TwoCh ::= SEQUENCE { m CHOICE { f BOOLEAN, t NULL }, p CHOICE { b BOOLEAN, a NULL } }
+
+TwoSeq ::= SEQUENCE {
+	m CHOICE { f SEQUENCE { x BOOLEAN }, e SEQUENCE {}, k INTEGER (0..9) },
+	n INTEGER (0..255),
+	p CHOICE { b SEQUENCE { y INTEGER (0..3) }, a NULL }
+}
+
+-- An inline CHOICE inside an inline SEQUENCE alternative of an inline CHOICE,
+-- twice in one SEQUENCE.
+TwoNest ::= SEQUENCE {
+	m CHOICE {
+		s SEQUENCE { q CHOICE { u BOOLEAN, v NULL }, r CHOICE { c INTEGER (0..3), d NULL } },
+		z BOOLEAN
+	},
+	p CHOICE { s SEQUENCE { q CHOICE { u BOOLEAN, v NULL } }, z NULL }
+}
+
+END

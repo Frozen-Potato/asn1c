@@ -2730,6 +2730,11 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
      * pointer is deref'd ONCE up front (c) — every later expression reads c.
      * The READ side binds the pointed VALUE (pv minus one '&' — a nested
      * union reads its present off the host field, not the receiver). */
+    /* Each inline union gets its own block scope in the fill and size
+     * bodies: a SEQUENCE with two inline CHOICE members would otherwise
+     * declare c / cs twice at function scope. The read body declares no
+     * variable at this level (it switches on the receiver's field). */
+    (*E->fill) = ga((*E->fill), "\t{\n");
     (*E->fill) = gam((*E->fill), gfmt("\tc := *%s\n", pv));
     {
         char *poffc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, "present", go_flat_ir_name(E->t)));
@@ -2745,6 +2750,7 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
     }
 
     (*E->fill) = gam((*E->fill), gfmt("\tswitch c.Present {\n"));
+    (*E->szt) = ga((*E->szt), "\t{\n");
     (*E->szt) = gam((*E->szt), gfmt("\tcs := *%s\n", pv));
     (*E->szt) = gam((*E->szt), gfmt("\tswitch cs.Present {\n"));
 
@@ -2912,10 +2918,10 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
             "\tdefault:\n\t\treturn &%s\n", el));
         free(el);
     }
-    (*E->fill) = ga((*E->fill), "\t}\n");
+    (*E->fill) = ga((*E->fill), "\t}\n\t}\n");
     (*E->read) = ga((*E->read), "\t}\n");
     rebalance_switch(E->szt);
-    (*E->szt) = ga((*E->szt), "\t}\n");
+    (*E->szt) = ga((*E->szt), "\t}\n\t}\n");
     free(prtype_own);
     free((char *)owner_own);
 }

@@ -63,6 +63,13 @@
       compile (inside the owning package the same bug wrote a self-qualified
       name). The package qualifier is now taken off the field spelling before
       it is qualified for the package being emitted. Regenerate (asn1c -Fgo).
+    * Go backend: a SEQUENCE with two or more inline CHOICE members failed
+      the cgo build (`no new variables on left side of :=` or `cannot use
+      *&v.P ... as TM value`): the glue declared the CHOICE value variable
+      once per member at function scope. Each inline CHOICE now has its own
+      block in the fill and size code. The generated code of specifications
+      with one inline CHOICE changes only by the added braces; regenerate
+      (asn1c -Fgo).
 
 0.9.29-go.7:
     NEW:
