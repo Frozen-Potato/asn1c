@@ -1,5 +1,17 @@
 0.9.29-go.7:
     NEW:
+    * Go backend: all restricted character string types and
+      UTCTime/GeneralizedTime map to Go `string`. BMPString and
+      UniversalString are converted to and from UTF-8 (an unrepresentable
+      string is an rt.ErrConstraint on Encode, an invalid C buffer an
+      rt.ErrDecode on Decode); a DEFAULT on those two is refused.
+    * Go backend: OBJECT IDENTIFIER and RELATIVE-OID map to []uint64 arcs
+      everywhere. Encode returns rt.ErrConstraint for an arc above
+      4294967295 (the C runtime holds 32 bits) or a value the runtime rejects.
+    * Go backend: `[[ ]]` extension addition groups map to an optional nested
+      struct `Ext<N> *<T>Ext<N>` (N numbered like the C backend's ext<N>); a
+      nil group is absent on Encode and an absent group decodes to nil. It
+      was a refusal before.
     * Go backend: a top-level plain NULL type (T ::= NULL) now gets the
       Encode / Decode API like every other PDU type; before, only
       `type T struct{}` was generated. Additive.
@@ -66,18 +78,6 @@
     * Go backend: a CHOICE alternative named `present` is generated as the
       field PresentAlt (the discriminant Present and the constant
       <Choice>PrPresent are unchanged); it was a "collision" refusal before.
-    * Go backend: all restricted character string types and
-      UTCTime/GeneralizedTime map to Go `string`. BMPString and
-      UniversalString are converted to and from UTF-8 (an unrepresentable
-      string is an rt.ErrConstraint on Encode, an invalid C buffer an
-      rt.ErrDecode on Decode); a DEFAULT on those two is refused.
-    * Go backend: OBJECT IDENTIFIER and RELATIVE-OID map to []uint64 arcs
-      everywhere. Encode returns rt.ErrConstraint for an arc above
-      4294967295 (the C runtime holds 32 bits) or a value the runtime rejects.
-    * Go backend: `[[ ]]` extension addition groups map to an optional nested
-      struct `Ext<N> *<T>Ext<N>` (N numbered like the C backend's ext<N>); a
-      nil group is absent on Encode and an absent group decodes to nil. It
-      was a refusal before.
 
     FIXES:
     * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region
@@ -199,6 +199,8 @@
     * Go backend: fix named BOOLEAN typedef conversion.
     * Go backend: unknown IOC id reported as IOC_UNKNOWN; error codes
       documented.
+    * Go backend: SEQUENCE OF elements are cast to the callee's parameter
+      type in the generated *_from_tree code.
 
 0.9.29-go.1:
     FEATURES:
