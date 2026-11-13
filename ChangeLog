@@ -1,5 +1,13 @@
 0.9.29-go.8 (unreleased):
     FIXES:
+    * Go backend: SEQUENCE fields, CHOICE alternatives, type names and typed
+      INTEGER value names that differ only by a hyphen before a digit
+      (`a1` / `a-1`, `T1` / `T-1`) were refused as a name collision. The
+      clashing name with `_<digit>` in its C name now keeps the underscore
+      (`A1`, `A_1`), and every name built from it uses the same spelling:
+      the inline type (`TA_1`), the CHOICE constant (`TPrA_1`), the element
+      type of an inline SEQUENCE OF, the DEFAULT constant and the IE
+      constructors. Names that do not clash are unchanged.
     * Go backend: ENUMERATED enumerators and named bits that differ only by a
       hyphen (`d1` / `d-1`) were refused as a name collision. Within one list
       the member with `_<digit>` in its C name now keeps the underscore

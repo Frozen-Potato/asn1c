@@ -1,0 +1,15 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- An alias of an alias of a CHOICE, with a nested CHOICE, a SEQUENCE OF and
+-- an inline SEQUENCE under it.
+Orig ::= CHOICE {
+    t1 INTEGER (0..31),
+    n CHOICE { u INTEGER (0..3), v BOOLEAN },
+    l SEQUENCE (SIZE(1..3)) OF INTEGER (0..9),
+    s SEQUENCE { q SEQUENCE { z INTEGER (0..3) }, w BOOLEAN OPTIONAL }
+}
+Alias ::= Orig
+Alias2 ::= Alias
+L ::= SEQUENCE (SIZE(1..4)) OF Alias2
+
+END

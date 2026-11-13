@@ -1,0 +1,33 @@
+HyphenMembers DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- SEQUENCE fields, CHOICE alternatives, type names and value names that
+-- differ only by a hyphen before a digit.
+
+S ::= SEQUENCE {
+	a1	SEQUENCE { x INTEGER (0..9) },
+	a-1	SEQUENCE { y BOOLEAN },
+	b1	BOOLEAN DEFAULT TRUE,
+	b-1	INTEGER (0..9) DEFAULT 4,
+	e1	ENUMERATED { p, q },
+	e-1	ENUMERATED { p, q },
+	l1	SEQUENCE OF INTEGER (0..9),
+	l-1	SEQUENCE OF SEQUENCE { z BOOLEAN }
+}
+
+Ch ::= CHOICE {
+	a1	BOOLEAN,
+	a-1	NULL,
+	c1	SEQUENCE { x INTEGER (0..9) },
+	c-1	SEQUENCE { y BOOLEAN }
+}
+
+T1 ::= BOOLEAN
+T-1 ::= INTEGER (0..3)
+
+U ::= SEQUENCE { t1 T1, t-1 T-1, s S, c Ch }
+
+Id ::= INTEGER (0..255)
+id1 Id ::= 1
+id-1 Id ::= 2
+
+END

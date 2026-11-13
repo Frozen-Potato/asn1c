@@ -1,0 +1,9 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Type names that differ only by a hyphen before a digit, one with an inline
+-- SEQUENCE member (the inline types would clash one level down).
+T1 ::= SEQUENCE { m SEQUENCE { x BOOLEAN } }
+T-1 ::= SEQUENCE { m SEQUENCE { y INTEGER (0..3) } }
+U ::= SEQUENCE { a T1, b T-1 }
+
+END

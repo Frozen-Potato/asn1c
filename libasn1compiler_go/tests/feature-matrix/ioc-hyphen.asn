@@ -1,0 +1,22 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Two information-object rows whose ids differ only by a hyphen before a
+-- digit: the IE constructors take the clashing value names.
+Criticality ::= ENUMERATED { reject, ignore, notify }
+ProtocolIE-ID ::= INTEGER (0..65535)
+IE-CLASS ::= CLASS { &id ProtocolIE-ID UNIQUE, &criticality Criticality, &Value }
+  WITH SYNTAX { ID &id CRITICALITY &criticality TYPE &Value }
+id1 ProtocolIE-ID ::= 1
+id-1 ProtocolIE-ID ::= 2
+Msg-IEs IE-CLASS ::= { { ID id1 CRITICALITY reject TYPE IntVal } |
+                       { ID id-1 CRITICALITY ignore TYPE BoolVal }, ... }
+IntVal ::= INTEGER (0..255)
+BoolVal ::= INTEGER (0..1)
+Field ::= SEQUENCE {
+  id          IE-CLASS.&id ({Msg-IEs}),
+  criticality IE-CLASS.&criticality ({Msg-IEs}{@id}),
+  value       IE-CLASS.&Value ({Msg-IEs}{@id})
+}
+Msg ::= SEQUENCE { ies SEQUENCE (SIZE(0..16)) OF Field }
+
+END

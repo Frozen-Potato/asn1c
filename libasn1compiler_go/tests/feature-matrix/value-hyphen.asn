@@ -1,0 +1,9 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Typed INTEGER values that differ only by a hyphen before a digit.
+Id ::= INTEGER (0..255)
+id1 Id ::= 1
+id-1 Id ::= 2
+T ::= SEQUENCE { i Id }
+
+END

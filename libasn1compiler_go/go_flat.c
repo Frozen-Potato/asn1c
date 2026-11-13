@@ -1373,6 +1373,7 @@ render_nested_asserts(flat_type *t, flat_member *m, const char *lhs,
 
 static char *go_off_const2(const char *node_name, const char *tok1,
                            const char *tok2);
+static char *camel_tok_in(const char *node_name, const char *token);
 
 /* layout.go consts + cgo probes of the inner members of the by-value nested
  * wrapper member `m` of node `t`, recursing through wrappers nested inside
@@ -1392,7 +1393,8 @@ layout_nested_consts(flat_type *t, flat_member *m, const char *chain,
         flat_member *im = &n->members[j];
         char ob[32];
         snprintf(ob, sizeof ob, "%lu", abs + im->offset);
-        char *oc = go_off_const2(t->name, chain, im->token);
+        char *itc = camel_tok_in(n->name, im->token);
+        char *oc = go_off_const2(t->name, chain, itc);
         *lconsts = fa(*lconsts, "const ");
         *lconsts = fa(*lconsts, oc);
         *lconsts = fa(*lconsts, " = ");
@@ -1419,8 +1421,7 @@ layout_nested_consts(flat_type *t, flat_member *m, const char *chain,
             t->name, label, im->token, oc, acs);
         if(im->kind == FT_NESTED && !im->stars) {
             char *nchain = fstrdup(chain);
-            nchain = fa(nchain, "_");
-            nchain = fa(nchain, im->token);
+            nchain = fa(nchain, itc);
             char *nacc = fstrdup(acc);
             nacc = fa(nacc, ".");
             nacc = fa(nacc, im->token);
@@ -1434,6 +1435,7 @@ layout_nested_consts(flat_type *t, flat_member *m, const char *chain,
         }
         free(sub);
         free(oc);
+        free(itc);
     }
 }
 
@@ -1601,8 +1603,16 @@ pkg_of(const char *module, pkg_unit *pkgs, int n_pkgs) {
 /* Go const-name mangling: the node cid (prefix + _flat stripped) CamelCased,
  * e.g. RICrequestID_flat -> RicrequestIDFlat; the frozen units' sizeof<...> /
  * off<...> const forms (unexported: off-lowercased first letter). */
+const char *go_alt_node(const char *node_name);
+const char *go_alt_tok(const char *node_name, const char *tok);
+
 static char *
 camel_flat(const char *node_name) {
+    {
+        /* a name that took the alt spelling (hyphen clash): its exact Go name */
+        const char *alt = go_alt_node(node_name);
+        if(alt) return strdup(alt);
+    }
     const char *pfx = asn1c_prefix();
     size_t pl = pfx ? strlen(pfx) : 0;
     const char *s = node_name ? node_name : "";
@@ -1643,6 +1653,14 @@ camel_tok(const char *token) {
     return out;
 }
 
+/* camel of member `token` of node `node_name`: the alt spelling when the
+ * member clashed with a sibling (`a1` / `a-1`), else camel_tok. */
+static char *
+camel_tok_in(const char *node_name, const char *token) {
+    const char *alt = go_alt_tok(node_name, token);
+    return alt ? strdup(alt) : camel_tok(token);
+}
+
 static char *
 go_sizeof_const(const char *node_name) {
     char *c = camel_flat(node_name);
@@ -1656,7 +1674,7 @@ go_sizeof_const(const char *node_name) {
 static char *
 go_off_const(const char *node_name, const char *token) {
     char *c = camel_flat(node_name);
-    char *t = camel_tok(token);
+    char *t = camel_tok_in(node_name, token);
     char *out = malloc(strlen(c) + strlen(t) + 8);
     if(!out) { free(c); free(t); g_flat_failed_set(); return strdup(""); }
     sprintf(out, "off%s%s", c, t);
@@ -1666,9 +1684,10 @@ go_off_const(const char *node_name, const char *token) {
 
 static char *
 go_off_const2(const char *node_name, const char *tok1, const char *tok2) {
+    /* tok1 (the chain) and tok2 are already camel-cased by the caller */
     char *c = camel_flat(node_name);
-    char *t1 = camel_tok(tok1);
-    char *t2 = camel_tok(tok2);
+    char *t1 = strdup(tok1);
+    char *t2 = strdup(tok2);
     char *out = malloc(strlen(c) + strlen(t1) + strlen(t2) + 8);
     if(!out) { free(c); free(t1); free(t2); g_flat_failed_set(); return strdup(""); }
     sprintf(out, "off%s%s%s", c, t1, t2);
@@ -1987,7 +2006,7 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
                             "static inline unsigned long %s(void) { return (unsigned long)offsetof(%s, %s); }\n",
                             acc, t->name, m->token);
                         char *cf = camel_flat(t->name);
-                        char *ct = camel_tok(m->token);
+                        char *ct = camel_tok_in(t->name, m->token);
                         probe_go = fap(probe_go, "\tmust(\"off %s.%s\", uintptr(off%s%s), uintptr(C.%s()))\n",
                                       t->name, m->token, cf ? cf : "", ct ? ct : "", acc);
                         free(cf); free(ct);
@@ -2004,10 +2023,12 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
                     lhs = fa(lhs, ", ");
                     lhs = fa(lhs, m->token);
                     lhs = fa(lhs, ")");
-                    layout_nested_consts(t, m, m->token, lhs, m->token,
+                    char *chain0 = camel_tok_in(t->name, m->token);
+                    layout_nested_consts(t, m, chain0, lhs, m->token,
                                          m->token, m->offset, &lconsts,
                                          &probe_c, &probe_go, &probe_n);
                     free(lhs);
+                    free(chain0);
                 }
                 lconsts = fa(lconsts, "\n");
             }

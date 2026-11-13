@@ -1,0 +1,39 @@
+AliasChoice DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A top-level alias of a CHOICE (and an alias of an alias): C has only
+-- `typedef Orig_t Alias_t;`, so the converters must spell the target's
+-- Orig_PR enum and the Orig__t2 struct tag of the inline alternative.
+
+Orig ::= CHOICE {
+    t1 INTEGER (0..31),
+    t2 SEQUENCE { p1 INTEGER (0..23), p2 INTEGER (1..3) OPTIONAL }
+}
+Alias ::= Orig
+Alias2 ::= Alias
+L ::= SEQUENCE (SIZE(1..4)) OF Alias
+
+-- inline members of every kind under an alias: a nested CHOICE, a SEQUENCE OF
+-- and an inline SEQUENCE holding an inline SEQUENCE
+Rich ::= CHOICE {
+    a BOOLEAN,
+    n CHOICE { u INTEGER (0..3), v BOOLEAN },
+    l SEQUENCE (SIZE(1..3)) OF INTEGER (0..9),
+    s SEQUENCE { q SEQUENCE { z INTEGER (0..3) }, w OCTET STRING (SIZE(2)) }
+}
+RichA ::= Rich
+RichA2 ::= RichA
+
+-- an alias of a SEQUENCE with inline members
+Sq ::= SEQUENCE {
+    a INTEGER (0..3),
+    inl SEQUENCE { x INTEGER (0..7), y BOOLEAN OPTIONAL },
+    c CHOICE { u INTEGER (0..3), v BOOLEAN }
+}
+SqA ::= Sq
+SqA2 ::= SqA
+
+-- the C descriptor of an alias carries no PER codec: the aliases travel as
+-- members of this PDU
+Wrap ::= SEQUENCE { o Alias2, r RichA2, s SqA2 }
+
+END

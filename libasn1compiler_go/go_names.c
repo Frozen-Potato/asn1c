@@ -405,6 +405,185 @@ static char *go_cid_compound(const char *a, const char *sep, const char *b) {
     return r;
 }
 
+/* ------------------------------------------------------------------------- */
+/* Hyphen-clash spelling (the rule of go_list_suffix, applied to the sibling
+ * lists of SEQUENCE fields / CHOICE alternatives, to the type names of one
+ * module and to the value names of one module). go_r2 drops every '_', so
+ * `a1` and `a-1` (C tokens `a1`, `a_1`) would both become `A1`. Only a
+ * member that clashes AND has a '_' directly followed by a digit uses the
+ * alternative spelling, which keeps that '_' (`A_1`); every other name is
+ * the plain go_r2 spelling, byte for byte. */
+
+/* alt spelling of a C token: go_r2, but a '_' directly before a digit stays */
+static char *
+go_alt_spell(const char *cid) {
+    const char *prefix = asn1c_prefix();
+    size_t plen = prefix ? strlen(prefix) : 0;
+    if(cid && plen && strncmp(cid, prefix, plen) == 0) cid += plen;
+    size_t n = cid ? strlen(cid) : 0;
+    char *out = malloc(n + 1);
+    if(!out) return strdup("");
+    size_t j = 0;
+    int cap = 1;
+    for(size_t i = 0; i < n; i++) {
+        unsigned char c = (unsigned char)cid[i];
+        if(c == '_' && isdigit((unsigned char)cid[i + 1])) {
+            out[j++] = '_';
+            cap = 0;
+            continue;
+        }
+        if(c == '_') { cap = 1; continue; }
+        out[j++] = (cap && isalpha(c)) ? (char)toupper(c) : (char)c;
+        cap = 0;
+    }
+    out[j] = '\0';
+    return out;
+}
+
+static int
+go_has_us_digit(const char *cid) {
+    for(; cid && *cid; cid++)
+        if(*cid == '_' && isdigit((unsigned char)cid[1])) return 1;
+    return 0;
+}
+
+/* A sorted multiset of keys per (module, kind): answers "does another
+ * entry of this module normalise to the same name?". Built once per module. */
+struct clash_set {
+    asn1p_module_t *mod;
+    int kind;                   /* 0 type names, 1 value names */
+    char **keys;
+    size_t n;
+};
+static struct clash_set *g_clash;
+static size_t g_clash_n;
+
+static int
+clash_cmp(const void *a, const void *b) {
+    return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+static void
+go_clash_reset(void) {
+    for(size_t i = 0; i < g_clash_n; i++) {
+        for(size_t k = 0; k < g_clash[i].n; k++) free(g_clash[i].keys[k]);
+        free(g_clash[i].keys);
+    }
+    free(g_clash);
+    g_clash = NULL;
+    g_clash_n = 0;
+}
+
+static const char *
+value_type_ref_name(asn1p_expr_t *v) {
+    if(v->reference && v->reference->comp_count && v->reference->components)
+        return v->reference->components[0].name;
+    return "";
+}
+
+/* key of a top-level type (kind 0) or value (kind 1) assignment */
+static char *
+clash_key(asn1p_expr_t *m, int kind) {
+    char *cid = own(GO_MKID(m));
+    char *r = go_r2(cid);
+    free(cid);
+    if(kind == 1) {
+        r = str_append(r, "\x01");
+        r = str_append(r, value_type_ref_name(m));
+    }
+    return r;
+}
+
+static int
+clash_member(asn1p_expr_t *m, int kind) {
+    if(!m->Identifier || m->expr_type == A1TC_EXTENSIBLE) return 0;
+    if(kind == 0)
+        return (m->meta_type == AMT_TYPE || m->meta_type == AMT_TYPEREF)
+            && !m->lhs_params && m->spec_index < 0;
+    return m->meta_type == AMT_VALUE;
+}
+
+static struct clash_set *
+clash_get(asn1p_module_t *mod, int kind) {
+    for(size_t i = 0; i < g_clash_n; i++)
+        if(g_clash[i].mod == mod && g_clash[i].kind == kind) return &g_clash[i];
+    struct clash_set *ng = realloc(g_clash, (g_clash_n + 1) * sizeof *ng);
+    if(!ng) return NULL;
+    g_clash = ng;
+    struct clash_set *cs = &g_clash[g_clash_n++];
+    cs->mod = mod;
+    cs->kind = kind;
+    cs->keys = NULL;
+    cs->n = 0;
+    size_t cap = 0;
+    asn1p_expr_t *m;
+    TQ_FOR(m, &(mod->members), next) {
+        if(!clash_member(m, kind)) continue;
+        if(cs->n == cap) {
+            cap = cap ? cap * 2 : 64;
+            char **nk = realloc(cs->keys, cap * sizeof *nk);
+            if(!nk) break;
+            cs->keys = nk;
+        }
+        cs->keys[cs->n++] = clash_key(m, kind);
+    }
+    if(cs->n) qsort(cs->keys, cs->n, sizeof *cs->keys, clash_cmp);
+    return cs;
+}
+
+static int
+clash_has_other(struct clash_set *cs, const char *key) {
+    if(!cs || !cs->n) return 0;
+    size_t lo = 0, hi = cs->n;
+    while(lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        if(strcmp(cs->keys[mid], key) < 0) lo = mid + 1; else hi = mid;
+    }
+    return lo + 1 < cs->n && strcmp(cs->keys[lo], key) == 0
+        && strcmp(cs->keys[lo + 1], key) == 0;
+}
+
+/* Go name of a top-level type assignment: go_r2(MKID(t)), or the alt
+ * spelling when it clashes with another type of its module (`T1`/`T-1`). */
+static char *
+go_type_go(asn1p_expr_t *t) {
+    char *cid = own(GO_MKID(t));
+    char *norm = go_r2(cid);
+    if(go_has_us_digit(cid) && !t->parent_expr && t->module
+       && clash_member(t, 0)
+       && clash_has_other(clash_get(t->module, 0), norm)) {
+        free(norm);
+        norm = go_alt_spell(cid);
+    }
+    free(cid);
+    return norm;
+}
+
+/* Go name of the value-const `#define <Gov>_<val>`: go_type_go(Gov) plus
+ * the value segment, which takes the alt spelling when the value clashes
+ * with a sibling value of its module of the same type reference. */
+static char *
+go_value_go(asn1p_expr_t *gov, asn1p_expr_t *val) {
+    char *head = go_type_go(gov);
+    char *vc = own(GO_MKID(val));
+    char *seg = NULL;
+    if(go_has_us_digit(vc) && !val->parent_expr && val->module
+       && clash_member(val, 1)) {
+        char *key = clash_key(val, 1);
+        if(clash_has_other(clash_get(val->module, 1), key))
+            seg = go_alt_spell(vc);
+        free(key);
+    }
+    if(!seg) seg = go_r2(vc);
+    head = str_append(head, seg);
+    free(seg);
+    free(vc);
+    return head;
+}
+
+static char *go_list_suffix(asn1p_expr_t *list, asn1p_expr_t *e);
+static char *go_member_go(asn1p_expr_t *e);
+
 /* module_pkg: module identifier lowercased, '-' -> '_'. malloc'd, never NULL.
  * (package dir = this. Mirrors go_emit.c's same-named helper.) */
 static char *
@@ -675,6 +854,92 @@ record_pkg_dir(struct name_bag *b, const char *module,
     b->n_dirs++;
 }
 
+/* ---- alt-spelling registry ------------------------------------------------
+ * go_flat.c / go_glue.c derive layout-const and fn names, and look up a node's
+ * Go type, by camel-casing the C names (which drops every '_'). A name that
+ * took the alt spelling above keeps a '_' there, so the camel of its C name
+ * is not its Go name. The registry maps the C name (node cid, or node cid +
+ * member token) to the exact Go spelling, for those names only; every other
+ * name is camel-cased as before. */
+struct alt_ent { char *key; char *val; };
+static struct alt_ent *g_alt;
+static size_t g_alt_n, g_alt_cap;
+static int g_alt_sorted;
+
+static char *
+alt_norm(const char *name, const char *tok) {
+    const char *pfx = asn1c_prefix();
+    size_t pl = pfx ? strlen(pfx) : 0;
+    const char *s0 = name ? name : "";
+    if(pl && strncmp(s0, pfx, pl) == 0) s0 += pl;
+    size_t n = strlen(s0);
+    if(n > 5 && strcmp(s0 + n - 5, "_flat") == 0) n -= 5;
+    size_t tl = tok ? strlen(tok) : 0;
+    char *k = malloc(n + tl + 2);
+    if(!k) return NULL;
+    memcpy(k, s0, n);
+    k[n] = '\0';
+    if(tok) { k[n] = '\x01'; memcpy(k + n + 1, tok, tl); k[n + 1 + tl] = '\0'; }
+    return k;
+}
+
+static void
+alt_register(const char *name, const char *tok, const char *go) {
+    if(!go || !strchr(go, '_')) return;      /* only alt spellings */
+    char *k = alt_norm(name, tok);
+    if(!k) return;
+    if(g_alt_n == g_alt_cap) {
+        size_t nc = g_alt_cap ? g_alt_cap * 2 : 64;
+        struct alt_ent *ng = realloc(g_alt, nc * sizeof *ng);
+        if(!ng) { free(k); return; }
+        g_alt = ng;
+        g_alt_cap = nc;
+    }
+    g_alt[g_alt_n].key = k;
+    g_alt[g_alt_n].val = strdup(go);
+    g_alt_n++;
+    g_alt_sorted = 0;
+}
+
+static int
+alt_cmp(const void *a, const void *b) {
+    return strcmp(((const struct alt_ent *)a)->key,
+                  ((const struct alt_ent *)b)->key);
+}
+
+static const char *
+alt_find(const char *name, const char *tok) {
+    if(!g_alt_n) return NULL;
+    if(!g_alt_sorted) {
+        qsort(g_alt, g_alt_n, sizeof *g_alt, alt_cmp);
+        g_alt_sorted = 1;
+    }
+    char *k = alt_norm(name, tok);
+    if(!k) return NULL;
+    struct alt_ent key = { k, NULL };
+    struct alt_ent *r = bsearch(&key, g_alt, g_alt_n, sizeof *g_alt, alt_cmp);
+    free(k);
+    return r ? r->val : NULL;
+}
+
+/* The exact Go spelling of node `node_name` / of its member `tok` when it
+ * took the alt spelling; NULL otherwise (camel-case as before). */
+const char *go_alt_node(const char *node_name);
+const char *go_alt_tok(const char *node_name, const char *tok);
+const char *go_alt_node(const char *node_name) { return alt_find(node_name, NULL); }
+const char *go_alt_tok(const char *node_name, const char *tok) {
+    return alt_find(node_name, tok);
+}
+
+static void
+alt_reset(void) {
+    for(size_t i = 0; i < g_alt_n; i++) { free(g_alt[i].key); free(g_alt[i].val); }
+    free(g_alt);
+    g_alt = NULL;
+    g_alt_n = g_alt_cap = 0;
+    g_alt_sorted = 0;
+}
+
 /* Append a retained row. module is borrowed; path/rawCid/goName owned. */
 static void
 add_row(struct name_bag *b, const char *module,
@@ -749,6 +1014,8 @@ row_set_slice_elem_at(struct name_bag *b, int ix, const char *elem) {
 static void
 emit_name(struct name_bag *b, const char *module,
           char *path, go_kind_e kind, char *rawCid, char *goName) {
+    if(kind == GK_TYPE || kind == GK_INLINE)
+        alt_register(rawCid, NULL, goName);
     if(kind_is_package_scoped(kind))
         record_package(b, module, path, kind, rawCid, goName);
     else if(kind == GK_FIELD)
@@ -1783,6 +2050,8 @@ go_check_outdir(const char *go_outdir) {
 int
 go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
     struct name_bag bag = {0};
+    go_clash_reset();
+    alt_reset();
     go_compiler_flags = flags;   /* cached for classify_integer_leaf's arg_t */
 
     if(go_check_outdir(go_outdir) != 0)
@@ -2221,7 +2490,15 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
          * member-decl token (MKID_safe, asn1c_C.c:1353). One unprefixed
          * string serves both. */
         const char *altcid = go_mk_suffix(alt);
-        char *altgo = go_r2(altcid);
+        char *altgo = go_list_suffix(choice_expr, alt);
+        {
+            /* layout / glue name the alt's slot and constant by camel-casing
+             * its token: tell them the alt spelling (also for a NULL alt) */
+            char *at_ = go_mk_member(alt);
+            alt_register(choice_cid, at_, altgo);
+            alt_register(choice_cid, altcid, altgo);
+            free(at_);
+        }
         /* choice-const <Choice>Pr<Alt>; rawCid = <Cid>_PR_<AltCid> (the verbatim
          * asn1c enum-member token <Choice>_PR_<AltCid>). <Cid> is the
          * aggregate prefixed form; the alt part is unprefixed. */
@@ -2394,7 +2671,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                      * (leaf or constructed alike). Stored UNQUALIFIED;
                      * the post-walk prepass (qualify_field_types) applies cross-module qualification
                      * cross-module qualification once the bag is complete. */
-                    char *tgo = go_r2(GO_MKID(aterm));
+                    char *tgo = go_type_go(aterm);
                     ft = str_append(strdup(""), tgo);
                     free(tgo);
                 } else {
@@ -2590,27 +2867,23 @@ go_list_suffix(asn1p_expr_t *list, asn1p_expr_t *e) {
     }
     char *out = norm;
     if(alt) {
-        size_t n = strlen(cid);
-        out = malloc(n + 1);
-        if(!out) { free(cid); return norm; }
-        size_t j = 0;
-        int cap = 1;
-        for(size_t i = 0; i < n; i++) {
-            unsigned char c = (unsigned char)cid[i];
-            if(c == '_' && isdigit((unsigned char)cid[i + 1])) {
-                out[j++] = '_';
-                cap = 0;
-                continue;
-            }
-            if(c == '_') { cap = 1; continue; }
-            out[j++] = (cap && isalpha(c)) ? (char)toupper(c) : (char)c;
-            cap = 0;
-        }
-        out[j] = '\0';
+        out = go_alt_spell(cid);
         free(norm);
     }
     free(cid);
     return out;
+}
+
+/* go_member_go: the Go segment of member `e` of a SEQUENCE / CHOICE: the
+ * sibling-list rule of go_list_suffix (a hyphen clash between `a1` and `a-1`
+ * keeps the '_' before the digit of the clashing one only). Every name built
+ * from the member (field, inline type <Parent><Member>, <Choice>Pr<Alt>,
+ * <Owner>Member) uses this one segment. Malloc'd. */
+static char *
+go_member_go(asn1p_expr_t *e) {
+    if(e->parent_expr && e->Identifier)
+        return go_list_suffix(e->parent_expr, e);
+    return go_r2(GO_MKID(e));
 }
 
 /* Emit enum-const rows for an ENUMERATED whose goName is `enum_go` and real
@@ -2876,7 +3149,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
             if(go_construct_is_classfield_ref(mem)) {
                 asn1p_expr_t *decl = classfield_declared_type(ctx, mem);
                 if(decl) {
-                    char *tgo = go_r2(GO_MKID(decl));
+                    char *tgo = go_type_go(decl);
                     ft = str_append(strdup(""), tgo);
                     free(tgo);
                 }
@@ -2896,7 +3169,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
                    || t->expr_type == ASN_CONSTR_CHOICE
                    || t->expr_type == ASN_CONSTR_SEQUENCE_OF
                    || t->expr_type == ASN_BASIC_ENUMERATED) {
-                    char *tgo = go_r2(GO_MKID(t));
+                    char *tgo = go_type_go(t);
                     ft = str_append(strdup(""), tgo);
                     free(tgo);
                 } else {
@@ -3582,7 +3855,7 @@ column_governing_go(struct walk_ctx *ctx, asn1p_expr_t *field) {
         if(r) t = r;
     }
     if(!t->Identifier) return NULL;
-    return go_r2(GO_MKID(t));
+    return go_type_go(t);
 }
 
 /* Is an id cell's chased value a NUMBER LITERAL (no value assignment
@@ -4409,7 +4682,7 @@ slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
         asn1p_expr_t *t = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, elem);
         if(t) terminal = t;
     }
-    return go_r2(GO_MKID(terminal));
+    return go_type_go(terminal);
 }
 
 /* go_quote: a Go interpreted string literal for arbitrary bytes. */
@@ -4526,8 +4799,12 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
     int field_row_ix;
     {
         char *path = make_path(parent_path, cid);
+        char *mgo_ = go_member_go(child);
+        char *mtok_ = go_mk_member(child);
+        alt_register(parent_cid ? parent_cid : "", mtok_, mgo_);
+        free(mtok_);
         emit_name(ctx->bag, ctx->module, path, GK_FIELD,
-                  go_mk_member(child), go_r2(GO_MKID(child)));
+                  go_mk_member(child), mgo_);
         field_row_ix = ctx->bag->n_rows - 1;
         ctx->bag->rows[field_row_ix].opt_extra_bits = ctx->last_opt_extra;
     }
@@ -4553,7 +4830,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * compounds as asn1c does: <parent_cid> + "__" + <child cid> (the nested
          * tag form <StructCid>__<memberCid>, underscore-preserving on both
          * sides). goName collapses underscores; cid keeps them. */
-        char *child_field_go = go_r2(GO_MKID(child));
+        char *child_field_go = go_member_go(child);
         /* struct-body stage: the field's Go type is the inline name (the field is typed by
          * the minted named type <Parent><Member>), pointer-starred by the
          * marker rule (member_stars, computed above). Same-module by
@@ -4846,7 +5123,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                || (elem->meta_type == AMT_TYPEREF
                    && elem->expr_type == A1TC_REFERENCE
                    && field_shaped_element(ctx, elem)))) {
-            char *member_go = go_r2(GO_MKID(child));
+            char *member_go = go_member_go(child);
             char *inline_go = str_append(strdup(""), parent_go);
             inline_go = str_append(inline_go, member_go);
             free(member_go);
@@ -4942,7 +5219,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * carries the terminal's expr_type with meta AMT_TYPE — the
          * A1TC_REFERENCE form is gone). The chase resolving to a DIFFERENT
          * expr than the member is the reliable "was a reference" signal. */
-        char *tgo = go_r2(GO_MKID(terminal));
+        char *tgo = go_type_go(terminal);
         char *ft = str_append(strdup(""), stars);
         ft = str_append(ft, tgo);
         row_set_field_type(ctx->bag, ft);
@@ -5042,7 +5319,7 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
     if(rc == 0 && child->expr_type == ASN_BASIC_BIT_STRING
        && child->meta_type != AMT_TYPEREF && TQ_FIRST(&child->members)
        && asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, child) == child) {
-        char *mgo = go_r2(GO_MKID(child));
+        char *mgo = go_member_go(child);
         char *bit_go = str_append(str_append(strdup(""), parent_go), mgo);
         char *mcid = own_mkid(child);
         char *bit_cid = go_cid_compound(parent_cid ? parent_cid : "", "__",
@@ -5133,7 +5410,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
             char *val_cid = own(GO_MKID(expr));
             char *raw = go_cid_compound(gov_cid, "_", val_cid);
             free(gov_cid); free(val_cid);
-            char *go = go_r2(raw);
+            char *go = go_value_go(governing, expr);
             char *path = make_path("", expr->Identifier
                                        ? expr->Identifier : "?");
             emit_name(ctx->bag, ctx->module, path, GK_VALUE_CONST, raw, go);
@@ -5144,7 +5421,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
              * asn1c emits a number for both INTEGER- and ENUM-governed,
              * asn1c_C.c:1257-1263, no enumerator symbol). */
             if(expr->value) {
-                char *gov_go = go_r2(GO_MKID(governing));
+                char *gov_go = go_type_go(governing);
                 row_set_const(ctx->bag,
                               asn1p_itoa(expr->value->value.v_integer), gov_go);
                 free(gov_go);
@@ -5162,7 +5439,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
 
     /* Type assignment: one `type` row. goName = R2(MKID(expr)) (a reference
      * assignment mints its OWN named Go type — not chased to terminal). */
-    char *type_go = go_r2(GO_MKID(expr));
+    char *type_go = go_type_go(expr);
     char *type_cid = own_mkid(expr);   /* real asn1c C-ident of this assignment */
     const char *ident = expr->Identifier ? expr->Identifier : "?";
     char *type_path = make_path("", ident);
@@ -5396,7 +5673,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                     ctx->bag->failed = 1;
                     return -1;
                 }
-                ogo = go_r2(GO_MKID(terminal));
+                ogo = go_type_go(terminal);
                 ocid = own_mkid(terminal);
                 opath = terminal->Identifier ? terminal->Identifier : ident;
             }

@@ -6,8 +6,9 @@ bitstr-unconstr	OK
 bool-top	OK
 charstring	REFUSED	asn1cgo: CHARACTER STRING in module Probe
 choice-ext-alts	OK
-choice-reserved	OK
+choice-hyphen	OK
 choice-present	OK
+choice-reserved	OK
 choice-seqof-ref-alt	OK
 components-of	OK
 dflt-bmp	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
@@ -36,6 +37,7 @@ extgroup-mixed	OK
 extgroup-multi	OK
 extgroup-optdef	OK
 gentime	OK
+import-seqof	OK
 inl-choice-alt-deep	OK
 inl-choice-alt-mid	OK
 inl-choice-alt-seq-deep	OK
@@ -61,6 +63,7 @@ int-u64top	OK
 int-unconstr	OK
 int-wide-refused	REFUSED	asn1cgo: INTEGER T.a range [-1..18446744073709551615] fits neither int64 nor uint64
 int-wide-refused-alt	REFUSED	fits neither int64 nor uint64
+ioc-hyphen	OK
 null-alt	OK
 null-mem	OK
 null-top	OK
@@ -84,6 +87,7 @@ roid-mem	OK
 roid-opt	OK
 roid-ref	OK
 roid-ref-alt	OK
+seq-hyphen	OK
 seq-inline-choice	OK
 seq-present	OK
 seqof-alias-inline	OK
@@ -194,5 +198,6 @@ str-videotexstring	OK
 str-videotexstring-mem	OK
 str-visiblestring	OK
 str-visiblestring-mem	OK
+type-hyphen	OK
 utctime	OK
-import-seqof	OK
+value-hyphen	OK

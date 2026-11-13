@@ -187,9 +187,7 @@ static char *gown(const char *s) {
 /* the composite const prefix of member `tok` under prefix `pre` ("" = at the
  * node top): one "_<tok>" segment per nesting level (g_offconst2 camel-cases
  * the separators away). Malloc'd. */
-static char *cpre_chain(const char *pre, const char *tok) {
-    return (pre && *pre) ? gfmt("%s_%s", pre, tok) : gown(tok);
-}
+static char *cpre_chain(const char *pre, const char *tok, const char *tnode);
 
 static char *gjoin(const char *dir, const char *leaf) {
     char *p = malloc(strlen(dir) + 1 + strlen(leaf) + 1);
@@ -419,7 +417,21 @@ static char *gcamel(const char *s) {
 /* camel of a flat NODE name: run prefix + trailing `_flat` stripped, then
  * camel — the same input go_flat.c::go_sizeof_const mangles, so const
  * references below spell exactly layout.go's declared names. */
+const char *go_alt_node(const char *node_name);
+const char *go_alt_tok(const char *node_name, const char *tok);
+
+/* camel of member `tok` of node `node_name`: the exact Go spelling when the
+ * member took the alt spelling (hyphen clash), else gcamel. */
+static char *gcamel_tok_in(const char *node_name, const char *tok) {
+    const char *alt = go_alt_tok(node_name, tok);
+    return alt ? strdup(alt) : gcamel(tok);
+}
+
 static char *gcamel_flat(const char *node_name) {
+    {
+        const char *alt = go_alt_node(node_name);
+        if(alt) return strdup(alt);
+    }
     const char *pfx = asn1c_prefix();
     size_t pl = pfx ? strlen(pfx) : 0;
     const char *s = node_name ? node_name : "";
@@ -454,7 +466,7 @@ static char *g_szconst(const char *node_name) {
  * cross-module homonyms = 0, verified per scope check). */
 static char *g_offconst(const char *node_name, const char *tok) {
     char *c = gcamel_flat(node_name);
-    char *t = gcamel(tok);
+    char *t = gcamel_tok_in(node_name, tok);
     char *o = gfmt("off%s%s", c, t);
     free(c); free(t);
     return o;
@@ -463,19 +475,30 @@ static char *g_offconst(const char *node_name, const char *tok) {
  * go_flat.c's go_off_const2 spelling off<Host><Mem><Inner>. */
 static char *g_offconst2(const char *node_name, const char *tok1,
                          const char *tok2) {
+    /* tok1 (the chain) and tok2 are already camel-cased by the caller */
     char *c = gcamel_flat(node_name);
-    char *t1 = gcamel(tok1);
-    char *t2 = gcamel(tok2);
-    char *o = gfmt("off%s%s%s", c, t1, t2);
-    free(c); free(t1); free(t2);
+    char *o = gfmt("off%s%s%s", c, tok1, tok2);
+    free(c);
     return o;
 }
 /* member off const honoring a composite prefix ("" = plain form). */
 static char *g_offconst_pfx(const char *node_name, const char *pre,
-                            const char *tok) {
-    return (*pre && strcmp(pre, "") != 0)
-               ? g_offconst2(node_name, pre, tok)
-               : g_offconst(node_name, tok);
+                            const char *tok, const char *tnode) {
+    if(*pre) {
+        char *tc = gcamel_tok_in(tnode, tok);
+        char *o = g_offconst2(node_name, pre, tc);
+        free(tc);
+        return o;
+    }
+    return g_offconst(node_name, tok);
+}
+/* the composite const prefix: the camel-cased member tokens of the nesting
+ * levels concatenated (pre-camelled for g_offconst2). Malloc'd. */
+static char *cpre_chain(const char *pre, const char *tok, const char *tnode) {
+    char *t = gcamel_tok_in(tnode, tok);
+    char *o = (pre && *pre) ? gfmt("%s%s", pre, t) : gown(t);
+    free(t);
+    return o;
 }
 typedef struct { char *name; long value; } goneconst;
 static goneconst *g_loconsts = NULL;
@@ -553,7 +576,8 @@ static void nested_consts(const char *nm, const char *node_id,
         flat_member *im = go_flat_ir_member(n, j);
         const char *itok = go_flat_ir_member_token(im);
         if(!itok || !*itok) continue;
-        char *oc2 = g_offconst2(nm, chain, itok);
+        char *itc = gcamel_tok_in(go_flat_ir_name(n), itok);
+        char *oc2 = g_offconst2(nm, chain, itc);
         long ioff = abs + go_flat_ir_member_offset(im);
         char *sub = gfmt("%s + offsetof(typeof(((%s *)0)->%s), %s)",
                          lhs, node_id, acc, itok);
@@ -569,13 +593,14 @@ static void nested_consts(const char *nm, const char *node_id,
             loconst_add(oc2, ioff);
         }
         if(go_flat_ir_member_is_nested(im) && !go_flat_ir_member_stars(im)) {
-            char *nchain = gfmt("%s_%s", chain, itok);
+            char *nchain = gfmt("%s%s", chain, itc);
             char *nacc = gfmt("%s.%s", acc, itok);
             nested_consts(nm, node_id, im, nchain, sub, nacc, ioff,
                           emit_assert);
             free(nchain); free(nacc);
         }
         free(sub);
+        free(itc);
     }
 }
 
@@ -606,9 +631,11 @@ static void node_asserts(flat_type *t) {
             continue;
         {
             char *lhs = gfmt("offsetof(%s, %s)", node_id, tok);
-            nested_consts(nm, node_id, m, tok, lhs, tok,
+            char *chain0 = gcamel_tok_in(nm, tok);
+            nested_consts(nm, node_id, m, chain0, lhs, tok,
                           go_flat_ir_member_offset(m), 1);
             free(lhs);
+            free(chain0);
         }
     }
     free(node_id);
@@ -659,9 +686,11 @@ static char *qconst(const char *node_name, char *o) {
                 continue;
             const char *mtok = go_flat_ir_member_token(m);
             char *lhs = gfmt("offsetof(%s, %s)", node_id, mtok);
-            nested_consts(node_name, node_id, m, mtok, lhs, mtok,
+            char *chain0 = gcamel_tok_in(node_name, mtok);
+            nested_consts(node_name, node_id, m, chain0, lhs, mtok,
                           go_flat_ir_member_offset(m), 0);
             free(lhs);
+            free(chain0);
         }
         free(node_id);
     }
@@ -1015,7 +1044,7 @@ static char *gtype_q(flat_type *t) {
                 const char *nown = go_flat_ir_name(host);
                 const char *tokraw = go_flat_ir_member_token(m);
                 char *hostcam = gcamel_flat(nown ? nown : "");
-                char *tokcam = gcamel(tokraw ? tokraw : "");
+                char *tokcam = gcamel_tok_in(nown ? nown : "", tokraw ? tokraw : "");
                 int ri = -1;
                 { char *fk = ix_key2(hostcam, tokcam);
                   rows_index();
@@ -1236,7 +1265,7 @@ static void
 emit_prim(ectx *E, flat_member *m) {
     const char *tok = go_flat_ir_member_token(m);
     const char *prim = go_flat_ir_member_prim(m);
-    char *offc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, tok));
+    char *offc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, tok, go_flat_ir_name(E->t)));
     char *slot = gfmt("unsafe.Pointer(uintptr(%s) + uintptr(%s))", E->cbase, offc);
     const char *fgo = gf_field_goname(E->owner_go, tok);
     char *acc;
@@ -1641,7 +1670,7 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
     if(r && !go_flat_ir_is_nested_only(r)) emit_type_fn(r);
     const char *tok = go_flat_ir_member_token(m);
     int stars = go_flat_ir_member_stars(m);
-    char *offc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, tok));
+    char *offc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, tok, go_flat_ir_name(E->t)));
     char *slot = gfmt("unsafe.Pointer(uintptr(%s) + uintptr(%s))", E->cbase, offc);
     const char *fgo = gf_field_goname(E->owner_go, tok);
     char *acc;
@@ -2420,7 +2449,7 @@ emit_nested(ectx *E, flat_member *m) {
         GFAIL(m2); free(m2);
         return;
     }
-    char *offc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, tok));
+    char *offc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, tok, go_flat_ir_name(E->t)));
     char *slot = gfmt("unsafe.Pointer(uintptr(%s) + uintptr(%s))", E->cbase, offc);
     const char *fgo = gf_field_goname(E->owner_go, tok);
     char *ft = gf_field_type(E->owner_go, tok) ? gown(gf_field_type(E->owner_go, tok)) : NULL;
@@ -2525,7 +2554,7 @@ emit_nested(ectx *E, flat_member *m) {
         A.t = n;
         A.owner_go = nowner;
         A.cbase = gown(E->cbase);
-        A.cpre = cpre_chain(E->cpre, tok);
+        A.cpre = cpre_chain(E->cpre, tok, go_flat_ir_name(E->t));
         A.val = gown(acc);
         emit_choice_at(&A, n, E->cbase, pv);
         free(pv);
@@ -2547,7 +2576,7 @@ emit_nested(ectx *E, flat_member *m) {
          * Implemented by carrying (host node, inner token-prefix) in the
          * const formatter: cnode stays the HOST node and cpre carries M. */
         E2.cnode = E->cnode;
-        E2.cpre = cpre_chain(E->cpre, tok);
+        E2.cpre = cpre_chain(E->cpre, tok, go_flat_ir_name(E->t));
         E2.val = gown(acc);
         for(int i = 0; i < go_flat_ir_members(n); i++)
             emit_member(&E2, go_flat_ir_member(n, i));
@@ -2702,7 +2731,7 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
      * union reads its present off the host field, not the receiver). */
     (*E->fill) = gam((*E->fill), gfmt("\tc := *%s\n", pv));
     {
-        char *poffc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, "present"));
+        char *poffc = qconst(E->cnode, g_offconst_pfx(E->cnode, E->cpre, "present", go_flat_ir_name(E->t)));
         const char *pvv = (pv[0] == '&') ? pv + 1 : pv;
         (*E->fill) = gam((*E->fill), gfmt(
             "\t*(*int32)(unsafe.Pointer(uintptr(%s) + uintptr(%s))) = int32(c.Present)\n",
@@ -2740,7 +2769,7 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
          * the constant TPrPresent. */
         const char *ttok_alt = go_flat_ir_member_tree_token(m);
         char *gu2 = (ttok_alt && strcmp(ttok_alt, tok) != 0)
-                        ? gown(gcamel(ttok_alt)) : gown(alt_field);
+                        ? gown(gcamel_tok_in(go_flat_ir_name(ch), ttok_alt)) : gown(alt_field);
         char *cstname = qcconst(gu1, gu2);
         free(gu1); free(gu2);
         (*E->fill) = gam((*E->fill), gfmt("\tcase %s:\n", cstname));
@@ -2845,7 +2874,7 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
         if(!conv_cid_eq(g_conv_nullalts[i].node_cid, ch_cid ? ch_cid : ""))
             continue;
         char *gu = gown(unqual(prtype_q));
-        char *ag = gcamel(g_conv_nullalts[i].alt_token);
+        char *ag = gcamel_tok_in(go_flat_ir_name(ch), g_conv_nullalts[i].alt_token);
         char *cst = qcconst(gu, ag);
         free(gu);
         (*E->fill) = gam((*E->fill), gfmt("\tcase %s:\n", cst));
