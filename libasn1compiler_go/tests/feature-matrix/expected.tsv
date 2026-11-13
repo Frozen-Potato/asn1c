@@ -6,6 +6,7 @@ bitstr-unconstr	OK
 bool-top	OK
 charstring	REFUSED	asn1cgo: CHARACTER STRING in module Probe
 choice-ext-alts	OK
+choice-reserved	OK
 choice-present	OK
 choice-seqof-ref-alt	OK
 components-of	OK

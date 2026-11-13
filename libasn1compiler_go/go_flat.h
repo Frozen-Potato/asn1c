@@ -87,6 +87,7 @@ void go_flat_last_member_gleaf(int gleaf);
  * `presentAlt` (the Flat struct already has the discriminant `present`) but
  * the tree member `choice.present` and the enumerator <X>_PR_present. */
 void go_flat_last_member_tree_token(const char *tree_token);
+void go_flat_last_member_tree_member(const char *m);
 
 /* The same mint keyed by the walk's GLEAF_* kind (the SAME int the Go side
  * passed row_set_leaf — one classification, both columns; the C-prim token

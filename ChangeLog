@@ -17,6 +17,12 @@
       `typedef Orig_t Alias_t;`). They now use the C names of the CHOICE the
       alias chain ends in (`Orig_PR`, `struct Orig__t2`). The Go types are
       unchanged; regenerate (asn1c -Fgo).
+    * Go backend: a CHOICE alternative named after a C reserved word
+      (`explicit`, `int`, `auto`, `default`, `struct`) failed the cgo build.
+      asn1c upper-cases the first letter of such a union member (`Explicit`),
+      but the converters wrote `choice.explicit`. They now use the upper-cased
+      member and keep the lower-case `_PR` constant (`C_PR_explicit`). The Go
+      names are unchanged; regenerate (asn1c -Fgo).
 
 0.9.29-go.7:
     NEW:

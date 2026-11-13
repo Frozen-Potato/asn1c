@@ -2295,7 +2295,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
              * field is registered like any other, so an alt literally named
              * `presentAlt` is still reported as a collision. */
             emit_name(ctx->bag, ctx->module, path, GK_FIELD,
-                      own(strcmp(altcid, "present") == 0 ? "presentAlt" : altcid),
+                      own(strcmp(altcid, "present") == 0 ? "presentAlt" : go_mk_member(alt)),
                       strdup(strcmp(altgo, "Present") == 0 ? "PresentAlt" : altgo));
             /* Flat slot: a POINTER iff asn1c's union member for
              * this alt is one — the EM_INDIRECT marker expr_break_recursion
@@ -2352,7 +2352,11 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                      * own it before the mint (the same aliasing trap). */
                     char *flat_acid = own(altcid);
                     int alt_is_present = strcmp(altcid, "present") == 0;
-                    char *flat_atok = own(alt_is_present ? "presentAlt" : altcid);
+                    /* the flat slot is a C struct field: a reserved word is
+                     * upcased as asn1c does for the union member; the _PR
+                     * suffix (tree_token) keeps the lower-case spelling */
+                    char *flat_mem = go_mk_member(alt);
+                    char *flat_atok = own(alt_is_present ? "presentAlt" : flat_mem);
                     if(cprim) {
                         go_flat_member_prim(cprim, flat_atok, cstars);
                         if(cwide) go_flat_last_member_wide();
@@ -2364,7 +2368,12 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     go_flat_label_last_member(alt->Identifier);
                     if(alt_is_present && (cprim || ccid))
                         go_flat_last_member_tree_token("present");
-                    free(flat_acid); free(flat_atok);
+                    if(!alt_is_present && (cprim || ccid)
+                       && strcmp(flat_mem, flat_acid) != 0) {
+                        go_flat_last_member_tree_token(flat_acid);
+                        go_flat_last_member_tree_member(flat_mem);
+                    }
+                    free(flat_acid); free(flat_atok); free(flat_mem);
                 }
                 free(ccid);
             }

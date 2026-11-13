@@ -150,6 +150,8 @@ struct flat_member {
     int stars;         /* 1 = a pointer slot                                */
     int is_default;    /* DEFAULT member: Flat slot by value (stars=0)      */
     int tree_ptr;      /* DEFAULT member: the C tree slot is a pointer      */
+    char *tree_member; /* CHOICE alt: the union member name when it differs
+                        * from the _PR suffix (a reserved word, upcased)     */
     char *tree_token;  /* CHOICE alt: the C tree's member name when it differs
                         * from token (an alt `present`); NULL = same         */
     int strk;          /* bytes_flat member holding a BMPString (1) or
@@ -605,6 +607,13 @@ go_flat_last_member_tree_token(const char *tree_token) {
 }
 
 void
+go_flat_last_member_tree_member(const char *m) {
+    flat_type *t = flat_at(g_flat_last_member_owner);
+    if(!t || t->n_members <= 0 || !m) return;
+    t->members[t->n_members - 1].tree_member = fstrdup(m);
+}
+
+void
 go_flat_last_member_wide(void) {
     flat_type *t = flat_at(g_flat_last_member_owner);
     if(!t || t->n_members <= 0) return;
@@ -745,6 +754,9 @@ int go_flat_ir_member_strz(flat_member *m) { return m ? m->strz : 0; }
 int go_flat_ir_strz(flat_type *t) { return t ? t->strz : 0; }
 const char *go_flat_ir_member_tree_token(flat_member *m) {
     return m ? (m->tree_token ? m->tree_token : m->token) : NULL;
+}
+const char *go_flat_ir_member_tree_member(flat_member *m) {
+    return m ? (m->tree_member ? m->tree_member : go_flat_ir_member_tree_token(m)) : NULL;
 }
 int go_flat_ir_member_nested_ix(flat_member *m) { return m ? m->nested_ix : -1; }
 /* Glue scope: the computed layout VALUES behind the layout.go consts
