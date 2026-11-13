@@ -1,0 +1,7 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+L ::= INTEGER (0..7)
+
+T ::= SEQUENCE { p CHOICE { a SEQUENCE { x BOOLEAN, l L }, l L } }
+
+END

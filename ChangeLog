@@ -1,3 +1,13 @@
+0.9.29-go.7 (unreleased):
+    FIXES:
+    * Go backend: a field of an inline SEQUENCE (or of an inline CHOICE
+      alternative) was checked for name collisions against the fields of the
+      enclosing struct, so a valid specification such as
+      T ::= SEQUENCE { a SEQUENCE { x BOOLEAN }, x BOOLEAN } was refused with
+      "collision in module ...". The output was never wrong; the generation
+      stopped. Every inline struct now has its own field scope. The
+      diagnostic path no longer repeats its last component.
+
 0.9.29-go.6:
     NEW:
     * Go backend: SEQUENCE OF with an inline element type (INTEGER, BOOLEAN,

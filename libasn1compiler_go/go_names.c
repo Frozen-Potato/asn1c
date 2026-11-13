@@ -314,6 +314,13 @@ struct name_bag {
     /* Per-struct field table (reset at each struct). */
     struct field_owner *fields;
     int n_fields, cap_fields;
+    /* Enclosing structs' saved field tables (field_scope_push/pop): an inline
+     * struct node gets its own scope and the outer one is restored on exit. */
+    struct field_scope_save {
+        struct field_owner *fields;
+        int n_fields, cap_fields;
+    } *fs_stack;
+    int n_fs, cap_fs;
 
     /* struct-body: the OPEN struct scope's owner name (the struct's goName; NULL
      * = no open scope). GK_FIELD rows emitted while a scope is open record it
@@ -496,17 +503,37 @@ record_package(struct name_bag *b, const char *module,
     ps_append(i, b, o);
 }
 
+/* field_diag_path: strip the doubled last component of a field row's path
+ * ("T.a.x.x" -> "T.a.x"). Owned copy. */
+static char *
+field_diag_path(const char *path) {
+    char *c = strdup(path);
+    char *last = strrchr(c, '.');
+    if(last) {
+        char *prev = last;
+        while(prev > c && prev[-1] != '.') prev--;
+        if((size_t)(last - prev) == strlen(last + 1)
+           && strncmp(prev, last + 1, (size_t)(last - prev)) == 0)
+            *last = '\0';
+    }
+    return c;
+}
+
 /* Record a struct-scoped field name in the CURRENT struct's field table. */
 static void
 record_field(struct name_bag *b, const char *module,
              const char *path, char *rawCid, char *goName) {
-    (void)module; (void)rawCid; (void)path;
+    (void)rawCid;
     for(int j = 0; j < b->n_fields; j++) {
         if(strcmp(b->fields[j].goName, goName) == 0) {
+            /* a field row's path is <member path>.<member>: the last
+             * component is doubled; print it once. */
+            char *p1 = field_diag_path(b->fields[j].path);
+            char *p2 = field_diag_path(path);
             fprintf(stderr,
                     "asn1cgo: collision in module %s: %s <- %s (field) and %s (field)\n",
-                    module ? module : "?", goName,
-                    b->fields[j].path, path);
+                    module ? module : "?", goName, p1, p2);
+            free(p1); free(p2);
             b->failed = 1;
             return;
         }
@@ -529,6 +556,37 @@ reset_field_scope(struct name_bag *b) {
         free(b->fields[j].goName); free(b->fields[j].path);
     }
     b->n_fields = 0;
+}
+
+/* field_scope_push / field_scope_pop: give a struct that becomes its own Go
+ * type (inline SEQUENCE/CHOICE, SEQUENCE OF inline element, [[ ]] group) its
+ * own field scope. push parks the enclosing table and starts an empty one;
+ * pop discards the inner table and restores the enclosing one. */
+static void
+field_scope_push(struct name_bag *b) {
+    if(b->n_fs + 1 > b->cap_fs) {
+        int nc = b->cap_fs ? b->cap_fs * 2 : 8;
+        struct field_scope_save *np = xrealloc(b->fs_stack,
+                                  (size_t)nc * sizeof(struct field_scope_save));
+        if(!np) { b->failed = 1; return; }
+        b->fs_stack = np; b->cap_fs = nc;
+    }
+    b->fs_stack[b->n_fs].fields = b->fields;
+    b->fs_stack[b->n_fs].n_fields = b->n_fields;
+    b->fs_stack[b->n_fs].cap_fields = b->cap_fields;
+    b->n_fs++;
+    b->fields = NULL; b->n_fields = 0; b->cap_fields = 0;
+}
+
+static void
+field_scope_pop(struct name_bag *b) {
+    if(b->n_fs <= 0) return;
+    reset_field_scope(b);
+    free(b->fields);
+    b->n_fs--;
+    b->fields = b->fs_stack[b->n_fs].fields;
+    b->n_fields = b->fs_stack[b->n_fs].n_fields;
+    b->cap_fields = b->fs_stack[b->n_fs].cap_fields;
 }
 
 /* ---- struct-body recording ------------------------------------ */
@@ -2028,6 +2086,7 @@ done:
             free(bag.fields[j].goName); free(bag.fields[j].path);
         }
         free(bag.fields);
+        free(bag.fs_stack);
         for(int j = 0; j < bag.n_dirs; j++) free(bag.dirs[j].dir);
         free(bag.dirs);
         free(bag.bs_modules);
@@ -2429,7 +2488,9 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     save_sf = strdup(ctx->bag->sf_cur_owner);
                 int save_fcur = go_flat_cur_get();
                 if(alt->expr_type == ASN_CONSTR_CHOICE) {
+                    field_scope_push(ctx->bag);
                     emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
+                    field_scope_pop(ctx->bag);
                     /* emit_choice minted the node and left it cur */
                     go_flat_mark_inline_elem("struct", NULL);
                 } else {   /* ASN_CONSTR_SEQUENCE: a struct with member fields */
@@ -2440,11 +2501,12 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     go_flat_mark_inline_elem("struct", NULL);
                     ctx->parent_go = inline_go;
                     ctx->parent_cid = inline_cid;
-                    reset_field_scope(ctx->bag);
+                    field_scope_push(ctx->bag);
                     row_set_is_struct(ctx->bag);
                     struct_scope_open(ctx->bag, inline_go);
                     (void)walk_names_members(ctx, alt, alt_path);
                     struct_scope_reset(ctx->bag);
+                    field_scope_pop(ctx->bag);
                     ctx->parent_go = save_go;
                     ctx->parent_cid = save_cid;
                 }
@@ -4136,11 +4198,12 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
         if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
         ctx->parent_go = inline_go;
         ctx->parent_cid = inline_cid;
-        reset_field_scope(ctx->bag);
+        field_scope_push(ctx->bag);
         row_set_is_struct(ctx->bag);
         struct_scope_open(ctx->bag, inline_go);
         rc = walk_names_members(ctx, elem, path);
         struct_scope_reset(ctx->bag);
+        field_scope_pop(ctx->bag);
         free(bag_sf_restore(ctx->bag, save_sf));
         ctx->parent_go = save_go;
         ctx->parent_cid = save_cid;
@@ -4152,7 +4215,9 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
                   strdup(inline_cid), strdup(inline_go));
         char *save_sf = NULL;
         if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
+        field_scope_push(ctx->bag);
         emit_choice(ctx, inline_go, inline_cid, path, elem);
+        field_scope_pop(ctx->bag);
         free(bag_sf_restore(ctx->bag, save_sf));
         {   /* emit_choice minted the CHOICE node and left it cur */
             go_flat_mark_inline_elem(NULL, NULL);
@@ -4574,7 +4639,9 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             char *save_sf = NULL;
             if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
             int save_fcur = go_flat_cur_get();
+            field_scope_push(ctx->bag);
             emit_choice(ctx, inline_go, inline_cid, inline_path, child);
+            field_scope_pop(ctx->bag);
             if(flat_nest_ix == -4) go_flat_mark_inline_elem("struct", NULL);
             go_flat_cur_restore(save_fcur);
             free(bag_sf_restore(ctx->bag, save_sf));
@@ -4588,7 +4655,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
             ctx->parent_go = inline_go;
             ctx->parent_cid = inline_cid;
-            reset_field_scope(ctx->bag);
+            field_scope_push(ctx->bag);
             /* struct-body stage: the inline SEQUENCE declares a Go struct; its member
              * fields (the rows walk_names_members emits next) attach to it.
              * FLAT cur save/restore as for the CHOICE branch above. */
@@ -4610,6 +4677,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             int rc = walk_names_members(ctx, child, inline_path);
             go_flat_cur_restore(save_fcur);
             struct_scope_reset(ctx->bag);
+            field_scope_pop(ctx->bag);
             free(bag_sf_restore(ctx->bag, save_sf));
             ctx->parent_go = save_go;
             ctx->parent_cid = save_cid;
@@ -4966,7 +5034,7 @@ field_shaped_element(struct walk_ctx *ctx, asn1p_expr_t *elem) {
 static int
 walk_names_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
                    const char *parent_path) {
-    reset_field_scope(ctx->bag);
+    /* the caller opened this struct's (empty) field scope */
     asn1p_expr_t *child;
     TQ_FOR(child, &(parent->members), next) {
         /* Extension marker "..." (A1TC_EXTENSIBLE, Identifier "...") carries no

@@ -37,6 +37,9 @@ inl-choice-alt1	OK
 inl-choice-alt2	OK
 inl-choice-alt3	OK
 inl-choice-mem-opt	OK
+inl-field-shadow-choice	OK
+inl-field-shadow-deep	OK
+inl-field-shadow-seq	OK
 inl-seq-alt	OK
 inl-seq-alt-last	OK
 inl-seq-alt-mid	OK
