@@ -40,6 +40,20 @@ func TestReadOIDFieldErrors(t *testing.T) {
 	}
 }
 
+func TestReadROIDFieldErrorNamesType(t *testing.T) {
+	b := make([]byte, 3)
+	r := &bytesRec{buf: &b[0], n: 3}
+	_, err := readROIDField(unsafe.Pointer(r))
+	var re *rt.Error
+	if !errors.As(err, &re) || re.TypeName != "RELATIVE-OID" {
+		t.Errorf("readROIDField err = %v, want TypeName RELATIVE-OID", err)
+	}
+	_, err = readOIDField(unsafe.Pointer(r))
+	if !errors.As(err, &re) || re.TypeName != "OBJECT IDENTIFIER" {
+		t.Errorf("readOIDField err = %v, want TypeName OBJECT IDENTIFIER", err)
+	}
+}
+
 func TestReadOIDFieldValues(t *testing.T) {
 	// little endian, one uint32 per arc
 	b := []byte{1, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0x78, 0x56, 0x34, 0x12}

@@ -1082,7 +1082,9 @@ qualify_alias(const char *alias_in) {
  *   read<fn>Field(rec)     (string, error): rejects odd lengths / non-scalars
  * ------------------------------------------------------------------------- */
 static const char *
-strk_fn(int strk) { return strk == 1 ? "BMP" : strk == 2 ? "Univ" : "OID"; }
+strk_fn(int strk) {
+    return strk == 1 ? "BMP" : strk == 2 ? "Univ" : strk == 3 ? "OID" : "ROID";
+}
 
 /* The Go type the glue converts through: string for the two UCS types, the
  * []uint64 arcs for OBJECT IDENTIFIER (3) / RELATIVE-OID (4). */
@@ -3605,10 +3607,22 @@ static const char *GLUE_STRCONV_OID =
     "\t*(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBytesFlatLen)) = n\n"
     "}\n"
     "\n"
+    "func writeROIDField(fa *blockArena, recAddr unsafe.Pointer, a []uint64) {\n"
+    "\twriteOIDField(fa, recAddr, a)\n"
+    "}\n"
+    "\n"
     "func readOIDField(recAddr unsafe.Pointer) ([]uint64, error) {\n"
+    "\treturn readOIDArcs(recAddr, \"OBJECT IDENTIFIER\")\n"
+    "}\n"
+    "\n"
+    "func readROIDField(recAddr unsafe.Pointer) ([]uint64, error) {\n"
+    "\treturn readOIDArcs(recAddr, \"RELATIVE-OID\")\n"
+    "}\n"
+    "\n"
+    "func readOIDArcs(recAddr unsafe.Pointer, typ string) ([]uint64, error) {\n"
     "\tn := *(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBytesFlatLen))\n"
     "\tif n%4 != 0 {\n"
-    "\t\treturn nil, ucsDecErr(\"OBJECT IDENTIFIER\", \"arc buffer length \"+strconv.Itoa(int(n))+\" is not a multiple of 4\")\n"
+    "\t\treturn nil, ucsDecErr(typ, \"arc buffer length \"+strconv.Itoa(int(n))+\" is not a multiple of 4\")\n"
     "\t}\n"
     "\tif n == 0 {\n\t\treturn []uint64{}, nil\n\t}\n"
     "\tb := unsafe.Slice(*(**byte)(recAddr), int(n))\n"

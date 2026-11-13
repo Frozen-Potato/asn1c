@@ -123,8 +123,9 @@ int go_flat_ir_member_wide(flat_member *m);
 /* 0 = bytes as-is, 1 = BMPString (UCS-2), 2 = UniversalString (UCS-4) */
 int go_flat_ir_member_strk(flat_member *m);
 int go_flat_ir_strk(flat_type *t);
-/* 1 = a restricted string / time type: its tree buffer
- * must be non-NULL even when empty */
+/* How the C tree buffer of a bytes member is built (go_conv_*): 0 none,
+ * 1 restricted string / time type (buffer non-NULL even when empty),
+ * 2 OBJECT IDENTIFIER (arc functions), 3 RELATIVE-OID (arc functions). */
 int go_flat_ir_member_strz(flat_member *m);
 int go_flat_ir_strz(flat_type *t);
 const char *go_flat_ir_member_tree_token(flat_member *m);

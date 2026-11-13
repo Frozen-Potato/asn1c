@@ -33,6 +33,12 @@
       dereference those members, did not compile. The "struct" spelling now
       carries the same module prefix as the definition. Parameterized-type
       instances are unchanged.
+    * Known limitation: a DEFAULT on a UTF8String, GeneralString,
+      GraphicString, TeletexString, T61String, VideotexString,
+      ObjectDescriptor, UTCTime or GeneralizedTime member is refused, because
+      the C generator supports DEFAULT only on IA5String, PrintableString,
+      VisibleString and NumericString; its message wrongly says character
+      strings in general do (KNOWN-ISSUES #17).
 
 0.9.29-go.6:
     NEW:

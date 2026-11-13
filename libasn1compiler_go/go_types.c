@@ -71,26 +71,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Leaf body kinds (declared in go_names.c, which sets them during the walk;
- * the extern enum leaks no identifier beyond these two TUs via prototypes). */
-typedef enum {
-    GLEAF_NONE = 0, GLEAF_INT64, GLEAF_UINT64, GLEAF_BOOL, GLEAF_NULL,
-    GLEAF_REAL, GLEAF_OCTETS, GLEAF_OID, GLEAF_STRING, GLEAF_BITSTRING,
-    GLEAF_ENUM, GLEAF_STRING_BMP, GLEAF_STRING_UNIV, GLEAF_STRING_Z,
-    GLEAF_ROID
-} go_leaf_kind;
+#include "go_leaf.h"
 
-/* go_leaf_underlying: the mapping-table Go text for a leaf kind. Non-static so
- * go_names.c's field-type resolution (the struct-body pass) resolves a plain leaf member's
- * field type through the SAME map (a leaf member is typed by the mapping-table
- * text
- * of its own terminal) — the two sides cannot drift. GLEAF_ENUM maps to
- * "int32" (the decl emission needs it: `type X int32`); a leaf ENUM MEMBER's
- * field type is the ENUM assignment's own named type instead, which
- * the field-type resolution in go_names.c decides BEFORE consulting this
- * table (an ENUM terminal is a constructed-kind branch there, never a leaf
- * branch). */
-const char *
+/* go_leaf_underlying: the mapping-table Go text for a leaf kind. go_names.c
+ * reaches it through go_types_leaf_underlying below (the int-typed public
+ * face), so a plain leaf member's field type and the leaf's own `type X`
+ * declaration both come from this one map. GLEAF_ENUM maps to "int32" (the
+ * decl emission needs it: `type X int32`); a leaf ENUM MEMBER's field type is
+ * the ENUM assignment's own named type instead, which the field-type
+ * resolution in go_names.c decides BEFORE consulting this table. */
+static const char *
 go_leaf_underlying(go_leaf_kind k) {
     switch(k) {
     case GLEAF_INT64:     return "int64";
@@ -112,8 +102,8 @@ go_leaf_underlying(go_leaf_kind k) {
 }
 
 /* Public alias for the header prototype (go_constructs.h): the un-enumerated
- * int form go_names.c calls (the go_leaf_kind enum is declared in both TUs
- * privately; the int ABI keeps the header free of the enum). */
+ * int form go_names.c calls (the int ABI keeps go_constructs.h free of the
+ * go_leaf_kind enum). */
 const char *
 go_types_leaf_underlying(int leaf_kind) {
     return go_leaf_underlying((go_leaf_kind)leaf_kind);

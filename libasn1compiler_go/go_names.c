@@ -68,6 +68,7 @@
 #include "go_flat.h"         /* go_flat_* hooks: the Flat IR minted at each
                                * structural decision site below (the Flat
                                * layout stage) */
+#include "go_leaf.h"         /* go_leaf_kind: shared leaf body kinds */
 #include "go_conv.h"         /* go_conv_record_*: the conv facts the walk
                                * reads (IOC rows, NULL alts, PDUs, wide
                                * INTEGERs; the conv/entry stages) */
@@ -1187,7 +1188,7 @@ go_emit_module_decls(FILE *out, const char *module) {
                     wrote_any = 1;
                     break;
                 }
-                if(r->leaf_kind == 0) break;   /* constructed, not a struct
+                if(r->leaf_kind == GLEAF_NONE) break;  /* constructed, not a struct
                                                 * owner: later steps (CHOICE
                                                 * bodies by the CHOICE pass). */
                 if((prev_block || !wrote_any) && fputs("\n", out) < 0) {
@@ -1340,34 +1341,6 @@ go_emit_module_decls(FILE *out, const char *module) {
     free(ordx);
     return rc;
 }
-
-/* Leaf body kinds: what a leaf `type` row's declaration is. Declared here
- * (both walkers and the emit read it; go_constructs.h stays construct-
- * vocabulary-only per its charter). Set by this file's walk (which holds the
- * live arg_t/terminal context asn1c_type_fits_long needs); read by
- * go_types.c via the int-typed prototype. */
-typedef enum {
-    GLEAF_NONE = 0,      /* not a leaf / no body data (structs, choices...) */
-    GLEAF_INT64,         /* INTEGER → int64 (wide, signed)                   */
-    GLEAF_UINT64,        /* INTEGER → uint64 (wide unsigned / INTEGER_t
-                            range fitting uint64)                           */
-    GLEAF_BOOL,          /* BOOLEAN → bool                                  */
-    GLEAF_NULL,          /* NULL → struct{}                                 */
-    GLEAF_REAL,          /* REAL → float64                                  */
-    GLEAF_OCTETS,        /* OCTET STRING / unresolved open type → []byte    */
-    GLEAF_OID,           /* OBJECT IDENTIFIER → []uint64 arcs               */
-    GLEAF_STRING,        /* retired: no longer produced (PrintableString is
-                            GLEAF_STRING_Z now); the enumerator stays only
-                            because go_flat.c numbers the kinds as plain ints */
-    GLEAF_BITSTRING,     /* BIT STRING → the BitString helper type          */
-    GLEAF_ENUM,          /* ENUMERATED → int32 + const block                */
-    GLEAF_STRING_BMP,    /* BMPString → string (UCS-2 in C, UTF-8 in Go)    */
-    GLEAF_STRING_UNIV,   /* UniversalString → string (UCS-4 in C, UTF-8)    */
-    GLEAF_STRING_Z,      /* every restricted string / time type (PrintableString
-                            included) → string, bytes as-is, buffer allocated
-                            even when empty */
-    GLEAF_ROID           /* RELATIVE-OID → []uint64 arcs                    */
-} go_leaf_kind;
 
 /* ------------------------------------------------------------------------- */
 /* Walk state threaded through the recursion. Mirrors go_walk.c's walk_ctx but
@@ -2369,17 +2342,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     clk = lk;
                     cwide = ctx->wide_hit;
                     ctx->wide_nr = 0; ctx->wide_hit = 0;
-                    static const struct { int k; const char *p; } lk2p[] = {
-                        {1, "int64_t"}, {2, "uint64_t"}, {3, "_bool32"},
-                        {5, "double"}, {6, "asn1cgo_bytes_flat"},
-                        {7, "asn1cgo_bytes_flat"}, {8, "asn1cgo_bytes_flat"},
-                        {9, "asn1cgo_bits_flat"}, {10, "int32_t"},
-                        {11, "asn1cgo_bytes_flat"}, {12, "asn1cgo_bytes_flat"},
-                        {13, "asn1cgo_bytes_flat"}, {14, "asn1cgo_bytes_flat"},
-                    };
-                    for(size_t qi = 0;
-                        qi < sizeof lk2p / sizeof lk2p[0]; qi++)
-                        if(lk == lk2p[qi].k) { cprim = lk2p[qi].p; break; }
+                                        cprim = go_leaf_flat_prim(lk);
                 }
                 {
                     /* altcid borrows the shared static buffer (go_mk_suffix);
@@ -4956,17 +4919,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             row_set_field_type(ctx->bag, ft);
             /* Flat: the same classification -> the mapping-table Flat prim column. */
             {
-                static const struct { int k; const char *p; } lk2p[] = {
-                    {1, "int64_t"}, {2, "uint64_t"}, {3, "_bool32"},
-                    {5, "double"}, {6, "asn1cgo_bytes_flat"},
-                    {7, "asn1cgo_bytes_flat"}, {8, "asn1cgo_bytes_flat"},
-                    {9, "asn1cgo_bits_flat"}, {10, "int32_t"},
-                    {11, "asn1cgo_bytes_flat"}, {12, "asn1cgo_bytes_flat"},
-                    {13, "asn1cgo_bytes_flat"}, {14, "asn1cgo_bytes_flat"},
-                };
-                const char *fprim = NULL;
-                for(size_t qi = 0; qi < sizeof lk2p / sizeof lk2p[0]; qi++)
-                    if(lk == lk2p[qi].k) { fprim = lk2p[qi].p; break; }
+                                const char *fprim = go_leaf_flat_prim(lk);
                 if(fprim) {
                     char *fpm = go_mk_member(child);
                     go_flat_member_prim(fprim, fpm, flat_star);

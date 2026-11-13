@@ -50,6 +50,7 @@
 
 #include <stdarg.h>
 #include "go_conv.h"
+#include "go_leaf.h"
 
 /* ---------------------------------------------------------------------------
  * Small helpers (this TU's own; go_names.c's equivalents are file-static).
@@ -399,31 +400,6 @@ go_flat_leaf(const char *cid, const char *prim, const char *module) {
     return g_flat.cur_ix;
 }
 
-/* The GLEAF kinds as go_names.c/go_types.c number them (go_types.c:74-76;
- * the int ABI is stable across the TUs). Maps each to the mapping-table Flat-column
- * C prim token. NULL for GLEAF_NONE and GLEAF_NULL — a NULL TYPE assignment
- * mints no Flat leaf (an OPTIONAL NULL member is an int32 prim row below). */
-static const char *
-gleaf_prim(int gleaf) {
-    static const int order[] = {
-        1 /* GLEAF_INT64 */, 2 /* GLEAF_UINT64 */, 3 /* GLEAF_BOOL */,
-        4 /* GLEAF_NULL */, 5 /* GLEAF_REAL */, 6 /* GLEAF_OCTETS */,
-        7 /* GLEAF_OID */, 8 /* GLEAF_STRING */, 9 /* GLEAF_BITSTRING */,
-        10 /* GLEAF_ENUM */, 11 /* GLEAF_STRING_BMP */, 12 /* GLEAF_STRING_UNIV */,
-        13 /* GLEAF_STRING_Z */, 14 /* GLEAF_ROID */
-    };
-    static const char *const prim[] = {
-        "int64_t", "uint64_t", "_bool32",
-        NULL, "double", "asn1cgo_bytes_flat",
-        "asn1cgo_bytes_flat", "asn1cgo_bytes_flat", "asn1cgo_bits_flat",
-        "int32_t", "asn1cgo_bytes_flat", "asn1cgo_bytes_flat",
-        "asn1cgo_bytes_flat", "asn1cgo_bytes_flat"
-    };
-    for(size_t i = 0; i < sizeof order / sizeof order[0]; i++)
-        if(gleaf == order[i]) return prim[i];
-    return NULL;
-}
-
 /* The string / OID flags of a bytes leaf kind. strk: 1 BMPString, 2
  * UniversalString, 3 OBJECT IDENTIFIER, 4 RELATIVE-OID (the Go glue converts
  * at the boundary); strz: 1 restricted string / time type, 2 OBJECT
@@ -432,18 +408,18 @@ gleaf_prim(int gleaf) {
 static int
 gleaf_str_flags(int gleaf, int *strk, int *strz) {
     switch(gleaf) {
-    case 11: *strk = 1; *strz = 1; return 1;   /* GLEAF_STRING_BMP  */
-    case 12: *strk = 2; *strz = 1; return 1;   /* GLEAF_STRING_UNIV */
-    case 13: *strk = 0; *strz = 1; return 1;   /* GLEAF_STRING_Z    */
-    case 7:  *strk = 3; *strz = 2; return 1;   /* GLEAF_OID         */
-    case 14: *strk = 4; *strz = 3; return 1;   /* GLEAF_ROID        */
+    case GLEAF_STRING_BMP: *strk = 1; *strz = 1; return 1;
+    case GLEAF_STRING_UNIV: *strk = 2; *strz = 1; return 1;
+    case GLEAF_STRING_Z: *strk = 0; *strz = 1; return 1;
+    case GLEAF_OID: *strk = 3; *strz = 2; return 1;
+    case GLEAF_ROID: *strk = 4; *strz = 3; return 1;
     default: return 0;
     }
 }
 
 int
 go_flat_leaf_gleaf(const char *cid, int gleaf, const char *module) {
-    const char *p = gleaf_prim(gleaf);
+    const char *p = go_leaf_flat_prim(gleaf);
     if(!p) return -1;
     int ix = go_flat_leaf(cid, p, module);
     int k, z;
