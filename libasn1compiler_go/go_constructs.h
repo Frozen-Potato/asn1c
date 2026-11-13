@@ -35,6 +35,7 @@ typedef enum go_construct {
     GO_CONSTR_BOOLEAN,          /* BOOLEAN                       ASN_BASIC_BOOLEAN  */
     GO_CONSTR_NULL,             /* NULL                          ASN_BASIC_NULL  */
     GO_CONSTR_REAL,             /* REAL                          ASN_BASIC_REAL  */
+    GO_CONSTR_OID,              /* OBJECT IDENTIFIER / RELATIVE-OID  ASN_BASIC_OBJECT_IDENTIFIER ASN_BASIC_RELATIVE_OID  */
     GO_CONSTR_STRING,           /* every restricted string type + UTCTime/GeneralizedTime  ASN_STRING_* ASN_BASIC_UTCTime ASN_BASIC_GeneralizedTime  */
     GO_CONSTR_IOC_CLASS,        /* Information Object Class      AMT_OBJECTCLASS / A1TC_CLASSDEF  */
     GO_CONSTR_IOC_OBJSET,       /* object-set {{ }} usage        AMT_VALUESET / AMT_OBJECT  */
@@ -75,6 +76,13 @@ typedef enum go_string_sub {
 go_string_sub_e go_string_subkind(const asn1p_expr_t *terminal);
 const char *go_construct_name_of(const asn1p_expr_t *terminal);
 const char *go_string_ctype(const asn1p_expr_t *terminal);
+
+/*
+ * GO_CONSTR_OID covers OBJECT IDENTIFIER and RELATIVE-OID: both are
+ * ASN__PRIMITIVE_TYPE_t in C and []uint64 arcs in Go. go_oid_is_relative
+ * tells them apart (the C arc functions differ).
+ */
+int go_oid_is_relative(const asn1p_expr_t *terminal);
 
 /*
  * The skeleton headers (beyond the always-copied set) the string types

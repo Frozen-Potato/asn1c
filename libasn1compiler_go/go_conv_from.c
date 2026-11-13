@@ -63,6 +63,25 @@ static char *struct_members_from(void *t, const char *in_acc,
                                  const char *out_acc);
 static char *ioc_node_from_body(void *t);
 
+/* OBJECT IDENTIFIER / RELATIVE-OID (strz 2 / 3): the tree slot's contents
+ * octets become the little-endian arcs of the Flat bytes record, through the
+ * asn1cgo_oid_get helper of the converter preamble. in_ptr is a pointer to
+ * the tree OBJECT_IDENTIFIER_t, out_rec a pointer to the Flat record; larg /
+ * marg are the (already quoted, or NULL) label arguments of asn1cgo_fail. */
+static int
+strz_oid(int strz) { return strz >= 2; }
+
+static char *
+oid_get_blk(const char *ind, int strz, const char *in_ptr, const char *out_rec,
+            const char *larg, const char *marg) {
+    return cfmt("%s{\n%s    int orc = asn1cgo_oid_get(ar, (const void *)(%s), %s, %d);\n"
+                "%s    if (orc == -2) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, %s, %s, NULL);\n"
+                "%s    if (orc) return asn1cgo_fail(err, ASN1CGO_E_DECODE, %s, %s, \"%s contents are not a valid arc encoding\");\n%s}\n",
+                ind, ind, in_ptr, out_rec, strz == 3,
+                ind, larg, marg,
+                ind, larg, marg, strz == 3 ? "RELATIVE-OID" : "OBJECT IDENTIFIER", ind);
+}
+
 static char *
 arm_prim_from(void *t, void *m, const char *in_acc, const char *out_acc) {
     const char *prim = go_flat_ir_member_prim(m);
@@ -103,12 +122,19 @@ arm_prim_from(void *t, void *m, const char *in_acc, const char *out_acc) {
             { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        asn1cgo_bytes_flat *b = asn1cgo_arena_alloc(ar, sizeof(*b), _Alignof(asn1cgo_bytes_flat));\n"); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        if (!b) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
+            if(strz_oid(go_flat_ir_member_strz(m))) {
+                char *la = cfmt("\"%s\"", label), *ma = cfmt("\"%s\"", mlab);
+                char *_cf = oid_get_blk("        ", go_flat_ir_member_strz(m), in_acc, "b", la, ma);
+                s = ca(s, _cf); free(_cf); free(la); free(ma);
+                { char *_cf2 = cfmt("        %s = b;\n    } else {\n        %s = NULL;\n    }\n", out_acc, out_acc); s = ca(s, _cf2); free(_cf2); }
+            } else {
             { char *_cf = cfmt("        b->len = (size_t)%s->size;\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        if (%s->size) {\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("            b->buf = (uint8_t *)asn1cgo_arena_alloc(ar, (size_t)%s->size, 8);\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("            if (!b->buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("            memcpy(b->buf, %s->buf, (size_t)%s->size);\n", in_acc, in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        }\n        %s = b;\n    } else {\n        %s = NULL;\n    }\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
+            }
         } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
             { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        asn1cgo_bits_flat *b = asn1cgo_arena_alloc(ar, sizeof(*b), _Alignof(asn1cgo_bits_flat));\n"); s = ca(s, _cf); free(_cf); }
@@ -136,7 +162,12 @@ arm_prim_from(void *t, void *m, const char *in_acc, const char *out_acc) {
         free(mlab); free(label);
         return s;
     }
-    if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
+    if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_member_strz(m))) {
+        char *la = cfmt("\"%s\"", label), *ma = cfmt("\"%s\"", mlab);
+        char *ip = cfmt("&%s", in_acc), *op = cfmt("&%s", out_acc);
+        char *_cf = oid_get_blk("    ", go_flat_ir_member_strz(m), ip, op, la, ma);
+        s = ca(s, _cf); free(_cf); free(la); free(ma); free(ip); free(op);
+    } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
         { char *_cf = cfmt("    %s.len = (size_t)%s.size;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
         { char *_cf = cfmt("    if (%s.len) {\n", out_acc); s = ca(s, _cf); free(_cf); }
         { char *_cf = cfmt("        %s.buf = (uint8_t *)asn1cgo_arena_alloc(ar, %s.len, 1);\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
@@ -213,12 +244,24 @@ arm_ref_from(void *t, void *m, const char *in_acc, const char *out_acc) {
                 { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        asn1cgo_bytes_flat *b = asn1cgo_arena_alloc(ar, sizeof(*b), _Alignof(asn1cgo_bytes_flat));\n"); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        if (!b) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
+                if(strz_oid(go_flat_ir_strz(r))) {
+                    char *la = cfmt("\"%s\"", label), *ma = cfmt("\"%s\"", mlab);
+                    char *_cf = oid_get_blk("        ", go_flat_ir_strz(r), in_acc, "b", la, ma);
+                    s = ca(s, _cf); free(_cf); free(la); free(ma);
+                    { char *_cf2 = cfmt("        %s = b;\n    } else {\n        %s = NULL;\n    }\n", out_acc, out_acc); s = ca(s, _cf2); free(_cf2); }
+                } else {
                 { char *_cf = cfmt("        b->len = (size_t)%s->size;\n", in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        if (%s->size) {\n", in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            b->buf = (uint8_t *)asn1cgo_arena_alloc(ar, (size_t)%s->size, 8);\n", in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            if (!b->buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            memcpy(b->buf, %s->buf, (size_t)%s->size);\n", in_acc, in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        }\n        %s = b;\n    } else {\n        %s = NULL;\n    }\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
+                }
+            } else if(strz_oid(go_flat_ir_strz(r))) {
+                char *la = cfmt("\"%s\"", label), *ma = cfmt("\"%s\"", mlab);
+                char *ip = cfmt("&%s", in_acc), *op = cfmt("&%s", out_acc);
+                char *_cf = oid_get_blk("    ", go_flat_ir_strz(r), ip, op, la, ma);
+                s = ca(s, _cf); free(_cf); free(la); free(ma); free(ip); free(op);
             } else {
                 { char *_cf = cfmt("    %s.len = (size_t)%s.size;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("    if (%s.len) {\n", out_acc); s = ca(s, _cf); free(_cf); }
@@ -346,7 +389,13 @@ choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
         if(go_flat_ir_member_is_prim(mtmp)) {
             const char *prim = go_flat_ir_member_prim(mtmp);
             void *rt = NULL; (void)rt;
-            if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
+            if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_member_strz(mtmp))) {
+                char *la = cfmt("\"%s\"", label), *ma = cfmt("\"%s\"", mlab);
+                char *ip = cfmt("&%s%schoice.%s", in_sel, deref, ttok);
+                char *op = cfmt("&%s%s%s", out_sel, deref, tok);
+                char *_cf = oid_get_blk("        ", go_flat_ir_member_strz(mtmp), ip, op, la, ma);
+                s = ca(s, _cf); free(_cf); free(la); free(ma); free(ip); free(op);
+            } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
                 { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n", out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        if (%s%s%s.len) {\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            %s%s%s.buf = (uint8_t *)asn1cgo_arena_alloc(ar, %s%s%s.len, 1);\n", out_sel, deref, tok, out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
@@ -427,7 +476,13 @@ choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
                 { char *_cf = cfmt("            %s%s%s = (uint64_t)v;\n        }\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
             } else if(go_flat_ir_is_leaf(r)) {
                 const char *prim = go_flat_ir_prim(r);
-                if(prim && (strcmp(prim, "asn1cgo_bytes_flat") == 0
+                if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_strz(r))) {
+                    char *la = cfmt("\"%s\"", label), *ma = cfmt("\"%s\"", mlab);
+                    char *ip = cfmt("&%s%schoice.%s", in_sel, deref, ttok);
+                    char *op = cfmt("&%s%s%s", out_sel, deref, tok);
+                    char *_cf = oid_get_blk("        ", go_flat_ir_strz(r), ip, op, la, ma);
+                    s = ca(s, _cf); free(_cf); free(la); free(ma); free(ip); free(op);
+                } else if(prim && (strcmp(prim, "asn1cgo_bytes_flat") == 0
                             || strcmp(prim, "asn1cgo_bits_flat") == 0)) {
                     { char *_cf = cfmt("        %s%s%s.len = (size_t)%s%schoice.%s.size;\n", out_sel, deref, tok, in_sel, deref, ttok); s = ca(s, _cf); free(_cf); }
                     if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0)
@@ -674,6 +729,14 @@ node_from_body(void *t) {
                 "            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", NULL, \"asn_INTEGER2umax failed\");\n"
                 "        *out = (uint64_t)v;\n"
                 "    }\n", label); s = ca(s, _cf); free(_cf); }
+        } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_strz(t))) {
+            { char *_cf = cfmt(
+                "    {\n"
+                "        int orc = asn1cgo_oid_get(ar, (const void *)in, out, %d);\n"
+                "        if (orc == -2) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n"
+                "        if (orc) return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"%s contents are not a valid arc encoding\");\n"
+                "    }\n", go_flat_ir_strz(t) == 3, label, label,
+                go_flat_ir_strz(t) == 3 ? "RELATIVE-OID" : "OBJECT IDENTIFIER"); s = ca(s, _cf); free(_cf); }
         } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
             { char *_cf = cfmt(
                 "    out->len = (size_t)((const OCTET_STRING_t *)in)->size;\n"

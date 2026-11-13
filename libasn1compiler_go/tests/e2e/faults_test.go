@@ -183,3 +183,18 @@ func TestAllocFaultSweepStrings(t *testing.T) {
 		sweep(t, c.name+" Decode", func() error { return c.dec(wire) })
 	}
 }
+
+// OBJECT IDENTIFIER and RELATIVE-OID: every case of oids_test.go (top level,
+// member, OPTIONAL, SEQUENCE OF element, CHOICE alternative, reference,
+// extension addition, long arc lists), encode and decode.
+func TestAllocFaultSweepOids(t *testing.T) {
+	for _, c := range otCases() {
+		c := c
+		wire, err := c.enc()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		sweep(t, c.name+" Encode", func() error { _, err := c.enc(); return err })
+		sweep(t, c.name+" Decode", func() error { return c.dec(wire) })
+	}
+}

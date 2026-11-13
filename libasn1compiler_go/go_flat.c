@@ -152,11 +152,15 @@ struct flat_member {
                         * from token (an alt `present`); NULL = same         */
     int strk;          /* bytes_flat member holding a BMPString (1) or
                         * UniversalString (2): the glue converts UTF-8 <->
-                        * UCS-2/UCS-4; 0 = bytes as-is                      */
+                        * UCS-2/UCS-4; an OBJECT IDENTIFIER (3) or
+                        * RELATIVE-OID (4): []uint64 arcs <-> 4 bytes per arc
+                        * (little endian); 0 = bytes as-is                  */
     int strz;          /* bytes_flat member of a restricted string / time type
-                        * other than PrintableString: the tree buffer is
+                        * other than PrintableString (1): the tree buffer is
                         * allocated even when empty (the C constraint
-                        * functions reject a NULL buf, "value not given")   */
+                        * functions reject a NULL buf, "value not given");
+                        * 2 = OBJECT IDENTIFIER, 3 = RELATIVE-OID: the tree
+                        * slot is filled by the C arc functions             */
     int wide;          /* INTEGER_t-backed int64/uint64 member (the tree slot
                         * is an INTEGER_t, not a native long)               */
     unsigned long offset;  /* computed (x86-64 SysV layout rule)              */
@@ -184,7 +188,8 @@ struct flat_type {
     flat_member *members;
     int n_members, cap_members;
     char *prim;         /* FLT_LEAF                                        */
-    int strk;           /* FLT_LEAF bytes: 1 BMPString, 2 UniversalString   */
+    int strk;           /* FLT_LEAF bytes: 1 BMPString, 2 UniversalString,
+                         * 3 OBJECT IDENTIFIER, 4 RELATIVE-OID               */
     int strz;           /* FLT_LEAF bytes: see flat_member.strz             */
     char *elem;         /* FLT_SEQOF element cid (or prim token)            */
     int elem_prim;      /* 1 = elem is a primitive token                    */
@@ -402,18 +407,35 @@ gleaf_prim(int gleaf) {
         4 /* GLEAF_NULL */, 5 /* GLEAF_REAL */, 6 /* GLEAF_OCTETS */,
         7 /* GLEAF_OID */, 8 /* GLEAF_STRING */, 9 /* GLEAF_BITSTRING */,
         10 /* GLEAF_ENUM */, 11 /* GLEAF_STRING_BMP */, 12 /* GLEAF_STRING_UNIV */,
-        13 /* GLEAF_STRING_Z */
+        13 /* GLEAF_STRING_Z */, 14 /* GLEAF_ROID */
     };
     static const char *const prim[] = {
         "int64_t", "uint64_t", "_bool32",
         NULL, "double", "asn1cgo_bytes_flat",
         "asn1cgo_bytes_flat", "asn1cgo_bytes_flat", "asn1cgo_bits_flat",
         "int32_t", "asn1cgo_bytes_flat", "asn1cgo_bytes_flat",
-        "asn1cgo_bytes_flat"
+        "asn1cgo_bytes_flat", "asn1cgo_bytes_flat"
     };
     for(size_t i = 0; i < sizeof order / sizeof order[0]; i++)
         if(gleaf == order[i]) return prim[i];
     return NULL;
+}
+
+/* The string / OID flags of a bytes leaf kind. strk: 1 BMPString, 2
+ * UniversalString, 3 OBJECT IDENTIFIER, 4 RELATIVE-OID (the Go glue converts
+ * at the boundary); strz: 1 restricted string / time type, 2 OBJECT
+ * IDENTIFIER, 3 RELATIVE-OID (the C converters: allocate when empty / go
+ * through the arc functions). Returns 0 when gleaf has neither. */
+static int
+gleaf_str_flags(int gleaf, int *strk, int *strz) {
+    switch(gleaf) {
+    case 11: *strk = 1; *strz = 1; return 1;   /* GLEAF_STRING_BMP  */
+    case 12: *strk = 2; *strz = 1; return 1;   /* GLEAF_STRING_UNIV */
+    case 13: *strk = 0; *strz = 1; return 1;   /* GLEAF_STRING_Z    */
+    case 7:  *strk = 3; *strz = 2; return 1;   /* GLEAF_OID         */
+    case 14: *strk = 4; *strz = 3; return 1;   /* GLEAF_ROID        */
+    default: return 0;
+    }
 }
 
 int
@@ -421,10 +443,10 @@ go_flat_leaf_gleaf(const char *cid, int gleaf, const char *module) {
     const char *p = gleaf_prim(gleaf);
     if(!p) return -1;
     int ix = go_flat_leaf(cid, p, module);
-    /* 11 = GLEAF_STRING_BMP, 12 = GLEAF_STRING_UNIV, 13 = GLEAF_STRING_Z */
-    if(ix >= 0 && gleaf >= 11 && gleaf <= 13) {
-        flat_at(ix)->strk = gleaf == 11 ? 1 : gleaf == 12 ? 2 : 0;
-        flat_at(ix)->strz = 1;
+    int k, z;
+    if(ix >= 0 && gleaf_str_flags(gleaf, &k, &z)) {
+        flat_at(ix)->strk = k;
+        flat_at(ix)->strz = z;
     }
     return ix;
 }
@@ -586,9 +608,10 @@ go_flat_last_member_wide(void) {
 void
 go_flat_last_member_gleaf(int gleaf) {
     flat_type *t = flat_at(g_flat_last_member_owner);
-    if(!t || t->n_members <= 0 || gleaf < 11 || gleaf > 13) return;
-    t->members[t->n_members - 1].strk = gleaf == 11 ? 1 : gleaf == 12 ? 2 : 0;
-    t->members[t->n_members - 1].strz = 1;
+    int k, z;
+    if(!t || t->n_members <= 0 || !gleaf_str_flags(gleaf, &k, &z)) return;
+    t->members[t->n_members - 1].strk = k;
+    t->members[t->n_members - 1].strz = z;
 }
 
 void

@@ -35,6 +35,7 @@ go_construct_name(go_construct_e k) {
     case GO_CONSTR_BOOLEAN:        return "BOOLEAN";
     case GO_CONSTR_NULL:           return "NULL";
     case GO_CONSTR_REAL:           return "REAL";
+    case GO_CONSTR_OID:            return "OBJECT IDENTIFIER";
     case GO_CONSTR_STRING:         return "string";
     case GO_CONSTR_IOC_CLASS:      return "IOC-CLASS";
     case GO_CONSTR_IOC_OBJSET:     return "IOC-OBJECTSET";
@@ -76,6 +77,7 @@ static const char *const g_hdr_names[] = {
     "UniversalString.h", "BMPString.h", "UTF8String.h", "GeneralString.h",
     "GraphicString.h", "TeletexString.h", "T61String.h", "VideotexString.h",
     "ObjectDescriptor.h", "UTCTime.h", "GeneralizedTime.h",
+    "OBJECT_IDENTIFIER.h", "RELATIVE-OID.h",
 };
 static unsigned g_hdr_used;
 
@@ -84,6 +86,16 @@ note_string_use(int expr_type) {
     for(size_t i = 0; i < sizeof g_string_info / sizeof g_string_info[0]; i++)
         if(g_string_info[i].expr_type == expr_type)
             g_hdr_used |= g_string_info[i].hdrs;
+}
+
+/* OBJECT IDENTIFIER / RELATIVE-OID: both headers (the converter helpers use
+ * both arc APIs). */
+static void
+note_oid_use(void) { g_hdr_used |= (1u << 15) | (1u << 16); }
+
+int
+go_oid_is_relative(const asn1p_expr_t *t) {
+    return t && t->expr_type == ASN_BASIC_RELATIVE_OID;
 }
 
 unsigned go_string_hdr_mask(void) { return g_hdr_used; }
@@ -126,8 +138,7 @@ go_construct_name_of(const asn1p_expr_t *t) {
  * classify() maps a *terminal* expression to a kind. The caller has already
  * resolved references (open type, fixed-type class field, plain type ref) and
  * produced the terminal here. meta_type drives the IOC cases; expr_type drives
- * everything else. Anything off the supported list (SET, SET OF, OID, other
- * string types, ...) falls through to UNSUPPORTED.
+ * everything else. Anything off the supported list (SET, SET OF, ...) falls through to UNSUPPORTED.
  *
  * NOTE: GO_CONSTR_OPEN_TYPE and GO_CONSTR_RECURSIVE_REF are NOT produced here.
  * OPEN_TYPE is a reference-shape (lower/uppercase &field), decided before
@@ -159,9 +170,10 @@ go_construct_classify(const asn1p_expr_t *t) {
     case ASN_BASIC_REAL:         return GO_CONSTR_REAL;
     case ASN_BASIC_ENUMERATED:   return GO_CONSTR_ENUMERATED;
     case ASN_BASIC_OCTET_STRING: return GO_CONSTR_OCTET_STRING;
-    case ASN_BASIC_OBJECT_IDENTIFIER:   /* rejected (absent in scope) */
-    case ASN_BASIC_RELATIVE_OID:        /* rejected */
-        return GO_CONSTR_UNSUPPORTED;
+    case ASN_BASIC_OBJECT_IDENTIFIER:
+    case ASN_BASIC_RELATIVE_OID:
+        note_oid_use();
+        return GO_CONSTR_OID;
 
     /*
      * BIT STRING, plain or named-bit (`BIT STRING { a(0), b(1) }`): the value

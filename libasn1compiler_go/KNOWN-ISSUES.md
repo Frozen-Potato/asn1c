@@ -21,3 +21,4 @@ Status: `Open`, `Fixed (<version>)`, `Wontfix`.
 | 12 | A `DEFAULT` on a `BMPString` or `UniversalString` member is refused: the C generator stores the default as single-byte characters, not UCS-2 / UCS-4. | Wontfix (C generator) |
 | 13 | The C time check accepts text after a well-formed `UTCTime` / `GeneralizedTime` (`"250102030405ZZ"`); the Go side does not parse or normalize time strings. | Open (C runtime) |
 | 14 | `GeneralString`, `GraphicString`, `TeletexString`, `T61String` and `VideotexString` are written and read as hex in XER by the C runtime (it does not decode their character sets). The Go value is the raw bytes. | Open (C runtime) |
+| 15 | The C runtime's XER decoder cannot read an empty `RELATIVE-OID` (`<x></x>`), although its XER encoder writes one; the APER of such a value round-trips. `converter-example -ixer` fails with "Input processing error". | Open (C runtime) |

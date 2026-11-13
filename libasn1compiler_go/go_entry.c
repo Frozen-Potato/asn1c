@@ -715,6 +715,76 @@ conv_find_header(const char *base) {
  * go_rt_module = the runtime module's import path (asn1cgo-rt, or
  * <prefix>/asn1cgo-rt when ASN1CGO_GO_MODULE_PREFIX is set).
  * ------------------------------------------------------------------------- */
+/* The converter-preamble helpers of OBJECT IDENTIFIER / RELATIVE-OID values.
+ * asn1cgo_oid_set: little-endian arcs -> the tree slot (0, -1 the arc
+ * function rejected the value, -2 allocation failure). asn1cgo_oid_get: the
+ * tree slot's contents octets -> little-endian arcs in a Flat bytes record
+ * (0, -1 malformed, -2 allocation failure); the get is the grow-and-retry
+ * of OBJECT_IDENTIFIER.h. */
+static const char GO_OID_PREAMBLE[] =
+    "#include <errno.h>\n"
+    "#include \"OBJECT_IDENTIFIER.h\"\n"
+    "#include \"RELATIVE-OID.h\"\n"
+    "\n"
+    "static int\n"
+    "asn1cgo_oid_set(void *slot, const uint8_t *buf, size_t len, int rel) {\n"
+    "    size_t n = len / 4, i;\n"
+    "    int rc;\n"
+    "    asn_oid_arc_t *arcs = (asn_oid_arc_t *)asn1cgo_calloc(n ? n : 1, sizeof(*arcs));\n"
+    "    if (!arcs) return -2;\n"
+    "    for (i = 0; i < n; i++)\n"
+    "        arcs[i] = (asn_oid_arc_t)buf[4 * i] | ((asn_oid_arc_t)buf[4 * i + 1] << 8)\n"
+    "                | ((asn_oid_arc_t)buf[4 * i + 2] << 16) | ((asn_oid_arc_t)buf[4 * i + 3] << 24);\n"
+    "    errno = 0;\n"
+    "    rc = rel ? RELATIVE_OID_set_arcs((RELATIVE_OID_t *)slot, arcs, n)\n"
+    "             : OBJECT_IDENTIFIER_set_arcs((OBJECT_IDENTIFIER_t *)slot, arcs, n);\n"
+    "    free(arcs);\n"
+    "    if (rc == 0) return 0;\n"
+    "    return errno == ENOMEM ? -2 : -1;\n"
+    "}\n"
+    "\n"
+    "static int\n"
+    "asn1cgo_oid_get(asn1cgo_arena *ar, const void *slot, asn1cgo_bytes_flat *out, int rel) {\n"
+    "    const OBJECT_IDENTIFIER_t *o = (const OBJECT_IDENTIFIER_t *)slot;\n"
+    "    asn_oid_arc_t fixed[16];\n"
+    "    asn_oid_arc_t *arcs = fixed;\n"
+    "    size_t slots = sizeof(fixed) / sizeof(fixed[0]), i;\n"
+    "    ssize_t n;\n"
+    "    out->len = 0;\n"
+    "    out->buf = NULL;\n"
+    "    if (!o->buf) return (rel && o->size == 0) ? 0 : -1;\n"
+    "    n = rel ? RELATIVE_OID_get_arcs((const RELATIVE_OID_t *)o, arcs, slots)\n"
+    "            : OBJECT_IDENTIFIER_get_arcs(o, arcs, slots);\n"
+    "    if (n < 0) return -1;\n"
+    "    if ((size_t)n > slots) {\n"
+    "        ssize_t n2;\n"
+    "        slots = (size_t)n;\n"
+    "        arcs = (asn_oid_arc_t *)asn1cgo_calloc(slots, sizeof(*arcs));\n"
+    "        if (!arcs) return -2;\n"
+    "        n2 = rel ? RELATIVE_OID_get_arcs((const RELATIVE_OID_t *)o, arcs, slots)\n"
+    "                 : OBJECT_IDENTIFIER_get_arcs(o, arcs, slots);\n"
+    "        if (n2 != n) { free(arcs); return -1; }\n"
+    "    }\n"
+    "    if (n > 0) {\n"
+    "        uint8_t *b = (uint8_t *)asn1cgo_arena_alloc(ar, (size_t)n * 4, 8);\n"
+    "        if (!b) {\n"
+    "            if (arcs != fixed) free(arcs);\n"
+    "            return -2;\n"
+    "        }\n"
+    "        for (i = 0; i < (size_t)n; i++) {\n"
+    "            b[4 * i] = (uint8_t)arcs[i];\n"
+    "            b[4 * i + 1] = (uint8_t)(arcs[i] >> 8);\n"
+    "            b[4 * i + 2] = (uint8_t)(arcs[i] >> 16);\n"
+    "            b[4 * i + 3] = (uint8_t)(arcs[i] >> 24);\n"
+    "        }\n"
+    "        out->buf = b;\n"
+    "        out->len = (size_t)n * 4;\n"
+    "    }\n"
+    "    if (arcs != fixed) free(arcs);\n"
+    "    return 0;\n"
+    "}\n"
+    "\n";
+
 int
 go_conv_emit(const char *go_outdir, const char *go_rt_module) {
     if(!go_outdir || !*go_outdir) return 0;
@@ -971,6 +1041,13 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
         /* the per-spec file carries the asn1cgo_buf TYPEDEF only
          * (the shared asn1cgo_buf_free definition lives in asn1cgo-rt). */
         s = ca(s, "typedef struct { uint8_t *buf; size_t len; } asn1cgo_buf;\n\n");
+        /* OBJECT IDENTIFIER / RELATIVE-OID: the arc <-> contents-octets
+         * helpers the converters call (only when the walk classified one,
+         * so every other tree is unchanged). The Flat bytes record holds the
+         * arcs, one little-endian uint32 per arc. */
+        size_t oid_at = 0;
+        int oid_hdrs = (go_string_hdr_mask() & (1u << 15)) != 0;
+        if(oid_hdrs) oid_at = strlen(s);
 
         /* forward decls: every package-scoped converter pair (a
          * nested_only node has no own typedef/converter — its body rides
@@ -1095,7 +1172,22 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
         }
         (void)any_pdu;
 
-        if(conv_fwrite_all(cpath, s) < 0) rc = -1;
+        /* the OID helpers go into this file only when a converter in it
+         * calls them (they are static: an unused one warns) */
+        if(oid_hdrs && (strstr(s + oid_at, "asn1cgo_oid_set(")
+                        || strstr(s + oid_at, "asn1cgo_oid_get("))) {
+            size_t pl = strlen(GO_OID_PREAMBLE), sl = strlen(s);
+            char *ns = malloc(sl + pl + 1);
+            if(!ns) { rc = -1; }
+            else {
+                memcpy(ns, s, oid_at);
+                memcpy(ns + oid_at, GO_OID_PREAMBLE, pl);
+                memcpy(ns + oid_at + pl, s + oid_at, sl - oid_at + 1);
+                free(s);
+                s = ns;
+            }
+        }
+        if(rc == 0 && conv_fwrite_all(cpath, s) < 0) rc = -1;
         free(s); free(cname); free(cpath); free(pkg);
     }
     if(rc < 0) return -1;

@@ -26,6 +26,11 @@
       unrepresentable string is an rt.ErrConstraint on Encode, an invalid
       C buffer an rt.ErrDecode on Decode). A DEFAULT on those two is
       refused.
+    * Go backend: OBJECT IDENTIFIER and RELATIVE-OID map to Go []uint64
+      arcs (top level, members, OPTIONAL members, CHOICE alternatives and
+      SEQUENCE OF elements). The C runtime holds an arc in 32 bits, so
+      Encode returns an rt.ErrConstraint for an arc above 4294967295; it
+      also returns one for a value OBJECT_IDENTIFIER_set_arcs rejects.
 
     FIXES:
     * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region

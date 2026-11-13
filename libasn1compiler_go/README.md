@@ -100,7 +100,7 @@ straight into `-D` (stock behaviour) before the Go pass runs. Rejects that do
 not depend on the C pass run first, as a pre-flight, so those leave `-D`
 untouched and exit 70 with `no C output was written`: the construct rejects
 (unsupported DEFAULT forms, `[[ ]]` version brackets, unsupported types such as SET /
-SET OF / OID, a DEFAULT of a named-bit BIT STRING, unresolvable references) an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`, and (without a prefix) a `-Fgo` basename that is a standard-library top-level name.
+SET OF, a DEFAULT of a named-bit BIT STRING, unresolvable references) an invalid `-Fgo` basename or `ASN1CGO_GO_MODULE_PREFIX`, and (without a prefix) a `-Fgo` basename that is a standard-library top-level name.
 The remaining Go-pass failures can only be detected after the C pass, because
 the name pass reads the `EM_INDIRECT` / `EM_UNRECURSE` markers it stamps: Go
 name collisions, by-value type cycles, and I/O errors while writing the Go tree.
@@ -391,7 +391,7 @@ SIZE lower bound. A DEFAULT of a named-bit type is refused.
 
 | ASN.1 element | Go |
 |---|---|
-| INTEGER, BOOLEAN, REAL, OCTET STRING, BIT STRING, any restricted string or time type | the unnamed leaf mapping: `[]int64`, `[]bool`, `[]float64`, `[][]byte`, `[]BitString`, `[]string` |
+| INTEGER, BOOLEAN, REAL, OCTET STRING, BIT STRING, any restricted string or time type, OBJECT IDENTIFIER, RELATIVE-OID | the unnamed leaf mapping: `[]int64`, `[]bool`, `[]float64`, `[][]byte`, `[]BitString`, `[]string`, `[][]uint64` |
 | NULL | `[]struct{}` (the NULL leaf mapping, `struct{}`; one entry per NULL) |
 | named-bit BIT STRING | `[]BitString`, plus the bit constants `<Owner>Member<Bit>` |
 | ENUMERATED | `type <Owner>Member int32` and its value constants |
@@ -617,6 +617,21 @@ Known bugs and open limitations are listed in [KNOWN-ISSUES.md](KNOWN-ISSUES.md)
   the C buffer's bytes unchanged. SIZE, FROM, NumericString and time-syntax
   checks are the C runtime's and surface from `Encode` as errors.
   CHARACTER STRING is rejected at generation.
+- **OBJECT IDENTIFIER and RELATIVE-OID**: a Go `[]uint64` of arcs (`type T
+  []uint64` for a named type; `[]uint64` for a member, `*[]uint64` for an
+  OPTIONAL member or a CHOICE alternative, `[][]uint64` for the elements of
+  an inline `SEQUENCE OF`). **An arc is at most 4294967295**: the C runtime's
+  `asn_oid_arc_t` is 32 bits, so `Encode` returns an `rt.ErrConstraint` for a
+  larger arc and never truncates it. `Encode` also returns an `rt.ErrConstraint`
+  for what `OBJECT_IDENTIFIER_set_arcs` rejects: fewer than two arcs (and an
+  empty or nil slice), a first arc above 2, a second arc of 40 or more when the
+  first is 0 or 1, and a second arc above 4294967215 when the first is 2. A
+  RELATIVE-OID takes any number of arcs, including none (an empty slice;
+  `Decode` returns a non-nil empty slice). `Decode` returns an `rt.ErrDecode`
+  for contents octets that are not a valid arc encoding (a trailing octet
+  with the high bit set, an arc above 32 bits). XER is the C runtime's dotted
+  text (`1.3.6.1`). A DEFAULT of these types is refused (the C generator has
+  no DEFAULT support for them).
 - **Fork runtime fixes**: the skeletons in this fork carry two aPER
   fragmentation fixes vs upstream — the OCTET STRING 16K-chunk terminator
   handling and the open-type (IE value) encoder's zero-length terminator

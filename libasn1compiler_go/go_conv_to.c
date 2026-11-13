@@ -213,9 +213,34 @@ conv_is_scc(const void *t) {
  * the value is empty, with a spare byte: the C constraint functions reject a
  * NULL buf ("value not given"), which is what an empty Go string would
  * otherwise produce. Without strz the text is the historical one. */
+/* strz 2 / 3 (OBJECT IDENTIFIER / RELATIVE-OID): the Flat bytes are the
+ * little-endian arcs and the tree slot (the OBJECT_IDENTIFIER_t that
+ * out_buf is the .buf of) is filled by the C arc functions through the
+ * asn1cgo_oid_set helper (emitted in the converter preamble); that also
+ * sets .size, so the caller's `.size = len` line must be skipped
+ * (strz_oid). */
+static int
+strz_oid(int strz) { return strz >= 2; }
+
 static char *
 bytes_copy_blk(const char *ind, int strz, const char *len, const char *out_buf,
                const char *in_buf, const char *fail) {
+    if(strz_oid(strz)) {
+        /* out_buf is "X->buf" or "X.buf": the slot is X */
+        size_t n = strlen(out_buf);
+        char *slot;
+        if(n > 5 && strcmp(out_buf + n - 5, "->buf") == 0) {
+            slot = cstrdup(out_buf);
+            slot[n - 5] = 0;
+        } else {
+            slot = cfmt("&%.*s", (int)(n - 4), out_buf);
+        }
+        char *r = cfmt("%s{\n%s    int orc = asn1cgo_oid_set((void *)(%s), %s, %s, %d);\n"
+                       "%s    if (orc) return asn1cgo_fail(err, orc == -2 ? ASN1CGO_E_ALLOC : ASN1CGO_E_CONSTRAINT, %s);\n%s}\n",
+                       ind, ind, slot, in_buf, len, strz == 3, ind, fail, ind);
+        free(slot);
+        return r;
+    }
     if(strz)
         return cfmt("%s{\n%s    %s = (uint8_t *)asn1cgo_calloc(1, %s + 1);\n"
                     "%s    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, %s);\n"
@@ -310,7 +335,8 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
                     char *_cf = bytes_copy_blk("        ", go_flat_ir_member_strz(mtmp), _len, _ob, _ib, _fl);
                     s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
                 }
-                { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                if(!strz_oid(go_flat_ir_member_strz(mtmp)))
+                    { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
             } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
                 { char *_cf = cfmt("        if (%s%s%s.len) {\n", in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("            %s%schoice.%s.buf = (uint8_t *)asn1cgo_calloc(1, %s%s%s.len);\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
@@ -393,13 +419,14 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
                         char *_ib = cfmt("%s%s%s.buf", in_sel, deref, tok);
                         char *_fl = cfmt("\"%s\", \"%s\", NULL", label, mlab);
                         char *_cf = bytes_copy_blk("        ",
-                            strcmp(prim, "asn1cgo_bytes_flat") == 0 && go_flat_ir_strz(r),
+                            strcmp(prim, "asn1cgo_bytes_flat") == 0 ? go_flat_ir_strz(r) : 0,
                             _len, _ob, _ib, _fl);
                         s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
                     }
                     if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0)
                         { char *_cf = cfmt("        %s%schoice.%s.bits_unused = (int)%s%s%s.bits_unused;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                    { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                    if(!(strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_strz(r))))
+                        { char *_cf = cfmt("        %s%schoice.%s.size = (int)%s%s%s.len;\n", out_sel, deref, ttok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 } else {
                     { char *_cf = cfmt("        %s%schoice.%s = (%s)%s%s%s;\n", out_sel, deref, ttok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
                 }
@@ -478,6 +505,13 @@ leaf_to_body(void *t, const char *label) {
         return s;
     }
     if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
+        if(strz_oid(go_flat_ir_strz(t)))
+            return cfmt(
+                "    {\n"
+                "        const asn1cgo_bytes_flat *b = (const asn1cgo_bytes_flat *)in;\n"
+                "        int orc = asn1cgo_oid_set((void *)out, b->buf, b->len, %d);\n"
+                "        if (orc) return asn1cgo_fail(err, orc == -2 ? ASN1CGO_E_ALLOC : ASN1CGO_E_CONSTRAINT, \"%s\", NULL, NULL);\n"
+                "    }\n", go_flat_ir_strz(t) == 3, label);
         if(go_flat_ir_strz(t))
             return cfmt(
                 "    {\n"
@@ -590,7 +624,9 @@ arm_prim_to(void *t, void *m, const char *in_acc, const char *out_acc) {
                 char *_cf = bytes_copy_blk("        ", go_flat_ir_member_strz(m), _len, _ob, _ib, _fl);
                 s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
             }
-            { char *_cf = cfmt("        %s->size = (int)%s->len;\n    }\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+            if(!strz_oid(go_flat_ir_member_strz(m)))
+                { char *_cf = cfmt("        %s->size = (int)%s->len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+            s = ca(s, "    }\n");
         } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
             { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("        %s = asn1cgo_calloc(1, sizeof(*%s));\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
@@ -626,7 +662,8 @@ arm_prim_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             char *_cf = bytes_copy_blk("    ", go_flat_ir_member_strz(m), _len, _ob, _ib, _fl);
             s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
         }
-        { char *_cf = cfmt("    %s.size = (int)%s.len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+        if(!strz_oid(go_flat_ir_member_strz(m)))
+            { char *_cf = cfmt("    %s.size = (int)%s.len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
         { char *_cf = cfmt("    if (%s.len) {\n", in_acc); s = ca(s, _cf); free(_cf); }
         { char *_cf = cfmt("        %s.buf = (uint8_t *)asn1cgo_calloc(1, %s.len);\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
@@ -705,7 +742,8 @@ arm_ref_to(void *t, void *m, const char *in_acc, const char *out_acc) {
                     char *_cf = bytes_copy_blk("        ", go_flat_ir_strz(r), _len, _ob, _ib, _fl);
                     s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
                 }
-                { char *_cf = cfmt("        %s->size = (int)%s->len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+                if(!strz_oid(go_flat_ir_strz(r)))
+                    { char *_cf = cfmt("        %s->size = (int)%s->len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "    }\n");
             } else {
                 {
@@ -716,7 +754,8 @@ arm_ref_to(void *t, void *m, const char *in_acc, const char *out_acc) {
                     char *_cf = bytes_copy_blk("    ", go_flat_ir_strz(r), _len, _ob, _ib, _fl);
                     s = ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
                 }
-                { char *_cf = cfmt("    %s.size = (int)%s.len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+                if(!strz_oid(go_flat_ir_strz(r)))
+                    { char *_cf = cfmt("    %s.size = (int)%s.len;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
             }
         } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
             if(stars) {

@@ -1,0 +1,59 @@
+Oids DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- OBJECT IDENTIFIER and RELATIVE-OID: Go []uint64 arcs. The C runtime holds an
+-- arc in 32 bits, so an arc above 4294967295 is an encode error; the other
+-- encode errors are the ones OBJECT_IDENTIFIER_set_arcs reports (fewer than
+-- two arcs, first arc above 2, second arc >= 40 under root 0 or 1, second arc
+-- above 4294967215 under root 2).
+
+	-- ---- top level (each is a PDU) ----
+	OidTop ::= OBJECT IDENTIFIER
+	RoidTop ::= RELATIVE-OID
+
+	-- ---- named types used by reference (so not PDUs themselves) ----
+	OidNamed ::= OBJECT IDENTIFIER
+	RoidNamed ::= RELATIVE-OID
+
+	-- ---- members, OPTIONAL members and references to a named type ----
+	OidRec ::= SEQUENCE {
+		oid	OBJECT IDENTIFIER,
+		oido	OBJECT IDENTIFIER OPTIONAL,
+		roid	RELATIVE-OID,
+		roido	RELATIVE-OID OPTIONAL,
+		named	OidNamed,
+		nameo	OidNamed OPTIONAL,
+		rnamed	RoidNamed,
+		rnameo	RoidNamed OPTIONAL,
+		flag	BOOLEAN
+	}
+
+	-- ---- SEQUENCE OF ----
+	OidList ::= SEQUENCE OF OBJECT IDENTIFIER
+	RoidList ::= SEQUENCE OF RELATIVE-OID
+	NamedList ::= SEQUENCE OF OidNamed
+	RnamedList ::= SEQUENCE OF RoidNamed
+	OidHolder ::= SEQUENCE {
+		oids	SEQUENCE OF OBJECT IDENTIFIER,
+		roids	SEQUENCE (SIZE(1..2)) OF RELATIVE-OID,
+		flag	BOOLEAN
+	}
+
+	-- ---- CHOICE alternatives ----
+	OidAlt ::= CHOICE {
+		oid	OBJECT IDENTIFIER,
+		roid	RELATIVE-OID,
+		named	OidNamed,
+		rnamed	RoidNamed,
+		flag	BOOLEAN
+	}
+
+	-- ---- extension additions ----
+	OidExt ::= SEQUENCE {
+		a	INTEGER (0..7),
+		...,
+		oid	OBJECT IDENTIFIER OPTIONAL,
+		roid	RELATIVE-OID OPTIONAL
+	}
+
+END

@@ -11,7 +11,9 @@ dflt-enum-ok	OK
 dflt-ia5	OK
 dflt-namedbit	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-null	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-oid	REFUSED	no DEFAULT support in the C generator
 dflt-real	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-roid	REFUSED	no DEFAULT support in the C generator
 dflt-seq	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-universal	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-utf8	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
@@ -49,15 +51,25 @@ null-alt	OK
 null-mem	OK
 null-top	OK
 octet-unconstr	OK
-oid	REFUSED	asn1cgo: OBJECT IDENTIFIER in module Probe
-oid-mem	REFUSED	asn1cgo: OBJECT IDENTIFIER in module Probe
+oid	OK
+oid-alt	OK
+oid-ext	OK
+oid-mem	OK
+oid-opt	OK
+oid-ref	OK
+oid-ref-alt	OK
 param	OK
 printable-alpha	OK
 real-mem	OK
 real-top	OK
 recursive	OK
 recursive-seqof	OK
-roid	REFUSED	asn1cgo: RELATIVE-OID in module Probe
+roid	OK
+roid-alt	OK
+roid-mem	OK
+roid-opt	OK
+roid-ref	OK
+roid-ref-alt	OK
 seq-inline-choice	OK
 seq-present	OK
 seqof-alias-inline	OK
@@ -105,11 +117,14 @@ sof-null-top	OK
 sof-octet-mem-opt	OK
 sof-octet-top	OK
 sof-octet-top-size	OK
-sof-oid-top	REFUSED	asn1cgo: OBJECT IDENTIFIER in module Probe
+sof-oid-mem	OK
+sof-oid-top	OK
 sof-printable-alt	OK
 sof-printable-top	OK
 sof-real-mem	OK
 sof-real-top	OK
+sof-roid-mem	OK
+sof-roid-top	OK
 sof-seq-alt	OK
 sof-seq-mem	OK
 sof-seq-mem-opt	OK

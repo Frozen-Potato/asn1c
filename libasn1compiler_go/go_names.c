@@ -1297,15 +1297,16 @@ typedef enum {
     GLEAF_NULL,          /* NULL → struct{}                                 */
     GLEAF_REAL,          /* REAL → float64                                  */
     GLEAF_OCTETS,        /* OCTET STRING / unresolved open type → []byte    */
-    GLEAF_OID,           /* OBJECT IDENTIFIER → []byte                      */
+    GLEAF_OID,           /* OBJECT IDENTIFIER → []uint64 arcs               */
     GLEAF_STRING,        /* restricted string types → string                */
     GLEAF_BITSTRING,     /* BIT STRING → the BitString helper type          */
     GLEAF_ENUM,          /* ENUMERATED → int32 + const block                */
     GLEAF_STRING_BMP,    /* BMPString → string (UCS-2 in C, UTF-8 in Go)    */
     GLEAF_STRING_UNIV,   /* UniversalString → string (UCS-4 in C, UTF-8)    */
-    GLEAF_STRING_Z       /* every other restricted string / time type →
+    GLEAF_STRING_Z,      /* every other restricted string / time type →
                             string, bytes as-is (PrintableString keeps
                             GLEAF_STRING: its tree is generated unchanged) */
+    GLEAF_ROID           /* RELATIVE-OID → []uint64 arcs                    */
 } go_leaf_kind;
 
 /* ------------------------------------------------------------------------- */
@@ -1548,6 +1549,8 @@ classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     case GO_CONSTR_REAL:     return GLEAF_REAL;
     case GO_CONSTR_OCTET_STRING: return GLEAF_OCTETS;
     case GO_CONSTR_BIT_STRING:   return GLEAF_BITSTRING;
+    case GO_CONSTR_OID:
+        return go_oid_is_relative(terminal) ? GLEAF_ROID : GLEAF_OID;
     case GO_CONSTR_STRING:
         switch(go_string_subkind(terminal)) {
         case GO_STR_BMP:       return GLEAF_STRING_BMP;
@@ -1559,10 +1562,9 @@ classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     case GO_CONSTR_ENUMERATED:   return GLEAF_ENUM;
     default: break;
     }
-    /* OID and other string kinds are GO_CONSTR_UNSUPPORTED in the frozen
-     * classifier (absent from the in-scope specs; the classification walk
-     * already rejects them loudly). An unsupported leaf reaching here is an internal
-     * ordering bug: record it as a failure named by path. */
+    /* An unsupported leaf (the classification walk already rejects them
+     * loudly) reaching here is an internal ordering bug: record it as a
+     * failure named by path. */
     fprintf(stderr, "asn1cgo: leaf terminal of unsupported kind at %s "
                     "in module %s\n",
             path_for_diag ? path_for_diag : "?",
@@ -2313,7 +2315,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                         {7, "asn1cgo_bytes_flat"}, {8, "asn1cgo_bytes_flat"},
                         {9, "asn1cgo_bits_flat"}, {10, "int32_t"},
                         {11, "asn1cgo_bytes_flat"}, {12, "asn1cgo_bytes_flat"},
-                        {13, "asn1cgo_bytes_flat"},
+                        {13, "asn1cgo_bytes_flat"}, {14, "asn1cgo_bytes_flat"},
                     };
                     for(size_t qi = 0;
                         qi < sizeof lk2p / sizeof lk2p[0]; qi++)
@@ -4209,6 +4211,8 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
         case GLEAF_NULL:   ctype = "NULL_t"; break;
         case GLEAF_REAL:   ctype = "double"; break;
         case GLEAF_OCTETS: ctype = "OCTET_STRING_t"; break;
+        case GLEAF_OID:    ctype = "OBJECT_IDENTIFIER_t"; break;
+        case GLEAF_ROID:   ctype = "RELATIVE_OID_t"; break;
         case GLEAF_STRING:
         case GLEAF_STRING_Z:
         case GLEAF_STRING_BMP:
@@ -4889,7 +4893,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                     {7, "asn1cgo_bytes_flat"}, {8, "asn1cgo_bytes_flat"},
                     {9, "asn1cgo_bits_flat"}, {10, "int32_t"},
                     {11, "asn1cgo_bytes_flat"}, {12, "asn1cgo_bytes_flat"},
-                    {13, "asn1cgo_bytes_flat"},
+                    {13, "asn1cgo_bytes_flat"}, {14, "asn1cgo_bytes_flat"},
                 };
                 const char *fprim = NULL;
                 for(size_t qi = 0; qi < sizeof lk2p / sizeof lk2p[0]; qi++)
@@ -5171,6 +5175,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                        || k == GO_CONSTR_NULL || k == GO_CONSTR_REAL
                        || k == GO_CONSTR_OCTET_STRING
                        || k == GO_CONSTR_BIT_STRING
+                       || k == GO_CONSTR_OID
                        || k == GO_CONSTR_STRING
                        || k == GO_CONSTR_ENUMERATED);
         if(lang_cb && !expr->lhs_params
