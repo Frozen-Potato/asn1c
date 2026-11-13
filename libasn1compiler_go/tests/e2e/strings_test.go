@@ -247,6 +247,33 @@ func stCases() []stCase {
 		"<bmp>"+stMulti+"</bmp>", "<univo>"+stClef+"</univo>", "<ia5>ext</ia5>"))
 	add(stMk("ext-no-opt", "Ext", "", &st.Ext{A: 3, Bmp: stp(""), Ia5: stp("e")}, st.DecodeExt, "<bmp></bmp>"))
 
+	// ---- PrintableString, empty and non-empty (KNOWN-ISSUES.md #11) ----
+	add(stMk("prttop-empty", "PrtTop", stEl("PrtTop", ""), stp(st.PrtTop("")), st.DecodePrtTop))
+	add(stMk("prttop", "PrtTop", stEl("PrtTop", "Hello 1"), stp(st.PrtTop("Hello 1")), st.DecodePrtTop))
+	add(stMk("prtsmall-empty", "PrtSmall", stEl("PrtSmall", ""), stp(st.PrtSmall("")), st.DecodePrtSmall))
+	add(stMk("prtsmall", "PrtSmall", stEl("PrtSmall", "abcd"), stp(st.PrtSmall("abcd")), st.DecodePrtSmall))
+	add(stMk("prtone", "PrtOne", stEl("PrtOne", "a"), stp(st.PrtOne("a")), st.DecodePrtOne))
+	add(stMk("prtrec-empty", "PrtRec", "", &st.PrtRec{Flag: true}, st.DecodePrtRec,
+		"<p></p>", "<s></s>", "<ref></ref>", "<refs></refs>"))
+	add(stMk("prtrec-opt-empty", "PrtRec", "", &st.PrtRec{Po: stp(""), So: stp(""), Refo: stp(st.PrtNamed("")), Flag: false}, st.DecodePrtRec,
+		"<po></po>", "<so></so>", "<refo></refo>"))
+	add(stMk("prtrec-full", "PrtRec", "", &st.PrtRec{P: "p 1", Po: stp("po"), S: "s", So: stp("so"), Ref: "ref", Refo: stp(st.PrtNamed("refo")), Refs: "rs", Flag: true}, st.DecodePrtRec,
+		"<p>p 1</p>", "<po>po</po>", "<s>s</s>", "<so>so</so>", "<ref>ref</ref>", "<refo>refo</refo>", "<refs>rs</refs>"))
+	prtAlt := func(name string, a *st.PrtAlt, has string) {
+		add(stMk("prtalt-"+name, "PrtAlt", "", a, st.DecodePrtAlt, has))
+	}
+	prtAlt("p-empty", &st.PrtAlt{Present: st.PrtAltPrP, P: stp("")}, "<p></p>")
+	prtAlt("s-empty", &st.PrtAlt{Present: st.PrtAltPrS, S: stp("")}, "<s></s>")
+	prtAlt("ref-empty", &st.PrtAlt{Present: st.PrtAltPrRef, Ref: stp(st.PrtNamed(""))}, "<ref></ref>")
+	prtAlt("refs-empty", &st.PrtAlt{Present: st.PrtAltPrRefs, Refs: stp(st.PrtNamedSmall(""))}, "<refs></refs>")
+	prtAlt("p", &st.PrtAlt{Present: st.PrtAltPrP, P: stp("abc")}, "<p>abc</p>")
+	add(stMk("prtlist", "PrtList", stList("PrtList", "PrintableString", "ab", "", "c"), stp(st.PrtList{"ab", "", "c"}), st.DecodePrtList))
+	add(stMk("prtlist-empty-elem", "PrtList", stList("PrtList", "PrintableString", ""), stp(st.PrtList{""}), st.DecodePrtList))
+	add(stMk("prtsmalllist", "PrtSmallList", stList("PrtSmallList", "PrintableString", "", "abcd"), stp(st.PrtSmallList{"", "abcd"}), st.DecodePrtSmallList))
+	add(stMk("prtreflist", "PrtRefList", stList("PrtRefList", "PrtNamed", "", "x"), stp(st.PrtRefList{"", "x"}), st.DecodePrtRefList))
+	add(stMk("prtholder", "PrtHolder", "", &st.PrtHolder{L: st.PrtHolderL{"", "a"}, Lo: &st.PrtHolderLo{""}, Flag: true}, st.DecodePrtHolder,
+		"<PrintableString></PrintableString>", "<PrintableString>a</PrintableString>"))
+
 	return cs
 }
 
@@ -361,6 +388,11 @@ func stBadCases() []stBadCase {
 	bad = stFullRec(true)
 	bad.Univo = stp("\xe2\x82")
 	add("univ-in-optional", bad, "not valid UTF-8")
+	// PrintableString (SIZE(1..4)): the empty value is still a constraint error
+	add("prt-one-empty", stp(st.PrtOne("")), "")
+	add("prt-one-too-long", stp(st.PrtOne("abcde")), "")
+	add("prt-top-bad-char", stp(st.PrtTop("a@b")), "")
+	add("prt-small-too-long", stp(st.PrtSmall("abcde")), "")
 	// time types: the C runtime checks the syntax (UTCTime_constraint /
 	// GeneralizedTime_constraint -> asn_UT2time / asn_GT2time)
 	for _, v := range []string{"garbage", "", "250102", "251302030405Z", "250132030405Z", "25010203040Z", "2501020304059Z", "２５０１０２０３０４０５Z"} {

@@ -1356,14 +1356,16 @@ typedef enum {
     GLEAF_REAL,          /* REAL → float64                                  */
     GLEAF_OCTETS,        /* OCTET STRING / unresolved open type → []byte    */
     GLEAF_OID,           /* OBJECT IDENTIFIER → []uint64 arcs               */
-    GLEAF_STRING,        /* restricted string types → string                */
+    GLEAF_STRING,        /* retired: no longer produced (PrintableString is
+                            GLEAF_STRING_Z now); the enumerator stays only
+                            because go_flat.c numbers the kinds as plain ints */
     GLEAF_BITSTRING,     /* BIT STRING → the BitString helper type          */
     GLEAF_ENUM,          /* ENUMERATED → int32 + const block                */
     GLEAF_STRING_BMP,    /* BMPString → string (UCS-2 in C, UTF-8 in Go)    */
     GLEAF_STRING_UNIV,   /* UniversalString → string (UCS-4 in C, UTF-8)    */
-    GLEAF_STRING_Z,      /* every other restricted string / time type →
-                            string, bytes as-is (PrintableString keeps
-                            GLEAF_STRING: its tree is generated unchanged) */
+    GLEAF_STRING_Z,      /* every restricted string / time type (PrintableString
+                            included) → string, bytes as-is, buffer allocated
+                            even when empty */
     GLEAF_ROID           /* RELATIVE-OID → []uint64 arcs                    */
 } go_leaf_kind;
 
@@ -1614,8 +1616,7 @@ classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
         case GO_STR_BMP:       return GLEAF_STRING_BMP;
         case GO_STR_UNIVERSAL: return GLEAF_STRING_UNIV;
         default:
-            return terminal->expr_type == ASN_STRING_PrintableString
-                   ? GLEAF_STRING : GLEAF_STRING_Z;
+            return GLEAF_STRING_Z;
         }
     case GO_CONSTR_ENUMERATED:   return GLEAF_ENUM;
     default: break;

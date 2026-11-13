@@ -131,4 +131,40 @@ BEGIN
 		ia5	IA5String
 	}
 
+	-- ---- PrintableString, empty values (KNOWN-ISSUES.md #11): no SIZE and
+	-- SIZE(0..4) accept "", SIZE(1..4) does not ----
+	PrtTop ::= PrintableString
+	PrtSmall ::= PrintableString (SIZE(0..4))
+	PrtOne ::= PrintableString (SIZE(1..4))
+	PrtNamed ::= PrintableString
+	PrtNamedSmall ::= PrintableString (SIZE(0..4))
+
+	PrtRec ::= SEQUENCE {
+		p	PrintableString,
+		po	PrintableString OPTIONAL,
+		s	PrintableString (SIZE(0..4)),
+		so	PrintableString (SIZE(0..4)) OPTIONAL,
+		ref	PrtNamed,
+		refo	PrtNamed OPTIONAL,
+		refs	PrtNamedSmall,
+		flag	BOOLEAN
+	}
+
+	PrtAlt ::= CHOICE {
+		p	PrintableString,
+		s	PrintableString (SIZE(0..4)),
+		ref	PrtNamed,
+		refs	PrtNamedSmall,
+		...
+	}
+
+	PrtList ::= SEQUENCE (SIZE(0..3)) OF PrintableString
+	PrtSmallList ::= SEQUENCE (SIZE(0..3)) OF PrintableString (SIZE(0..4))
+	PrtRefList ::= SEQUENCE (SIZE(0..3)) OF PrtNamed
+	PrtHolder ::= SEQUENCE {
+		l	SEQUENCE (SIZE(0..3)) OF PrintableString,
+		lo	SEQUENCE (SIZE(0..3)) OF PrintableString OPTIONAL,
+		flag	BOOLEAN
+	}
+
 END

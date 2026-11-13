@@ -156,7 +156,7 @@ struct flat_member {
                         * RELATIVE-OID (4): []uint64 arcs <-> 4 bytes per arc
                         * (little endian); 0 = bytes as-is                  */
     int strz;          /* bytes_flat member of a restricted string / time type
-                        * other than PrintableString (1): the tree buffer is
+                        * (1): the tree buffer is
                         * allocated even when empty (the C constraint
                         * functions reject a NULL buf, "value not given");
                         * 2 = OBJECT IDENTIFIER, 3 = RELATIVE-OID: the tree

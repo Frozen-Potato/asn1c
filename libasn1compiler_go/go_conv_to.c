@@ -209,7 +209,7 @@ conv_is_scc(const void *t) {
  *     if (LEN) { BUF = calloc(1, LEN); if (!BUF) fail; memcpy(BUF, SRC, LEN); }
  * `ind` indents the "if" and its closing brace; `fail` is the argument list
  * of asn1cgo_fail after ASN1CGO_E_ALLOC. For a restricted string / time type
- * (strz: every one except PrintableString) the buffer is allocated even when
+ * (strz: every one) the buffer is allocated even when
  * the value is empty, with a spare byte: the C constraint functions reject a
  * NULL buf ("value not given"), which is what an empty Go string would
  * otherwise produce. Without strz the text is the historical one. */

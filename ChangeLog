@@ -1,5 +1,16 @@
 0.9.29-go.7 (unreleased):
     FIXES:
+    * Go backend: an empty PrintableString (T ::= SEQUENCE { p PrintableString },
+      T{P: ""}) failed Encode with "value not given": the generated C
+      converter left the buffer NULL and the C constraint function rejects
+      that. PrintableString now takes the path the other restricted string
+      types already had (the buffer is allocated even when the value is
+      empty), in every position: top level, member, OPTIONAL member, CHOICE
+      alternative, named reference and SEQUENCE OF element. The encoded bytes
+      of non-empty values are unchanged, and an empty value for a type whose
+      SIZE lower bound is 1 is still a constraint error. Only the generated
+      *_conv.c changes: programs need regenerating (asn1c -Fgo) to get the
+      fix; no runtime change is needed.
     * Go backend: a SEQUENCE OF a reference to a NULL type (N ::= NULL,
       L ::= SEQUENCE OF N, also through an alias N2 ::= N) was refused with
       "conv: unresolved seqof elem", at top level, as a member, as an
