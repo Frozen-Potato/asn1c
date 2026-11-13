@@ -49,6 +49,8 @@
 #include "go_constructs.h"
 #include "go_conv.h"
 #include "go_conv_internal.h"
+#include <ctype.h>
+#include "go_strmap.h"
 
 /* The IR surface (go_flat.c). */
 
@@ -663,51 +665,73 @@ conv_copy_dir_files(const char *srcdir, const char *dstdir) {
  * them to underscores: KPM_MeasurementInfo-Action-List.h defines
  * KPM_MeasurementInfo_Action_List_t). Scans ASN1C_DESTDIR for the .h whose
  * text contains "} <base>_t;". Returns a malloc'd file name or NULL. */
-static char *
-conv_find_header(const char *base) {
+static gsmap g_hdr_ix;           /* base -> index into g_hdr_names */
+static char **g_hdr_names;
+static int g_hdr_n, g_hdr_built;
+
+/* One pass over the destination's .h files (the lookup used to reopen and
+ * rescan every header per call): every line ending "<sep><ident>_t;" with
+ * <sep> a space, tab, '}' or '*' (or the line start) registers <ident> ->
+ * that file; the first file in directory order wins, as before. */
+static void
+conv_header_index(void) {
+    if(g_hdr_built) return;
+    g_hdr_built = 1;
     const char *dd = go_dest_dir();
-    if(!dd || !*dd || !base || !*base) return NULL;
-    DIR *d = opendir(dd);
-    if(!d) return NULL;
+    DIR *d = (dd && *dd) ? opendir(dd) : NULL;
+    if(!d) return;
     struct dirent *e;
-    char needle[512];
-    /* the typedef line: kind + name (an inline struct ends "} X_t;", a
-     * scalar leaf "typedef long\t X_t;" — needle on the NAME only). */
-    snprintf(needle, sizeof needle, "%s_t;", base);
-    /* whole-tail match: the typedef line ENDS with "} <base>_t;" (inline
-     * struct) or " <base>_t;" (scalar typedef). A bare strstr substring
-     * misresolves (GNB_UEID_t; CONTAINS UEID_t; — a directory-order
-     * dependent wrong-file hit found live on the unprefixed E2SM run). */
-    size_t nl2 = strlen(needle);
-    char *hit = NULL;
-    while((e = readdir(d)) != NULL && !hit) {
+    int cap = 0;
+    while((e = readdir(d)) != NULL) {
         size_t nl = strlen(e->d_name);
         if(nl < 3 || strcmp(e->d_name + nl - 2, ".h") != 0) continue;
         char *p = conv_path(dd, e->d_name);
         FILE *f = fopen(p, "r");
         free(p);
         if(!f) continue;
+        int fidx = -1;
         char line[1024];
         while(fgets(line, sizeof line, f)) {
             size_t ll = strlen(line);
             while(ll > 0 && (line[ll-1] == '\n' || line[ll-1] == '\r' ||
                              line[ll-1] == ' ' || line[ll-1] == '\t'))
                 ll--;
-            if(ll >= nl2 && memcmp(line + ll - nl2, needle, nl2) == 0) {
-                /* line ends with the needle AND the char before the name is
-                 * a separator (space/tab/}) — not '_' (GNB_UEID_t) */
-                size_t bi = ll - nl2;
-                if(bi == 0 || line[bi-1] == ' ' || line[bi-1] == '\t' ||
-                   line[bi-1] == '}' || line[bi-1] == '*') {
-                    hit = cstrdup(e->d_name);
-                    break;
+            if(ll < 3 || memcmp(line + ll - 3, "_t;", 3) != 0) continue;
+            size_t end = ll - 3, st = end;
+            while(st > 0 && (isalnum((unsigned char)line[st-1])
+                             || line[st-1] == '_'))
+                st--;
+            if(st == end) continue;
+            if(st > 0 && line[st-1] != ' ' && line[st-1] != '\t'
+               && line[st-1] != '}' && line[st-1] != '*')
+                continue;
+            line[end] = '\0';
+            int dummy;
+            if(gsmap_get(&g_hdr_ix, line + st, &dummy)) continue;
+            if(fidx < 0) {
+                if(g_hdr_n == cap) {
+                    cap = cap ? cap * 2 : 256;
+                    char **nn = realloc(g_hdr_names, (size_t)cap * sizeof *nn);
+                    if(!nn) break;
+                    g_hdr_names = nn;
                 }
+                g_hdr_names[g_hdr_n] = cstrdup(e->d_name);
+                fidx = g_hdr_n++;
             }
+            gsmap_put_first(&g_hdr_ix, line + st, fidx);
         }
         fclose(f);
     }
     closedir(d);
-    return hit;
+}
+
+static char *
+conv_find_header(const char *base) {
+    const char *dd = go_dest_dir();
+    if(!dd || !*dd || !base || !*base) return NULL;
+    conv_header_index();
+    int v;
+    return gsmap_get(&g_hdr_ix, base, &v) ? cstrdup(g_hdr_names[v]) : NULL;
 }
 
 /* ---------------------------------------------------------------------------

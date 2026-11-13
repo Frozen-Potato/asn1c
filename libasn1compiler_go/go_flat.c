@@ -51,6 +51,7 @@
 #include <stdarg.h>
 #include "go_conv.h"
 #include "go_leaf.h"
+#include "go_strmap.h"
 
 /* ---------------------------------------------------------------------------
  * Small helpers (this TU's own; go_names.c's equivalents are file-static).
@@ -677,6 +678,10 @@ go_flat_member_seqof_on(int nest_ix, const char *elem_cid,
  * ------------------------------------------------------------------------ */
 int go_flat_ir_n_types(void) { return g_flat.n_types; }
 flat_type *go_flat_ir_type(int ix) { return flat_at(ix); }
+int go_flat_ir_index(flat_type *t) {
+    return (t && t >= g_flat.types && t < g_flat.types + g_flat.n_types)
+               ? (int)(t - g_flat.types) : -1;
+}
 int go_flat_ir_members(flat_type *t) { return t ? t->n_members : 0; }
 flat_member *go_flat_ir_member(flat_type *t, int i) {
     return (t && i >= 0 && i < t->n_members) ? &t->members[i] : NULL;
@@ -798,8 +803,26 @@ cid_strip_static(const char *cid) {
         return cid + strlen(pfx);
     return cid;
 }
+static flat_type *flat_ref_resolve_scan(const char *ref);
+
+/* Memoized lookup: the scan is linear in the node count; the memo is keyed by
+ * the input spelling and dropped whenever the node count changes (misses are
+ * remembered too). */
 static flat_type *
 flat_ref_resolve(const char *ref) {
+    static gsmap memo;
+    static int memo_n = -1;
+    if(!ref) return flat_ref_resolve_scan(ref);
+    if(memo_n != g_flat.n_types) { gsmap_free(&memo); memo_n = g_flat.n_types; }
+    int v;
+    if(gsmap_get(&memo, ref, &v)) return v ? &g_flat.types[v - 1] : NULL;
+    flat_type *r = flat_ref_resolve_scan(ref);
+    gsmap_put_first(&memo, ref, r ? (int)(r - g_flat.types) + 1 : 0);
+    return r;
+}
+
+static flat_type *
+flat_ref_resolve_scan(const char *ref) {
     /* nodes are named <P><cid>_flat and store the PREFIX-STRIPPED cid
      * (flat_new_type strips once); refs arrive in both spellings — GO_MKID
      * output (prefix included, the member walk) and already-stripped cids
@@ -1146,31 +1169,115 @@ render_fwd(flat_type *t) {
  * Depth-limited (cycles are excluded by the upstream by-value-cycle gate: every cycle
  * rides a pointer edge, which still counts as an edge here — the ORDERER
  * just ignores edges that close a cycle among already-ordered nodes). */
+/* The answer is precomputed: every edge (member REF, nested node, SEQUENCE OF
+ * element, alias target) is resolved to a node index once; for a queried node
+ * t the set of nodes reachable over member edges (nested and REF, starred or
+ * not; a visited set, no depth limit) is walked once and the union of their
+ * "hit" targets is kept as a bitset row, built on first use. */
+typedef struct {
+    int n;
+    int **reach;        /* per node: -1-terminated member-edge targets      */
+    int **hit;          /* per node: -1-terminated direct-hit targets       */
+    unsigned char **row;/* per node: bitset of hit targets over reach(t)    */
+    unsigned char *seen;
+    int *stack;
+} vr_cache_t;
+static vr_cache_t g_vr;
+
+static void
+vr_free(void) {
+    for(int i = 0; i < g_vr.n; i++) {
+        if(g_vr.reach) free(g_vr.reach[i]);
+        if(g_vr.hit) free(g_vr.hit[i]);
+        if(g_vr.row) free(g_vr.row[i]);
+    }
+    free(g_vr.reach); free(g_vr.hit); free(g_vr.row);
+    free(g_vr.seen); free(g_vr.stack);
+    memset(&g_vr, 0, sizeof g_vr);
+}
+
+static int
+vr_ix(flat_type *p) { return p ? (int)(p - g_flat.types) : -1; }
+
+static int
+vr_build(void) {
+    int n = g_flat.n_types;
+    vr_free();
+    g_vr.n = n;
+    g_vr.reach = calloc((size_t)n + 1, sizeof(int *));
+    g_vr.hit = calloc((size_t)n + 1, sizeof(int *));
+    g_vr.row = calloc((size_t)n + 1, sizeof(unsigned char *));
+    g_vr.seen = calloc((size_t)n + 1, 1);
+    g_vr.stack = calloc((size_t)n + 1, sizeof(int));
+    if(!g_vr.reach || !g_vr.hit || !g_vr.row || !g_vr.seen || !g_vr.stack) {
+        vr_free(); g_flat_failed_set(); return -1;
+    }
+    for(int u = 0; u < n; u++) {
+        flat_type *t = &g_flat.types[u];
+        int *re = malloc(((size_t)t->n_members + 1) * sizeof(int));
+        int *hi = malloc(((size_t)t->n_members * 2 + 3) * sizeof(int));
+        if(!re || !hi) { free(re); free(hi); vr_free(); g_flat_failed_set(); return -1; }
+        int nr = 0, nh = 0;
+        for(int i = 0; i < t->n_members; i++) {
+            flat_member *m = &t->members[i];
+            if(m->kind == FT_NESTED) {
+                flat_type *c = flat_at(m->nested_ix);
+                if(!c) continue;
+                re[nr++] = vr_ix(c);
+                if(!m->stars) hi[nh++] = vr_ix(c);
+                if(c->kind == FLT_SEQOF && !c->elem_prim) {
+                    int e = vr_ix(flat_ref_resolve(c->elem));
+                    if(e >= 0) hi[nh++] = e;
+                }
+            } else if(m->kind == FT_REF) {
+                int r = vr_ix(flat_ref_resolve(m->ref));
+                if(r >= 0) { re[nr++] = r; hi[nh++] = r; }
+            }
+        }
+        if(t->kind == FLT_SEQOF && !t->elem_prim) {
+            int e = vr_ix(flat_ref_resolve(t->elem));
+            if(e >= 0) hi[nh++] = e;
+        }
+        if(t->kind == FLT_ALIAS) {
+            int e = vr_ix(flat_ref_resolve(t->alias_of));
+            if(e >= 0) hi[nh++] = e;
+        }
+        re[nr] = -1; hi[nh] = -1;
+        g_vr.reach[u] = re; g_vr.hit[u] = hi;
+    }
+    return 0;
+}
+
 static int
 value_ref_to(flat_type *t, flat_type *d, int depth) {
-    if(depth > 64) return 0;
-    for(int i = 0; i < t->n_members; i++) {
-        flat_member *m = &t->members[i];
-        if(m->kind == FT_NESTED) {
-            flat_type *n = flat_at(m->nested_ix);
-            if(!m->stars && n == d) return 1;
-            if(n && value_ref_to(n, d, depth + 1)) return 1;
-            /* a nested seqof's items element references its elem */
-            if(n && n->kind == FLT_SEQOF && !n->elem_prim
-               && flat_ref_resolve(n->elem) == d)
-                return 1;
-        } else if(m->kind == FT_REF) {
-            flat_type *r = flat_ref_resolve(m->ref);
-            if(r == d) return 1;
-            if(r && value_ref_to(r, d, depth + 1)) return 1;
+    (void)depth;
+    int ti = vr_ix(t), di = vr_ix(d);
+    if(ti < 0 || di < 0 || ti >= g_vr.n || di >= g_vr.n) return 0;
+    if(!g_vr.row[ti]) {
+        unsigned char *row = calloc(((size_t)g_vr.n + 7) / 8 + 1, 1);
+        if(!row) { g_flat_failed_set(); return 0; }
+        int sp = 0, nseen = 0;
+        g_vr.stack[sp++] = ti;
+        g_vr.seen[ti] = 1;
+        int *visited = malloc(((size_t)g_vr.n + 1) * sizeof(int));
+        if(!visited) { free(row); g_flat_failed_set(); return 0; }
+        visited[nseen++] = ti;
+        while(sp > 0) {
+            int u = g_vr.stack[--sp];
+            for(int *h = g_vr.hit[u]; *h >= 0; h++)
+                row[*h >> 3] |= (unsigned char)(1u << (*h & 7));
+            for(int *r = g_vr.reach[u]; *r >= 0; r++)
+                if(!g_vr.seen[*r]) {
+                    g_vr.seen[*r] = 1;
+                    visited[nseen++] = *r;
+                    g_vr.stack[sp++] = *r;
+                }
         }
+        for(int i = 0; i < nseen; i++) g_vr.seen[visited[i]] = 0;
+        free(visited);
+        g_vr.row[ti] = row;
     }
-    if(t->kind == FLT_SEQOF && !t->elem_prim
-       && flat_ref_resolve(t->elem) == d)
-        return 1;
-    if(t->kind == FLT_ALIAS && flat_ref_resolve(t->alias_of) == d)
-        return 1;
-    return 0;
+    return (g_vr.row[ti][di >> 3] >> (di & 7)) & 1;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1409,6 +1516,7 @@ order_pkg_nodes(int *ix, int n, int **order_out, int *n_order_out) {
     int n_order = 0;
     char *done = calloc((size_t)n ? (size_t)n : 1, 1);
     if(!order || !done) { free(order); free(done); g_flat_failed_set(); return -1; }
+    if(!g_vr.reach && vr_build() < 0) { free(order); free(done); return -1; }
     for(int pass = 0; pass <= n; pass++) {
         int placed = 0;
         for(int i = 0; i < n; i++) {
@@ -1597,9 +1705,11 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
                 by_pkg[n++] = i;
         if(order_pkg_nodes(by_pkg, n, &pkgs[p].order, &pkgs[p].n_order) < 0) {
             free(by_pkg); free(pkg_start); free(pkgs);
+            vr_free();
             return -1;
         }
     }
+    vr_free();
 
     if(getenv("ASN1CGO_FLATDBG"))
         fprintf(stderr, "asn1cgo: flatdbg: n_types=%d n_pkgs=%d failed=%d\n",

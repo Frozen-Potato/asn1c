@@ -99,6 +99,7 @@
 #include "asn1c_misc.h"          /* asn1c_prefix */
 #include "go_conv.h"             /* flat IR surface + conv facts (PDU roots) */
 #include "go_conv_internal.h"    /* g_conv_pdus, conv_* helpers */
+#include "go_strmap.h"
 
 /* The name-row surface (go_names.c — the bag outlives the glue emit;
  * extern decls here keep -Wmissing-prototypes quiet in both TUs). */
@@ -141,6 +142,14 @@ static char *gam(char *a, char *b) {
     free(b);
     return r;
 }
+
+/* length-tracking buffer helpers (go_strmap.h gsb): appends are O(len(b)). */
+static void sb_a(gsb *b, const char *s) { if(s) gsb_adds(b, s); }
+static void sb_am(gsb *b, char *s) { sb_a(b, s); free(s); }
+static void sb_set(gsb *b, char *s) {
+    free(b->p); b->p = s; b->len = s ? strlen(s) : 0; b->cap = b->len + 1;
+}
+
 
 /* substring copy (length-based; NUL-terminated). */
 static char *gown2_len(const char *p, size_t n) {
@@ -225,7 +234,7 @@ static int gmkdir_p(const char *path) {
 static char *expand_oneline_ifs(char *src) {
     if(!src) return src;
     const char *q = src;
-    char *out = strdup("");
+    gsb obuf = {0};
     while(*q) {
         const char *eol = strchr(q, '\n');
         size_t ll = eol ? (size_t)(eol - q) : strlen(q);
@@ -265,7 +274,7 @@ static char *expand_oneline_ifs(char *src) {
                         char *b3 = b2 + strlen(b2); while(b3 > b2 && b3[-1] == ' ') b3--;
                         *b3 = 0;
                         if(*b2 && strcmp(cond, "if") != 0) {
-                            out = gam(out, gfmt("%s%s {\n%s\t%s\n%s}\n",
+                            sb_am(&obuf, gfmt("%s%s {\n%s\t%s\n%s}\n",
                                                 indent, cond, indent, b2, indent));
                             free(indent); free(cond); free(body);
                             if(!eol) break;
@@ -280,17 +289,17 @@ static char *expand_oneline_ifs(char *src) {
         /* pass the line through */
         if(eol) {
             char *seg = gown2_len(q, ll);
-            out = ga(out, seg);
+            sb_a(&obuf, seg);
             free(seg);
-            out = ga(out, "\n");
+            sb_a(&obuf, "\n");
             q = eol + 1;
         } else {
-            out = ga(out, q);
+            sb_a(&obuf, q);
             break;
         }
     }
     free(src);
-    return out;
+    return gsb_take(&obuf);
 }
 
 /* gofmt normalizer 2: a switch case body wrapped in a brace block
@@ -300,15 +309,15 @@ static char *expand_oneline_ifs(char *src) {
  * ends so nested \t\t{ blocks stay put. */
 static char *reindent_case_blocks(char *src) {
     if(!src) return src;
-    char *out = strdup("");
+    gsb obuf = {0};
     const char *q = src;
     while(*q) {
         const char *eol = strchr(q, '\n');
-        if(!eol) { out = ga(out, q); break; }
+        if(!eol) { sb_a(&obuf, q); break; }
         size_t ll = (size_t)(eol - q);
         { char *sg = gown2_len(q, ll);
-          out = ga(out, sg); free(sg); }
-        out = ga(out, "\n");
+          sb_a(&obuf, sg); free(sg); }
+        sb_a(&obuf, "\n");
         int is_case = (ll >= 6 && q[0] == '\t' && strncmp(q + 1, "case ", 5) == 0)
                       || (ll >= 9 && q[0] == '\t'
                           && strncmp(q + 1, "default:", 8) == 0);
@@ -331,18 +340,18 @@ static char *reindent_case_blocks(char *src) {
                     p2 = e2 + 1;
                 }
                 if(close && close >= body) {
-                    out = ga(out, "\t\t{\n");
+                    sb_a(&obuf, "\t\t{\n");
                     for(const char *b = body; b < close; ) {
                         const char *e2 = strchr(b, '\n');
                         if(!e2 || e2 > close) e2 = close;
-                        out = ga(out, "\t");
+                        sb_a(&obuf, "\t");
                         { char *sg = gown2_len(b, (size_t)(e2 - b));
-                          out = ga(out, sg); free(sg); }
-                        out = ga(out, "\n");
+                          sb_a(&obuf, sg); free(sg); }
+                        sb_a(&obuf, "\n");
                         if(e2 >= close) break;
                         b = e2 + 1;
                     }
-                    out = ga(out, "\t\t}\n");
+                    sb_a(&obuf, "\t\t}\n");
                     q = close + 2;
                     if(*q == '\n') { q++; }
                     else { /* close had no newline (EOF) */ }
@@ -353,7 +362,7 @@ static char *reindent_case_blocks(char *src) {
         q = eol + 1;
     }
     free(src);
-    return out;
+    return gsb_take(&obuf);
 }
 
 static int gfwrite_all(const char *path, const char *text) {
@@ -472,15 +481,17 @@ typedef struct { char *name; long value; } goneconst;
 static goneconst *g_loconsts = NULL;
 static int g_n_loconsts = 0, g_cap_loconsts = 0;
 
+static gsmap g_loconst_seen;   /* names in g_loconsts (reset with it) */
+
 static void loconst_add(char *name, long value) {
-    for(int i = 0; i < g_n_loconsts; i++)
-        if(strcmp(g_loconsts[i].name, name) == 0) { free(name); return; }
+    { int v; if(gsmap_get(&g_loconst_seen, name, &v)) { free(name); return; } }
     if(g_n_loconsts == g_cap_loconsts) {
         int nc = g_cap_loconsts ? g_cap_loconsts * 2 : 64;
         goneconst *nl = realloc(g_loconsts, (size_t)nc * sizeof(goneconst));
         if(!nl) { free(name); return; }
         g_loconsts = nl; g_cap_loconsts = nc;
     }
+    gsmap_put_first(&g_loconst_seen, name, 1);
     g_loconsts[g_n_loconsts].name = name;
     g_loconsts[g_n_loconsts].value = value;
     g_n_loconsts++;
@@ -494,7 +505,22 @@ static void loconst_add(char *name, long value) {
  * a foreign re-declaration of the same node under qconst) collapse to one
  * assert per name, and the name <-> value pairs are non-contradictory
  * because both touches derive from the same IR node. */
-static char *g_asserts = NULL;   /* the package's assert block (owned) */
+static gsb g_asserts_sb;         /* the package's assert block (owned) */
+static gsmap g_asserts_seen;     /* its lines, for the once-per-line rule */
+#define g_asserts (g_asserts_sb.p)
+
+/* append an assert line unless the block already has it */
+static void assert_line(const char *line) {
+    int v;
+    if(gsmap_get(&g_asserts_seen, line, &v)) return;
+    gsmap_put_first(&g_asserts_seen, line, 1);
+    gsb_adds(&g_asserts_sb, line);
+}
+static void asserts_reset(void) {
+    free(g_asserts_sb.p);
+    memset(&g_asserts_sb, 0, sizeof g_asserts_sb);
+    gsmap_free(&g_asserts_seen);
+}
 
 /* one assert line, appended under its const name as the failure message */
 static void assert_add(const char *kind, const char *node_name,
@@ -505,8 +531,7 @@ static void assert_add(const char *kind, const char *node_name,
                kind, node_name, designator, value, const_name)
         : gfmt("_Static_assert(%s(%s) == %ld, \"%s\");\n",
                kind, node_name, value, const_name);
-    if(strstr(g_asserts ? g_asserts : "", line)) { free(line); return; }
-    g_asserts = ga(g_asserts, line);
+    assert_line(line);
     free(line);
 }
 
@@ -537,8 +562,7 @@ static void nested_consts(const char *nm, const char *node_id,
              * offsetof(typeof(((T*)0)->a),b) == host+inner) */
             char *line = gfmt("_Static_assert(%s == %ld, \"%s\");\n",
                               sub, ioff, oc2);
-            if(!strstr(g_asserts ? g_asserts : "", line))
-                g_asserts = ga(g_asserts, line);
+            assert_line(line);
             free(line);
             free(oc2);
         } else {
@@ -707,72 +731,115 @@ static char *gconv_load(const char *prim, const char *cast, const char *raw) {
 
 /* ---- name-row lookups ------------------------------------------------- */
 
+/* First-hit indexes over the name rows, rebuilt when the row count changes:
+ * the lookups below used to scan every row per call (quadratic in the type
+ * count). Each index returns the FIRST row the old scan would have hit. */
+static gsmap g_ix_type, g_ix_field, g_ix_present, g_ix_fgo;
+static gsmap g_ix_ownty;   /* (module, goName) of a type/inline row     */
+static gsmap g_ix_alias;   /* goName -> first type-ish row (qualify_alias) */
+static int g_ix_rows = -1;
+
+static char *ix_key2(const char *a, const char *b) {
+    size_t la = strlen(a), lb = strlen(b);
+    char *k = malloc(la + lb + 2);
+    if(!k) return NULL;
+    memcpy(k, a, la); k[la] = '\x01'; memcpy(k + la + 1, b, lb + 1);
+    return k;
+}
+
+static void rows_index(void) {
+    int n = go_names_rows_n();
+    if(n == g_ix_rows) return;
+    gsmap_free(&g_ix_type); gsmap_free(&g_ix_field); gsmap_free(&g_ix_present);
+    gsmap_free(&g_ix_fgo); gsmap_free(&g_ix_ownty); gsmap_free(&g_ix_alias);
+    g_ix_rows = n;
+    for(int i = 0; i < n; i++) {
+        const char *k = go_names_row_kind(i);
+        const char *mod = go_names_row_module(i);
+        const char *gn = go_names_row_goname(i);
+        if(mod && k && gn && *gn
+           && (strcmp(k, "type") == 0 || strcmp(k, "inline") == 0
+               || strcmp(k, "spec-key") == 0 || strcmp(k, "spec-value") == 0)) {
+            char *key = ix_key2(mod, gn);
+            if(key) { gsmap_put_first(&g_ix_type, key, i); free(key); }
+        }
+        if(mod && k && gn && (strcmp(k, "type") == 0 || strcmp(k, "inline") == 0)) {
+            char *key = ix_key2(mod, gn);
+            if(key) { gsmap_put_first(&g_ix_ownty, key, i); free(key); }
+        }
+        if(k && gn && (strcmp(k, "type") == 0 || strcmp(k, "inline") == 0
+                       || strcmp(k, "spec-key") == 0
+                       || strcmp(k, "spec-value") == 0
+                       || strcmp(k, "spec-pr") == 0
+                       || strcmp(k, "choice-pr") == 0))
+            gsmap_put_first(&g_ix_alias, gn, i);
+        const char *so = go_names_row_sf_owner(i);
+        if(!so) continue;
+        if(k && strcmp(k, "field") == 0) {
+            const char *rc = go_names_row_rawcid(i);
+            if(rc) {
+                char *key = ix_key2(so, rc);
+                if(key) { gsmap_put_first(&g_ix_field, key, i); free(key); }
+            }
+            const char *ft = go_names_row_field_type(i);
+            if(gn && ft && *ft) {
+                char *key = ix_key2(so, gn);
+                if(key) { gsmap_put_first(&g_ix_fgo, key, i); free(key); }
+            }
+        }
+        if(gn && strcmp(gn, "Present") == 0)
+            gsmap_put_first(&g_ix_present, so, i);
+    }
+}
+
 /* The Go type name of a package-scoped node: the row (type/inline/spec-key/
  * spec-value) of this node's module whose goName == camel(node). Borrowed;
  * NULL when no row (a nested-only node). */
 static const char *gf_goname(flat_type *t) {
     const char *tname = t ? go_flat_ir_name(t) : NULL;
     const char *tmod = t ? go_flat_ir_module(t) : NULL;
-    if(!tname || !*tname) return NULL;
+    if(!tname || !*tname || !tmod) return NULL;
     char *c = gcamel_flat(tname);
     const char *r = NULL;
-    for(int i = 0; i < go_names_rows_n() && !r; i++) {
-        const char *mod = go_names_row_module(i);
-        if(!mod || !tmod || strcmp(mod, tmod) != 0) continue;
-        const char *k = go_names_row_kind(i);
-        if(!k || (strcmp(k, "type") != 0 && strcmp(k, "inline") != 0
-                  && strcmp(k, "spec-key") != 0
-                  && strcmp(k, "spec-value") != 0)) continue;
-        const char *gn = go_names_row_goname(i);
-        if(gn && *gn && strcmp(gn, c) == 0) r = gn;
-    }
+    rows_index();
+    char *key = ix_key2(tmod, c);
+    int v;
+    if(key && gsmap_get(&g_ix_type, key, &v)) r = go_names_row_goname(v);
+    free(key);
     free(c);
     return r;
 }
 
-
+static int gf_field_row(const char *owner, const char *token) {
+    if(!owner || !token) return -1;
+    rows_index();
+    char *key = ix_key2(owner, token);
+    int v = -1;
+    if(!key || !gsmap_get(&g_ix_field, key, &v)) v = -1;
+    free(key);
+    return v;
+}
 
 /* A FIELD row goName by (owner goName, rawCid == member token). Borrowed.
  * NULL = no row (a NULL alt's suppressed row — callers key on the
  * null-alt record). */
 static const char *gf_field_goname(const char *owner, const char *token) {
-    if(!owner || !token) return NULL;
-    for(int i = 0; i < go_names_rows_n(); i++) {
-        const char *so = go_names_row_sf_owner(i);
-        if(!so || strcmp(so, owner) != 0) continue;
-        const char *k = go_names_row_kind(i);
-        if(!k || strcmp(k, "field") != 0) continue;
-        const char *rc = go_names_row_rawcid(i);
-        if(rc && strcmp(rc, token) == 0) return go_names_row_goname(i);
-    }
-    return NULL;
+    int i = gf_field_row(owner, token);
+    return i < 0 ? NULL : go_names_row_goname(i);
 }
 
 /* A FIELD row's field_type text by the same key (package-qualified). */
 static const char *gf_field_type(const char *owner, const char *token) {
-    if(!owner || !token) return NULL;
-    for(int i = 0; i < go_names_rows_n(); i++) {
-        const char *so = go_names_row_sf_owner(i);
-        if(!so || strcmp(so, owner) != 0) continue;
-        const char *k = go_names_row_kind(i);
-        if(!k || strcmp(k, "field") != 0) continue;
-        const char *rc = go_names_row_rawcid(i);
-        if(rc && strcmp(rc, token) == 0) return go_names_row_field_type(i);
-    }
-    return NULL;
+    int i = gf_field_row(owner, token);
+    return i < 0 ? NULL : go_names_row_field_type(i);
 }
 
 /* The <owner>.Present discriminant's TYPE text (field row `Present`). */
 static const char *gf_present_type(const char *owner) {
+    int v;
     if(!owner) return NULL;
-    for(int i = 0; i < go_names_rows_n(); i++) {
-        const char *so = go_names_row_sf_owner(i);
-        if(!so || strcmp(so, owner) != 0) continue;
-        const char *gn = go_names_row_goname(i);
-        if(gn && strcmp(gn, "Present") == 0)
-            return go_names_row_field_type(i);
-    }
-    return NULL;
+    rows_index();
+    return gsmap_get(&g_ix_present, owner, &v) ? go_names_row_field_type(v) : NULL;
 }
 
 /* the unqualified base of a possibly qualified name */
@@ -877,6 +944,50 @@ typedef struct {
  * "T" when t's module == g_emit_mod, else "<pkg>.T" (the local fns are
  * per-package; the sibling packages of one go.mod are importable by their
  * module path "<mod>/<pkg>"). Malloc'd. */
+/* For each node, the (host, member) pairs whose REF member resolves to it, in
+ * (host, member) scan order: gtype_q's container-clone search used to rescan
+ * every member of every node per call. Rebuilt when the node count changes. */
+static int *g_rh_start, *g_rh_host, *g_rh_mem;
+static int g_rh_n = -1;
+
+static void refhost_index(void) {
+    int n = go_flat_ir_n_types();
+    if(n == g_rh_n) return;
+    free(g_rh_start); free(g_rh_host); free(g_rh_mem);
+    g_rh_start = calloc((size_t)n + 2, sizeof(int));
+    int tot = 0;
+    for(int pass = 0; pass < 2; pass++) {
+        if(pass == 1) {
+            for(int i = 0; i <= n; i++) {
+                int c = g_rh_start[i]; g_rh_start[i] = tot; tot += c;
+            }
+            g_rh_host = malloc(((size_t)tot + 1) * sizeof(int));
+            g_rh_mem = malloc(((size_t)tot + 1) * sizeof(int));
+            tot = 0;
+        }
+        int *fill = pass ? calloc((size_t)n + 1, sizeof(int)) : NULL;
+        for(int hi = 0; hi < n; hi++) {
+            flat_type *host = go_flat_ir_type(hi);
+            for(int mi = 0; mi < go_flat_ir_members(host); mi++) {
+                flat_member *m = go_flat_ir_member(host, mi);
+                if(!m || !go_flat_ir_member_is_ref(m)) continue;
+                const char *rf = go_flat_ir_member_ref(m);
+                flat_type *rr = rf ? go_flat_ir_ref_resolve(rf) : NULL;
+                if(!rr || rr == host) continue;
+                int ri = go_flat_ir_index(rr);
+                if(ri < 0) continue;
+                if(!pass) g_rh_start[ri]++;
+                else {
+                    int at = g_rh_start[ri] + fill[ri]++;
+                    g_rh_host[at] = hi; g_rh_mem[at] = mi;
+                }
+            }
+        }
+        free(fill);
+    }
+    g_rh_n = n;
+}
+
 static char *local_bitstring(void);
 static char *gtype_q(flat_type *t) {
     /* a hidden inline-element leaf (`SEQUENCE OF INTEGER`...) has no Go type
@@ -893,28 +1004,26 @@ static char *gtype_q(flat_type *t) {
     if(t && go_flat_ir_is_seqof(t)) {
         /* NOTE: borrow-only scan — NO owned strings held across the row
          * hit (the loop frees its per-iteration temps on every path). */
-        for(int ti = 0; ti < go_flat_ir_n_types(); ti++) {
-            flat_type *host = go_flat_ir_type(ti);
-            if(!host || host == t) continue;
-            for(int mi = 0; mi < go_flat_ir_members(host); mi++) {
-                flat_member *m = go_flat_ir_member(host, mi);
-                if(!m || !go_flat_ir_member_is_ref(m)) continue;
-                const char *rf = go_flat_ir_member_ref(m);
-                flat_type *rr = rf ? go_flat_ir_ref_resolve(rf) : NULL;
-                if(rr != t) continue;
+        refhost_index();
+        int tix = go_flat_ir_index(t);
+        for(int ci = 0; tix >= 0 && tix < g_rh_n
+                && ci < g_rh_start[tix + 1] - g_rh_start[tix]; ci++) {
+            int cj = g_rh_start[tix] + ci;
+            flat_type *host = go_flat_ir_type(g_rh_host[cj]);
+            {
+                flat_member *m = go_flat_ir_member(host, g_rh_mem[cj]);
                 const char *nown = go_flat_ir_name(host);
                 const char *tokraw = go_flat_ir_member_token(m);
                 char *hostcam = gcamel_flat(nown ? nown : "");
                 char *tokcam = gcamel(tokraw ? tokraw : "");
-                for(int ri = 0; ri < go_names_rows_n(); ri++) {
-                    const char *rk = go_names_row_kind(ri);
-                    if(!rk || strcmp(rk, "field") != 0) continue;
-                    const char *rwn = go_names_row_goname(ri);
-                    if(!rwn || strcmp(rwn, tokcam) != 0) continue;
-                    const char *rowner = go_names_row_sf_owner(ri);
-                    if(!rowner || strcmp(rowner, hostcam) != 0) continue;
+                int ri = -1;
+                { char *fk = ix_key2(hostcam, tokcam);
+                  rows_index();
+                  if(!fk || !gsmap_get(&g_ix_fgo, fk, &ri)) ri = -1;
+                  free(fk); }
+                if(ri >= 0) {
                     const char *ft_v = go_names_row_field_type(ri);
-                    if(ft_v && *ft_v) {
+                    {
                         const char *alias = (*ft_v == '*') ? ft_v + 1 : ft_v;
                         const char *rtm = go_flat_ir_module(t);
                         char *out;
@@ -1037,36 +1146,29 @@ qualify_alias(const char *alias_in) {
     /* a name this package declares itself wins over a same-named row of
      * another module (BitString: every module that owns BIT STRING members
      * declares one) — never qualify it by the first match. */
-    for(int i = 0; i < go_names_rows_n() && g_emit_mod; i++) {
-        const char *gn = go_names_row_goname(i);
-        const char *mrow = go_names_row_module(i);
-        const char *k = go_names_row_kind(i);
-        if(gn && mrow && k && strcmp(gn, base) == 0
-           && strcmp(mrow, g_emit_mod) == 0
-           && (strcmp(k, "type") == 0 || strcmp(k, "inline") == 0))
-            return gown(alias_in);
+    rows_index();
+    if(g_emit_mod) {
+        char *lk = ix_key2(g_emit_mod, base);
+        int lv;
+        int own = lk && gsmap_get(&g_ix_ownty, lk, &lv);
+        free(lk);
+        if(own) return gown(alias_in);
     }
-    for(int i = 0; i < go_names_rows_n(); i++) {
-        const char *k = go_names_row_kind(i);
-        if(!k || (strcmp(k, "type") != 0 && strcmp(k, "inline") != 0
-                  && strcmp(k, "spec-key") != 0
-                  && strcmp(k, "spec-value") != 0
-                  && strcmp(k, "spec-pr") != 0
-                  && strcmp(k, "choice-pr") != 0)) continue;
-        const char *gn = go_names_row_goname(i);
-        if(!gn || strcmp(gn, base) != 0) continue;
-        const char *mrow = go_names_row_module(i);
-        if(mrow && g_emit_mod && strcmp(mrow, g_emit_mod) != 0) {
-            char *pk = gmodule_pkg(mrow);
-            char pre[8];
-            int si;
-            for(si = 0; si < star && si < 7; si++) pre[si] = '*';
-            pre[si] = 0;
-            char *q = gfmt("%s%s.%s", pre, pk, base);
-            free(pk);
-            return q;
+    {
+        int i;
+        if(gsmap_get(&g_ix_alias, base, &i)) {
+            const char *mrow = go_names_row_module(i);
+            if(mrow && g_emit_mod && strcmp(mrow, g_emit_mod) != 0) {
+                char *pk = gmodule_pkg(mrow);
+                char pre[8];
+                int si;
+                for(si = 0; si < star && si < 7; si++) pre[si] = '*';
+                pre[si] = 0;
+                char *q = gfmt("%s%s.%s", pre, pk, base);
+                free(pk);
+                return q;
+            }
         }
-        break;
     }
     /* local or unresolvable: keep the original spelling (star preserved) */
     return gown(alias_in);
@@ -3248,7 +3350,7 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
 /* one PDU root's API surface + its type fn queueing. `tb` = the
  * tree base (<P><cid>, the entry-point name suffix), `go` = the Go type. */
 static void
-emit_pdu_api(flat_type *rt_, char **src) {
+emit_pdu_api(flat_type *rt_, gsb *src) {
     char *tb = conv_tree_base(rt_);
     char *go = gcamel_flat(go_flat_ir_name(rt_));
     char *label = conv_type_label(rt_);
@@ -3261,7 +3363,7 @@ emit_pdu_api(flat_type *rt_, char **src) {
     char *fna = gown(go_flat_ir_name(rt_));   /* the C Flat typedef name */
     const char *d0 = conv_is_scc(rt_) ? ", 0" : "";   /* the root call's depth arg */
 
-    *src = gam(*src, gfmt("// %s — the public API (Encode/Decode entry points; xer unexported).\n", go));
+    sb_am(src, gfmt("// %s — the public API (Encode/Decode entry points; xer unexported).\n", go));
     /* the ROOT's own struct: the size fns count only CHILD allocations
      * (every nested caller allocs the child slot via allocStruct and so
      * counts it), but the PDU root's Flat sits at the block base for
@@ -3273,9 +3375,9 @@ emit_pdu_api(flat_type *rt_, char **src) {
     char *root_sz = g_szconst(go_flat_ir_name(rt_));
     {
         char *wb = entry_go_wrapper("encode", go, label, tb, fna, root_sz, d0);
-        *src = gam(*src, wb);   /* gam frees wb */
+        sb_am(src, wb);   /* gam frees wb */
     }
-    *src = gam(*src, gfmt(
+    sb_am(src, gfmt(
         "func Decode%s(b []byte) (*%s, error) {\n"
         "\tif len(b) == 0 {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
         "\tvar cerr C.asn1cgo_err\n"
@@ -3294,7 +3396,7 @@ emit_pdu_api(flat_type *rt_, char **src) {
         go, go, label, fna, tb, go));
     {
         char *wb = entry_go_wrapper("xer", go, label, tb, fna, root_sz, d0);
-        *src = gam(*src, wb);   /* gam frees wb */
+        sb_am(src, wb);   /* gam frees wb */
     }
     free(root_sz);
     free(tb); free(go); free(label); free(fna);
@@ -3707,7 +3809,7 @@ pkg_header(const char *module, const char *pkg, const char *flat_hdr,
  * queued before it completes — actually callees queue DURING body emission,
  * so reverse the registry for emission: callees first). */
 static void
-emit_fn_text(gluefn *f, char **src) {
+emit_fn_text(gluefn *f, gsb *src) {
     if(!f || !f->done) return;
     flat_type *t = go_flat_ir_type(f->ix);
     if(!t) return;
@@ -3715,15 +3817,15 @@ emit_fn_text(gluefn *f, char **src) {
     char *qt = gtype_q(t);   /* the package-qualified type spelling */
     const char *dp = conv_is_scc(t) ? ", depth int" : "";
 
-    *src = gam(*src, gfmt(
+    sb_am(src, gfmt(
         "func size%s(v *%s%s) (fixed, payload uintptr, err error) {\n",
         cam, qt, dp));
-    *src = ga(*src, f->sz);
-    *src = ga(*src, "\treturn\n}\n\n");
-    *src = gam(*src, gfmt(
+    sb_a(src, f->sz);
+    sb_a(src, "\treturn\n}\n\n");
+    sb_am(src, gfmt(
         "func fill%s(fa *blockArena, slot unsafe.Pointer, v *%s%s) error {\n",
         cam, qt, dp));
-    *src = ga(*src, f->fill);
+    sb_a(src, f->fill);
     /* a fill body that already returns (a delegation) must not get the
      * trailer `return nil` — unreachable. Mirror of the read side. */
     {
@@ -3736,14 +3838,14 @@ emit_fn_text(gluefn *f, char **src) {
             if(!eol) break;
             q = eol + 1;
         }
-        *src = ga(*src, fill_returns ? "}\n\n" : "\treturn nil\n}\n\n");
+        sb_a(src, fill_returns ? "}\n\n" : "\treturn nil\n}\n\n");
     }
     if(f->leaf_pdu) {
-        *src = gam(*src, gfmt(
+        sb_am(src, gfmt(
             "func read%s(slot unsafe.Pointer) (*%s, error) {\n\tv := new(%s)\n",
             cam, qt, qt));
     } else {
-    *src = gam(*src, gfmt(
+    sb_am(src, gfmt(
         "func read%s(slot unsafe.Pointer) (*%s, error) {\n\tv := &%s{}\n",
         cam, qt, qt));
     }
@@ -3766,12 +3868,12 @@ emit_fn_text(gluefn *f, char **src) {
          * simplest legal form: emit `_ = v` BEFORE the body (still used),
          * then the body, then just the close. */
         if(has_return && !uses_v)
-            *src = ga(*src, "\t_ = v\n");
-        *src = ga(*src, f->read);
+            sb_a(src, "\t_ = v\n");
+        sb_a(src, f->read);
         if(has_return) {
-            *src = ga(*src, "}\n\n");
+            sb_a(src, "}\n\n");
         } else {
-            *src = ga(*src, "\tvar err error\n\t_ = err\n\treturn v, nil\n}\n\n");
+            sb_a(src, "\tvar err error\n\t_ = err\n\treturn v, nil\n}\n\n");
         }
     }
     free(cam); free(qt);
@@ -3887,7 +3989,8 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         item_helpers_reset();
         for(int i = 0; i < g_n_loconsts; i++) free(g_loconsts[i].name);
         free(g_loconsts); g_loconsts = NULL; g_n_loconsts = g_cap_loconsts = 0;
-        free(g_asserts); g_asserts = NULL;   /* fresh assert block per package */
+        gsmap_free(&g_loconst_seen);
+        asserts_reset();   /* fresh assert block per package */
         glue_failed = 0;
 
         const char *module_name = go_module_basename ? go_module_basename : "";
@@ -3922,30 +4025,31 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         }
         /* the package flat header (all fn signatures' Flat types) */
         char *flat_incs2 = gfmt("#include \"%s\"\n", flat_hdr);
-        char *src = pkg_header(module_name, pkg, flat_hdr, flat_incs2, pdu_ext,
-                               go_rt_module);
-        src = ga(src, "\n");
-        src = ga(src, GLUE_STATICS);
+        gsb sb = {0};
+        sb_set(&sb, pkg_header(module_name, pkg, flat_hdr, flat_incs2, pdu_ext,
+                               go_rt_module));
+        sb_a(&sb, "\n");
+        sb_a(&sb, GLUE_STATICS);
         /* (the BITSTR substitution moved below: it now runs where the bits
          * helpers are conditionally appended, after the fn bodies exist) */
-        src = ga(src, "\n");
+        sb_a(&sb, "\n");
 
         /* queue every PDU root's fns + API (fn queueing fills the registry
          * transitively) */
         for(int i = 0; i < n_pdu_e && !glue_failed; i++) {
             if(strcmp(pdus[i].module, mod) != 0) continue;
-            emit_pdu_api(pdus[i].root, &src);
+            emit_pdu_api(pdus[i].root, &sb);
         }
         /* the fns, reverse queue order (callees first) */
         for(int i = g_n_fns - 1; i >= 0 && !glue_failed; i--)
-            emit_fn_text(g_fns[i], &src);
+            emit_fn_text(g_fns[i], &sb);
 
         /* the SEQ-OF item helper triples (first-reference order; the fns
          * they call are already emitted above) */
         for(int i = 0; i < g_n_items && !glue_failed; i++) {
-            src = ga(src, g_items[i].sz);
-            src = ga(src, g_items[i].fill);
-            src = ga(src, g_items[i].read);
+            sb_a(&sb, g_items[i].sz);
+            sb_a(&sb, g_items[i].fill);
+            sb_a(&sb, g_items[i].read);
         }
 
         /* the bits helpers, only when this package's emitted bodies use
@@ -3960,11 +4064,11 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             /* emit time: substitute BITSTR only when used — freeing bsname
              * otherwise would be the only alloc; keep it simple, both paths
              * free it at scope end */
-            int use_bits = strstr(src, "writeBitsField(") != NULL
-                        || strstr(src, "readBitsField(") != NULL;
+            int use_bits = strstr(sb.p, "writeBitsField(") != NULL
+                        || strstr(sb.p, "readBitsField(") != NULL;
             char *bsname = local_bitstring();
             char *out = strdup("");
-            const char *p2 = src, *q;
+            const char *p2 = sb.p, *q;
             const char *m1 = "//__GLUE_WRITEBITS__\n";
             const char *m2 = "//__GLUE_READBITS__\n";
             size_t l1 = strlen(m1), l2 = strlen(m2);
@@ -4014,7 +4118,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 sub = ga(sub, r);
                 free(out); out = sub;
             }
-            free(src); src = out;
+            sb_set(&sb, out);
             free(bsname);
         }
 
@@ -4022,17 +4126,17 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
          * package's bodies use them (appended after the bodies, so a package
          * without such a type is unchanged). */
         {
-            int use_bmp = strstr(src, "bmpLen(") != NULL
-                       || strstr(src, "BMPField(") != NULL;
-            int use_univ = strstr(src, "univLen(") != NULL
-                        || strstr(src, "UnivField(") != NULL;
-            int use_oid = strstr(src, "oidLen(") != NULL
-                       || strstr(src, "OIDField(") != NULL;
+            int use_bmp = strstr(sb.p, "bmpLen(") != NULL
+                       || strstr(sb.p, "BMPField(") != NULL;
+            int use_univ = strstr(sb.p, "univLen(") != NULL
+                        || strstr(sb.p, "UnivField(") != NULL;
+            int use_oid = strstr(sb.p, "oidLen(") != NULL
+                       || strstr(sb.p, "OIDField(") != NULL;
             if(use_bmp || use_univ || use_oid) {
-                src = ga(src, GLUE_STRCONV_COMMON);
-                if(use_bmp) src = ga(src, GLUE_STRCONV_BMP);
-                if(use_univ) src = ga(src, GLUE_STRCONV_UNIV);
-                if(use_oid) src = ga(src, GLUE_STRCONV_OID);
+                sb_a(&sb, GLUE_STRCONV_COMMON);
+                if(use_bmp) sb_a(&sb, GLUE_STRCONV_BMP);
+                if(use_univ) sb_a(&sb, GLUE_STRCONV_UNIV);
+                if(use_oid) sb_a(&sb, GLUE_STRCONV_OID);
             }
         }
 
@@ -4067,14 +4171,14 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
          * same const spelling, local package scope — no collision because
          * the owning decl never crosses packages). */
         if(g_n_loconsts > 0) {
-            src = ga(src,
+            sb_a(&sb,
                 "// glue-local layout consts of foreign-package nodes whose fn\n"
                 "// copies live here (the glue is self-contained per package; the\n"
                 "// owning package's layout.go consts are unexported).\n");
             for(int i = 0; i < g_n_loconsts; i++)
-                src = gam(src, gfmt("const %s = %ld\n",
+                sb_am(&sb, gfmt("const %s = %ld\n",
                                    g_loconsts[i].name, g_loconsts[i].value));
-            src = ga(src, "\n");
+            sb_a(&sb, "\n");
         }
 
         /* close the layout-const verification gap at COMPILE time.
@@ -4112,16 +4216,16 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 "%s",
                 g_asserts ? g_asserts : "");
             /* splice before the preamble's closing comment marker + import */
-            char *mark = strstr(src, "*/\nimport \"C\"");
+            char *mark = strstr(sb.p, "*/\nimport \"C\"");
             if(mark) {
-                size_t off = (size_t)(mark - src);
-                size_t tl = strlen(src), il = strlen(blob);
+                size_t off = (size_t)(mark - sb.p);
+                size_t tl = strlen(sb.p), il = strlen(blob);
                 char *ns = malloc(tl + il + 1);
                 if(ns) {
-                    memcpy(ns, src, off);
+                    memcpy(ns, sb.p, off);
                     memcpy(ns + off, blob, il);
-                    memcpy(ns + off + il, src + off, tl - off + 1);
-                    free(src); src = ns;
+                    memcpy(ns + off + il, sb.p + off, tl - off + 1);
+                    sb_set(&sb, ns);
                 }
             }
             free(blob);
@@ -4146,7 +4250,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                  * each foreign line before the first existing line that
                  * sorts AFTER it (gofmt order), else before the closing
                  * paren. */
-                char *blk = strstr(src, "import (");
+                char *blk = strstr(sb.p, "import (");
                 char *bend = blk ? strchr(blk + 8, ')') : NULL;
                 if(blk && bend) {
                     for(int j = 0; j < n_fm; j++) {
@@ -4166,17 +4270,17 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                             ins = le + 1;
                         }
                         if(ins > bend) ins = bend;
-                        size_t off = (size_t)(ins - src);
-                        size_t tl = strlen(src), il = strlen(line);
+                        size_t off = (size_t)(ins - sb.p);
+                        size_t tl = strlen(sb.p), il = strlen(line);
                         char *ns = malloc(tl + il + 1);
                         if(ns) {
-                            memcpy(ns, src, off);
+                            memcpy(ns, sb.p, off);
                             memcpy(ns + off, line, il);
-                            memcpy(ns + off + il, src + off, tl - off + 1);
-                            free(src); src = ns;
+                            memcpy(ns + off + il, sb.p + off, tl - off + 1);
+                            sb_set(&sb, ns);
                         }
                         /* re-anchor: the splice moved everything after ins */
-                        blk = strstr(src, "import (");
+                        blk = strstr(sb.p, "import (");
                         bend = blk ? strchr(blk + 8, ')') : NULL;
                         free(line); free(fp);
                         if(!blk || !bend) break;
@@ -4184,7 +4288,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 } else {
                     /* no import block found (shouldn't happen): old
                      * behavior — append before the close. */
-                    char *ip = strstr(src, "\t\"unsafe\"\n)\n");
+                    char *ip = strstr(sb.p, "\t\"unsafe\"\n)\n");
                     if(ip) {
                         char *ins = strdup("");
                         for(int j = 0; j < n_fm; j++) {
@@ -4192,14 +4296,14 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                             ins = gam(ins, gfmt("\t\"%s/%s\"\n", module_name, fp));
                             free(fp);
                         }
-                        size_t off = (size_t)(ip - src) + strlen("\t\"unsafe\"\n");
-                        size_t tl = strlen(src), il = strlen(ins);
+                        size_t off = (size_t)(ip - sb.p) + strlen("\t\"unsafe\"\n");
+                        size_t tl = strlen(sb.p), il = strlen(ins);
                         char *ns = malloc(tl + il + 1);
                         if(ns) {
-                            memcpy(ns, src, off);
+                            memcpy(ns, sb.p, off);
                             memcpy(ns + off, ins, il);
-                            memcpy(ns + off + il, src + off, tl - off + 1);
-                            free(src); src = ns;
+                            memcpy(ns + off + il, sb.p + off, tl - off + 1);
+                            sb_set(&sb, ns);
                         }
                         free(ins);
                     }
@@ -4214,18 +4318,17 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         } else {
             /* gofmt normalization: expand one-line ifs, then trailing
              * newline count. */
-            src = reindent_case_blocks(src);
-            src = expand_oneline_ifs(src);
-            while(strlen(src) > 1 && src[strlen(src)-1] == '\n'
-                  && src[strlen(src)-2] == '\n')
-                src[strlen(src)-1] = '\0';
+            sb_set(&sb, expand_oneline_ifs(reindent_case_blocks(gsb_take(&sb))));
+            while(strlen(sb.p) > 1 && sb.p[strlen(sb.p)-1] == '\n'
+                  && sb.p[strlen(sb.p)-2] == '\n')
+                sb.p[strlen(sb.p)-1] = '\0';
             char *pkgdir = gjoin(go_outdir, pkg);
             if(gmkdir_p(pkgdir) < 0) rc = -1;
             char *path = gjoin(pkgdir, "glue.go");
-            if(rc == 0 && gfwrite_all(path, src) < 0) rc = -1;
+            if(rc == 0 && gfwrite_all(path, sb.p) < 0) rc = -1;
             free(pkgdir); free(path);
         }
-        free(src); free(flat_hdr); free(flat_incs2); free(pdu_ext);
+        free(sb.p); free(flat_hdr); free(flat_incs2); free(pdu_ext);
         free(pkg);
         g_emit_mod = NULL;
     }
@@ -4235,7 +4338,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         free(g_fns[i]);
     }
     free(g_fns); g_fns = NULL; g_n_fns = g_cap_fns = 0;
-    free(g_asserts); g_asserts = NULL;
+    asserts_reset();
     free(pdus); free(mods);
     return glue_failed ? -1 : rc;
 }

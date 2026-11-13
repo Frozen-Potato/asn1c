@@ -91,6 +91,7 @@ const char *go_conv_tree_typename(flat_type *t);
  * externs below / their own extern blocks). */
 int go_flat_ir_n_types(void);
 flat_type *go_flat_ir_type(int ix);
+int go_flat_ir_index(flat_type *t);   /* position in the node array, -1 = none */
 int go_flat_ir_members(flat_type *t);
 flat_member *go_flat_ir_member(flat_type *t, int i);
 int go_flat_ir_is_nested_only(flat_type *t);

@@ -69,6 +69,7 @@
                                * structural decision site below (the Flat
                                * layout stage) */
 #include "go_leaf.h"         /* go_leaf_kind: shared leaf body kinds */
+#include "go_strmap.h"
 #include "go_conv.h"         /* go_conv_record_*: the conv facts the walk
                                * reads (IOC rows, NULL alts, PDUs, wide
                                * INTEGERs; the conv/entry stages) */
@@ -310,6 +311,7 @@ struct name_bag {
     const char **ps_module;             /* module->ModuleName per scope    */
     struct pkg_owner **ps_owners;       /* owner list per scope            */
     int *ps_n, *ps_cap;                 /* list sizes per scope            */
+    gsmap *ps_ix;                       /* goName -> first owner, per scope */
     int n_ps, cap_ps;
 
     /* Per-struct field table (reset at each struct). */
@@ -441,7 +443,11 @@ ps_grow(struct name_bag *b) {
     int *ncp = xrealloc(b->ps_cap, (size_t)nc * sizeof(int));
     if(!ncp) return 0;
     b->ps_cap = ncp;
+    gsmap *nix = xrealloc(b->ps_ix, (size_t)nc * sizeof(gsmap));
+    if(!nix) return 0;
+    b->ps_ix = nix;
     for(int i = b->cap_ps; i < nc; i++) {
+        memset(&b->ps_ix[i], 0, sizeof(gsmap));
         b->ps_module[i] = NULL; b->ps_owners[i] = NULL;
         b->ps_n[i] = 0; b->ps_cap[i] = 0;
     }
@@ -471,6 +477,7 @@ ps_append(int i, struct name_bag *b, struct pkg_owner o) {
         if(!np) return 0;
         b->ps_owners[i] = np; b->ps_cap[i] = nc;
     }
+    gsmap_put_first(&b->ps_ix[i], o.goName, b->ps_n[i]);
     b->ps_owners[i][b->ps_n[i]++] = o;
     return 1;
 }
@@ -485,9 +492,11 @@ record_package(struct name_bag *b, const char *module,
                char *rawCid, char *goName) {
     int i = ps_scope_for(b, module);
     if(i < 0) { b->failed = 1; return; }
-    for(int j = 0; j < b->ps_n[i]; j++) {
-        struct pkg_owner *o = &b->ps_owners[i][j];
-        if(strcmp(o->goName, goName) == 0) {
+    {
+        int j;
+        struct pkg_owner *o;
+        if(gsmap_get(&b->ps_ix[i], goName, &j)) {
+            o = &b->ps_owners[i][j];
             /* Same (path, kind) row meaning a re-visit: idempotent, no row. */
             if(strcmp(o->path, path) == 0 && o->kind == kind)
                 return;
@@ -1071,6 +1080,21 @@ go_emit_module_decls(FILE *out, const char *module) {
     if(!ordx) return -1;
     for(int i = 0; i < b->n_rows; i++) ordx[i] = i;
     qsort(ordx, (size_t)b->n_rows, sizeof(int), ord_cmp);
+    /* const rows of this module by the type name they attach to (the part of
+     * goType after the last '.'), in walk order: the per-type const blocks
+     * below used to rescan every row for each type. */
+    gsmulti cidx;
+    memset(&cidx, 0, sizeof cidx);
+    for(int y = 0; y < b->n_rows; y++) {
+        struct name_row *c = &b->rows[ordx[y]];
+        if(c->module != module) continue;
+        if(c->kind != GK_ENUM_CONST && c->kind != GK_CHOICE_CONST
+           && c->kind != GK_VALUE_CONST)
+            continue;
+        if(c->bit_group || !c->goType) continue;
+        const char *dot = strrchr(c->goType, '.');
+        gsmulti_add(&cidx, dot ? dot + 1 : c->goType, y);
+    }
 
     for(int x = 0; x < b->n_rows && rc == 0; x++) {
         struct name_row *r = &b->rows[ordx[x]];
@@ -1223,21 +1247,10 @@ go_emit_module_decls(FILE *out, const char *module) {
              * the qualified type. */
             if(rc == 0) {
                 int name_w = 0, type_w = 0, nblk = 0;
-                for(int y = 0; y < b->n_rows; y++) {
-                    struct name_row *c = &b->rows[ordx[y]];
-                    if(c->module != module) continue;
-                    if(c->kind != GK_ENUM_CONST && c->kind != GK_CHOICE_CONST
-                       && c->kind != GK_VALUE_CONST)
-                        continue;
-                    if(c->bit_group) continue;   /* named-bit consts: own block */
-                    if(!c->goType || !strstr(c->goType, r->goName)
-                       || strcmp(c->goType, r->goName) != 0) {
-                        /* qualified (contains '.' or a foreign qualifier) —
-                         * match on the suffix after the LAST '.'. */
-                        const char *dot = strrchr(c->goType, '.');
-                        if(!dot || strcmp(dot + 1, r->goName) != 0)
-                            continue;
-                    }
+                int ncy;
+                const int *cys = gsmulti_get(&cidx, r->goName, &ncy);
+                for(int q = 0; q < ncy; q++) {
+                    struct name_row *c = &b->rows[ordx[cys[q]]];
                     int nw = (int)strlen(c->goName) + 1;
                     int tw = (int)strlen(c->goType) + 1;
                     if(nw > name_w) name_w = nw;
@@ -1246,20 +1259,8 @@ go_emit_module_decls(FILE *out, const char *module) {
                 }
                 if(nblk > 0) {
                     if(go_types_emit_const_open(out) < 0) { rc = -1; break; }
-                    for(int y = 0; y < b->n_rows && rc == 0; y++) {
-                        struct name_row *c = &b->rows[ordx[y]];
-                        if(c->module != module) continue;
-                        if(c->kind != GK_ENUM_CONST
-                           && c->kind != GK_CHOICE_CONST
-                           && c->kind != GK_VALUE_CONST)
-                            continue;
-                        if(c->bit_group) continue;
-                        const char *dot = c->goType
-                            ? strrchr(c->goType, '.') : NULL;
-                        if(!c->goType
-                           || (dot ? strcmp(dot + 1, r->goName) != 0
-                                   : strcmp(c->goType, r->goName) != 0))
-                            continue;
+                    for(int q = 0; q < ncy && rc == 0; q++) {
+                        struct name_row *c = &b->rows[ordx[cys[q]]];
                         rc = go_types_emit_const(out, c->goName, c->goType,
                                                  c->intval ? c->intval : "0",
                                                  name_w, type_w);
@@ -1338,6 +1339,7 @@ go_emit_module_decls(FILE *out, const char *module) {
         }
     }
 
+    gsmulti_free(&cidx);
     free(ordx);
     return rc;
 }
@@ -2052,9 +2054,10 @@ done:
                 free(bag.ps_owners[j][k].goName);
                 free(bag.ps_owners[j][k].path);
             }
+            gsmap_free(&bag.ps_ix[j]);
             free(bag.ps_owners[j]);
         }
-        free(bag.ps_module); free(bag.ps_owners);
+        free(bag.ps_module); free(bag.ps_owners); free(bag.ps_ix);
         free(bag.ps_n); free(bag.ps_cap);
         for(int j = 0; j < bag.n_fields; j++) {
             free(bag.fields[j].goName); free(bag.fields[j].path);
@@ -3598,14 +3601,26 @@ static char *
 qualify_type(struct name_bag *b, const char *module, const char *go_name) {
     const char *tmod = NULL;
     int local = 0;
-    for(int j = 0; j < b->n_rows; j++) {
-        struct name_row *t = &b->rows[j];
-        if(t->goName && strcmp(t->goName, go_name) == 0
-           && (t->kind == GK_TYPE || t->kind == GK_INLINE
-               || t->kind == GK_SPEC_KEY)) {
-            if(t->module == module) { local = 1; break; }
-            if(t->kind == GK_TYPE || t->kind == GK_SPEC_KEY) tmod = t->module;
+    /* the rows named go_name, in row order (indexed once per table size) */
+    static gsmulti byname;
+    static int byname_rows = -1;
+    static struct name_bag *byname_bag;
+    if(byname_rows != b->n_rows || byname_bag != b) {
+        gsmulti_free(&byname);
+        for(int j = 0; j < b->n_rows; j++) {
+            struct name_row *t = &b->rows[j];
+            if(t->goName && (t->kind == GK_TYPE || t->kind == GK_INLINE
+                             || t->kind == GK_SPEC_KEY))
+                gsmulti_add(&byname, t->goName, j);
         }
+        byname_rows = b->n_rows; byname_bag = b;
+    }
+    int nj;
+    const int *js = gsmulti_get(&byname, go_name, &nj);
+    for(int q = 0; q < nj; q++) {
+        struct name_row *t = &b->rows[js[q]];
+        if(t->module == module) { local = 1; break; }
+        if(t->kind == GK_TYPE || t->kind == GK_SPEC_KEY) tmod = t->module;
     }
     if(local || !tmod || tmod == module) return own(go_name);
     char *q = module_pkg_go(tmod);
