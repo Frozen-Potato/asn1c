@@ -84,4 +84,45 @@ XB2 ::= INTEGER
 END" "" $flags
 done
 
+# 4. The same type name in two modules: asn1c names them ModA_Item / ModB_Item
+#    and every recursion-safe "struct Item" spelling (forward declaration,
+#    OPTIONAL member, SEQUENCE OF element, CHOICE alternative) must carry the
+#    prefix too. "struct Item" is never defined; a translation unit that
+#    dereferences the member (what the Go converters do) must compile.
+mkdir "$tmp/modclash"
+cat >"$tmp/modclash/a.asn1" <<'EOT'
+ModA DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Item ::= SEQUENCE { a INTEGER (0..7), b BOOLEAN }
+TopA ::= SEQUENCE { i Item OPTIONAL, l SEQUENCE (SIZE(1..4)) OF Item, c CHOICE { p Item, q NULL } }
+END
+EOT
+cat >"$tmp/modclash/b.asn1" <<'EOT'
+ModB DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Item ::= SEQUENCE { x OCTET STRING }
+TopB ::= SEQUENCE { i Item OPTIONAL, l SEQUENCE (SIZE(1..4)) OF Item }
+END
+EOT
+cat >"$tmp/modclash/use.c" <<'EOT'
+#include "TopA.h"
+#include "TopB.h"
+long use(TopA_t *a, TopB_t *b) {
+	return sizeof(*a->i) + sizeof(*b->i) + a->i->a + a->c.choice.p.a
+	    + a->l.list.array[0]->a + b->l.list.array[0]->x.size;
+}
+EOT
+out=$(cd "$tmp/modclash" && "$asn1c" -S "$skel" -fincludes-quoted -fcompound-names \
+	a.asn1 b.asn1 2>&1)
+rc=$?
+[ $rc = 0 ] || { echo "FAIL: two-module clash exited $rc"; echo "$out"; fail=1; }
+if grep -n 'struct Item\b' "$tmp"/modclash/Top?.h; then
+	echo "FAIL: unprefixed 'struct Item' in the headers"; fail=1
+fi
+grep -q 'struct ModA_Item	\*i;' "$tmp/modclash/TopA.h" || {
+	echo "FAIL: TopA.h lacks 'struct ModA_Item *i'"; fail=1; }
+grep -q 'struct ModB_Item	\*i;' "$tmp/modclash/TopB.h" || {
+	echo "FAIL: TopB.h lacks 'struct ModB_Item *i'"; fail=1; }
+out=$(cd "$tmp/modclash" && ${CC:-cc} -fsyntax-only -I. -I"$skel" use.c 2>&1) || {
+	echo "FAIL: dereferencing the clashing member does not compile"
+	echo "$out"; fail=1; }
+
 exit $fail

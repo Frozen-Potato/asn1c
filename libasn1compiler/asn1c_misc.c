@@ -251,6 +251,16 @@ asn1c_type_name(arg_t *arg, asn1p_expr_t *expr, enum tnfmt _format) {
 		if(_format != TNF_RSAFE  && terminal && ((terminal->spec_index != -1) || (terminal->_mark & TM_NAMECLASH))) {
 			exprid = terminal;
 			typename = 0;
+		} else if(_format == TNF_RSAFE && typename && terminal
+			&& terminal->spec_index == -1
+			&& (terminal->_mark & TM_NAMECLASH)) {
+			/*
+			 * "struct X" must match the definition, which carries
+			 * the module prefix ("struct ModA_Item"). Only the
+			 * module prefix is added (MODULE_NAME_OF(exprid));
+			 * parameterized instances keep their historic name.
+			 */
+			exprid = terminal;
 		}
 
 		break;

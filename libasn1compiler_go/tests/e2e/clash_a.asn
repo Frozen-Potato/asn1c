@@ -1,0 +1,15 @@
+ModA DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- ClItem is also defined in clash_b.asn (ModB): the C generator names the two
+-- ModA_ClItem / ModB_ClItem, and every "struct ClItem" spelling (OPTIONAL member,
+-- SEQUENCE OF element, CHOICE alternative) must carry the prefix too.
+
+ClItem ::= SEQUENCE { a INTEGER (0..7), b BOOLEAN }
+
+TopA ::= SEQUENCE {
+	i	ClItem OPTIONAL,
+	l	SEQUENCE (SIZE(1..4)) OF ClItem,
+	c	CHOICE { p ClItem, q NULL }
+}
+
+END
