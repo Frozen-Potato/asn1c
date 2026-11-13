@@ -92,6 +92,31 @@ static asn1p_module_t *currentModule;
 		}							\
 	} while(0)
 
+/*
+ * Attach the constraint list c (possibly empty) that trails a SEQUENCE OF /
+ * SET OF to its element type e; for nested lists (SEQUENCE OF SEQUENCE OF
+ * INTEGER (0..7)) that is the innermost element. The element may already
+ * carry constraints of its own, in which case the two are combined; with no
+ * trailing constraint it is left alone.
+ */
+#define	ASSIGN_INNER_CONSTRAINTS(e, c) do {				\
+		asn1p_expr_t *__e = (e);				\
+		while((__e->expr_type == ASN_CONSTR_SEQUENCE_OF		\
+		    || __e->expr_type == ASN_CONSTR_SET_OF)		\
+		    && TQ_FIRST(&__e->members))				\
+			__e = TQ_FIRST(&__e->members);			\
+		asn1p_constraint_t *__c = (c);				\
+		if(__c) {						\
+			if(__e->constraints) {				\
+				asn1p_constraint_t *__old = __e->constraints;	\
+				CONSTRAINT_INSERT(__e->constraints,	\
+					ACT_CA_SET, __old, __c);	\
+			} else {					\
+				__e->constraints = __c;			\
+			}						\
+		}							\
+	} while(0)
+
 #ifdef	AL_IMPORT
 #error	AL_IMPORT DEFINED ELSEWHERE!
 #endif
@@ -1291,8 +1316,7 @@ DefinedUntaggedType:
 		 */
 		if($$->expr_type == ASN_CONSTR_SEQUENCE_OF
 		|| $$->expr_type == ASN_CONSTR_SET_OF) {
-			assert(!TQ_FIRST(&($$->members))->constraints);
-			TQ_FIRST(&($$->members))->constraints = $2;
+			ASSIGN_INNER_CONSTRAINTS(TQ_FIRST(&($$->members)), $2);
 		} else {
 			if($$->constraints) {
 				assert(!$2);
@@ -1314,8 +1338,7 @@ UntaggedType:
 		 */
 		if($$->expr_type == ASN_CONSTR_SEQUENCE_OF
 		|| $$->expr_type == ASN_CONSTR_SET_OF) {
-			assert(!TQ_FIRST(&($$->members))->constraints);
-			TQ_FIRST(&($$->members))->constraints = $2;
+			ASSIGN_INNER_CONSTRAINTS(TQ_FIRST(&($$->members)), $2);
 		} else {
 			if($$->constraints) {
 				assert(!$2);
@@ -1338,8 +1361,7 @@ MaybeIndirectTaggedType:
 		 */
 		if($$->expr_type == ASN_CONSTR_SEQUENCE_OF
 		|| $$->expr_type == ASN_CONSTR_SET_OF) {
-			assert(!TQ_FIRST(&($$->members))->constraints);
-			TQ_FIRST(&($$->members))->constraints = $3;
+			ASSIGN_INNER_CONSTRAINTS(TQ_FIRST(&($$->members)), $3);
 		} else {
 			if($$->constraints) {
 				assert(!$2);

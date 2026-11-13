@@ -63,6 +63,7 @@ TESTS += check-src/check-92.c
 TESTS += check-src/check-158.-fcompound-names.c
 TESTS += check-src/check-165.-fcompound-names.c
 TESTS += check-src/check-167.-gen-PER.c
+TESTS += check-src/check-168.-fcompound-names.-gen-PER.c
 
 if TEST_64BIT
 TESTS += check-src/check64-134.-gen-PER.c
@@ -74,7 +75,6 @@ TESTS += check-src/check64-136.-gen-OER.c
 endif
 
 XFAIL_TESTS =
-XFAIL_TESTS += check-src/check-158.-fcompound-names.c
 
 EXTRA_DIST =    \
     data-62     \

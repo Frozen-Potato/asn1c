@@ -112,7 +112,7 @@ sof-int-mem	OK
 sof-int-mem-opt	OK
 sof-int-top	OK
 sof-int-top-size	OK
-sof-int-u32-top	KNOWN-BROKEN	upstream-C
+sof-int-u32-top	OK
 sof-int-unconstr-top	OK
 sof-int-wide-top	OK
 sof-name-clash	REFUSED	asn1cgo: collision in module Probe
@@ -144,12 +144,12 @@ sof-seq-seqmem	OK
 sof-seq-top	OK
 sof-sof-alt	OK
 sof-sof-bool-mem	OK
-sof-sof-choice-top	KNOWN-BROKEN	upstream-C
+sof-sof-choice-top	OK
 sof-sof-enum-top	OK
 sof-sof-mem	OK
 sof-sof-namedbit	OK
-sof-sof-seq-top	KNOWN-BROKEN	upstream-C
-sof-sof-size-both	KNOWN-BROKEN	upstream-parser
+sof-sof-seq-top	OK
+sof-sof-size-both	OK
 sof-sof-top	OK
 sof-universalstring-top	OK
 sof-utctime-top	OK

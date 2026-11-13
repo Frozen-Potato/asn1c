@@ -62,6 +62,57 @@ static asn1p_expr_type_e expr_get_type(arg_t *arg, asn1p_expr_t *expr);
 static int try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out);
 static int *compute_canonical_members_order(arg_t *arg, int el_count);
 
+/*
+ * An anonymous constructed type (an inline SEQUENCE OF / SET OF element, ...)
+ * is emitted as a typedef into the forward definitions stream, and its name
+ * is then written into the enclosing declaration. When such a type occurs
+ * inside another one that is itself still being written to that stream
+ * (SEQUENCE OF SEQUENCE OF SEQUENCE {...}), the inner typedef must be
+ * complete before the text of the outer one: the stream is stashed while the
+ * type is written and put back in the right order by anon_typedef_end().
+ */
+typedef struct {
+	TQ_HEAD(out_chunk_t) stash;
+	int nested;
+	int indent_level;
+	int indented;
+} anon_typedef_t;
+
+static void
+anon_typedef_begin(arg_t *arg, anon_typedef_t *at, int saved_target) {
+	struct compiler_stream_destination_s *dst =
+		&arg->target->destination[OT_FWD_DEFS];
+
+	at->nested = (saved_target == OT_FWD_DEFS);
+	at->indent_level = dst->indent_level;
+	at->indented = dst->indented;
+	TQ_MOVE(&at->stash, &dst->chunks);
+	if(at->nested) {
+		dst->indent_level = 0;
+		dst->indented = 0;
+	}
+	arg->target->target = OT_FWD_DEFS;
+}
+
+static void
+anon_typedef_end(arg_t *arg, anon_typedef_t *at) {
+	struct compiler_stream_destination_s *dst =
+		&arg->target->destination[OT_FWD_DEFS];
+	TQ_HEAD(out_chunk_t) own;
+
+	TQ_MOVE(&own, &dst->chunks);
+	if(at->nested) {
+		/* The enclosing text goes after this complete typedef. */
+		TQ_CONCAT(&own, &at->stash, next);
+		TQ_MOVE(&dst->chunks, &own);
+		dst->indent_level = at->indent_level;
+		dst->indented = at->indented;
+	} else {
+		TQ_CONCAT(&at->stash, &own, next);
+		TQ_MOVE(&dst->chunks, &at->stash);
+	}
+}
+
 enum tvm_compat {
 	_TVM_SAME	= 0,	/* tags and all_tags are same */
 	_TVM_SUBSET	= 1,	/* tags are subset of all_tags */
@@ -328,6 +379,7 @@ asn1c_lang_C_type_SEQUENCE(arg_t *arg) {
 	asn1p_expr_t *v;
 	int comp_mode = 0;	/* {root,ext=1,root,root,...} */
 	int saved_target = arg->target->target;
+	anon_typedef_t anon;
     asn1c_ioc_table_and_objset_t ioc_tao;
 	int ext_num = 1;
 
@@ -347,7 +399,7 @@ asn1c_lang_C_type_SEQUENCE(arg_t *arg) {
 		/* Use _anonymous_type field to indicate it's called from
 		 * asn1c_lang_C_type_SEx_OF() */
 		if (expr->_anonymous_type) {
-			REDIR(OT_FWD_DEFS);
+			anon_typedef_begin(arg, &anon, saved_target);
 			OUT("typedef ");
 		}
 		OUT("%s {\n", c_name(arg).full_name);
@@ -394,6 +446,7 @@ asn1c_lang_C_type_SEQUENCE(arg_t *arg) {
 		OUT("} %s%s;\n", (expr->marker.flags & EM_INDIRECT)?"*":"",
 			c_name(arg).base_name);
 
+		anon_typedef_end(arg, &anon);
 		REDIR(saved_target);
 
 		OUT("%s%s", (expr->marker.flags & EM_INDIRECT)?"*":"",
@@ -580,6 +633,7 @@ asn1c_lang_C_type_SET(arg_t *arg) {
 	const char *id;
 	int comp_mode = 0;	/* {root,ext=1,root,root,...} */
 	int saved_target = arg->target->target;
+	anon_typedef_t anon;
 	int ext_num = 1;
 
 	DEPENDENCIES;
@@ -606,7 +660,7 @@ asn1c_lang_C_type_SET(arg_t *arg) {
 
 	if(arg->embed) {
 		if (expr->_anonymous_type) {
-			REDIR(OT_FWD_DEFS);
+			anon_typedef_begin(arg, &anon, saved_target);
 			OUT("typedef ");
 		}
 		OUT("%s {\n", c_name(arg).full_name);
@@ -648,6 +702,7 @@ asn1c_lang_C_type_SET(arg_t *arg) {
 		OUT("} %s%s;\n", (expr->marker.flags & EM_INDIRECT)?"*":"",
 			c_name(arg).base_name);
 
+		anon_typedef_end(arg, &anon);
 		REDIR(saved_target);
 
 		OUT("%s%s", (expr->marker.flags & EM_INDIRECT)?"*":"",
@@ -810,12 +865,13 @@ asn1c_lang_C_type_SEx_OF(arg_t *arg) {
 	asn1p_expr_t *expr = arg->expr;
 	asn1p_expr_t *memb = TQ_FIRST(&expr->members);
 	int saved_target = arg->target->target;
+	anon_typedef_t anon;
 
 	DEPENDENCIES;
 
 	if(arg->embed) {
 		if (expr->_anonymous_type) {
-			REDIR(OT_FWD_DEFS);
+			anon_typedef_begin(arg, &anon, saved_target);
 			OUT("typedef ");
 		}
 		OUT("%s {\n", c_name(arg).full_name);
@@ -838,7 +894,13 @@ asn1c_lang_C_type_SEx_OF(arg_t *arg) {
 	|| ((memb->expr_type == ASN_BASIC_ENUMERATED
 		|| (0 /* -- prohibited by X.693:8.3.4 */
 			&& memb->expr_type == ASN_BASIC_INTEGER))
-	    	&& expr_elements_count(arg, memb))) {
+	    	&& expr_elements_count(arg, memb))
+	/*
+	 * An INTEGER that fits an unsigned long has its own type descriptor
+	 * (see emit_member_table() and asn1c_lang_C_type_SIMPLE_TYPE()).
+	 */
+	|| (memb->expr_type == ASN_BASIC_INTEGER
+		&& asn1c_type_fits_long(arg, memb) == FL_FITS_UNSIGN)) {
 		arg_t tmp;
 		asn1p_expr_t *tmp_memb = memb;
 		enum asn1p_expr_marker_e flags = memb->marker.flags;
@@ -877,6 +939,7 @@ asn1c_lang_C_type_SEx_OF(arg_t *arg) {
 		OUT("} %s%s;\n", (expr->marker.flags & EM_INDIRECT)?"*":"",
 			c_name(arg).base_name);
 
+		anon_typedef_end(arg, &anon);
 		REDIR(saved_target);
 
 		OUT("%s%s", (expr->marker.flags & EM_INDIRECT)?"*":"",
@@ -973,6 +1036,7 @@ asn1c_lang_C_type_CHOICE(arg_t *arg) {
 	asn1p_expr_t *expr = arg->expr;
 	asn1p_expr_t *v;
 	int saved_target = arg->target->target;
+	anon_typedef_t anon;
 
 	DEPENDENCIES;
 
@@ -1002,7 +1066,7 @@ asn1c_lang_C_type_CHOICE(arg_t *arg) {
 
 	if(arg->embed) {
 		if (expr->_anonymous_type) {
-			REDIR(OT_FWD_DEFS);
+			anon_typedef_begin(arg, &anon, saved_target);
 			OUT("typedef ");
 		}
 		OUT("%s {\n", c_name(arg).full_name);
@@ -1032,6 +1096,7 @@ asn1c_lang_C_type_CHOICE(arg_t *arg) {
 		OUT("} %s%s;\n", (expr->marker.flags & EM_INDIRECT)?"*":"",
 			c_name(arg).base_name);
 
+		anon_typedef_end(arg, &anon);
 		REDIR(saved_target);
 
 		OUT("%s%s", (expr->marker.flags & EM_INDIRECT)?"*":"",

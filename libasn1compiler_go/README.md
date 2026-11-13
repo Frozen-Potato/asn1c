@@ -406,9 +406,9 @@ generated name, so `TMember ::= BOOLEAN` next to an inline element of `T`
 fails with a collision. A SEQUENCE OF alternative of a CHOICE is
 `type <Choice><Alt> []Elem`, held through a pointer like every alternative.
 
-Not supported (the C generator itself emits unusable C for them):
-`SEQUENCE OF SEQUENCE OF {SEQUENCE | CHOICE}` and an inline unsigned INTEGER
-wider than `long` (`INTEGER (0..4294967295)`) as an element.
+Nested lists (`SEQUENCE OF SEQUENCE OF {SEQUENCE | CHOICE}`, also with a SIZE
+constraint on both lists) and an inline unsigned INTEGER such as
+`INTEGER (0..4294967295)` as an element work like the other element types.
 
 ### Inline SEQUENCE and CHOICE members and alternatives
 

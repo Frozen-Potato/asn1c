@@ -33,6 +33,30 @@
       dereference those members, did not compile. The "struct" spelling now
       carries the same module prefix as the definition. Parameterized-type
       instances are unchanged.
+    * C generator (also for plain C users): a SEQUENCE OF / SET OF nested in
+      another one with an inline SEQUENCE, SET or CHOICE inside
+      (SEQUENCE OF SEQUENCE OF SEQUENCE { ... }, SET OF SET OF CHOICE { ... },
+      and the same under a SEQUENCE member) produced a header with a typedef
+      inside the A_SEQUENCE_OF() of the enclosing typedef, which does not
+      compile ("expected specifier-qualifier-list before 'typedef'"). The
+      inner typedef is now written before the enclosing one. The generated
+      text of such types changes (the output of the one test that recorded
+      the old, invalid header, 158-sequence-of-sequence-nested, is updated;
+      upstream asn1c issue 178).
+    * C generator (also for plain C users): a SEQUENCE OF / SET OF whose
+      element is an inline INTEGER that needs its own type descriptor
+      (INTEGER (0..4294967295)) referred to a descriptor that was never
+      generated (asn_DEF_Member_2 undeclared). The descriptor is now emitted.
+    * asn1c parser (also for plain C users): SEQUENCE (SIZE(..)) OF
+      SEQUENCE (SIZE(..)) OF ... aborted on an assertion in asn1p_y.y (exit
+      134). A constraint that trails a list of lists, as in
+      SEQUENCE OF SEQUENCE OF INTEGER (0..7), was attached to the inner list
+      (the error "Constraint type ValueRange is not applicable to SEQUENCE
+      OF"); it now reaches the innermost element.
+    * Go backend: the nested SEQUENCE OF shapes above, and SEQUENCE OF an
+      inline INTEGER (0..4294967295), now generate, vet and round-trip
+      against the C converter. The SET OF forms are generated correctly by
+      the C generator; the Go backend still refuses SET OF.
     * Known limitation: a DEFAULT on a UTF8String, GeneralString,
       GraphicString, TeletexString, T61String, VideotexString,
       ObjectDescriptor, UTCTime or GeneralizedTime member is refused, because

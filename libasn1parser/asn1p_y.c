@@ -392,6 +392,31 @@ static asn1p_module_t *currentModule;
 		}							\
 	} while(0)
 
+/*
+ * Attach the constraint list c (possibly empty) that trails a SEQUENCE OF /
+ * SET OF to its element type e; for nested lists (SEQUENCE OF SEQUENCE OF
+ * INTEGER (0..7)) that is the innermost element. The element may already
+ * carry constraints of its own, in which case the two are combined; with no
+ * trailing constraint it is left alone.
+ */
+#define	ASSIGN_INNER_CONSTRAINTS(e, c) do {				\
+		asn1p_expr_t *__e = (e);				\
+		while((__e->expr_type == ASN_CONSTR_SEQUENCE_OF		\
+		    || __e->expr_type == ASN_CONSTR_SET_OF)		\
+		    && TQ_FIRST(&__e->members))				\
+			__e = TQ_FIRST(&__e->members);			\
+		asn1p_constraint_t *__c = (c);				\
+		if(__c) {						\
+			if(__e->constraints) {				\
+				asn1p_constraint_t *__old = __e->constraints;	\
+				CONSTRAINT_INSERT(__e->constraints,	\
+					ACT_CA_SET, __old, __c);	\
+			} else {					\
+				__e->constraints = __c;			\
+			}						\
+		}							\
+	} while(0)
+
 #ifdef	AL_IMPORT
 #error	AL_IMPORT DEFINED ELSEWHERE!
 #endif
@@ -3428,8 +3453,7 @@ yyreduce:
 		 */
 		if((yyval.a_expr)->expr_type == ASN_CONSTR_SEQUENCE_OF
 		|| (yyval.a_expr)->expr_type == ASN_CONSTR_SET_OF) {
-			assert(!TQ_FIRST(&((yyval.a_expr)->members))->constraints);
-			TQ_FIRST(&((yyval.a_expr)->members))->constraints = (yyvsp[(2) - (2)].a_constr);
+			ASSIGN_INNER_CONSTRAINTS(TQ_FIRST(&((yyval.a_expr)->members)), (yyvsp[(2) - (2)].a_constr));
 		} else {
 			if((yyval.a_expr)->constraints) {
 				assert(!(yyvsp[(2) - (2)].a_constr));
@@ -3452,8 +3476,7 @@ yyreduce:
 		 */
 		if((yyval.a_expr)->expr_type == ASN_CONSTR_SEQUENCE_OF
 		|| (yyval.a_expr)->expr_type == ASN_CONSTR_SET_OF) {
-			assert(!TQ_FIRST(&((yyval.a_expr)->members))->constraints);
-			TQ_FIRST(&((yyval.a_expr)->members))->constraints = (yyvsp[(2) - (2)].a_constr);
+			ASSIGN_INNER_CONSTRAINTS(TQ_FIRST(&((yyval.a_expr)->members)), (yyvsp[(2) - (2)].a_constr));
 		} else {
 			if((yyval.a_expr)->constraints) {
 				assert(!(yyvsp[(2) - (2)].a_constr));
@@ -3477,8 +3500,7 @@ yyreduce:
 		 */
 		if((yyval.a_expr)->expr_type == ASN_CONSTR_SEQUENCE_OF
 		|| (yyval.a_expr)->expr_type == ASN_CONSTR_SET_OF) {
-			assert(!TQ_FIRST(&((yyval.a_expr)->members))->constraints);
-			TQ_FIRST(&((yyval.a_expr)->members))->constraints = (yyvsp[(3) - (3)].a_constr);
+			ASSIGN_INNER_CONSTRAINTS(TQ_FIRST(&((yyval.a_expr)->members)), (yyvsp[(3) - (3)].a_constr));
 		} else {
 			if((yyval.a_expr)->constraints) {
 				assert(!(yyvsp[(2) - (3)].a_expr));
