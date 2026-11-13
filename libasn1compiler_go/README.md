@@ -260,7 +260,7 @@ an absent group decodes to nil. A `[[ ]]` group in a CHOICE is a syntax error
 in asn1c itself.
 
 **Named bits.** The constants are `int` bit positions in declaration order, e.g.
-`CapsA int = 0`. Set bit n with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. A DEFAULT of
+`CapsA int = 0`. Set bit n with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. In an enumerator or named-bit list, two names that differ only by a hyphen before a digit (`d1`, `d-1`) become `D1` and `D_1`: the clashing name keeps its `_` before the digit. A DEFAULT of
 a named-bit BIT STRING is refused.
 
 **DEFAULT members.** Supported forms:

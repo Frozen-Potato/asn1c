@@ -1,3 +1,11 @@
+0.9.29-go.8 (unreleased):
+    FIXES:
+    * Go backend: ENUMERATED enumerators and named bits that differ only by a
+      hyphen (`d1` / `d-1`) were refused as a name collision. Within one list
+      the member with `_<digit>` in its C name now keeps the underscore
+      (`DriftD1`, `DriftD_1`); lists without such a clash are unchanged.
+      examples/rrc-7.1.0.asn1 gets past this.
+
 0.9.29-go.7:
     NEW:
     * Go backend: all restricted character string types and

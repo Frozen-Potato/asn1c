@@ -2539,6 +2539,68 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
     struct_scope_reset(ctx->bag);
 }
 
+/* go_list_suffix: the Go suffix of member `e` of one ENUMERATED enumerator
+ * list or one named-bit list `list`. Normally go_r2(go_mk_suffix(e)), which
+ * drops every '_' (so `d1` and `d-1`, C suffixes `d1` and `d_1`, would both
+ * become `D1`). The rule, local to the one list:
+ *   1. compute the normal suffix go_r2(go_mk_suffix(m)) of every member;
+ *   2. a member whose normal suffix equals another member's in the same list,
+ *      AND whose C suffix has a '_' directly followed by a digit, uses the
+ *      alternative form: go_r2, except that a '_' directly followed by a
+ *      digit is kept (`d_1` -> `D_1`, `sfnsfndrift_5` -> `Sfnsfndrift_5`);
+ *   3. every other member, and every list without such a clash, keeps the
+ *      normal suffix, byte for byte;
+ *   4. if the alternative names still collide, the usual collision error
+ *      stays.
+ * The result does not depend on member order. Malloc'd. */
+static char *
+go_list_suffix(asn1p_expr_t *list, asn1p_expr_t *e) {
+    char *cid = go_mk_suffix(e);
+    char *norm = go_r2(cid);
+    int alt = 0;
+    const char *u;
+    for(u = cid; *u && !alt; u++)
+        if(*u == '_' && isdigit((unsigned char)u[1])) alt = 1;
+    if(alt) {
+        int clash = 0;
+        asn1p_expr_t *m;
+        TQ_FOR(m, &(list->members), next) {
+            if(m == e || m->expr_type == A1TC_EXTENSIBLE || !m->Identifier)
+                continue;
+            char *mc = go_mk_suffix(m);
+            char *mn = go_r2(mc);
+            if(strcmp(mn, norm) == 0) clash = 1;
+            free(mc);
+            free(mn);
+            if(clash) break;
+        }
+        alt = clash;
+    }
+    char *out = norm;
+    if(alt) {
+        size_t n = strlen(cid);
+        out = malloc(n + 1);
+        if(!out) { free(cid); return norm; }
+        size_t j = 0;
+        int cap = 1;
+        for(size_t i = 0; i < n; i++) {
+            unsigned char c = (unsigned char)cid[i];
+            if(c == '_' && isdigit((unsigned char)cid[i + 1])) {
+                out[j++] = '_';
+                cap = 0;
+                continue;
+            }
+            if(c == '_') { cap = 1; continue; }
+            out[j++] = (cap && isalpha(c)) ? (char)toupper(c) : (char)c;
+            cap = 0;
+        }
+        out[j] = '\0';
+        free(norm);
+    }
+    free(cid);
+    return out;
+}
+
 /* Emit enum-const rows for an ENUMERATED whose goName is `enum_go` and real
  * C-ident prefix is `enum_cid`, at path prefix `parent_path`. enumerators off
  * `enum_expr`. rawCid = <EnumCid>_<enumerator> (the verbatim asn1c enumerator
@@ -2573,7 +2635,7 @@ emit_enum(struct walk_ctx *ctx, const char *enum_go,
         char *raw = str_append(strdup(""), enum_cid);
         raw = str_append(raw, "_");
         raw = str_append(raw, ecid);
-        char *ego = go_r2(ecid);
+        char *ego = go_list_suffix(enum_expr, e);
         char *go = str_append(strdup(""), enum_go);
         go = str_append(go, ego);
         free(ego);
@@ -2621,7 +2683,7 @@ emit_bit_names(struct walk_ctx *ctx, const char *type_go,
         char *raw = str_append(strdup(""), type_cid);
         raw = str_append(raw, "_");
         raw = str_append(raw, bcid);
-        char *bgo = go_r2(bcid);
+        char *bgo = go_list_suffix(bs, v);
         char *go = str_append(strdup(""), type_go);
         go = str_append(go, bgo);
         free(bgo);

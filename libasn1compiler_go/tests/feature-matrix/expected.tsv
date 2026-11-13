@@ -1,4 +1,5 @@
 any	REFUSED	asn1cgo: ANY in module Probe
+bits-hyphen	OK
 bitstr-unconstr	OK
 bool-top	OK
 charstring	REFUSED	asn1cgo: CHARACTER STRING in module Probe
@@ -20,6 +21,7 @@ dflt-utctime	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-utf8	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 embedded	REFUSED	asn1cgo: EMBEDDED PDV in module Probe
 enum-ext	OK
+enum-hyphen	OK
 explicit	OK
 ext-mandatory	OK
 ext-mandatory2	OK
