@@ -1,273 +1,219 @@
 0.9.29-go.7 (unreleased):
+    NEW:
+    * Go backend: a top-level plain NULL type (T ::= NULL) now gets the
+      Encode / Decode API like every other PDU type; before, only
+      `type T struct{}` was generated. Additive.
+
     FIXES:
-    * Go backend: an empty PrintableString (T ::= SEQUENCE { p PrintableString },
-      T{P: ""}) failed Encode with "value not given": the generated C
-      converter left the buffer NULL and the C constraint function rejects
-      that. PrintableString now takes the path the other restricted string
-      types already had (the buffer is allocated even when the value is
-      empty), in every position: top level, member, OPTIONAL member, CHOICE
-      alternative, named reference and SEQUENCE OF element. The encoded bytes
-      of non-empty values are unchanged, and an empty value for a type whose
-      SIZE lower bound is 1 is still a constraint error. Only the generated
-      *_conv.c changes: programs need regenerating (asn1c -Fgo) to get the
-      fix; no runtime change is needed.
-    * Go backend: a SEQUENCE OF a reference to a NULL type (N ::= NULL,
-      L ::= SEQUENCE OF N, also through an alias N2 ::= N) was refused with
-      "conv: unresolved seqof elem", at top level, as a member, as an
-      OPTIONAL member and as a CHOICE alternative. It now maps to []N (type N
-      struct{}) and round-trips the element count. A plain member of a NULL
-      type (T ::= SEQUENCE { n N }), which stopped with "flat: unresolved
-      ref", works too.
-    * Go backend: a field of an inline SEQUENCE (or of an inline CHOICE
-      alternative) was checked for name collisions against the fields of the
-      enclosing struct, so a valid specification such as
-      T ::= SEQUENCE { a SEQUENCE { x BOOLEAN }, x BOOLEAN } was refused with
-      "collision in module ...". The output was never wrong; the generation
-      stopped. Every inline struct now has its own field scope. The
-      diagnostic path no longer repeats its last component.
+    * Go backend: an empty PrintableString (T{P: ""}) no longer fails Encode
+      with "value not given"; it is handled like the other restricted string
+      types, in every position. Non-empty encodings are unchanged, and an
+      empty value for a type with SIZE lower bound 1 is still a constraint
+      error. Regenerate (asn1c -Fgo); no runtime change.
+    * Go backend: SEQUENCE OF a NULL type (N ::= NULL, L ::= SEQUENCE OF N,
+      also through an alias) was refused with "conv: unresolved seqof elem";
+      it now maps to []N and round-trips the element count, at top level, as
+      a member, OPTIONAL member and CHOICE alternative. A plain member of a
+      NULL type (T ::= SEQUENCE { n N }) works too.
+    * Go backend: names in an inline SEQUENCE or CHOICE alternative are no
+      longer checked against the enclosing struct, so
+      T ::= SEQUENCE { a SEQUENCE { x BOOLEAN }, x BOOLEAN } is no longer
+      refused with "collision in module ...". The diagnostic path no longer
+      repeats its last component.
     * C generator (also for plain C users): a type name defined in several
-      modules (module-prefixed in C, e.g. ModA_Item) was spelled without its
-      prefix in every recursion-safe "struct X" context (forward declaration,
-      OPTIONAL member, SEQUENCE OF element, CHOICE alternative), so the
-      headers referred to an undefined "struct Item". The Go converters, which
-      dereference those members, did not compile. The "struct" spelling now
-      carries the same module prefix as the definition. Parameterized-type
-      instances are unchanged.
-    * C generator (also for plain C users): a SEQUENCE OF / SET OF nested in
+      modules (module-prefixed in C, e.g. ModA_Item) was spelled without the
+      prefix in "struct X" forward declarations, OPTIONAL members, SEQUENCE
+      OF elements and CHOICE alternatives, leaving an undefined struct in the
+      headers (and Go output that did not compile). The prefix is now used.
+    * C generator (also for plain C users): SEQUENCE OF / SET OF nested in
       another one with an inline SEQUENCE, SET or CHOICE inside
-      (SEQUENCE OF SEQUENCE OF SEQUENCE { ... }, SET OF SET OF CHOICE { ... },
-      and the same under a SEQUENCE member) produced a header with a typedef
-      inside the A_SEQUENCE_OF() of the enclosing typedef, which does not
-      compile ("expected specifier-qualifier-list before 'typedef'"). The
-      inner typedef is now written before the enclosing one. The generated
-      text of such types changes (the output of the one test that recorded
-      the old, invalid header, 158-sequence-of-sequence-nested, is updated;
-      upstream asn1c issue 178).
-    * C generator (also for plain C users): a SEQUENCE OF / SET OF whose
-      element is an inline INTEGER that needs its own type descriptor
-      (INTEGER (0..4294967295)) referred to a descriptor that was never
-      generated (asn_DEF_Member_2 undeclared). The descriptor is now emitted.
-    * asn1c parser (also for plain C users): SEQUENCE (SIZE(..)) OF
-      SEQUENCE (SIZE(..)) OF ... aborted on an assertion in asn1p_y.y (exit
-      134). A constraint that trails a list of lists, as in
-      SEQUENCE OF SEQUENCE OF INTEGER (0..7), was attached to the inner list
-      (the error "Constraint type ValueRange is not applicable to SEQUENCE
-      OF"); it now reaches the innermost element.
-    * Go backend: the nested SEQUENCE OF shapes above, and SEQUENCE OF an
-      inline INTEGER (0..4294967295), now generate, vet and round-trip
-      against the C converter. The SET OF forms are generated correctly by
-      the C generator; the Go backend still refuses SET OF.
+      (SEQUENCE OF SEQUENCE OF SEQUENCE { ... }) produced a header that did
+      not compile; the inner typedef is now written first, so the generated
+      text of such types changes (upstream asn1c issue 178).
+    * C generator (also for plain C users): SEQUENCE OF / SET OF an inline
+      INTEGER that needs its own descriptor (INTEGER (0..4294967295))
+      referred to a descriptor that was never generated; it is now emitted.
+    * Parser (also for plain C users): SEQUENCE (SIZE(..)) OF
+      SEQUENCE (SIZE(..)) OF ... no longer aborts (exit 134), and a
+      constraint trailing a list of lists (SEQUENCE OF SEQUENCE OF INTEGER
+      (0..7)) now applies to the innermost element instead of failing with
+      "Constraint type ValueRange is not applicable to SEQUENCE OF".
+    * Go backend: the nested SEQUENCE OF shapes above and SEQUENCE OF an
+      inline INTEGER (0..4294967295) now generate and round-trip against the
+      C converter. SET OF is still refused by the Go backend.
     * Known limitation: a DEFAULT on a UTF8String, GeneralString,
       GraphicString, TeletexString, T61String, VideotexString,
-      ObjectDescriptor, UTCTime or GeneralizedTime member is refused, because
-      the C generator supports DEFAULT only on IA5String, PrintableString,
-      VisibleString and NumericString; its message wrongly says character
-      strings in general do (KNOWN-ISSUES #17).
+      ObjectDescriptor, UTCTime or GeneralizedTime member is refused (the C
+      generator supports DEFAULT only on IA5String, PrintableString,
+      VisibleString and NumericString), though the message suggests otherwise
+      (KNOWN-ISSUES.md #17).
 
 0.9.29-go.6:
     NEW:
     * Go backend: SEQUENCE OF with an inline element type (INTEGER, BOOLEAN,
       OCTET STRING, BIT STRING, REAL, PrintableString, NULL, ENUMERATED,
-      SEQUENCE, CHOICE, SEQUENCE OF), as a top-level type, a member, an
-      OPTIONAL member and a CHOICE alternative. Inline elements are named
-      <Owner>Member.
-    * Go backend: an anonymous SEQUENCE or CHOICE as a SEQUENCE member
-      (required or OPTIONAL), as a CHOICE alternative, nested, and as an
-      inline SEQUENCE OF element.
+      SEQUENCE, CHOICE, SEQUENCE OF) as a top-level type, member, OPTIONAL
+      member or CHOICE alternative. Inline elements are named <Owner>Member.
+    * Go backend: an anonymous SEQUENCE or CHOICE is supported as a SEQUENCE
+      member (required or OPTIONAL), CHOICE alternative, nested, or inline
+      SEQUENCE OF element.
     * Go backend: INTEGER members, OPTIONAL members, CHOICE alternatives and
-      SEQUENCE OF elements whose range does not fit a C long (INTEGER_t) now
-      use the same INTEGER_t <-> uint64/int64 conversion as a top-level
-      type. A range that fits neither int64 nor uint64 is refused with a
-      clear message. (The C runtime's PER codec itself cannot encode values
-      of an INTEGER (0..2^64-1); Encode reports the same error as
-      converter-example.)
+      SEQUENCE OF elements whose range does not fit a C long use the same
+      INTEGER_t <-> uint64/int64 conversion as a top-level type. A range
+      fitting neither is refused with a clear message. (The C runtime's PER
+      codec cannot encode values of INTEGER (0..2^64-1); Encode reports an
+      error.)
     * Go backend: a CHOICE alternative named `present` is generated as the
-      field PresentAlt (the discriminant Present is unchanged; the constant
-      is still <Choice>PrPresent). This was a "collision" refusal before.
-    * Go backend: all restricted character string types (IA5String,
-      VisibleString, NumericString, UTF8String, BMPString, UniversalString,
-      GeneralString, GraphicString, TeletexString, T61String, VideotexString,
-      ObjectDescriptor) and UTCTime/GeneralizedTime map to Go `string`;
-      BMPString and UniversalString are converted to and from UTF-8 (an
-      unrepresentable string is an rt.ErrConstraint on Encode, an invalid
-      C buffer an rt.ErrDecode on Decode). A DEFAULT on those two is
-      refused.
-    * Go backend: OBJECT IDENTIFIER and RELATIVE-OID map to Go []uint64
-      arcs (top level, members, OPTIONAL members, CHOICE alternatives and
-      SEQUENCE OF elements). The C runtime holds an arc in 32 bits, so
-      Encode returns an rt.ErrConstraint for an arc above 4294967295; it
-      also returns one for a value OBJECT_IDENTIFIER_set_arcs rejects.
-    * Go backend: `[[ ]]` extension addition groups in SEQUENCE map to an
-      optional nested struct, `Ext<N> *<T>Ext<N>` (N numbers the groups of
-      one SEQUENCE exactly like the C backend's ext<N>). A nil group is
-      absent on Encode and an absent group decodes to nil. This was a
-      refusal before.
+      field PresentAlt (the discriminant Present and the constant
+      <Choice>PrPresent are unchanged); it was a "collision" refusal before.
+    * Go backend: all restricted character string types and
+      UTCTime/GeneralizedTime map to Go `string`. BMPString and
+      UniversalString are converted to and from UTF-8 (an unrepresentable
+      string is an rt.ErrConstraint on Encode, an invalid C buffer an
+      rt.ErrDecode on Decode); a DEFAULT on those two is refused.
+    * Go backend: OBJECT IDENTIFIER and RELATIVE-OID map to []uint64 arcs
+      everywhere. Encode returns rt.ErrConstraint for an arc above
+      4294967295 (the C runtime holds 32 bits) or a value the runtime rejects.
+    * Go backend: `[[ ]]` extension addition groups map to an optional nested
+      struct `Ext<N> *<T>Ext<N>` (N numbered like the C backend's ext<N>); a
+      nil group is absent on Encode and an absent group decodes to nil. It
+      was a refusal before.
 
     FIXES:
     * Go backend: CRITICAL. Encode could panic with "asn1cgo: fixed-region
       undercounted by N" when a struct whose C size is not a multiple of 8
-      (e.g. a SEQUENCE holding one ENUMERATED, 4 bytes) is held through a
-      pointer (an OPTIONAL member, a CHOICE alternative under
-      -findirect-choice, an OPTIONAL reference) or is the element of a
-      SEQUENCE OF with an odd number of items, and further allocations
-      follow it. The size pass reserved the unpadded size while the arena
-      allocator consumes it rounded up to 8. Example: E2SM-RC
-      TriggerType-Choice-MIMOandBFconfig inside E2SM-RC-EventTrigger-
-      Format4-Item (one item with logicalOR, or two items, panicked). All
-      releases go.1 to go.5 are affected. Programs built from earlier output
-      must be REGENERATED with the fixed asn1c; no runtime change is needed.
+      (e.g. a SEQUENCE holding one ENUMERATED) is held through a pointer
+      (OPTIONAL member, CHOICE alternative under -findirect-choice, OPTIONAL
+      reference) or is an element of a SEQUENCE OF with an odd item count,
+      and more allocations follow. go.1 to go.5 are affected. Regenerate
+      with the fixed asn1c; no runtime change is needed.
     * Go backend: extension additions without OPTIONAL
-      (`SEQUENCE { a ..., ..., b BOOLEAN, c INTEGER }`) generated Go that
-      did not compile (types.go declared `B bool`, the glue tested
-      `v.B != nil`). Extension additions are now always pointers in Go,
-      OPTIONAL or not, like the C struct members. Not breaking: OPTIONAL
-      additions were already pointers, and mandatory ones did not compile.
-      Encode of a nil addition encodes it as absent (the C encoder's
-      behaviour for a NULL pointer); an addition with a DEFAULT remains a
-      plain value.
-    * Added libasn1compiler_go/KNOWN-ISSUES.md, which lists the known bugs
+      (`SEQUENCE { a ..., ..., b BOOLEAN }`) generated Go that did not
+      compile. Extension additions are now always pointers, like the C
+      struct members; a nil addition encodes as absent. Not breaking; an
+      addition with a DEFAULT stays a plain value.
+    * Docs: added libasn1compiler_go/KNOWN-ISSUES.md, listing the known bugs
       and limitations of the Go backend.
 
 0.9.29-go.5:
     NEW:
-    * Go backend: named-bit BIT STRING (`BIT STRING { a(0), b(1) }`) is now
-      supported. The value is the plain BitString, and each named bit
-      becomes an int bit-position constant <Type><Bit>, following the
-      ENUMERATED naming scheme: <Parent><Member> for an inline member,
-      <Choice><Alt> for a CHOICE alternative. Still refused, with a
-      message: a DEFAULT on a named-bit type, and SEQUENCE OF an inline
-      named-bit BIT STRING.
-    * Go backend: generated go.mod files now require rt v0.3.1; run
-      `go mod tidy` once after regenerating. Not breaking: same module
-      path, no API change.
+    * Go backend: named-bit BIT STRING (`BIT STRING { a(0), b(1) }`) is
+      supported. The value is the plain BitString and each named bit becomes
+      an int bit-position constant <Type><Bit> (<Parent><Member> for an
+      inline member, <Choice><Alt> for a CHOICE alternative). Still refused:
+      a DEFAULT on a named-bit type, and SEQUENCE OF an inline named-bit
+      BIT STRING.
+    * Go backend: generated go.mod files require rt v0.3.1; run
+      `go mod tidy` once after regenerating. Not breaking.
 
     FIXES:
-    * Go backend: CRITICAL. Encoding a PRESENT inline OPTIONAL BIT STRING
-      member (C: BIT_STRING_t *x) failed: the glue wrote the BIT STRING
-      record into the pointer slot instead of allocating it and storing a
-      pointer, so the C encoder read data bytes as a pointer (SIGSEGV in a
-      small repro; a constraint error in E2AP). go.4 and earlier (back to
-      go.1) are affected, e.g. E2AP TNLinformation.tnlPort present. Programs
-      built from earlier output must be REGENERATED with the fixed asn1c;
-      no runtime change is needed.
-    * Go backend / runtime: no more `"_REENTRANT" redefined` cgo warning
-      (cgo's -pthread predefines it). The "for Sun" feature macros in
-      GeneralizedTime.c and _ISOC99_SOURCE in REAL.c are now #ifndef-guarded,
-      in skeletons/ and rt/go/rt alike. The runtime is now v0.3.1 and
-      carries the fix. New tests/run-rt-skeleton-sync.sh
-      checks rt/skeleton identity and a -Werror=cpp compile of the rt.
-    * Runtime (affects plain C users too): NativeEnumerated_encode_aper
-      stores the bsearch result as const (fixes -Wdiscarded-qualifiers).
-      Ships in rt v0.3.1.
+    * Go backend: CRITICAL. Encoding a present inline OPTIONAL BIT STRING
+      member crashed (SIGSEGV) or failed with a constraint error: the BIT
+      STRING record was written into the pointer slot. go.1 to go.4 are
+      affected. Regenerate with the fixed asn1c; no runtime change is needed.
+    * Go backend / C runtime (also for plain C users): no more
+      `"_REENTRANT" redefined` cgo warning; the feature macros in
+      GeneralizedTime.c and REAL.c are #ifndef-guarded, in skeletons/ and the
+      Go runtime alike (rt v0.3.1). New tests/run-rt-skeleton-sync.sh checks
+      that both copies match and the runtime compiles with -Werror=cpp.
+    * C runtime (also for plain C users): NativeEnumerated_encode_aper stores
+      the bsearch result as const (fixes -Wdiscarded-qualifiers). Ships in
+      rt v0.3.1.
     * Go backend: several modules that each own BIT STRING members in one
-      -Fgo run now build. A module's glue helpers use its own BitString (they
-      named the first module's, whose package was not imported). A module
-      without its own BitString still uses the owner's. Output for E2SM
-      modules that own a BitString spells it bare instead of through
-      e2sm_common_ies (same type shape, no behaviour change).
+      -Fgo run now build; a module's helpers use its own BitString instead of
+      the first module's.
     * Go backend: an OPTIONAL member whose type is a BIT STRING type
-      (`ref Ranged OPTIONAL`, also named-bit and imported types) generated
-      code that did not compile (cannot indirect ...).
+      (`ref Ranged OPTIONAL`, also named-bit and imported) generated code
+      that did not compile.
 
 0.9.29-go.4:
     FIXES:
-    * Go backend: runtime module renamed to
-      github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go, v0.3.0
-      (breaking; generated code requires it, regenerate). Generated go.mod
-      now fetches it (run `go mod tidy` once); ASN1CGO_RT_LOCAL=<dir> selects
-      a local checkout via replace/go.work. ASN1CGO_GO_MODULE_PREFIX no
-      longer applies to the runtime. `make install` ships the rt C files in
-      <pkgdatadir>/go-rt.
-    * Go backend: DEFAULT members are supported. A member with a DEFAULT is
-      a plain value T (not a pointer); for each one a <Type><Field>Default
-      constant is generated. Supported forms: BOOLEAN / INTEGER /
-      ENUMERATED plain values, PrintableString quoted strings, OCTET STRING
-      and BIT STRING (no named bits) 'H / 'B values. Other forms are
-      rejected before the C pass (exit 70), so -D is left untouched.
+    * Go backend: BREAKING. The runtime module is renamed to
+      github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go, v0.3.0;
+      regenerate. Generated go.mod fetches it (run `go mod tidy` once);
+      ASN1CGO_RT_LOCAL=<dir> selects a local checkout via replace/go.work.
+      ASN1CGO_GO_MODULE_PREFIX no longer applies to the runtime. `make
+      install` ships the rt C files in <pkgdatadir>/go-rt.
+    * Go backend: DEFAULT members are supported. A member with a DEFAULT is a
+      plain value T (not a pointer) with a <Type><Field>Default constant.
+      Supported: BOOLEAN / INTEGER / ENUMERATED values, PrintableString
+      quoted strings, OCTET STRING and BIT STRING (no named bits) 'H / 'B
+      values. Other forms are rejected before the C pass (exit 70), leaving
+      -D untouched.
     * Go backend: CHOICE extension index >= 64 is no longer refused.
-    * C generator: callbacks for negative INTEGER DEFAULT values get valid
-      C names (asn_DFL_*_m1), and INT64_MIN is emitted as a valid literal.
-    * C generator: OCTET STRING / BIT STRING DEFAULT values given as
-      hstring/bstring now get comparison/set callbacks; 'HH printable
-      value fixed.
-    * Runtime (affects plain C users too): the APER SEQUENCE encoder
-      dropped DEFAULT members, and the APER decoder filled extension
-      defaults from the wrong member table; both fixed.
-    * Runtime (affects plain C users too): PER normally-small length and
-      normally-small non-negative number >= 64 fixed in APER and UPER
-      (SEQUENCE with > 64 extension additions, CHOICE extension index and
-      ENUMERATED extension value >= 64). Encodings of such values change.
-    * Runtime (affects plain C users too): extension additions equal to
-      their DEFAULT are omitted in PER (APER and UPER, canonical form).
-    * Runtime: fix a leak of the extension presence bitmap (epres) on the
-      bitmap error path.
-    * Name clashes: false positives for synthesized open-type names removed
-      from the clash finder.
+    * C generator: negative INTEGER DEFAULT values get valid C names and
+      INT64_MIN a valid literal; OCTET STRING / BIT STRING hstring/bstring
+      DEFAULTs now get comparison/set callbacks; 'HH printable value fixed.
+    * C runtime (also for plain C users): the APER SEQUENCE encoder dropped
+      DEFAULT members and the APER decoder filled extension defaults from
+      the wrong table; both fixed.
+    * C runtime (also for plain C users): PER normally-small length and
+      number >= 64 fixed in APER and UPER (SEQUENCE with > 64 extension
+      additions, CHOICE extension index, ENUMERATED extension value);
+      encodings of such values change.
+    * C runtime (also for plain C users): extension additions equal to their
+      DEFAULT are omitted in PER (canonical form).
+    * C runtime: fix a leak of the extension presence bitmap on an error
+      path.
+    * asn1c: false positives for synthesized open-type names removed from
+      the name-clash check.
     * BREAKING: a real name clash under -fcompound-names now fails the run
-      (non-zero exit status) instead of only warning.
+      (non-zero exit) instead of only warning.
     * Go backend: -Fgo basenames that collide with the Go standard library
       are rejected unless ASN1CGO_GO_MODULE_PREFIX is set.
 
 0.9.29-go.3:
     FIXES:
-    * Go backend: runtime asn1cgo-rt v0.2.3 (generated code requires it;
-      regenerate and republish the Go tree and runtime together).
+    * Go backend: requires rt v0.2.3; regenerate and republish the Go tree
+      and runtime together.
     * Go backend: generated go.mod/go.work minimum Go version lowered from
-      1.27.1 to 1.21.0; existing go.work files keep their go line (the
-      generator only appends `use` entries).
-    * Go backend: APER decode now runs asn1c's C stack guard
+      1.27.1 to 1.21.0; existing go.work files keep their go line.
+    * Go backend: APER decode runs asn1c's C stack guard
       (ASN1CGO_C_STACK_MAX, default 96 KiB, override with
-      -DASN1CGO_C_STACK_MAX=<bytes>). Very deeply nested input that
-      previously could exhaust the thread stack and crash the process is
-      now rejected with ErrDecode during C decoding; trees within the
-      budget but deeper than 64 units still get ErrDepth.
+      -DASN1CGO_C_STACK_MAX=<bytes>). Very deeply nested input that could
+      crash the process is rejected with ErrDecode; trees within the budget
+      but deeper than 64 units still get ErrDepth.
     * Go backend: Encode returns ErrAlloc on out-of-memory or block-size
-      overflow instead of aborting the process (backing block no longer
-      uses cgo's C.malloc).
-    * Go backend: construct rejects (DEFAULT, [[ ]], unsupported types,
+      overflow instead of aborting the process.
+    * Go backend: unsupported constructs (DEFAULT, [[ ]], unsupported types,
       CHOICE extension index >= 64, invalid -Fgo basename or
-      ASN1CGO_GO_MODULE_PREFIX) now run before the C pass, so a rejected
-      spec leaves -D untouched; a Go failure after the C pass says that
-      -D was updated but the Go tree was not.
-    * Go backend: concurrent generators sharing a parent dir are
-      serialised with flock on <parent>/.go.work.lock, so no go.work
-      `use` entry is lost (advisory; local filesystems).
-    * libasn1fix: fix strict-aliasing undefined behaviour in
-      asn1f_fix_constr_ext (root/extension lists were accessed through a
-      pointer of a different anonymous struct type). With gcc 16 at -O2
-      this made asn1c crash (SIGSEGV) on some specifications.
-    * Tests: 156-union-ios-OK -Pgen-PER expected output regenerated;
-      new tests/run-gowork-race.sh.
+      ASN1CGO_GO_MODULE_PREFIX) are rejected before the C pass, so a rejected
+      spec leaves -D untouched; a Go failure after the C pass says that -D was
+      updated but the Go tree was not.
+    * Go backend: concurrent generators sharing a parent directory are
+      serialised with flock on <parent>/.go.work.lock, so no go.work `use`
+      entry is lost (advisory; local filesystems).
+    * asn1fix: fix strict-aliasing undefined behaviour in the extension list
+      handling that made asn1c crash (SIGSEGV) on some specifications with
+      gcc 16 at -O2.
+    * Tests: new tests/run-gowork-race.sh.
 
 0.9.29-go.2:
     FIXES:
-    * APER: CHOICE and ENUMERATED extension index now encoded/decoded as a
-      normally small non-negative whole number (X.691 #10.6); this changes
-      the APER wire encoding of extension alternatives/values.
-    * Go backend: runtime asn1cgo-rt v0.2.2.
+    * APER (also for plain C users): CHOICE and ENUMERATED extension index is
+      encoded/decoded as a normally small non-negative whole number (X.691
+      #10.6); the wire encoding of extension alternatives/values changes.
+    * Go backend: requires rt v0.2.2.
     * Go backend: -Fgo output is all-or-nothing (staging dir + atomic swap),
-      go.work updated atomically, every failure printed.
-    * Go backend: fix named BOOLEAN typedef conversion (bool <-> int32).
+      go.work is updated atomically, every failure is printed.
+    * Go backend: fix named BOOLEAN typedef conversion.
     * Go backend: unknown IOC id reported as IOC_UNKNOWN; error codes
       documented.
-    * Go backend: SEQUENCE OF elements cast to callee parameter type in
-      *_from_tree.
 
 0.9.29-go.1:
     FEATURES:
-    * Go backend: -Fgo=<dir> generates Go types and APER Encode/Decode
-      via cgo (libasn1compiler_go, runtime asn1cgo-rt v0.2.1).
+    * Go backend: -Fgo=<dir> generates Go types and APER Encode/Decode via
+      cgo (libasn1compiler_go, runtime rt v0.2.1).
 
     FIXES:
-    * APER: fix CHOICE extension index encoding for extensible types
-      (normally small non-negative whole number, X.691 #10.6).
-    * PER: fix handling of SEQUENCE with length greater than 65535.
-    * APER: fix X.691 #16.11 condition in OCTET STRING decoding.
-    * APER: OCTET STRING encode/decode of 16K fragments now writes and
-      honours the zero-length terminator after a full final fragment.
-    * APER: open type encoder writes the zero-length terminator after a
-      full final 16K fragment (X.691 #10.9.3.8).
-    * APER: boundary checks and variable initializations (decoder hardening).
+    * APER (also for plain C users): fix CHOICE extension index encoding for
+      extensible types.
+    * PER (also for plain C users): fix SEQUENCE with length greater than
+      65535.
+    * APER (also for plain C users): fix the X.691 #16.11 condition and
+      16K-fragment handling (zero-length terminator after a full final
+      fragment) in OCTET STRING and open type encoding/decoding; boundary
+      checks and variable initializations hardened in the decoder.
 
 
 0.9.??:
