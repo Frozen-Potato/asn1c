@@ -263,7 +263,7 @@ in asn1c itself.
 
 **Named bits.** The constants are `int` bit positions in declaration order, e.g.
 `CapsA int = 0`. Set bit n with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. In an enumerator or named-bit list, two names that differ only by a hyphen before a digit (`d1`, `d-1`) become `D1` and `D_1`: the clashing name keeps its `_` before the digit. The same holds for SEQUENCE fields, CHOICE alternatives, type names and typed value names (`a1`, `a-1` become `A1` and `A_1`; the inline type, the `<Choice>Pr<Alt>` constant and the DEFAULT constant follow). A DEFAULT of
-a named-bit BIT STRING is refused.
+a named-bit BIT STRING is accepted: see "DEFAULT members".
 
 **DEFAULT members.** Supported forms:
 
@@ -273,7 +273,22 @@ a named-bit BIT STRING is refused.
   GeneralizedTime) with a quoted string (a plain `string` in Go; the bytes are
   the literal as written, UTF-8 for UTF8String);
 - OCTET STRING with an `'..'H` / `'..'B` value of whole octets, and a BIT STRING
-  (no named bits) with an `'..'H` / `'..'B` value;
+  with an `'..'H` / `'..'B` value;
+- a named-bit BIT STRING with `{ name, name }`, `{ }` or an `'..'H` / `'..'B`
+  value. Trailing 0 bits are not significant (X.680 22.7): a value that differs
+  from the DEFAULT only in trailing 0 bits equals it and is omitted, and the
+  exported default holds the form PER produces, padded with 0 bits to the lower
+  bound of a SIZE constraint (`(SIZE (8))`: always 8 bits). A name that is not
+  a bit of the type, or a bit beyond the upper bound of the SIZE constraint,
+  stops generation;
+- OBJECT IDENTIFIER and RELATIVE-OID with `{ 1 3 6 }`, or with
+  `name(number)` arcs (`{ iso(1) org(3) 6 }`); the exported default is a
+  `[]uint64`. A bare name is read only as the first arc of an OBJECT
+  IDENTIFIER (`iso`, `itu-t`, `ccitt`, `joint-iso-itu-t`, `joint-iso-ccitt`);
+  any other bare name, or a reference to a value, stops generation, because the
+  generator does not look up the value a name stands for. The same rules as for
+  a value on the wire hold: an OBJECT IDENTIFIER has two or more arcs, a first
+  arc of 0 to 2, and a second arc below 40 under root 0 or 1;
 - NULL with `NULL` (the member is `struct{}`; a present NULL always equals the
   DEFAULT, so it is never encoded);
 - REAL with a decimal number (`1.5`, `-2.25`, `1e3`), an integer (`0`), or
@@ -283,8 +298,8 @@ a named-bit BIT STRING is refused.
   infinity, NaN or minus zero, so for those the exported declaration is a
   `var` computed at start-up.
 
-Every other form (REAL as `{ mantissa M, base B, exponent E }`, OID,
-SEQUENCE / CHOICE / SEQUENCE OF values, named-bit BIT STRING, ...) is refused
+Every other form (REAL as `{ mantissa M, base B, exponent E }`,
+SEQUENCE / CHOICE / SEQUENCE OF values, ...) is refused
 at generation with exit 70, because the C generator would silently treat the
 member as OPTIONAL.
 

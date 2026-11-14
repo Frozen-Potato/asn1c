@@ -2737,6 +2737,399 @@ default_real_c_literal(double d) {
 }
 
 /*
+ * The opaque text of a DEFAULT given in braces is kept with them ("{ x }").
+ * Point *p / *e at what is inside; returns 0 if there are no braces.
+ */
+static int
+default_unbrace(const asn1p_value_t *dv, const char **p, const char **e) {
+	const char *b = (const char *)dv->value.string.buf;
+	const char *x = b + dv->value.string.size;
+	while(b < x && (*b == ' ' || *b == '\t' || *b == '\r' || *b == '\n')) b++;
+	while(x > b && (x[-1] == ' ' || x[-1] == '\t' || x[-1] == '\r' || x[-1] == '\n')) x--;
+	if(b == x || *b != '{' || x[-1] != '}') return 0;
+	*p = b + 1;
+	*e = x - 1;
+	return 1;
+}
+
+/*
+ * A named-bit BIT STRING DEFAULT is either 'B / 'H text (ATV_BITVECTOR) or the
+ * opaque text of "{ id, id, ... }" (ATV_UNPARSED, braces already stripped).
+ * Walk the identifiers of the latter: look every one up in the type's bit list
+ * (`term`), report the highest bit position in *maxpos and, when `bits` is
+ * given, set the bits. Returns 1, or 0 with *why set.
+ */
+static int
+default_named_bits(asn1p_expr_t *term, const asn1p_value_t *dv, uint8_t *bits,
+		int *maxpos, char *text, size_t textsz, const char **why) {
+	static char msg[320];
+	const char *p, *e;
+	int expect_ident = 0;	/* after a comma */
+	int count = 0;
+	size_t tl = 0;
+
+	*maxpos = -1;
+	text[0] = '\0';
+	if(!default_unbrace(dv, &p, &e)) {
+		*why = "a named-bit BIT STRING DEFAULT must be written in braces";
+		return 0;
+	}
+	for(;;) {
+		char name[128];
+		size_t n = 0;
+		asn1p_expr_t *bit;
+		while(p < e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'))
+			p++;
+		if(p == e) {
+			if(expect_ident) {
+				*why = "a comma in a named-bit DEFAULT must be "
+				       "followed by a bit name";
+				return 0;
+			}
+			break;
+		}
+		if(count && !expect_ident) {
+			if(*p != ',') {
+				snprintf(msg, sizeof(msg), "unexpected `%c` in a "
+					"named-bit BIT STRING DEFAULT: write "
+					"{ name, name, ... }", *p);
+				*why = msg;
+				return 0;
+			}
+			p++;
+			expect_ident = 1;
+			continue;
+		}
+		if(!(*p >= 'a' && *p <= 'z')) {
+			snprintf(msg, sizeof(msg), "unexpected `%c` in a "
+				"named-bit BIT STRING DEFAULT: write "
+				"{ name, name, ... } with the bit names of the type",
+				*p);
+			*why = msg;
+			return 0;
+		}
+		while(p < e && n + 1 < sizeof(name)
+		   && ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')
+		       || (*p >= '0' && *p <= '9') || *p == '-'))
+			name[n++] = *p++;
+		name[n] = '\0';
+		if(p < e && ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')
+		   || (*p >= '0' && *p <= '9') || *p == '-')) {
+			*why = "a bit name in a named-bit DEFAULT is too long";
+			return 0;
+		}
+		bit = asn1p_lookup_child(term, name);
+		if(!bit || bit->expr_type == A1TC_EXTENSIBLE) {
+			snprintf(msg, sizeof(msg), "unknown bit name `%s` in a "
+				"DEFAULT of a named-bit BIT STRING", name);
+			*why = msg;
+			return 0;
+		}
+		if(!bit->value || bit->value->type != ATV_INTEGER
+		   || bit->value->value.v_integer < 0
+		   || bit->value->value.v_integer > 1024 * 1024 * 8) {
+			snprintf(msg, sizeof(msg), "the bit `%s` has no usable "
+				"position (0..8388608) for a DEFAULT", name);
+			*why = msg;
+			return 0;
+		}
+		if((int)bit->value->value.v_integer > *maxpos)
+			*maxpos = (int)bit->value->value.v_integer;
+		if(bits) {
+			int pos = (int)bit->value->value.v_integer;
+			bits[pos >> 3] |= 0x80 >> (pos & 7);
+		}
+		if(tl + n + 4 < textsz)
+			tl += snprintf(text + tl, textsz - tl, "%s%s",
+				count ? ", " : "", name);
+		count++;
+		expect_ident = 0;
+	}
+	return 1;
+}
+
+/*
+ * The DEFAULT of a BIT STRING as the bytes default_value_set stores.
+ *  - Plain BIT STRING: the 'B / 'H value as written (unused bits zeroed).
+ *  - Named-bit BIT STRING: { id, ... } or 'B / 'H. Trailing 0 bits are not
+ *    significant (X.680 22.7), so they are dropped (*sig_bits); then, as
+ *    PER does (X.691 16.2-16.3), the value is padded with 0 bits up to the
+ *    lower bound of a SIZE constraint (a fixed (SIZE (8)) gives 8 bits).
+ * On success returns 1; *obuf (malloc'ed, (*obits + 7) / 8 bytes plus one) and
+ * *obits describe the stored value, *sig_bits the significant length, *text the
+ * DEFAULT as ASN.1 text. Each of them may be NULL. On failure returns 0 and
+ * sets *why; *fatal = 1 when the value is wrong (not merely out of scope).
+ */
+static int
+default_bit_string(arg_t *arg, asn1p_expr_t *expr, uint8_t **obuf, int *obits,
+		int *sig_bits, const char **text, const char **why, int *fatal) {
+	asn1p_value_t *dv = expr->marker.default_value;
+	asn1p_expr_t *term = asn1f_find_terminal_type_ex(arg->asn, arg->ns, expr);
+	int named = expr_elements_count(arg, expr) > 0;
+	static char txt[512];
+	uint8_t *buf = NULL;
+	int nbits = 0, nbytes, canon, i;
+
+	if(text) *text = "";
+	if(!dv) {
+		*why = "only an hstring/bstring DEFAULT value is supported "
+		       "for OCTET STRING / BIT STRING";
+		return 0;
+	}
+	if(dv->type == ATV_BITVECTOR) {
+		nbits = dv->value.binary_vector.size_in_bits;
+		nbytes = (nbits + 7) / 8;
+		if(nbits < 0 || (nbytes && !dv->value.binary_vector.bits)) {
+			*why = "malformed hstring/bstring DEFAULT value";
+			return 0;
+		}
+		buf = calloc(1, nbytes + 1);
+		if(!buf) { *why = "out of memory"; return 0; }
+		if(nbytes)
+			memcpy(buf, dv->value.binary_vector.bits, nbytes);
+		if(nbits % 8)
+			buf[nbytes - 1] &= (0xff << (8 - nbits % 8)) & 0xff;
+		if(text) *text = asn1f_printable_value(dv);
+	} else if(named && term && dv->type == ATV_UNPARSED) {
+		int maxpos;
+		char names[400];
+		if(!default_named_bits(term, dv, NULL, &maxpos, names,
+				sizeof(names), why)) {
+			*fatal = 1;
+			return 0;
+		}
+		nbits = maxpos + 1;
+		buf = calloc(1, (nbits + 7) / 8 + 1);
+		if(!buf) { *why = "out of memory"; return 0; }
+		(void)default_named_bits(term, dv, buf, &maxpos, names,
+				sizeof(names), why);
+		snprintf(txt, sizeof(txt), "{ %s%s}", names, names[0] ? " " : "");
+		if(text) *text = txt;
+	} else {
+		*why = named
+		   ? "a DEFAULT of a named-bit BIT STRING must be { name, ... }, "
+		     "an hstring or a bstring"
+		   : "only an hstring/bstring DEFAULT value is supported "
+		     "for OCTET STRING / BIT STRING";
+		if(named) *fatal = 1;
+		return 0;
+	}
+
+	canon = nbits;
+	if(named) {
+		asn1cnst_range_t *range;
+		/* Trailing 0 bits carry no information */
+		while(nbits > 0
+		   && !(buf[(nbits - 1) >> 3] & (0x80 >> ((nbits - 1) & 7))))
+			nbits--;
+		canon = nbits;
+		range = asn1constraint_compute_PER_range(expr->Identifier,
+				ASN_BASIC_BIT_STRING, expr->combined_constraints,
+				ACT_CT_SIZE, 0, 0, 0);
+		if(range && !range->not_PER_visible) {
+			if(range->right.type == ARE_VALUE
+			   && nbits > range->right.value) {
+				free(buf);
+				asn1constraint_range_free(range);
+				*why = "the DEFAULT sets a bit beyond the upper bound "
+				       "of the SIZE constraint";
+				*fatal = 1;
+				return 0;
+			}
+			if(range->left.type == ARE_VALUE
+			   && range->left.value > canon
+			   && range->left.value <= 1024 * 1024 * 8)
+				canon = (int)range->left.value;
+		}
+		if(range) asn1constraint_range_free(range);
+		{
+			/* The stored form: significant bits plus the padding */
+			uint8_t *nb = calloc(1, (canon + 7) / 8 + 1);
+			if(!nb) { free(buf); *why = "out of memory"; return 0; }
+			for(i = 0; i < (nbits + 7) / 8; i++) nb[i] = buf[i];
+			if(nbits % 8)
+				nb[(nbits - 1) / 8] &= (0xff << (8 - nbits % 8)) & 0xff;
+			free(buf);
+			buf = nb;
+		}
+	}
+	if(sig_bits) *sig_bits = nbits;
+	if(obits) *obits = canon;
+	if(obuf) *obuf = buf; else free(buf);
+	return 1;
+}
+
+/*
+ * OBJECT IDENTIFIER / RELATIVE-OID DEFAULT: the opaque text of "{ arc ... }".
+ * An arc is a number or name(number); iso, itu-t, ccitt, joint-iso-itu-t and
+ * joint-iso-ccitt are known as the first arc of an OBJECT IDENTIFIER. Any
+ * other bare name would need the value it stands for, which the generator
+ * does not look up.
+ */
+static int
+default_oid_value(const asn1p_value_t *dv, int relative, uint32_t **oarcs,
+		size_t *on, const char **text, const char **why) {
+	static char msg[320];
+	static char txt[512];
+	const char *p, *e;
+	uint32_t *arcs = NULL;
+	size_t n = 0, cap = 0, i, tl;
+
+	if(text) *text = "";
+	if(!dv || dv->type != ATV_UNPARSED) {
+		snprintf(msg, sizeof(msg), "the DEFAULT of %s must be written "
+			"as { arc arc ... } with numbers or name(number); the "
+			"parser gives %s, which the generator does not resolve",
+			relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER",
+			!dv ? "no value"
+			    : dv->type == ATV_REFERENCED ? "a reference to a value"
+			    : "a value of another form");
+		*why = msg;
+		return 0;
+	}
+	if(!default_unbrace(dv, &p, &e)) {
+		snprintf(msg, sizeof(msg), "the DEFAULT of %s must be written in "
+			"braces", relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER");
+		goto bad;
+	}
+	for(;;) {
+		unsigned long long v = 0;
+		char name[128];
+		size_t nl = 0;
+		int have_name = 0, have_num = 0;
+		while(p < e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'))
+			p++;
+		if(p == e) break;
+		if(*p >= 'a' && *p <= 'z') {
+			while(p < e && nl + 1 < sizeof(name)
+			   && ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')
+			       || (*p >= '0' && *p <= '9') || *p == '-'))
+				name[nl++] = *p++;
+			name[nl] = '\0';
+			have_name = 1;
+			{
+				const char *q = p;
+				while(q < e && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n'))
+					q++;
+				if(q < e && *q == '(') {
+					q++;
+					while(q < e && (*q == ' ' || *q == '\t'))
+						q++;
+					if(!(q < e && *q >= '0' && *q <= '9')) {
+						snprintf(msg, sizeof(msg), "the arc "
+							"`%s(...)` must hold a number: "
+							"a value reference there is not "
+							"resolved by the generator", name);
+						goto bad;
+					}
+					while(q < e && *q >= '0' && *q <= '9') {
+						v = v * 10 + (*q++ - '0');
+						if(v > 0xffffffffULL) {
+							snprintf(msg, sizeof(msg), "the "
+								"arc of `%s` is larger than "
+								"4294967295", name);
+							goto bad;
+						}
+					}
+					while(q < e && (*q == ' ' || *q == '\t'))
+						q++;
+					if(!(q < e && *q == ')')) {
+						snprintf(msg, sizeof(msg), "the arc "
+							"`%s(...)` is not closed by `)`", name);
+						goto bad;
+					}
+					p = q + 1;
+					have_num = 1;
+				}
+			}
+			if(!have_num) {
+				static const struct { const char *n; int v; } roots[] = {
+					{ "itu-t", 0 }, { "ccitt", 0 }, { "iso", 1 },
+					{ "joint-iso-itu-t", 2 }, { "joint-iso-ccitt", 2 } };
+				size_t k;
+				if(!relative && n == 0) {
+					for(k = 0; k < sizeof(roots) / sizeof(roots[0]); k++)
+						if(!strcmp(roots[k].n, name)) {
+							v = roots[k].v;
+							have_num = 1;
+						}
+				}
+				if(!have_num) {
+					snprintf(msg, sizeof(msg), "the bare name `%s` in "
+						"an %s DEFAULT cannot be resolved: write the "
+						"arc as a number or as %s(number)%s", name,
+						relative ? "RELATIVE-OID" : "OBJECT IDENTIFIER",
+						name, relative ? "" : " (only iso, itu-t and "
+						"joint-iso-itu-t are known as the first arc)");
+					goto bad;
+				}
+			}
+		} else if(*p >= '0' && *p <= '9') {
+			while(p < e && *p >= '0' && *p <= '9') {
+				v = v * 10 + (*p++ - '0');
+				if(v > 0xffffffffULL) {
+					snprintf(msg, sizeof(msg), "an arc of the DEFAULT "
+						"is larger than 4294967295");
+					goto bad;
+				}
+			}
+			have_num = 1;
+		} else {
+			snprintf(msg, sizeof(msg), "unexpected `%c` in the DEFAULT "
+				"of %s: write { arc arc ... } with numbers or "
+				"name(number)", *p,
+				relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER");
+			goto bad;
+		}
+		(void)have_name;
+		if(n == cap) {
+			uint32_t *na = realloc(arcs, (cap ? cap * 2 : 16) * sizeof(*arcs));
+			if(!na) { snprintf(msg, sizeof(msg), "out of memory"); goto bad; }
+			arcs = na;
+			cap = cap ? cap * 2 : 16;
+		}
+		arcs[n++] = (uint32_t)v;
+	}
+	if(relative ? n < 1 : n < 2) {
+		snprintf(msg, sizeof(msg), "the DEFAULT of %s needs at least %s",
+			relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER",
+			relative ? "one arc" : "two arcs");
+		goto bad;
+	}
+	if(!relative) {
+		if(arcs[0] > 2) {
+			snprintf(msg, sizeof(msg), "the first arc of an OBJECT "
+				"IDENTIFIER DEFAULT must be 0, 1 or 2");
+			goto bad;
+		}
+		if(arcs[0] < 2 && arcs[1] >= 40) {
+			snprintf(msg, sizeof(msg), "the second arc of an OBJECT "
+				"IDENTIFIER DEFAULT under root %u must be below 40",
+				(unsigned)arcs[0]);
+			goto bad;
+		}
+		if(arcs[0] == 2 && arcs[1] > 0xffffffffU - 80) {
+			snprintf(msg, sizeof(msg), "the second arc of an OBJECT "
+				"IDENTIFIER DEFAULT under root 2 is too large");
+			goto bad;
+		}
+	}
+	tl = snprintf(txt, sizeof(txt), "{");
+	for(i = 0; i < n && tl + 16 < sizeof(txt); i++)
+		tl += snprintf(txt + tl, sizeof(txt) - tl, " %u", (unsigned)arcs[i]);
+	if(i < n) tl += snprintf(txt + tl, sizeof(txt) - tl, " ...");
+	snprintf(txt + tl, sizeof(txt) - tl, " }");
+	if(text) *text = txt;
+	if(oarcs) *oarcs = arcs; else free(arcs);
+	if(on) *on = n;
+	return 1;
+bad:
+	free(arcs);
+	*why = msg;
+	return 0;
+}
+
+/*
  * The ONE decision "does the C generator emit default_value_cmp/default_value_set
  * for this member's DEFAULT". try_inline_default() emits the callbacks iff this
  * returns 1; the Go backend's pre-flight calls it too, so the two can never
@@ -2745,12 +3138,13 @@ default_real_c_literal(double d) {
  * Returns 1 when callbacks are generated. Otherwise returns 0 and, when
  * `why` is non-NULL, stores a static string naming the reason.
  */
-int
-asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **why) {
+static int
+default_callbacks_check(arg_t *arg, asn1p_expr_t *expr, const char **why, int *fatal) {
 	asn1p_expr_type_e etype = expr_get_type(arg, expr);
 	asn1p_value_t *dv = expr->marker.default_value;
 	const char *dummy;
 	if(!why) why = &dummy;
+	*fatal = 0;
 
 	switch(etype) {
 	case ASN_BASIC_BOOLEAN:
@@ -2774,15 +3168,11 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 		double d;
 		return default_real_value(dv, &d, why);
 	}
-	case ASN_BASIC_OCTET_STRING:
-	case ASN_BASIC_BIT_STRING: {
-		int is_bit = (etype == ASN_BASIC_BIT_STRING);
+	case ASN_BASIC_BIT_STRING:
+		return default_bit_string(arg, expr, NULL, NULL, NULL, NULL, why,
+			fatal);
+	case ASN_BASIC_OCTET_STRING: {
 		int bits;
-		if(is_bit && expr_elements_count(arg, expr)) {
-			/* Whatever the value form ({ a, b }, 'H, 'B). */
-			*why = "DEFAULT of a named-bit BIT STRING is not supported";
-			return 0;
-		}
 		if(!dv || dv->type != ATV_BITVECTOR) {
 			*why = "only an hstring/bstring DEFAULT value is supported "
 			       "for OCTET STRING / BIT STRING";
@@ -2793,7 +3183,7 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 			*why = "malformed hstring/bstring DEFAULT value";
 			return 0;
 		}
-		if(!is_bit && bits % 8) {
+		if(bits % 8) {
 			*why = "OCTET STRING DEFAULT must be a whole number of octets";
 			return 0;
 		}
@@ -2803,6 +3193,14 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 		}
 		return 1;
 	}
+	case ASN_BASIC_OBJECT_IDENTIFIER:
+	case ASN_BASIC_RELATIVE_OID:
+		if(!default_oid_value(dv, etype == ASN_BASIC_RELATIVE_OID, NULL,
+				NULL, NULL, why)) {
+			*fatal = 1;
+			return 0;
+		}
+		return 1;
 	case ASN_BASIC_UTCTime:
 	case ASN_BASIC_GeneralizedTime:
 	default:
@@ -2816,17 +3214,53 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 			if(default_string_width(etype) > 1) {
 				size_t n;
 				uint8_t *u = default_ucs_convert(etype, dv, &n, why);
-				if(!u) return 0;
+				if(!u) { *fatal = 1; return 0; }
 				free(u);
 			}
 			return 1;
 		}
 		*why = "the C generator emits no default callbacks for a DEFAULT "
 		       "of this type (it handles BOOLEAN, INTEGER, ENUMERATED, "
-		       "NULL, REAL, OCTET STRING, BIT STRING, character "
-		       "strings, UTCTime and GeneralizedTime)";
+		       "NULL, REAL, OCTET STRING, BIT STRING, OBJECT "
+		       "IDENTIFIER, RELATIVE-OID, character strings, UTCTime "
+		       "and GeneralizedTime)";
 		return 0;
 	}
+}
+
+int
+asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **why) {
+	int fatal;
+	return default_callbacks_check(arg, expr, why, &fatal);
+}
+
+/* The bytes / bits default_value_set stores for a BIT STRING DEFAULT. */
+int
+asn1c_default_bit_string(arg_t *arg, asn1p_expr_t *expr, uint8_t **buf,
+		int *bits, const char **why) {
+	const char *dummy;
+	int fatal;
+	if(!why) why = &dummy;
+	if(expr_get_type(arg, expr) != ASN_BASIC_BIT_STRING) {
+		*why = "not a BIT STRING";
+		return 0;
+	}
+	return default_bit_string(arg, expr, buf, bits, NULL, NULL, why, &fatal);
+}
+
+/* The arcs default_value_set stores for an OBJECT IDENTIFIER / RELATIVE-OID DEFAULT. */
+int
+asn1c_default_oid_arcs(arg_t *arg, asn1p_expr_t *expr, uint32_t **arcs,
+		size_t *n, const char **why) {
+	const char *dummy;
+	asn1p_expr_type_e etype = expr_get_type(arg, expr);
+	if(!why) why = &dummy;
+	if(etype != ASN_BASIC_OBJECT_IDENTIFIER && etype != ASN_BASIC_RELATIVE_OID) {
+		*why = "not an OBJECT IDENTIFIER / RELATIVE-OID";
+		return 0;
+	}
+	return default_oid_value(expr->marker.default_value,
+		etype == ASN_BASIC_RELATIVE_OID, arcs, n, NULL, why);
 }
 
 /* Emit (out) or name (!out) the callbacks of a NULL / REAL DEFAULT. */
@@ -3013,19 +3447,182 @@ try_inline_real_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	return 1;
 }
 
+/*
+ * Named-bit BIT STRING DEFAULT. Values that differ only in trailing 0 bits
+ * are equal (X.680 22.7), so cmp compares the significant bits; set stores the
+ * form PER would produce (padded to the lower bound of a SIZE constraint).
+ */
+static int
+try_inline_namedbit_default(arg_t *arg, asn1p_expr_t *expr, int out) {
+	int save_target = arg->target->target;
+	const char *why = "";
+	const char *pv = "";
+	uint8_t *buf = NULL;
+	int nbits = 0, sig = 0, fatal = 0, i, nbytes, unused, signb;
+
+	if(!default_bit_string(arg, expr, &buf, &nbits, &sig, &pv, &why, &fatal))
+		return 0;
+	if(!out) {
+		default_callbacks_ref(arg, expr, pv);
+		free(buf);
+		return 1;
+	}
+	nbytes = (nbits + 7) / 8;
+	unused = (8 - nbits % 8) % 8;
+	signb = (sig + 7) / 8;
+
+	REDIR(OT_STAT_DEFS);
+
+	OUT("static int asn_DFL_%d_cmp(const void *sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	if(sig) {
+		OUT("static const uint8_t defv[] = { ");
+		for(i = 0; i < signb; i++) OUT("0x%02x, ", buf[i]);
+		OUT("0 };\n");
+	}
+	OUT("const %s *st = sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
+	OUT("size_t bits;\n");
+	OUT("\n");
+	OUT("if(!st) {\n");
+	OUT("\treturn -1; /* No value is not a default value */\n");
+	OUT("}\n");
+	OUT("\n");
+	OUT("if(st->size && !st->buf)\n");
+	OUT("\treturn 1;\n");
+	OUT("bits = st->size ? st->size * 8 - (st->bits_unused & 7) : 0;\n");
+	OUT("/* Trailing 0 bits are not significant (X.680 22.7) */\n");
+	OUT("while(bits && !(st->buf[(bits - 1) >> 3] & (0x80 >> ((bits - 1) & 7))))\n");
+	OUT("\tbits--;\n");
+	OUT("if(bits != %d)\n", sig);
+	OUT("\treturn 1;\n");
+	if(!sig) {
+		OUT("return 0;\n");
+	} else {
+		if(signb > 1) {
+			OUT("if(memcmp(st->buf, defv, %d) != 0)\n", signb - 1);
+			OUT("\treturn 1;\n");
+		}
+		/* Bits past the last significant one are unused or 0 */
+		OUT("return ((st->buf[%d] & 0x%02x) != defv[%d]);\n", signb - 1,
+			(0xff << ((8 - sig % 8) % 8)) & 0xff, signb - 1);
+	}
+	INDENT(-1);
+	OUT("}\n");
+
+	OUT("static int asn_DFL_%d_set(void **sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	OUT("static const uint8_t defv[] = { ");
+	for(i = 0; i < nbytes; i++) OUT("0x%02x, ", buf[i]);
+	OUT("0 };\n");
+	OUT("const size_t defsz = %d;\n", nbytes);
+	OUT("%s *st = *sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
+	OUT("uint8_t *nstr = MALLOC(defsz + 1);\n");
+	OUT("\n");
+	OUT("if(!nstr) return -1;\n");
+	OUT("memcpy(nstr, defv, defsz);\n");
+	OUT("nstr[defsz] = 0;\n");
+	OUT("\n");
+	OUT("if(st) {\n");
+	OUT("\tFREEMEM(st->buf);\n");
+	OUT("} else {\n");
+	OUT("\tst = (*sptr = CALLOC(1, sizeof(*st)));\n");
+	OUT("\tif(!st) { FREEMEM(nstr); return -1; }\n");
+	OUT("}\n");
+	OUT("st->buf = nstr;\n");
+	OUT("st->size = defsz;\n");
+	OUT("st->bits_unused = %d;\n", unused);
+	OUT("\n");
+	OUT("return 0;\n");
+	INDENT(-1);
+	OUT("}\n");
+
+	REDIR(save_target);
+	free(buf);
+	return 1;
+}
+
+/*
+ * OBJECT IDENTIFIER / RELATIVE-OID DEFAULT: the arcs are compared, and set
+ * uses the runtime arc setter.
+ */
+static int
+try_inline_oid_default(arg_t *arg, asn1p_expr_t *expr, int relative, int out) {
+	int save_target = arg->target->target;
+	const char *why = "";
+	const char *pv = "";
+	const char *T = relative ? "RELATIVE_OID" : "OBJECT_IDENTIFIER";
+	uint32_t *arcs = NULL;
+	size_t n = 0, i;
+
+	if(!default_oid_value(expr->marker.default_value, relative, &arcs, &n,
+			&pv, &why))
+		return 0;
+	if(!out) {
+		default_callbacks_ref(arg, expr, pv);
+		free(arcs);
+		return 1;
+	}
+	REDIR(OT_STAT_DEFS);
+
+	OUT("static int asn_DFL_%d_cmp(const void *sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	OUT("static const asn_oid_arc_t defv[] = { ");
+	for(i = 0; i < n; i++) OUT("%uU, ", (unsigned)arcs[i]);
+	OUT("};\n");
+	OUT("const %s_t *st = sptr;\n", T);
+	OUT("asn_oid_arc_t arcs[%d];\n", (int)n + 1);
+	OUT("ssize_t count;\n");
+	OUT("\n");
+	OUT("if(!st) {\n");
+	OUT("\treturn -1; /* No value is not a default value */\n");
+	OUT("}\n");
+	OUT("\n");
+	OUT("count = %s_get_arcs(st, arcs, %d);\n", T, (int)n + 1);
+	OUT("if(count != %d)\n", (int)n);
+	OUT("\treturn 1;\n");
+	OUT("return (memcmp(arcs, defv, sizeof(defv)) != 0);\n");
+	INDENT(-1);
+	OUT("}\n");
+
+	OUT("static int asn_DFL_%d_set(void **sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	OUT("static const asn_oid_arc_t defv[] = { ");
+	for(i = 0; i < n; i++) OUT("%uU, ", (unsigned)arcs[i]);
+	OUT("};\n");
+	OUT("%s_t *st = *sptr;\n", T);
+	OUT("\n");
+	OUT("if(!st) {\n");
+	OUT("\tst = (*sptr = CALLOC(1, sizeof(*st)));\n");
+	OUT("\tif(!st) return -1;\n");
+	OUT("}\n");
+	OUT("\n");
+	OUT("return %s_set_arcs(st, defv, %d);\n", T, (int)n);
+	INDENT(-1);
+	OUT("}\n");
+
+	REDIR(save_target);
+	free(arcs);
+	return 1;
+}
+
 static int
 try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	int save_target = arg->target->target;
 	asn1p_expr_type_e etype = expr_get_type(arg, expr);
 	int fits_long = 0;
 	const char *why = NULL;
+	int fatal = 0;
 
-	if(!asn1c_default_callbacks_supported(arg, expr, &why)) {
-		/* A BMPString / UniversalString literal that cannot be
-		 * converted must stop the generation, not drop the DEFAULT. */
-		if(default_string_width(etype) > 1 && why
-		   && expr->marker.default_value
-		   && expr->marker.default_value->type == ATV_STRING) {
+	if(!default_callbacks_check(arg, expr, &why, &fatal)) {
+		/* A DEFAULT that is wrong (a BMPString / UniversalString
+		 * literal that cannot be converted, an unknown bit name, an
+		 * unresolvable OBJECT IDENTIFIER arc) must stop the
+		 * generation, not drop the DEFAULT. */
+		if(fatal && why && expr->marker.default_value) {
 			if(!out)
 				return 0;
 			FATAL("DEFAULT of member %s: %s", expr->Identifier, why);
@@ -3118,9 +3715,16 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 		return try_inline_null_default(arg, expr, out);
 	case ASN_BASIC_REAL:
 		return try_inline_real_default(arg, expr, out);
-	case ASN_BASIC_OCTET_STRING:
 	case ASN_BASIC_BIT_STRING:
+		if(expr_elements_count(arg, expr))
+			return try_inline_namedbit_default(arg, expr, out);
 		return try_inline_blob_default(arg, expr, etype, out);
+	case ASN_BASIC_OCTET_STRING:
+		return try_inline_blob_default(arg, expr, etype, out);
+	case ASN_BASIC_OBJECT_IDENTIFIER:
+	case ASN_BASIC_RELATIVE_OID:
+		return try_inline_oid_default(arg, expr,
+			etype == ASN_BASIC_RELATIVE_OID, out);
 	case ASN_BASIC_UTCTime:
 	case ASN_BASIC_GeneralizedTime:
 	default:

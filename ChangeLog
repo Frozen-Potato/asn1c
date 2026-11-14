@@ -12,6 +12,10 @@
       NOT-A-NUMBER) is accepted. Before, both were refused (exit 70). For an
       infinity, NaN or minus zero the exported <Type><Field>Default is a var,
       not a const (Go has no such constant).
+    * Go backend: a DEFAULT on a named-bit BIT STRING member (`{ p, q }`,
+      `{ }`, 'B / 'H) and on an OBJECT IDENTIFIER or RELATIVE-OID member
+      (`{ 1 3 6 }`, `{ iso(1) 3 6 }`) is accepted (a BitString and a
+      []uint64 in Go). Before, both were refused (exit 70).
     FIXES:
     * C generator (also for plain C users): the DEFAULT of a BMPString or
       UniversalString member is stored as UCS-2 / UCS-4 big-endian ("hi" is
@@ -31,6 +35,24 @@
       check then rejects the value).
       Before, such a member had no callbacks: it was always encoded and was
       NULL when absent.
+    * C generator (also for plain C users): a DEFAULT on a named-bit BIT
+      STRING member (`{ name, name }`, `{ }`, or 'B / 'H) now gets
+      default_value_cmp / default_value_set. Trailing 0 bits are not
+      significant (X.680 22.7), so a value that differs from the DEFAULT only
+      in them equals it; the DEFAULT is stored in the form PER encodes
+      (X.691 16.2-16.3), padded with 0 bits to the lower bound of a SIZE
+      constraint. Before, such a member had no callbacks (it was always
+      encoded, and NULL when absent). An unknown bit name, or a bit above the
+      upper bound of the SIZE constraint, now stops generation with an error
+      naming the member.
+    * C generator (also for plain C users): a DEFAULT on an OBJECT IDENTIFIER
+      or RELATIVE-OID member ({ 1 3 6 } or with name(number) arcs; iso, itu-t
+      and joint-iso-itu-t as the first arc) now gets default_value_cmp /
+      default_value_set (the arcs are compared; set uses
+      OBJECT_IDENTIFIER_set_arcs / RELATIVE_OID_set_arcs). Before, such a
+      member had no callbacks. A bare name the generator cannot resolve, an
+      arc above 4294967295, or arcs that no OBJECT IDENTIFIER can have now stop
+      generation with an error naming the member.
     * C generator (also for plain C users): a NULL DEFAULT member now gets
       default_value_cmp / default_value_set. A present NULL always equals the
       DEFAULT, so the encoder omits it and the decoder fills an absent one.

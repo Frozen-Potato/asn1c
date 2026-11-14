@@ -59,4 +59,28 @@ RealDefaults ::= SEQUENCE {
     b   BOOLEAN
 }
 
+-- Named-bit BIT STRING DEFAULT ({ names }, { }), plain and under SIZE
+-- constraints (a fixed size and a range): the value is held without trailing
+-- 0 bits, padded to the lower bound of the SIZE constraint.
+Perms ::= BIT STRING { read(0), write(1), exec(2) }
+FixedPerms ::= BIT STRING { read(0), write(1) } (SIZE (4))
+RangePerms ::= BIT STRING { read(0), write(1) } (SIZE (2..6))
+
+BitDefaults ::= SEQUENCE {
+    a   BIT STRING { p(0), q(1), r(2) } DEFAULT { p, r },
+    e   BIT STRING { p(0), q(1) } DEFAULT { },
+    f   FixedPerms DEFAULT { write },
+    g   RangePerms DEFAULT { read },
+    h   Perms DEFAULT { },
+    b   BOOLEAN
+}
+
+-- OBJECT IDENTIFIER and RELATIVE-OID DEFAULT, with number and name(number) arcs.
+OidDefaults ::= SEQUENCE {
+    o   OBJECT IDENTIFIER DEFAULT { 1 3 6 1 4 1 9363 },
+    n   OBJECT IDENTIFIER DEFAULT { iso(1) org(3) 7 },
+    r   RELATIVE-OID DEFAULT { 1 2 300 },
+    b   BOOLEAN
+}
+
 END

@@ -39,4 +39,27 @@ DfltRealForms ::= SEQUENCE {
     p REAL DEFAULT PLUS-INFINITY, q REAL DEFAULT MINUS-INFINITY,
     n REAL DEFAULT NOT-A-NUMBER, nz REAL DEFAULT -0.0, b BOOLEAN }
 
+-- dflt-namedbit
+DfltNamedBit ::= SEQUENCE { a BIT STRING { p(0), q(1) } DEFAULT { p }, b BOOLEAN }
+
+-- dflt-namedbit-forms
+NbPerms ::= BIT STRING { read(0), write(1) } (SIZE (8))
+DfltNamedBitForms ::= SEQUENCE {
+    e BIT STRING { p(0), q(1) } DEFAULT { },
+    f BIT STRING { p(0), q(1) } DEFAULT { p, q },
+    g NbPerms DEFAULT { read },
+    h BIT STRING { p(0), q(1) } DEFAULT '01'B, b BOOLEAN }
+
+-- dflt-oid
+DfltOid ::= SEQUENCE { a OBJECT IDENTIFIER DEFAULT { 1 3 6 }, b BOOLEAN }
+
+-- dflt-oid-forms
+DfltOidForms ::= SEQUENCE {
+    a OBJECT IDENTIFIER DEFAULT { iso(1) org(3) 6 1 },
+    c OBJECT IDENTIFIER DEFAULT { joint-iso-itu-t 5 },
+    d OBJECT IDENTIFIER DEFAULT { 2 999 4294967295 }, b BOOLEAN }
+
+-- dflt-roid
+DfltRoid ::= SEQUENCE { a RELATIVE-OID DEFAULT { 1 2 }, b BOOLEAN }
+
 END

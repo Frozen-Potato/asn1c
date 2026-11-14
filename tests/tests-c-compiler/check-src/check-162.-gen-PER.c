@@ -1,7 +1,9 @@
 /*
  * Verify OCTET STRING / BIT STRING DEFAULT values given as hstring/bstring:
  * absent members decode to the default, members equal to the default are
- * omitted (presence bit 0) and other values round-trip.
+ * omitted (presence bit 0) and other values round-trip. A named-bit BIT STRING
+ * DEFAULT { x } is equal to every value that differs from it only in trailing
+ * 0 bits.
  */
 #undef	NDEBUG
 #include <stdio.h>
@@ -36,6 +38,8 @@ static void check_defaults(const T_t *t) {
 		&& t->b->buf[0] == 0xA0);	/* '101'B */
 	assert(t->w && t->w->size == 1 && t->w->bits_unused == 0
 		&& t->w->buf[0] == 0xA5);
+	assert(t->n && t->n->size == 1 && t->n->bits_unused == 7
+		&& t->n->buf[0] == 0x80);	/* { x }: bit 0 */
 }
 
 int main() {
@@ -57,13 +61,15 @@ int main() {
 		uint8_t ov[] = { 0xAB };
 		uint8_t bv[] = { 0xA0 };	/* '101'B */
 		uint8_t wv[] = { 0xA5 };
-		OCTET_STRING_t o; BIT_STRING_t b, w;
+		uint8_t nv[] = { 0x80, 0x00 };	/* { x } and 8 more 0 bits */
+		OCTET_STRING_t o; BIT_STRING_t b, w, n;
 		memset(&o, 0, sizeof(o));
 		o.buf = ov; o.size = 1;
 		b.buf = bv; b.size = 1; b.bits_unused = 5;
 		w.buf = wv; w.size = 1; w.bits_unused = 0;
+		n.buf = nv; n.size = 2; n.bits_unused = 0;
 		memset(&t, 0, sizeof(t));
-		t.o = &o; t.b = &b; t.w = &w;
+		t.o = &o; t.b = &b; t.w = &w; t.n = &n;
 		memset(buf, 0xff, sizeof(buf));
 		to = roundtrip(&t, buf, sizeof(buf), &bits);
 		assert(bits == 4);
@@ -85,13 +91,15 @@ int main() {
 		uint8_t ov[] = { 0xAB, 0xCD };
 		uint8_t bv[] = { 0xC0 };	/* '11'B */
 		uint8_t wv[] = { 0x5A };
-		OCTET_STRING_t o; BIT_STRING_t b, w;
+		uint8_t nv[] = { 0x40 };	/* { y } */
+		OCTET_STRING_t o; BIT_STRING_t b, w, n;
 		memset(&o, 0, sizeof(o));
 		o.buf = ov; o.size = 2;
 		b.buf = bv; b.size = 1; b.bits_unused = 6;
 		w.buf = wv; w.size = 1; w.bits_unused = 0;
+		n.buf = nv; n.size = 1; n.bits_unused = 6;
 		memset(&t, 0, sizeof(t));
-		t.o = &o; t.b = &b; t.w = &w;
+		t.o = &o; t.b = &b; t.w = &w; t.n = &n;
 		memset(buf, 0, sizeof(buf));
 		to = roundtrip(&t, buf, sizeof(buf), &bits);
 		assert(bits > 4);
@@ -101,6 +109,8 @@ int main() {
 		assert(to->b && to->b->size == 1 && to->b->bits_unused == 6
 			&& to->b->buf[0] == 0xC0);
 		assert(to->w && to->w->size == 1 && to->w->buf[0] == 0x5A);
+		assert(to->n && to->n->size == 1 && to->n->bits_unused == 6
+			&& to->n->buf[0] == 0x40);
 		ASN_STRUCT_FREE(asn_DEF_T, to);
 	}
 

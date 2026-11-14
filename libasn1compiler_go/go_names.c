@@ -4714,24 +4714,68 @@ note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
     case ASN_BASIC_ENUMERATED:
         lit = strdup(asn1p_itoa(dv->value.v_integer));
         break;
-    case ASN_BASIC_OCTET_STRING:
-    case ASN_BASIC_BIT_STRING: {
+    case ASN_BASIC_OCTET_STRING: {
         int bits = dv->value.binary_vector.size_in_bits;
-        int nb = (bits + 7) / 8, is_bit = term->expr_type == ASN_BASIC_BIT_STRING;
-        int unused = (8 - bits % 8) % 8;
+        int nb = (bits + 7) / 8;
         char t[64];
         form = 2;
-        lit = strdup(is_bit ? "Bytes: []byte{" : "");
+        lit = strdup("");
         for(int i = 0; i < nb; i++) {
-            unsigned v = dv->value.binary_vector.bits[i];
-            if(is_bit && i == nb - 1) v &= (0xffu << unused) & 0xffu;
-            snprintf(t, sizeof t, "%s0x%02x", i ? ", " : "", v);
+            snprintf(t, sizeof t, "%s0x%02x", i ? ", " : "",
+                     dv->value.binary_vector.bits[i]);
             lit = str_append(lit, t);
         }
-        if(is_bit) {
-            snprintf(t, sizeof t, "}, BitsUnused: %d", unused);
+        break;
+    }
+    case ASN_BASIC_BIT_STRING: {
+        /* The stored form the C default_value_set installs: for a named-bit
+         * type the bits of { a, b }, without trailing 0 bits, padded to the
+         * lower bound of a SIZE constraint. */
+        arg_t darg;
+        uint8_t *bb = NULL;
+        int bits = 0;
+        char t[64];
+        memset(&darg, 0, sizeof darg);
+        darg.asn = ctx->asn;
+        darg.ns = ctx->ns;
+        darg.expr = child;
+        if(!asn1c_default_bit_string(&darg, child, &bb, &bits, NULL)) {
+            ctx->bag->failed = 1;
+            return;
+        }
+        form = 2;
+        lit = strdup("Bytes: []byte{");
+        for(int i = 0; i < (bits + 7) / 8; i++) {
+            snprintf(t, sizeof t, "%s0x%02x", i ? ", " : "", bb[i]);
             lit = str_append(lit, t);
         }
+        snprintf(t, sizeof t, "}, BitsUnused: %d", (8 - bits % 8) % 8);
+        lit = str_append(lit, t);
+        free(bb);
+        break;
+    }
+    case ASN_BASIC_OBJECT_IDENTIFIER:
+    case ASN_BASIC_RELATIVE_OID: {
+        /* []uint64 arcs: `var Name = T{1, 3, 6}` */
+        arg_t darg;
+        uint32_t *arcs = NULL;
+        size_t n = 0;
+        char t[32];
+        memset(&darg, 0, sizeof darg);
+        darg.asn = ctx->asn;
+        darg.ns = ctx->ns;
+        darg.expr = child;
+        if(!asn1c_default_oid_arcs(&darg, child, &arcs, &n, NULL)) {
+            ctx->bag->failed = 1;
+            return;
+        }
+        form = 2;
+        lit = strdup("");
+        for(size_t i = 0; i < n; i++) {
+            snprintf(t, sizeof t, "%s%u", i ? ", " : "", (unsigned)arcs[i]);
+            lit = str_append(lit, t);
+        }
+        free(arcs);
         break;
     }
     case ASN_BASIC_NULL:

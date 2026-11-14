@@ -687,3 +687,267 @@ func TestRealDefaultCConverter(t *testing.T) {
 		}
 	}
 }
+
+// ---- named-bit BIT STRING, OBJECT IDENTIFIER and RELATIVE-OID DEFAULT ----
+
+func bsCopy(b df.BitString) df.BitString {
+	return df.BitString{Bytes: append([]byte(nil), b.Bytes...), BitsUnused: b.BitsUnused}
+}
+
+func bitDflt() *df.BitDefaults {
+	return &df.BitDefaults{
+		A: bsCopy(df.BitDefaultsADefault),
+		E: bsCopy(df.BitDefaultsEDefault),
+		F: df.FixedPerms(bsCopy(df.BitString(df.BitDefaultsFDefault))),
+		G: df.RangePerms(bsCopy(df.BitString(df.BitDefaultsGDefault))),
+		H: df.Perms(bsCopy(df.BitString(df.BitDefaultsHDefault))),
+		B: true,
+	}
+}
+
+func TestNamedBitDefaultConstants(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		got  df.BitString
+		want df.BitString
+	}{
+		// { p, r }: bits 0 and 2 (3 bits)
+		{"a", df.BitDefaultsADefault, df.BitString{Bytes: []byte{0xa0}, BitsUnused: 5}},
+		// { }: no bit
+		{"e", df.BitDefaultsEDefault, df.BitString{Bytes: []byte{}, BitsUnused: 0}},
+		// { write } under SIZE (4): padded to 4 bits
+		{"f", df.BitString(df.BitDefaultsFDefault), df.BitString{Bytes: []byte{0x40}, BitsUnused: 4}},
+		// { read } under SIZE (2..6): padded to the lower bound, 2 bits
+		{"g", df.BitString(df.BitDefaultsGDefault), df.BitString{Bytes: []byte{0x80}, BitsUnused: 6}},
+		{"h", df.BitString(df.BitDefaultsHDefault), df.BitString{Bytes: []byte{}, BitsUnused: 0}},
+	} {
+		if !bytes.Equal(c.got.Bytes, c.want.Bytes) || c.got.BitsUnused != c.want.BitsUnused {
+			t.Errorf("%s: DEFAULT = %+v, want %+v", c.name, c.got, c.want)
+		}
+	}
+}
+
+// Hand-computed APER. The preamble is five presence bits (a e f g h), then the
+// members present, then b.
+//
+//	all defaults:           00000 | b=1                       -> 04
+//	f={read}  SIZE (4):     00100 | 1000 (4 bits)       | b   -> 24 40
+//	g={read,write} (2..6):  00010 | 000 (length 2) 11   | b   -> 10 e0
+//	g={} (2..6):            00010 | 000 (length 2) 00   | b   -> 10 20
+//	b=false:                00000 | b=0                       -> 00
+//
+// The values with trailing 0 bits are equal to the default and are omitted.
+var bitHandCases = []struct {
+	name string
+	mut  func(*df.BitDefaults)
+	want []byte
+}{
+	{"all-default", func(*df.BitDefaults) {}, []byte{0x04}},
+	{"f-read", func(p *df.BitDefaults) { p.F = df.FixedPerms{Bytes: []byte{0x80}, BitsUnused: 4} }, []byte{0x24, 0x40}},
+	{"g-read-write", func(p *df.BitDefaults) { p.G = df.RangePerms{Bytes: []byte{0xc0}, BitsUnused: 6} }, []byte{0x10, 0xe0}},
+	{"g-empty", func(p *df.BitDefaults) { p.G = df.RangePerms{Bytes: []byte{0x00}, BitsUnused: 6} }, []byte{0x10, 0x20}},
+	{"b-false", func(p *df.BitDefaults) { p.B = false }, []byte{0x00}},
+	// equal to the default, whatever the trailing 0 bits
+	{"a-trailing-zeros", func(p *df.BitDefaults) { p.A = df.BitString{Bytes: []byte{0xa0, 0x00}} }, []byte{0x04}},
+	{"a-unused-garbage", func(p *df.BitDefaults) { p.A = df.BitString{Bytes: []byte{0xa7}, BitsUnused: 5} }, []byte{0x04}},
+	{"e-zero-bits", func(p *df.BitDefaults) { p.E = df.BitString{Bytes: []byte{0x00}, BitsUnused: 3} }, []byte{0x04}},
+	{"f-eight-bits", func(p *df.BitDefaults) { p.F = df.FixedPerms{Bytes: []byte{0x40}, BitsUnused: 4} }, []byte{0x04}},
+	{"g-padded", func(p *df.BitDefaults) { p.G = df.RangePerms{Bytes: []byte{0x80}, BitsUnused: 2} }, []byte{0x04}},
+	{"h-zeros", func(p *df.BitDefaults) { p.H = df.Perms{Bytes: []byte{0x00}, BitsUnused: 0} }, []byte{0x04}},
+}
+
+func sameBits(a, b df.BitString) bool {
+	return bytes.Equal(a.Bytes, b.Bytes) && a.BitsUnused == b.BitsUnused
+}
+
+func TestNamedBitDefaultHandAPER(t *testing.T) {
+	for _, c := range bitHandCases {
+		p := bitDflt()
+		c.mut(p)
+		got, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if !bytes.Equal(got, c.want) {
+			t.Errorf("%s: APER = % x, want % x", c.name, got, c.want)
+		}
+		balanced(t, c.name)
+	}
+}
+
+func TestNamedBitDefaultDecodeAbsent(t *testing.T) {
+	got, err := df.DecodeBitDefaults([]byte{0x04})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := bitDflt()
+	if !sameBits(got.A, want.A) || !sameBits(got.E, want.E) ||
+		!sameBits(df.BitString(got.F), df.BitString(want.F)) ||
+		!sameBits(df.BitString(got.G), df.BitString(want.G)) ||
+		!sameBits(df.BitString(got.H), df.BitString(want.H)) || !got.B {
+		t.Fatalf("absent members decode to %+v, want %+v", got, want)
+	}
+	balanced(t, "bit-absent")
+}
+
+func TestNamedBitDefaultRoundTrip(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		mut  func(*df.BitDefaults)
+	}{
+		{"a-p", func(p *df.BitDefaults) { p.A = df.BitString{Bytes: []byte{0x80}, BitsUnused: 7} }},
+		{"a-pqr", func(p *df.BitDefaults) { p.A = df.BitString{Bytes: []byte{0xe0}, BitsUnused: 5} }},
+		{"e-q", func(p *df.BitDefaults) { p.E = df.BitString{Bytes: []byte{0x40}, BitsUnused: 6} }},
+		{"f-read", func(p *df.BitDefaults) { p.F = df.FixedPerms{Bytes: []byte{0x80}, BitsUnused: 4} }},
+		{"g-both", func(p *df.BitDefaults) { p.G = df.RangePerms{Bytes: []byte{0xc0}, BitsUnused: 6} }},
+		{"h-exec", func(p *df.BitDefaults) { p.H = df.Perms{Bytes: []byte{0x20}, BitsUnused: 5} }},
+	} {
+		p := bitDflt()
+		c.mut(p)
+		b, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if bytes.Equal(b, []byte{0x04}) {
+			t.Errorf("%s: non-default value encoded like the default", c.name)
+		}
+		back, err := df.DecodeBitDefaults(b)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		// Re-encoding the decoded value gives the same bytes.
+		again, err := back.Encode()
+		if err != nil || !bytes.Equal(again, b) {
+			t.Errorf("%s: re-encode % x (%v), want % x", c.name, again, err, b)
+		}
+		balanced(t, c.name)
+	}
+}
+
+func TestNamedBitDefaultCConverter(t *testing.T) {
+	bin := converter(t)
+	for _, c := range bitHandCases {
+		p := bitDflt()
+		c.mut(p)
+		aper, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if re := convPDU(t, bin, "BitDefaults", aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: C APER re-encode % x != Go % x", c.name, re, aper)
+		}
+		xer := convPDU(t, bin, "BitDefaults", aper, "-iaper", "-oxer")
+		if re := convPDU(t, bin, "BitDefaults", xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: XER round trip % x != Go % x\n%s", c.name, re, aper, xer)
+		}
+	}
+	// C's own encoder on a value with trailing 0 bits agrees with Go's.
+	x := strings.Join(strings.Fields(string(convPDU(t, bin, "BitDefaults",
+		[]byte{0x04}, "-iaper", "-oxer"))), "")
+	for _, el := range []string{"<a>101</a>", "<e></e>", "<f>0100</f>", "<g>10</g>", "<h></h>"} {
+		if !strings.Contains(x, el) {
+			t.Errorf("XER of absent members lacks %s: %s", el, x)
+		}
+	}
+}
+
+func oidDflt() *df.OidDefaults {
+	return &df.OidDefaults{
+		O: append([]uint64(nil), df.OidDefaultsODefault...),
+		N: append([]uint64(nil), df.OidDefaultsNDefault...),
+		R: append([]uint64(nil), df.OidDefaultsRDefault...),
+		B: true,
+	}
+}
+
+func TestOidDefaultConstants(t *testing.T) {
+	if !reflect.DeepEqual([]uint64(df.OidDefaultsODefault), []uint64{1, 3, 6, 1, 4, 1, 9363}) ||
+		!reflect.DeepEqual([]uint64(df.OidDefaultsNDefault), []uint64{1, 3, 7}) ||
+		!reflect.DeepEqual([]uint64(df.OidDefaultsRDefault), []uint64{1, 2, 300}) {
+		t.Fatalf("generated OID DEFAULT values are wrong: %v %v %v",
+			df.OidDefaultsODefault, df.OidDefaultsNDefault, df.OidDefaultsRDefault)
+	}
+}
+
+// Hand-computed APER. The preamble is three presence bits (o n r); a present
+// member is length-prefixed at an octet boundary; b is the last bit.
+//
+//	all defaults:        000 | b=1                              -> 10
+//	o=1.3.6.1.4.1.9364:  100 | pad | 07 2b 06 01 04 01 c9 14 | b -> 80 07 2b 06 01 04 01 c9 14 80
+//	n=1.3.8:             010 | pad | 02 2b 08              | b    -> 40 02 2b 08 80
+//	r=1.2:               001 | pad | 02 01 02              | b    -> 20 02 01 02 80
+//	b=false:             000 | b=0                              -> 00
+var oidHandCases = []struct {
+	name string
+	mut  func(*df.OidDefaults)
+	want []byte
+}{
+	{"all-default", func(*df.OidDefaults) {}, []byte{0x10}},
+	{"o-9364", func(p *df.OidDefaults) { p.O = []uint64{1, 3, 6, 1, 4, 1, 9364} },
+		[]byte{0x80, 0x07, 0x2b, 0x06, 0x01, 0x04, 0x01, 0xc9, 0x14, 0x80}},
+	{"n-8", func(p *df.OidDefaults) { p.N = []uint64{1, 3, 8} }, []byte{0x40, 0x02, 0x2b, 0x08, 0x80}},
+	{"r-1-2", func(p *df.OidDefaults) { p.R = []uint64{1, 2} }, []byte{0x20, 0x02, 0x01, 0x02, 0x80}},
+	{"b-false", func(p *df.OidDefaults) { p.B = false }, []byte{0x00}},
+}
+
+func TestOidDefaultHandAPER(t *testing.T) {
+	for _, c := range oidHandCases {
+		p := oidDflt()
+		c.mut(p)
+		got, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if !bytes.Equal(got, c.want) {
+			t.Errorf("%s: APER = % x, want % x", c.name, got, c.want)
+		}
+		back, err := df.DecodeOidDefaults(c.want)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if !reflect.DeepEqual(back, p) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, back, p)
+		}
+		balanced(t, c.name)
+	}
+	// A longer and a shorter value than the default are not the default.
+	for _, arcs := range [][]uint64{{1, 3, 6, 1, 4, 1}, {1, 3, 6, 1, 4, 1, 9363, 0}} {
+		p := oidDflt()
+		p.O = arcs
+		b, err := p.Encode()
+		if err != nil || bytes.Equal(b, []byte{0x10}) {
+			t.Fatalf("%v encoded as % x (%v)", arcs, b, err)
+		}
+		back, err := df.DecodeOidDefaults(b)
+		if err != nil || !reflect.DeepEqual(back.O, arcs) {
+			t.Fatalf("%v decoded as %v (%v)", arcs, back, err)
+		}
+	}
+	balanced(t, "oid-prefix")
+}
+
+func TestOidDefaultCConverter(t *testing.T) {
+	bin := converter(t)
+	for _, c := range oidHandCases {
+		p := oidDflt()
+		c.mut(p)
+		aper, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if re := convPDU(t, bin, "OidDefaults", aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: C APER re-encode % x != Go % x", c.name, re, aper)
+		}
+		xer := convPDU(t, bin, "OidDefaults", aper, "-iaper", "-oxer")
+		if re := convPDU(t, bin, "OidDefaults", xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: XER round trip % x != Go % x\n%s", c.name, re, aper, xer)
+		}
+	}
+	x := strings.Join(strings.Fields(string(convPDU(t, bin, "OidDefaults",
+		[]byte{0x10}, "-iaper", "-oxer"))), "")
+	for _, el := range []string{"<o>1.3.6.1.4.1.9363</o>", "<n>1.3.7</n>", "<r>1.2.300</r>"} {
+		if !strings.Contains(x, el) {
+			t.Errorf("XER of absent members lacks %s: %s", el, x)
+		}
+	}
+}

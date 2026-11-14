@@ -53,6 +53,15 @@ enum asn1c_fitslong_e asn1c_type_fits_long(arg_t *arg, asn1p_expr_t *expr);
  */
 int asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **why);
 
+/*
+ * The stored form of a BIT STRING / OBJECT IDENTIFIER / RELATIVE-OID DEFAULT
+ * (what default_value_set installs), for the Go backend's constants. Each
+ * returns 1 and a malloc'ed result, or 0 with *why. Only after
+ * asn1c_default_callbacks_supported() said yes.
+ */
+int asn1c_default_bit_string(arg_t *arg, asn1p_expr_t *expr, uint8_t **buf, int *bits, const char **why);
+int asn1c_default_oid_arcs(arg_t *arg, asn1p_expr_t *expr, uint32_t **arcs, size_t *n, const char **why);
+
 enum asn1c_fitsfloat_e {
     RL_NOTFIT,
     RL_FITS_FLOAT32,

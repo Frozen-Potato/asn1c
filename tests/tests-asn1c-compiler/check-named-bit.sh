@@ -79,18 +79,34 @@ refuse() {
 		echo "FAIL: $name wrote the C tree"; fail=1
 	fi
 }
-# DEFAULT of a named-bit BIT STRING, in every value form the parser allows
-# (the C generator emits no default callbacks for any of them).
-refuse default-list "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-T ::= SEQUENCE { d BIT STRING { a(0), b(1) } DEFAULT { a } }
-END" 'asn1cgo: DEFAULT member T.d is out of model in module M: DEFAULT of a named-bit BIT STRING is not supported'
-refuse default-bstring "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-T ::= SEQUENCE { d BIT STRING { a(0), b(1) } DEFAULT '01'B }
-END" 'asn1cgo: DEFAULT member T.d is out of model in module M: DEFAULT of a named-bit BIT STRING is not supported'
-refuse default-ref "M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+# DEFAULT of a named-bit BIT STRING is supported: every value form the parser
+# allows generates, and the Go side gets the stored value as a constant.
+mkdir "$tmp/dflt" "$tmp/dflt/c"
+cat >"$tmp/dflt/m.asn" <<'EOT'
+M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 C ::= BIT STRING { a(0), b(1) }
-T ::= SEQUENCE { d C DEFAULT '01'B }
-END" 'asn1cgo: DEFAULT member T.d is out of model in module M: DEFAULT of a named-bit BIT STRING is not supported'
+T ::= SEQUENCE { d BIT STRING { a(0), b(1) } DEFAULT { a },
+	e BIT STRING { a(0), b(1) } DEFAULT '01'B, f C DEFAULT { a, b } }
+END
+EOT
+out=$(cd "$tmp/dflt" && "$asn1c" -S "$skel" -D c -Fgo=gen m.asn 2>&1) || {
+	echo "FAIL: named-bit DEFAULT refused"; echo "$out"; fail=1; }
+grep -q 'TDDefault = BitString{Bytes: \[\]byte{0x80}, BitsUnused: 7}' "$tmp"/dflt/gen/*/types.go || {
+	echo "FAIL: no DEFAULT constant for { a }"; fail=1; }
+grep -q 'TFDefault = C{Bytes: \[\]byte{0xc0}, BitsUnused: 6}' "$tmp"/dflt/gen/*/types.go || {
+	echo "FAIL: no DEFAULT constant for { a, b }"; fail=1; }
+# An unknown bit name stops generation and names the member.
+mkdir "$tmp/badbit" "$tmp/badbit/c"
+cat >"$tmp/badbit/m.asn" <<'EOT'
+M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+T ::= SEQUENCE { d BIT STRING { a(0), b(1) } DEFAULT { zz } }
+END
+EOT
+out=$(cd "$tmp/badbit" && "$asn1c" -S "$skel" -D c -Fgo=gen m.asn 2>&1) && {
+	echo "FAIL: unknown bit name accepted"; fail=1; }
+echo "$out" | grep -q 'DEFAULT member T.d is out of model in module M: unknown bit name `zz`' || {
+	echo "FAIL: no diagnostic for unknown bit name"; echo "$out"; fail=1; }
+[ -e "$tmp/badbit/gen" ] && { echo "FAIL: badbit wrote a Go tree"; fail=1; }
 
 # 3. An inline named-bit element of a SEQUENCE OF: a plain BitString slice
 #    element, the bit constants named after the C backend's synthesized
