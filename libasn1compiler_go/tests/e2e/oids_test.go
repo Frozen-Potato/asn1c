@@ -1,6 +1,6 @@
 // OBJECT IDENTIFIER and RELATIVE-OID (tests/e2e/oids.asn). Copied into the
 // generated module by tests/run-e2e.sh together with default_test.go (the
-// converter helpers), seqofinline_test.go (siCase / siMk / siConv) and
+// converter helpers), seqof_test.go (siCase / siMk / siConv) and
 // strings_test.go (stCase / stMk / stNorm).
 //
 // Both types are []uint64 arcs in Go. The generated C converters fill the tree

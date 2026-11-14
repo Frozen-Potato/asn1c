@@ -1,0 +1,90 @@
+Shadow DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- An inline SEQUENCE (or CHOICE) is its own Go struct, so its field names
+-- never clash with the fields of the enclosing struct, whatever the order.
+
+	ShL ::= INTEGER (0..7)
+
+	-- inner x, outer x
+	ShSeq ::= SEQUENCE {
+		a	SEQUENCE { x BOOLEAN, y INTEGER (0..3) },
+		x	BOOLEAN
+	}
+
+	-- outer field first, inner after
+	ShSeqRev ::= SEQUENCE {
+		x	BOOLEAN,
+		a	SEQUENCE { x BOOLEAN, y INTEGER (0..3) }
+	}
+
+	ShChoice ::= CHOICE {
+		a	SEQUENCE { x BOOLEAN, l INTEGER (0..7) },
+		l	INTEGER (0..7)
+	}
+
+	ShDeep ::= SEQUENCE {
+		p	CHOICE {
+			a	SEQUENCE { x BOOLEAN, l ShL },
+			l	ShL
+		}
+	}
+
+	-- sibling inline SEQUENCEs with one field name; a field named like its member
+	ShSib ::= SEQUENCE {
+		a	SEQUENCE { l BOOLEAN },
+		b	SEQUENCE { l BOOLEAN },
+		c	SEQUENCE { c BOOLEAN }
+	}
+
+END
+
+EnumHyphen DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Enumerators and named bits that differ only by a hyphen.
+
+Drift ::= ENUMERATED { d1, d-1, d2, d-2, ... }
+
+B ::= BIT STRING { b1(0), b-1(1) }
+
+T ::= SEQUENCE {
+	e	ENUMERATED { a1, a-1 },
+	d	Drift,
+	b	B
+}
+
+END
+
+HyphenMembers DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- SEQUENCE fields, CHOICE alternatives, type names and value names that
+-- differ only by a hyphen before a digit.
+
+S ::= SEQUENCE {
+	a1	SEQUENCE { x INTEGER (0..9) },
+	a-1	SEQUENCE { y BOOLEAN },
+	b1	BOOLEAN DEFAULT TRUE,
+	b-1	INTEGER (0..9) DEFAULT 4,
+	e1	ENUMERATED { p, q },
+	e-1	ENUMERATED { p, q },
+	l1	SEQUENCE OF INTEGER (0..9),
+	l-1	SEQUENCE OF SEQUENCE { z BOOLEAN }
+}
+
+Ch ::= CHOICE {
+	a1	BOOLEAN,
+	a-1	NULL,
+	c1	SEQUENCE { x INTEGER (0..9) },
+	c-1	SEQUENCE { y BOOLEAN }
+}
+
+T1 ::= BOOLEAN
+T-1 ::= INTEGER (0..3)
+
+U ::= SEQUENCE { t1 T1, t-1 T-1, s S, c Ch }
+
+Id ::= INTEGER (0..255)
+id1 Id ::= 1
+id-1 Id ::= 2
+
+END

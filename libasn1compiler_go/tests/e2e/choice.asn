@@ -1,0 +1,92 @@
+AliasChoice DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A top-level alias of a CHOICE (and an alias of an alias): C has only
+-- `typedef Orig_t Alias_t;`, so the converters must spell the target's
+-- Orig_PR enum and the Orig__t2 struct tag of the inline alternative.
+
+Orig ::= CHOICE {
+    t1 INTEGER (0..31),
+    t2 SEQUENCE { p1 INTEGER (0..23), p2 INTEGER (1..3) OPTIONAL }
+}
+Alias ::= Orig
+Alias2 ::= Alias
+L ::= SEQUENCE (SIZE(1..4)) OF Alias
+
+-- inline members of every kind under an alias: a nested CHOICE, a SEQUENCE OF
+-- and an inline SEQUENCE holding an inline SEQUENCE
+Rich ::= CHOICE {
+    a BOOLEAN,
+    n CHOICE { u INTEGER (0..3), v BOOLEAN },
+    l SEQUENCE (SIZE(1..3)) OF INTEGER (0..9),
+    s SEQUENCE { q SEQUENCE { z INTEGER (0..3) }, w OCTET STRING (SIZE(2)) }
+}
+RichA ::= Rich
+RichA2 ::= RichA
+
+-- an alias of a SEQUENCE with inline members
+Sq ::= SEQUENCE {
+    a INTEGER (0..3),
+    inl SEQUENCE { x INTEGER (0..7), y BOOLEAN OPTIONAL },
+    c CHOICE { u INTEGER (0..3), v BOOLEAN }
+}
+SqA ::= Sq
+SqA2 ::= SqA
+
+-- the C descriptor of an alias carries no PER codec: the aliases travel as
+-- members of this PDU
+Wrap ::= SEQUENCE { o Alias2, r RichA2, s SqA2 }
+
+END
+
+Reserved DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Names that are C reserved words, as CHOICE alternatives, SEQUENCE members
+-- and enumerators. asn1c upper-cases the first letter of a reserved-word
+-- struct/union member (Explicit) but keeps the lower-case _PR constant.
+
+RsH ::= SEQUENCE { explicit BOOLEAN, int INTEGER (0..3) OPTIONAL }
+
+RsC ::= CHOICE { explicit BOOLEAN, x NULL }
+
+RsE ::= ENUMERATED { explicit, auto }
+
+RsR ::= CHOICE {
+	explicit	BOOLEAN,
+	int		INTEGER (0..7),
+	auto		OCTET STRING (SIZE(2)),
+	default		SEQUENCE { a INTEGER (0..3) },
+	struct		CHOICE { p BOOLEAN, q INTEGER (0..3) },
+	x		NULL,
+	static		NULL
+}
+
+END
+
+TwoChoice DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A SEQUENCE with more than one inline CHOICE member.
+
+TwoCh ::= SEQUENCE { m CHOICE { f BOOLEAN, t NULL }, p CHOICE { b BOOLEAN, a NULL } }
+
+TwoSeq ::= SEQUENCE {
+	m CHOICE { f SEQUENCE { x BOOLEAN }, e SEQUENCE {}, k INTEGER (0..9) },
+	n INTEGER (0..255),
+	p CHOICE { b SEQUENCE { y INTEGER (0..3) }, a NULL }
+}
+
+-- An inline CHOICE inside an inline SEQUENCE alternative of an inline CHOICE,
+-- twice in one SEQUENCE.
+TwoNest ::= SEQUENCE {
+	m CHOICE {
+		s SEQUENCE { q CHOICE { u BOOLEAN, v NULL }, r CHOICE { c INTEGER (0..3), d NULL } },
+		z BOOLEAN
+	},
+	p CHOICE { s SEQUENCE { q CHOICE { u BOOLEAN, v NULL } }, z NULL }
+}
+
+-- An empty SEQUENCE alternative as the last allocation of the value: a
+-- top-level CHOICE, and the only inline CHOICE of a SEQUENCE.
+EmTop ::= CHOICE { e SEQUENCE {}, k BOOLEAN }
+EmSeq ::= SEQUENCE { m CHOICE { e SEQUENCE {}, k BOOLEAN } }
+
+END

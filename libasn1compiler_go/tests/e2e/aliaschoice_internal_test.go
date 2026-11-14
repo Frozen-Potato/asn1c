@@ -1,4 +1,4 @@
-// Aliases of a CHOICE (tests/e2e/aliaschoice.asn, built with
+// Aliases of a CHOICE (tests/e2e/choice.asn, built with
 // -findirect-choice). C has only `typedef Orig_t Alias_t;`, so the generated
 // converters of Alias, Alias2, RichA and RichA2 must spell the target's
 // Orig_PR enum and Orig__t2 struct tags: building this module is the first

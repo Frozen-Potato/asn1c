@@ -1,7 +1,7 @@
 // Mandatory extension additions (pointers in Go), INTEGER members wider than
 // int64 and a CHOICE alternative named `present` (tests/e2e/extwide.asn).
 // Copied into the generated module by tests/run-e2e.sh together with
-// seqofinline_test.go (the siCase helpers) and default_test.go (the converter
+// seqof_test.go (the siCase helpers) and default_test.go (the converter
 // helpers).
 //
 // Per case of ewCases: Go APER == the C converter's APER of the same value

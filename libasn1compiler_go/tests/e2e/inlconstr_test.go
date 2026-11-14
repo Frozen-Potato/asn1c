@@ -1,6 +1,6 @@
 // Inline (anonymous) SEQUENCE / CHOICE types as SEQUENCE members and as CHOICE
 // alternatives (tests/e2e/inlconstr.asn). Copied into the generated module by
-// tests/run-e2e.sh together with seqofinline_test.go (the siCase helpers) and
+// tests/run-e2e.sh together with seqof_test.go (the siCase helpers) and
 // default_test.go (the converter helpers).
 //
 // Every shape of the module has a value per interesting state: required and

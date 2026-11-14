@@ -1,3 +1,42 @@
+SetOf DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- SET OF: the Go list is a slice like SEQUENCE OF, and Encode puts the
+-- elements into canonical order (sorted by their standalone encodings).
+-- The first three types are the vectors of the C test 170-set-of-aper-OK.
+
+	SoInt ::= SET (SIZE(0..4)) OF INTEGER (0..255)
+	SoOcts ::= SET OF OCTET STRING
+	SoSeq ::= SET (SIZE(1..8)) OF SEQUENCE { f BOOLEAN, o OCTET STRING (SIZE(0..4)) }
+
+	-- extensible SIZE
+	SoExt ::= SET (SIZE(0..3, ...)) OF INTEGER (0..255)
+
+	-- member, OPTIONAL member, CHOICE alternative
+	SoMem ::= SEQUENCE {
+		a	SET (SIZE(0..4)) OF INTEGER (0..255),
+		flag	BOOLEAN
+	}
+
+	SoOpt ::= SEQUENCE {
+		flag	BOOLEAN,
+		b	SET (SIZE(0..4)) OF INTEGER (0..255) OPTIONAL
+	}
+
+	SoAlt ::= CHOICE {
+		a	SET (SIZE(0..4)) OF INTEGER (0..255),
+		b	BOOLEAN
+	}
+
+	-- nested lists
+	SoNest ::= SET (SIZE(0..3)) OF SET (SIZE(0..3)) OF SEQUENCE { f BOOLEAN, n INTEGER (0..7) }
+
+	-- SET OF a NULL type
+	SoN ::= NULL
+	SoNull ::= SET (SIZE(0..4)) OF SoN
+
+END
+
 PhcSet DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
 -- SET: the Go type is a struct like SEQUENCE (textual member order); the

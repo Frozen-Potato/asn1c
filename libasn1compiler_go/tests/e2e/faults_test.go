@@ -125,7 +125,7 @@ func mustEncode(t *testing.T, p *df.DefaultsPDU) []byte {
 	return b
 }
 
-// SEQUENCE OF with inline element types: every case of seqofinline_test.go
+// SEQUENCE OF with inline element types: every case of seqof_test.go
 // (primitive and constructed elements; top level, member, OPTIONAL member and
 // CHOICE alternative), encode and decode.
 func TestAllocFaultSweepSeqofInline(t *testing.T) {

@@ -1,0 +1,101 @@
+ModA DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- ClItem is also defined in clash_b.asn (ModB): the C generator names the two
+-- ModA_ClItem / ModB_ClItem, and every "struct ClItem" spelling (OPTIONAL member,
+-- SEQUENCE OF element, CHOICE alternative) must carry the prefix too.
+
+ClItem ::= SEQUENCE { a INTEGER (0..7), b BOOLEAN }
+
+TopA ::= SEQUENCE {
+	i	ClItem OPTIONAL,
+	l	SEQUENCE (SIZE(1..4)) OF ClItem,
+	c	CHOICE { p ClItem, q NULL }
+}
+
+END
+
+ModB DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+ClItem ::= SEQUENCE { x OCTET STRING }
+
+TopB ::= SEQUENCE {
+	i	ClItem OPTIONAL,
+	l	SEQUENCE (SIZE(1..4)) OF ClItem
+}
+
+END
+
+XmsA DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A named SEQUENCE OF imported by other modules.
+XsItem ::= SEQUENCE { a INTEGER (0..7) }
+XsList ::= SEQUENCE (SIZE(1..4)) OF XsItem
+
+END
+
+XmsB DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+IMPORTS XsList FROM XmsA;
+
+XsMsgOpt ::= SEQUENCE { i INTEGER (0..3), l XsList OPTIONAL }
+XsMsgReq ::= SEQUENCE { l XsList, i INTEGER (0..3) }
+-- imported by XmsC, which also imports XsList itself
+XsSide ::= SEQUENCE { i INTEGER (0..3), l XsList OPTIONAL }
+
+END
+
+XmsC DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- reaches the list both directly and through XmsB's type
+IMPORTS XsSide FROM XmsB
+        XsList FROM XmsA;
+
+XsTop ::= SEQUENCE { o XsSide, l XsList }
+
+END
+
+XbsA DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- BIT STRING shapes imported by a module that also declares its own BIT
+-- STRING (so each package has its own BitString type): a plain member, a
+-- DEFAULT member, an inline SEQUENCE OF BIT STRING and a named one.
+XbPlain ::= SEQUENCE { bm BIT STRING { c1(0), c2(1) } (SIZE(8)), n INTEGER (0..7) }
+XbDef ::= SEQUENCE { bm BIT STRING (SIZE(4)) DEFAULT '1010'B, n INTEGER (0..7) }
+XbInl ::= SEQUENCE { l SEQUENCE OF BIT STRING (SIZE(4)) }
+XbList ::= SEQUENCE OF BIT STRING (SIZE(4))
+
+END
+
+XbsB DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+IMPORTS XbPlain, XbDef, XbInl, XbList FROM XbsA;
+
+XbMsg ::= SEQUENCE {
+	p XbPlain,
+	d XbDef,
+	i XbInl,
+	l XbList,
+	own BIT STRING (SIZE(4))
+}
+
+END
+
+XoA DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Two shapes of an OPTIONAL member of an imported type, imported by a module
+-- that declares no BIT STRING of its own: an OPTIONAL member whose type is a
+-- named BIT STRING, and an OPTIONAL inline SEQUENCE OF.
+XoRnti ::= BIT STRING (SIZE(16))
+XoIt ::= SEQUENCE { n INTEGER (0..7) }
+XoBits ::= SEQUENCE { r XoRnti OPTIONAL, k INTEGER (0..7) }
+XoList ::= SEQUENCE { l SEQUENCE (SIZE(1..4)) OF XoIt OPTIONAL, k INTEGER (0..7) }
+
+END
+
+XoB DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+IMPORTS XoBits, XoList FROM XoA;
+
+XoMsg ::= SEQUENCE { b XoBits, l XoList }
+
+END

@@ -1,7 +1,7 @@
 // Restricted character string types and the two time types
 // (tests/e2e/strings.asn). Copied into the generated module by
 // tests/run-e2e.sh together with default_test.go (the converter helpers) and
-// seqofinline_test.go (siCase / siMk / siList).
+// seqof_test.go (siCase / siMk / siList).
 //
 // Every type maps to a Go string. Eleven restricted string types and both time
 // types carry the C buffer's bytes unchanged; BMPString (UCS-2) and
