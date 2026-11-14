@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #include <T.h>
+#include <U.h>
 
 #define	NPRESENCE	8	/* a e h f x o n r */
 
@@ -207,8 +208,107 @@ static void run(int aper) {
 	}
 }
 
+/*
+ * DEFAULT of an OBJECT IDENTIFIER / RELATIVE-OID given by value references:
+ * U.a .. U.i, the arcs they resolve to.
+ */
+static const asn_oid_arc_t ua[] = { 1, 3, 6, 1 };
+static const asn_oid_arc_t ub[] = { 1, 3, 6, 1, 5 };
+static const asn_oid_arc_t uc[] = { 1, 3, 6, 1, 4, 1 };
+static const asn_oid_arc_t ue[] = { 2, 5, 29, 15 };
+static const asn_oid_arc_t uf[] = { 1, 3, 6, 1, 8, 9 };
+static const asn_oid_arc_t ug[] = { 1, 3, 6, 1, 42 };
+static const asn_oid_arc_t ui[] = { 8, 9, 1 };
+
+static void check_u_defaults(const U_t *u) {
+	check_oid(u->a, ua, 4);
+	check_oid(u->b, ub, 5);
+	check_oid(u->c, uc, 6);
+	check_oid(u->d, ua, 4);	/* id-alias ::= id-base */
+	check_oid(u->e, ue, 4);	/* imported id-ext */
+	check_oid(u->f, uf, 6);
+	check_oid(u->g, ug, 5);
+	check_roid(u->i, ui, 3);
+}
+
+static void run_u(int aper) {
+	uint8_t buf[128];
+	asn_enc_rval_t er;
+	asn_dec_rval_t rv;
+	asn_codec_ctx_t ctx;
+	U_t t, *to = 0;
+	OBJECT_IDENTIFIER_t a, b, c, d, e, f, g;
+	RELATIVE_OID_t i;
+	asn_oid_arc_t other[] = { 1, 3, 6, 2 };
+	asn_oid_arc_t irel[] = { 8, 9, 2 };
+	OBJECT_IDENTIFIER_t *os[] = { &a, &b, &c, &d, &e, &f, &g };
+	const asn_oid_arc_t *dv[] = { ua, ub, uc, ua, ue, uf, ug };
+	const size_t dn[] = { 4, 5, 6, 4, 4, 6, 5 };
+	size_t k;
+	memset(&ctx, 0, sizeof(ctx));
+
+	/* Absent: only z is encoded (8 presence bits + 1). */
+	memset(&t, 0, sizeof(t));
+	t.z = 1;
+	memset(buf, 0xff, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_U, 0, &t, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_U, 0, &t, buf, sizeof(buf));
+	assert(er.encoded == 9);
+	assert(buf[0] == 0x00 && (buf[1] & 0x80));
+	rv = aper ? aper_decode(&ctx, &asn_DEF_U, (void *)&to, buf, sizeof(buf), 0, 0)
+		  : uper_decode(&ctx, &asn_DEF_U, (void *)&to, buf, sizeof(buf), 0, 0);
+	assert(rv.code == RC_OK && to);
+	check_u_defaults(to);
+	ASN_STRUCT_FREE(asn_DEF_U, to);
+	to = 0;
+
+	/* Every member equal to its default is omitted. */
+	memset(&t, 0, sizeof(t));
+	for(k = 0; k < 7; k++) {
+		memset(os[k], 0, sizeof(*os[k]));
+		assert(OBJECT_IDENTIFIER_set_arcs(os[k], dv[k], dn[k]) == 0);
+	}
+	memset(&i, 0, sizeof(i));
+	assert(RELATIVE_OID_set_arcs(&i, ui, 3) == 0);
+	t.a = &a; t.b = &b; t.c = &c; t.d = &d; t.e = &e; t.f = &f; t.g = &g;
+	t.i = &i;
+	t.z = 1;
+	memset(buf, 0xff, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_U, 0, &t, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_U, 0, &t, buf, sizeof(buf));
+	assert(er.encoded == 9);
+	assert(buf[0] == 0x00);
+	for(k = 0; k < 7; k++) FREEMEM(os[k]->buf);
+	FREEMEM(i.buf);
+
+	/* Different values are encoded and round-trip. */
+	memset(&a, 0, sizeof(a));
+	memset(&i, 0, sizeof(i));
+	assert(OBJECT_IDENTIFIER_set_arcs(&a, other, 4) == 0);
+	assert(RELATIVE_OID_set_arcs(&i, irel, 3) == 0);
+	memset(&t, 0, sizeof(t));
+	t.a = &a; t.i = &i;
+	memset(buf, 0, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_U, 0, &t, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_U, 0, &t, buf, sizeof(buf));
+	assert(er.encoded > 9);
+	assert((buf[0] & 0x81) == 0x81);	/* a and i present */
+	rv = aper ? aper_decode(&ctx, &asn_DEF_U, (void *)&to, buf, sizeof(buf), 0, 0)
+		  : uper_decode(&ctx, &asn_DEF_U, (void *)&to, buf, sizeof(buf), 0, 0);
+	assert(rv.code == RC_OK && to);
+	check_oid(to->a, other, 4);
+	check_roid(to->i, irel, 3);
+	check_oid(to->b, ub, 5);
+	check_oid(to->e, ue, 4);
+	ASN_STRUCT_FREE(asn_DEF_U, to);
+	FREEMEM(a.buf);
+	FREEMEM(i.buf);
+}
+
 int main() {
 	run(1);
 	run(0);
+	run_u(1);
+	run_u(0);
 	return 0;
 }

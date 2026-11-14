@@ -283,10 +283,16 @@ a named-bit BIT STRING is accepted: see "DEFAULT members".
   stops generation;
 - OBJECT IDENTIFIER and RELATIVE-OID with `{ 1 3 6 }`, or with
   `name(number)` arcs (`{ iso(1) org(3) 6 }`); the exported default is a
-  `[]uint64`. A bare name is read only as the first arc of an OBJECT
-  IDENTIFIER (`iso`, `itu-t`, `ccitt`, `joint-iso-itu-t`, `joint-iso-ccitt`);
-  any other bare name, or a reference to a value, stops generation, because the
-  generator does not look up the value a name stands for. The same rules as for
+  `[]uint64`. Value references are accepted (X.680 ObjIdComponents): the
+  whole DEFAULT as a reference to an OBJECT IDENTIFIER value (`DEFAULT id-base`),
+  a name inside the braces that is a value of OBJECT IDENTIFIER type (first
+  component only), of RELATIVE-OID type or of INTEGER type (`{ id-base 5 }`,
+  `{ id-base rel-x }`, `{ id-base n(arc-n) }`), also a value imported from
+  another module; the exported default holds the resolved arcs. A name the
+  generator cannot resolve (unknown, another type, a cycle) stops generation.
+  A bare name that is not a value is read only as the first arc of an OBJECT
+  IDENTIFIER (`iso`, `itu-t`, `ccitt`, `joint-iso-itu-t`, `joint-iso-ccitt`).
+  The same rules as for
   a value on the wire hold: an OBJECT IDENTIFIER has two or more arcs, a first
   arc of 0 to 2, and a second arc below 40 under root 0 or 1;
 - NULL with `NULL` (the member is `struct{}`; a present NULL always equals the

@@ -951,3 +951,100 @@ func TestOidDefaultCConverter(t *testing.T) {
 		}
 	}
 }
+
+func oidRefDflt() *df.OidRefDefaults {
+	cp := func(a []uint64) []uint64 { return append([]uint64(nil), a...) }
+	return &df.OidRefDefaults{
+		A: cp(df.OidRefDefaultsADefault), B: cp(df.OidRefDefaultsBDefault),
+		C: cp(df.OidRefDefaultsCDefault), D: cp(df.OidRefDefaultsDDefault),
+		E: cp(df.OidRefDefaultsEDefault), F: cp(df.OidRefDefaultsFDefault),
+		G: cp(df.OidRefDefaultsGDefault), I: cp(df.OidRefDefaultsIDefault),
+		Z: true,
+	}
+}
+
+func TestOidRefDefaultConstants(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		got, want []uint64
+	}{
+		{"a", df.OidRefDefaultsADefault, []uint64{1, 3, 6, 1}},
+		{"b", df.OidRefDefaultsBDefault, []uint64{1, 3, 6, 1, 5}},
+		{"c", df.OidRefDefaultsCDefault, []uint64{1, 3, 6, 1, 4, 1}},
+		{"d", df.OidRefDefaultsDDefault, []uint64{1, 3, 6, 1}},
+		{"e", df.OidRefDefaultsEDefault, []uint64{2, 5, 29, 15}},
+		{"f", df.OidRefDefaultsFDefault, []uint64{1, 3, 6, 1, 8, 9}},
+		{"g", df.OidRefDefaultsGDefault, []uint64{1, 3, 6, 1, 42}},
+		{"i", df.OidRefDefaultsIDefault, []uint64{8, 9, 1}},
+	} {
+		if !reflect.DeepEqual(c.got, c.want) {
+			t.Errorf("%s DEFAULT = %v, want %v", c.name, c.got, c.want)
+		}
+	}
+}
+
+// Hand-computed APER: eight presence bits (a b c d e f g i) then z.
+//
+//	all defaults:    00 | z=1                       -> 00 80
+//	a=1.3.6.2:       80 | 03 2b 06 02 | z           -> 80 03 2b 06 02 80
+//	i=8.9.2:         01 | 03 08 09 02 | z           -> 01 03 08 09 02 80
+var oidRefHandCases = []struct {
+	name string
+	mut  func(*df.OidRefDefaults)
+	want []byte
+}{
+	{"all-default", func(*df.OidRefDefaults) {}, []byte{0x00, 0x80}},
+	{"a-1-3-6-2", func(p *df.OidRefDefaults) { p.A = []uint64{1, 3, 6, 2} },
+		[]byte{0x80, 0x03, 0x2b, 0x06, 0x02, 0x80}},
+	{"i-8-9-2", func(p *df.OidRefDefaults) { p.I = []uint64{8, 9, 2} },
+		[]byte{0x01, 0x03, 0x08, 0x09, 0x02, 0x80}},
+}
+
+func TestOidRefDefaultHandAPER(t *testing.T) {
+	for _, c := range oidRefHandCases {
+		p := oidRefDflt()
+		c.mut(p)
+		got, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if !bytes.Equal(got, c.want) {
+			t.Errorf("%s: APER = % x, want % x", c.name, got, c.want)
+		}
+		back, err := df.DecodeOidRefDefaults(c.want)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if !reflect.DeepEqual(back, p) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, back, p)
+		}
+		balanced(t, c.name)
+	}
+}
+
+func TestOidRefDefaultCConverter(t *testing.T) {
+	bin := converter(t)
+	for _, c := range oidRefHandCases {
+		p := oidRefDflt()
+		c.mut(p)
+		aper, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if re := convPDU(t, bin, "OidRefDefaults", aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: C APER re-encode % x != Go % x", c.name, re, aper)
+		}
+		xer := convPDU(t, bin, "OidRefDefaults", aper, "-iaper", "-oxer")
+		if re := convPDU(t, bin, "OidRefDefaults", xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: XER round trip % x != Go % x\n%s", c.name, re, aper, xer)
+		}
+	}
+	x := strings.Join(strings.Fields(string(convPDU(t, bin, "OidRefDefaults",
+		[]byte{0x00, 0x80}, "-iaper", "-oxer"))), "")
+	for _, el := range []string{"<a>1.3.6.1</a>", "<b>1.3.6.1.5</b>", "<c>1.3.6.1.4.1</c>",
+		"<d>1.3.6.1</d>", "<e>2.5.29.15</e>", "<f>1.3.6.1.8.9</f>", "<g>1.3.6.1.42</g>", "<i>8.9.1</i>"} {
+		if !strings.Contains(x, el) {
+			t.Errorf("XER of absent members lacks %s: %s", el, x)
+		}
+	}
+}

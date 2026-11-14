@@ -62,4 +62,13 @@ DfltOidForms ::= SEQUENCE {
 -- dflt-roid
 DfltRoid ::= SEQUENCE { a RELATIVE-OID DEFAULT { 1 2 }, b BOOLEAN }
 
+-- dflt-oid-ref
+dflt-oid-ref-base OBJECT IDENTIFIER ::= { 1 3 6 1 }
+dflt-oid-ref-rel RELATIVE-OID ::= { 8 9 }
+DfltOidRef ::= SEQUENCE {
+    a OBJECT IDENTIFIER DEFAULT dflt-oid-ref-base,
+    c OBJECT IDENTIFIER DEFAULT { dflt-oid-ref-base 5 },
+    d OBJECT IDENTIFIER DEFAULT { dflt-oid-ref-base dflt-oid-ref-rel },
+    r RELATIVE-OID DEFAULT { dflt-oid-ref-rel 1 }, b BOOLEAN }
+
 END

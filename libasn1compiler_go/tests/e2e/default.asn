@@ -1,6 +1,8 @@
 Defaults DEFINITIONS AUTOMATIC TAGS ::=
 BEGIN
 
+IMPORTS id-ext FROM DefaultsOidBase;
+
 -- DEFAULT members: a plain value in Go, the C runtime decides omission.
 
 Colour ::= ENUMERATED { red, green, blue, ... }
@@ -83,4 +85,30 @@ OidDefaults ::= SEQUENCE {
     b   BOOLEAN
 }
 
+-- OBJECT IDENTIFIER and RELATIVE-OID DEFAULT given by value references,
+-- including a value imported from another module.
+id-base OBJECT IDENTIFIER ::= { 1 3 6 1 }
+id-alias OBJECT IDENTIFIER ::= id-base
+id-pen OBJECT IDENTIFIER ::= { id-base 4 1 }
+rel-x RELATIVE-OID ::= { 8 9 }
+arc-n INTEGER ::= 42
+
+OidRefDefaults ::= SEQUENCE {
+    a   OBJECT IDENTIFIER DEFAULT id-base,
+    b   OBJECT IDENTIFIER DEFAULT { id-base 5 },
+    c   OBJECT IDENTIFIER DEFAULT id-pen,
+    d   OBJECT IDENTIFIER DEFAULT id-alias,
+    e   OBJECT IDENTIFIER DEFAULT { id-ext 15 },
+    f   OBJECT IDENTIFIER DEFAULT { id-base rel-x },
+    g   OBJECT IDENTIFIER DEFAULT { id-base n(arc-n) },
+    i   RELATIVE-OID DEFAULT { rel-x 1 },
+    z   BOOLEAN
+}
+
+END
+
+DefaultsOidBase DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+EXPORTS ALL;
+id-ext OBJECT IDENTIFIER ::= { 2 5 29 }
 END

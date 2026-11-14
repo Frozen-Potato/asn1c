@@ -2960,156 +2960,293 @@ default_bit_string(arg_t *arg, asn1p_expr_t *expr, uint8_t **obuf, int *obits,
 }
 
 /*
- * OBJECT IDENTIFIER / RELATIVE-OID DEFAULT: the opaque text of "{ arc ... }".
- * An arc is a number or name(number); iso, itu-t, ccitt, joint-iso-itu-t and
- * joint-iso-ccitt are known as the first arc of an OBJECT IDENTIFIER. Any
- * other bare name would need the value it stands for, which the generator
- * does not look up.
+ * OBJECT IDENTIFIER / RELATIVE-OID DEFAULT (X.680 ObjIdComponents /
+ * RelativeOIDComponents). The DEFAULT is either a reference to a value, or
+ * the opaque text of "{ arc ... }". An arc is a number, name(number),
+ * name(value-of-INTEGER), the name of a value (of OBJECT IDENTIFIER type as
+ * the first arc of an OBJECT IDENTIFIER, of RELATIVE-OID type anywhere, of
+ * INTEGER type as a single arc), or, as the first arc of an OBJECT
+ * IDENTIFIER, one of iso, itu-t, ccitt, joint-iso-itu-t, joint-iso-ccitt.
+ * Names are looked up in the namespace of the module that holds the
+ * expression the DEFAULT belongs to (so imported values resolve).
  */
-static int
-default_oid_value(const asn1p_value_t *dv, int relative, uint32_t **oarcs,
-		size_t *on, const char **text, const char **why) {
-	static char msg[320];
-	static char txt[512];
-	const char *p, *e;
-	uint32_t *arcs = NULL;
-	size_t n = 0, cap = 0, i, tl;
+#define OID_MAX_DEPTH 16
 
-	if(text) *text = "";
+typedef struct { uint32_t *a; size_t n, cap; } oid_vec_t;
+
+static char oid_msg[320];
+
+static int
+oid_push(oid_vec_t *v, unsigned long long x) {
+	if(x > 0xffffffffULL) {
+		snprintf(oid_msg, sizeof(oid_msg),
+			"an arc of the DEFAULT is larger than 4294967295");
+		return 0;
+	}
+	if(v->n == v->cap) {
+		size_t nc = v->cap ? v->cap * 2 : 16;
+		uint32_t *na = realloc(v->a, nc * sizeof(*na));
+		if(!na) { snprintf(oid_msg, sizeof(oid_msg), "out of memory"); return 0; }
+		v->a = na;
+		v->cap = nc;
+	}
+	v->a[v->n++] = (uint32_t)x;
+	return 1;
+}
+
+static int oid_append(arg_t *arg, asn1p_expr_t *ctx, const asn1p_value_t *dv,
+		int relative, oid_vec_t *v, int depth);
+
+/* Look the value `name` (or `ref0`) up from `ctx`; its terminal type goes to *tt. */
+static asn1p_expr_t *
+oid_lookup(arg_t *arg, asn1p_expr_t *ctx, const char *name,
+		const asn1p_ref_t *ref0, asn1p_expr_type_e *tt) {
+	asn1p_ref_t *ref = NULL;
+	asn1p_expr_t *found, *term = NULL;
+	if(!ref0) {
+		ref = asn1p_ref_new(0, ctx->module);
+		if(!ref) return NULL;
+		asn1p_ref_add_component(ref, name, RLT_lowercase);
+		ref0 = ref;
+	}
+	found = WITH_MODULE_NAMESPACE(ctx->module, ns,
+		asn1f_lookup_symbol_ex(arg->asn, ns, ctx, ref0));
+	if(ref) asn1p_ref_free(ref);
+	*tt = A1TC_INVALID;
+	if(!found || found->meta_type != AMT_VALUE) return NULL;
+	term = WITH_MODULE_NAMESPACE(found->module, ns,
+		asn1f_find_terminal_type_ex(arg->asn, ns, found));
+	if(term) *tt = term->expr_type;
+	return found;
+}
+
+/* The value of INTEGER type `name` becomes one arc. */
+static int
+oid_integer_arc(arg_t *arg, asn1p_expr_t *ctx, const char *name,
+		oid_vec_t *v, unsigned long long *out) {
+	asn1p_expr_type_e tt;
+	asn1p_expr_t *f = oid_lookup(arg, ctx, name, NULL, &tt);
+	if(!f || tt != ASN_BASIC_INTEGER) {
+		snprintf(oid_msg, sizeof(oid_msg), "`%s` in the DEFAULT is not "
+			"the name of an INTEGER value", name);
+		return 0;
+	}
+	if(!f->value || f->value->type != ATV_INTEGER
+	   || f->value->value.v_integer < 0) {
+		snprintf(oid_msg, sizeof(oid_msg), "the INTEGER value `%s` "
+			"used as an arc is not a non-negative number", name);
+		return 0;
+	}
+	*out = (unsigned long long)f->value->value.v_integer;
+	(void)v;
+	return 1;
+}
+
+/* A whole value (reference or braces) of an OID / RELATIVE-OID value. */
+static int
+oid_append(arg_t *arg, asn1p_expr_t *ctx, const asn1p_value_t *dv, int relative,
+		oid_vec_t *v, int depth) {
+	const char *p, *e;
+	const char *what = relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER";
+
+	if(depth > OID_MAX_DEPTH) {
+		snprintf(oid_msg, sizeof(oid_msg), "the DEFAULT of %s refers to "
+			"values nested deeper than %d levels at `%s` (a cycle?)",
+			what, OID_MAX_DEPTH, ctx->Identifier ? ctx->Identifier : "?");
+		return 0;
+	}
+	if(dv && dv->type == ATV_REFERENCED) {
+		asn1p_expr_type_e tt;
+		const char *nm = asn1f_printable_reference(dv->value.reference);
+		asn1p_expr_t *f;
+		if(v->n) {
+			snprintf(oid_msg, sizeof(oid_msg), "`%s` must stand alone "
+				"or inside braces", nm);
+			return 0;
+		}
+		f = oid_lookup(arg, ctx, NULL, dv->value.reference, &tt);
+		if(!f || tt != (relative ? ASN_BASIC_RELATIVE_OID
+					 : ASN_BASIC_OBJECT_IDENTIFIER)) {
+			snprintf(oid_msg, sizeof(oid_msg), "`%s` in the DEFAULT of "
+				"%s is not the name of %s value", nm, what,
+				relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER");
+			return 0;
+		}
+		return oid_append(arg, f, f->value, relative, v, depth + 1);
+	}
 	if(!dv || dv->type != ATV_UNPARSED) {
-		snprintf(msg, sizeof(msg), "the DEFAULT of %s must be written "
-			"as { arc arc ... } with numbers or name(number); the "
-			"parser gives %s, which the generator does not resolve",
-			relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER",
-			!dv ? "no value"
-			    : dv->type == ATV_REFERENCED ? "a reference to a value"
-			    : "a value of another form");
-		*why = msg;
+		snprintf(oid_msg, sizeof(oid_msg), "the DEFAULT of %s must be "
+			"written as { arc arc ... } or be a value reference; the "
+			"parser gives %s", what,
+			!dv ? "no value" : "a value of another form");
 		return 0;
 	}
 	if(!default_unbrace(dv, &p, &e)) {
-		snprintf(msg, sizeof(msg), "the DEFAULT of %s must be written in "
-			"braces", relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER");
-		goto bad;
+		snprintf(oid_msg, sizeof(oid_msg), "the DEFAULT of %s must be "
+			"written in braces", what);
+		return 0;
 	}
 	for(;;) {
-		unsigned long long v = 0;
+		unsigned long long val = 0;
 		char name[128];
 		size_t nl = 0;
-		int have_name = 0, have_num = 0;
+		int have_num = 0;
 		while(p < e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'))
 			p++;
 		if(p == e) break;
 		if(*p >= 'a' && *p <= 'z') {
+			const char *q;
 			while(p < e && nl + 1 < sizeof(name)
 			   && ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')
 			       || (*p >= '0' && *p <= '9') || *p == '-'))
 				name[nl++] = *p++;
 			name[nl] = '\0';
-			have_name = 1;
-			{
-				const char *q = p;
-				while(q < e && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n'))
+			q = p;
+			while(q < e && (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n'))
+				q++;
+			if(q < e && *q == '(') {
+				q++;
+				while(q < e && (*q == ' ' || *q == '\t'))
 					q++;
-				if(q < e && *q == '(') {
-					q++;
-					while(q < e && (*q == ' ' || *q == '\t'))
-						q++;
-					if(!(q < e && *q >= '0' && *q <= '9')) {
-						snprintf(msg, sizeof(msg), "the arc "
-							"`%s(...)` must hold a number: "
-							"a value reference there is not "
-							"resolved by the generator", name);
-						goto bad;
-					}
+				if(q < e && *q >= '0' && *q <= '9') {
 					while(q < e && *q >= '0' && *q <= '9') {
-						v = v * 10 + (*q++ - '0');
-						if(v > 0xffffffffULL) {
-							snprintf(msg, sizeof(msg), "the "
-								"arc of `%s` is larger than "
-								"4294967295", name);
-							goto bad;
+						val = val * 10 + (*q++ - '0');
+						if(val > 0xffffffffULL) {
+							snprintf(oid_msg, sizeof(oid_msg),
+								"the arc of `%s` is larger "
+								"than 4294967295", name);
+							return 0;
 						}
 					}
-					while(q < e && (*q == ' ' || *q == '\t'))
-						q++;
-					if(!(q < e && *q == ')')) {
-						snprintf(msg, sizeof(msg), "the arc "
-							"`%s(...)` is not closed by `)`", name);
-						goto bad;
-					}
-					p = q + 1;
-					have_num = 1;
+				} else if(q < e && *q >= 'a' && *q <= 'z') {
+					char rn[128];
+					size_t rl = 0;
+					while(q < e && rl + 1 < sizeof(rn)
+					   && ((*q >= 'a' && *q <= 'z') || (*q >= 'A' && *q <= 'Z')
+					       || (*q >= '0' && *q <= '9') || *q == '-'))
+						rn[rl++] = *q++;
+					rn[rl] = '\0';
+					if(!oid_integer_arc(arg, ctx, rn, v, &val))
+						return 0;
+				} else {
+					snprintf(oid_msg, sizeof(oid_msg), "the arc "
+						"`%s(...)` must hold a number or the name "
+						"of an INTEGER value", name);
+					return 0;
 				}
+				while(q < e && (*q == ' ' || *q == '\t'))
+					q++;
+				if(!(q < e && *q == ')')) {
+					snprintf(oid_msg, sizeof(oid_msg), "the arc "
+						"`%s(...)` is not closed by `)`", name);
+					return 0;
+				}
+				p = q + 1;
+				have_num = 1;
 			}
 			if(!have_num) {
 				static const struct { const char *n; int v; } roots[] = {
 					{ "itu-t", 0 }, { "ccitt", 0 }, { "iso", 1 },
 					{ "joint-iso-itu-t", 2 }, { "joint-iso-ccitt", 2 } };
 				size_t k;
-				if(!relative && n == 0) {
+				asn1p_expr_type_e tt;
+				asn1p_expr_t *f;
+				if(!relative && v->n == 0) {
 					for(k = 0; k < sizeof(roots) / sizeof(roots[0]); k++)
 						if(!strcmp(roots[k].n, name)) {
-							v = roots[k].v;
+							val = roots[k].v;
 							have_num = 1;
 						}
 				}
 				if(!have_num) {
-					snprintf(msg, sizeof(msg), "the bare name `%s` in "
-						"an %s DEFAULT cannot be resolved: write the "
-						"arc as a number or as %s(number)%s", name,
-						relative ? "RELATIVE-OID" : "OBJECT IDENTIFIER",
-						name, relative ? "" : " (only iso, itu-t and "
-						"joint-iso-itu-t are known as the first arc)");
-					goto bad;
+					f = oid_lookup(arg, ctx, name, NULL, &tt);
+					if(!f) {
+						snprintf(oid_msg, sizeof(oid_msg), "the name "
+							"`%s` in the DEFAULT of %s is not a value "
+							"that can be found (write the arc as a "
+							"number or name(number))", name, what);
+						return 0;
+					}
+					if(tt == ASN_BASIC_OBJECT_IDENTIFIER) {
+						if(relative || v->n) {
+							snprintf(oid_msg, sizeof(oid_msg), "the "
+								"OBJECT IDENTIFIER value `%s` can only "
+								"be the first component of an OBJECT "
+								"IDENTIFIER", name);
+							return 0;
+						}
+						if(!oid_append(arg, f, f->value, 0, v, depth + 1))
+							return 0;
+						continue;
+					} else if(tt == ASN_BASIC_RELATIVE_OID) {
+						if(!oid_append(arg, f, f->value, 1, v, depth + 1))
+							return 0;
+						continue;
+					} else if(tt == ASN_BASIC_INTEGER) {
+						if(!oid_integer_arc(arg, ctx, name, v, &val))
+							return 0;
+					} else {
+						snprintf(oid_msg, sizeof(oid_msg), "the name "
+							"`%s` in the DEFAULT of %s is not a value "
+							"of OBJECT IDENTIFIER, RELATIVE-OID or "
+							"INTEGER type", name, what);
+						return 0;
+					}
 				}
 			}
 		} else if(*p >= '0' && *p <= '9') {
 			while(p < e && *p >= '0' && *p <= '9') {
-				v = v * 10 + (*p++ - '0');
-				if(v > 0xffffffffULL) {
-					snprintf(msg, sizeof(msg), "an arc of the DEFAULT "
-						"is larger than 4294967295");
-					goto bad;
+				val = val * 10 + (*p++ - '0');
+				if(val > 0xffffffffULL) {
+					snprintf(oid_msg, sizeof(oid_msg), "an arc of the "
+						"DEFAULT is larger than 4294967295");
+					return 0;
 				}
 			}
-			have_num = 1;
 		} else {
-			snprintf(msg, sizeof(msg), "unexpected `%c` in the DEFAULT "
-				"of %s: write { arc arc ... } with numbers or "
-				"name(number)", *p,
-				relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER");
-			goto bad;
+			snprintf(oid_msg, sizeof(oid_msg), "unexpected `%c` in the "
+				"DEFAULT of %s: write { arc arc ... } with numbers, "
+				"name(number) or names of values", *p, what);
+			return 0;
 		}
-		(void)have_name;
-		if(n == cap) {
-			uint32_t *na = realloc(arcs, (cap ? cap * 2 : 16) * sizeof(*arcs));
-			if(!na) { snprintf(msg, sizeof(msg), "out of memory"); goto bad; }
-			arcs = na;
-			cap = cap ? cap * 2 : 16;
-		}
-		arcs[n++] = (uint32_t)v;
+		if(!oid_push(v, val)) return 0;
 	}
+	return 1;
+}
+
+static int
+default_oid_value(arg_t *arg, asn1p_expr_t *expr, int relative, uint32_t **oarcs,
+		size_t *on, const char **text, const char **why) {
+	static char txt[512];
+	oid_vec_t vec = { NULL, 0, 0 };
+	uint32_t *arcs;
+	size_t n, i, tl;
+
+	if(text) *text = "";
+	if(!oid_append(arg, expr, expr->marker.default_value, relative, &vec, 0))
+		goto bad;
+	arcs = vec.a;
+	n = vec.n;
 	if(relative ? n < 1 : n < 2) {
-		snprintf(msg, sizeof(msg), "the DEFAULT of %s needs at least %s",
+		snprintf(oid_msg, sizeof(oid_msg), "the DEFAULT of %s needs at least %s",
 			relative ? "a RELATIVE-OID" : "an OBJECT IDENTIFIER",
 			relative ? "one arc" : "two arcs");
 		goto bad;
 	}
 	if(!relative) {
 		if(arcs[0] > 2) {
-			snprintf(msg, sizeof(msg), "the first arc of an OBJECT "
+			snprintf(oid_msg, sizeof(oid_msg), "the first arc of an OBJECT "
 				"IDENTIFIER DEFAULT must be 0, 1 or 2");
 			goto bad;
 		}
 		if(arcs[0] < 2 && arcs[1] >= 40) {
-			snprintf(msg, sizeof(msg), "the second arc of an OBJECT "
+			snprintf(oid_msg, sizeof(oid_msg), "the second arc of an OBJECT "
 				"IDENTIFIER DEFAULT under root %u must be below 40",
 				(unsigned)arcs[0]);
 			goto bad;
 		}
 		if(arcs[0] == 2 && arcs[1] > 0xffffffffU - 80) {
-			snprintf(msg, sizeof(msg), "the second arc of an OBJECT "
+			snprintf(oid_msg, sizeof(oid_msg), "the second arc of an OBJECT "
 				"IDENTIFIER DEFAULT under root 2 is too large");
 			goto bad;
 		}
@@ -3124,8 +3261,8 @@ default_oid_value(const asn1p_value_t *dv, int relative, uint32_t **oarcs,
 	if(on) *on = n;
 	return 1;
 bad:
-	free(arcs);
-	*why = msg;
+	free(vec.a);
+	*why = oid_msg;
 	return 0;
 }
 
@@ -3195,7 +3332,7 @@ default_callbacks_check(arg_t *arg, asn1p_expr_t *expr, const char **why, int *f
 	}
 	case ASN_BASIC_OBJECT_IDENTIFIER:
 	case ASN_BASIC_RELATIVE_OID:
-		if(!default_oid_value(dv, etype == ASN_BASIC_RELATIVE_OID, NULL,
+		if(!default_oid_value(arg, expr, etype == ASN_BASIC_RELATIVE_OID, NULL,
 				NULL, NULL, why)) {
 			*fatal = 1;
 			return 0;
@@ -3259,7 +3396,7 @@ asn1c_default_oid_arcs(arg_t *arg, asn1p_expr_t *expr, uint32_t **arcs,
 		*why = "not an OBJECT IDENTIFIER / RELATIVE-OID";
 		return 0;
 	}
-	return default_oid_value(expr->marker.default_value,
+	return default_oid_value(arg, expr,
 		etype == ASN_BASIC_RELATIVE_OID, arcs, n, NULL, why);
 }
 
@@ -3556,7 +3693,7 @@ try_inline_oid_default(arg_t *arg, asn1p_expr_t *expr, int relative, int out) {
 	uint32_t *arcs = NULL;
 	size_t n = 0, i;
 
-	if(!default_oid_value(expr->marker.default_value, relative, &arcs, &n,
+	if(!default_oid_value(arg, expr, relative, &arcs, &n,
 			&pv, &why))
 		return 0;
 	if(!out) {

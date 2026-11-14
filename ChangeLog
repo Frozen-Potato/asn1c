@@ -53,6 +53,16 @@
       member had no callbacks. A bare name the generator cannot resolve, an
       arc above 4294967295, or arcs that no OBJECT IDENTIFIER can have now stop
       generation with an error naming the member.
+    * C generator (also for plain C users): the DEFAULT of an OBJECT
+      IDENTIFIER / RELATIVE-OID member may use value references (X.680
+      ObjIdComponents): the whole DEFAULT as a reference to a value (also an
+      alias of one), the name of an OBJECT IDENTIFIER value as the first
+      component ({ id-base 5 }), of a RELATIVE-OID value or an INTEGER value
+      (one arc) anywhere, and name(integer-value). Names are looked up in
+      the module's namespace, so imported values resolve. An unknown name,
+      a name of another type or a cycle stops generation with an error
+      naming the member and the name. (Since the previous bullet any value
+      reference stopped generation.)
     * C generator (also for plain C users): a NULL DEFAULT member now gets
       default_value_cmp / default_value_set. A present NULL always equals the
       DEFAULT, so the encoder omits it and the decoder fills an absent one.
