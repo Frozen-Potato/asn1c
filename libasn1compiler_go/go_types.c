@@ -54,8 +54,8 @@
  * emission order asn1c itself uses (asn1c_C.c asn1c_lang_C_OpenType:1078-
  * 1093: object-set ROW order, deduped by Identifier) — NOT the ASN.1 object
  * set's numeric procedureCode/id. Verified: InitiatingMessage__value_PR
- * numbers RICsubscriptionRequest=1 (row 1) and ErrorIndication=23 (row 23 of
- * E2AP-ELEMENTARY-PROCEDURES — object rows keep their set order across the
+ * numbers SubscriptionRequest=1 (row 1) and ErrorIndication=23 (row 23 of
+ * an ELEMENTARY-PROCEDURES set — object rows keep their set order across the
  * class-merge and the extension marker); procedureCode(ErrorIndication)=2
  * would number it 3 — the .h says 23 (InitiatingMessage.h:88-110).
  *
@@ -141,8 +141,8 @@ go_types_emit_slice(FILE *out, const char *go_name, const char *elem) {
 /*
  * go_types_emit_bitstring - the shared BIT STRING helper (the mapping
  * table's BIT STRING row
- * text), kept byte-identical to the frozen decl (integer-wide
- * types.go: `struct { Bytes []byte; BitsUnused int32 }`). One per module
+ * text), fixed text
+ * (`struct { Bytes []byte; BitsUnused int32 }`). One per module
  * that owns a BIT-STRING member; go_names.c calls it once per such module.
  */
 int
@@ -159,12 +159,10 @@ go_types_emit_bitstring(FILE *out) {
 /*
  * go_types_emit_const - write one const line into a (caller-opened,
  * caller-closed) const block: `Name Type = value`, COLUMN-ALIGNED the way
- * gofmt aligns a const block (gofmt is both the formatting gate and the
- * comparison normaliser; the emitted bytes must be gofmt-clean verbatim — verified:
+ * gofmt aligns a const block (gofmt is the formatting gate; the emitted bytes must be gofmt-clean verbatim — verified:
  * gofmt pads the name column to maxNameLen+1, then the type column to
  * maxTypeLen+1, single spaces, "= value"; a wrong layout keeps the semantic
- * content but fails `gofmt -l`). Every const re-states its type — the frozen form
- * style. value is the decimal string asn1p_itoa produced during the walk
+ * content but fails `gofmt -l`). Every const re-states its type. value is the decimal string asn1p_itoa produced during the walk
  * (asn1c's own rendering; asn1p_integer.h:39).
  *
  * The caller buffers the block (name/type/value triples) so the columns are
@@ -235,7 +233,7 @@ go_types_emit_struct_open(FILE *out, const char *go_name) {
  * verbatim — gofmt never pads after a struct field's type (the last column
  * on the line), so trailing-pad here would fail `gofmt -l`. (The const block
  * DOES pad its type column — there an `= value` follows; here nothing does.
- * Verified against gofmt's own output on the frozen units.) The name width
+ * Verified against gofmt's own output.) The name width
  * is computed by the caller over the WHOLE struct (two-pass), like the const
  * block.
  */

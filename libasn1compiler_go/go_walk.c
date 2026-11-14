@@ -239,7 +239,7 @@ type_name_or_null(const asn1p_expr_t *t) {
 /* ------------------------------------------------------------------------- */
 /*
  * Resolve a fixed-type class-field reference (lowercase &field, e.g.
- * `id E2AP-PROTOCOL-IES.&id`) to the class's declared field type, the way the
+ * `id MY-PROTOCOL-IES.&id`) to the class's declared field type, the way the
  * C backend does (asn1c_C.c:2653-2655, :2710-2720). Find the CLASS top-level
  * assignment, find its &field declaration, return that decl's declared type
  * expression. E.g. &id -> ProtocolIE-ID (INTEGER); &criticality -> Criticality
@@ -624,8 +624,8 @@ walk_expr(struct walk_ctx *ctx, asn1p_expr_t *expr,
  * exactly as find_recursion parses each dump file independently.
  * ========================================================================= */
 
-/* A maximal-recursion-limit-free iterative Tarjan. The AST is small (E2SM-RC
- * is ~290 assignments), but recursion depth is unbounded in principle, so the
+/* A maximal-recursion-limit-free iterative Tarjan. The AST is small (a few
+ * hundred assignments), but recursion depth is unbounded in principle, so the
  * traversal is made iterative via an explicit work stack rather than the
  * recursive textbook form. */
 struct vertex {

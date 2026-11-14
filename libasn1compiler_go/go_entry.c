@@ -5,7 +5,7 @@
  *
  * Per recorded PDU root (go_conv_record_pdu — the walk mirrors asn1c's
  * -pdu=auto rule) three entry points are emitted into the spec's
- * <pkg>_entry.c, per the frozen entry-point shape (byte-for-byte):
+ * <pkg>_entry.c, in this fixed shape:
  *
  *   int asn1cgo_encode_<PDU>(const <P>_PDU>_flat *in, asn1cgo_buf *out,
  *                            asn1cgo_err *err)
@@ -662,8 +662,8 @@ conv_copy_dir_files(const char *srcdir, const char *dstdir) {
 
 /* Resolve a tree type base to the .h file name the C backend wrote for it
  * (asn1c keeps ORIGINAL hyphens in file names while type symbols collapse
- * them to underscores: KPM_MeasurementInfo-Action-List.h defines
- * KPM_MeasurementInfo_Action_List_t). Scans ASN1C_DESTDIR for the .h whose
+ * them to underscores: PFX_Info-Action-List.h defines
+ * PFX_Info_Action_List_t). Scans ASN1C_DESTDIR for the .h whose
  * text contains "} <base>_t;". Returns a malloc'd file name or NULL. */
 static gsmap g_hdr_ix;           /* base -> index into g_hdr_names */
 static char **g_hdr_names;
@@ -898,8 +898,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
          * symbols + tree typedefs), then the flat header. The tree-include
          * set: this package's own nodes' headers + every resolved ref/nested/
          * seqof-elem target's header (foreign packages included; quoted, one
-         * per distinct file, walk order), mirroring the frozen units' include
-         * discipline. */
+         * per distinct file, walk order), one quoted include per header. */
         s = ca(s, "#include \"rt/arena.h\"\n#include \"rt/err.h\"\n#include \"rt/types.h\"\n#include <stdlib.h>\n#include <string.h>\n");
         {
             char **incs = NULL;

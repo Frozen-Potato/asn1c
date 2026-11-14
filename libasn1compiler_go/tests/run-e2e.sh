@@ -272,7 +272,7 @@ run_stdlib_collision() {
         go build ./...
     )
 
-    # No prefix, non-colliding basename: accepted (the module is just "e2ap").
+    # No prefix, non-colliding basename: accepted (the module is just "mymod").
     work="$tmp/collide-ok"
     mkdir -p "$work/c"
     (
@@ -280,9 +280,9 @@ run_stdlib_collision() {
         env -u ASN1CGO_GO_MODULE_PREFIX \
         "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
             -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
-            -pdu=auto -D "$work/c" -Fgo="$work/e2ap" ex.asn
-    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: -Fgo=e2ap rejected" >&2; return 1; }
-    [ -f "$work/e2ap/go.mod" ] || { echo "run-e2e: -Fgo=e2ap wrote no go.mod" >&2; return 1; }
+            -pdu=auto -D "$work/c" -Fgo="$work/mymod" ex.asn
+    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: -Fgo=mymod rejected" >&2; return 1; }
+    [ -f "$work/mymod/go.mod" ] || { echo "run-e2e: -Fgo=mymod wrote no go.mod" >&2; return 1; }
 }
 
 # The hard-coded stdlib name table must match the local toolchain.

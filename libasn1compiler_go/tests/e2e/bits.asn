@@ -46,7 +46,7 @@ BEGIN
 		flag	BOOLEAN
 	}
 
-	-- the shape of E2AP's TNLinformation
+	-- a variable-size BIT STRING plus an optional fixed-size one
 	TnlInfo ::= SEQUENCE {
 		tnlAddress	BIT STRING (SIZE(1..160, ...)),
 		tnlPort	BIT STRING (SIZE(16)) OPTIONAL,

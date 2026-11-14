@@ -12,8 +12,8 @@
  *
  * Naming (derived from the IR, whose cid IS the walk's GO_MKID output):
  *   function name  <Base>_to_tree / <Base>_from_tree   (Base = prefixed cid,
- *                 underscores kept — the comparison set' RANfunction_Name_to_tree,
- *                 BinRange_Value_to_tree; prefix INCLUDED per the per-spec prefix rule)
+ *                 underscores kept — e.g. Item_Name_to_tree,
+ *                 Range_Value_to_tree; prefix INCLUDED per the per-spec prefix rule)
  *   flat type      go_flat_ir_name(t)   (<P><cid>_flat already)
  *   tree type      tree_typename(t)     (<P><cid>_t; go_conv_tree_typename)
  *   asn_DEF_       "asn_DEF_" + tree base (asn_DEF_<P><cid>)

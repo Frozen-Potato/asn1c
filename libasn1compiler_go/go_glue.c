@@ -1456,16 +1456,16 @@ emit_prim(ectx *E, flat_member *m) {
             (*E->fill) = gam((*E->fill), gfmt("\twriteBytesField(fa, %s, %s)\n", slot, acc));
             /* sizing: the plain []byte (non-alias, non-ptr, non-str) member
              * allocs its byte slice in the payload region — reserve it
-             * (the tail form after TNLinformation's starred one). */
+             * (the tail form after the starred one). */
             (*E->szt) = gam((*E->szt), gfmt("\tpayload += uintptr(len(%s))\n", acc));
         }
         /* read: a named []byte alias / plain []byte / string (ptr handled
          * above). SIZING NOTE: every fill-site
          * branch above ALREADY emitted its own szt line — the tail must
-         * emit NONE. The old tail `payload += len(...)` for is_str was a
-         * SECOND count of the same member (RANfunction-Name: payload
-         * over-reserved by exactly the sum of its string lengths — the
-         * exact-consumption invariant's first find). */
+         * emit NONE. A tail `payload += len(...)` for is_str would be a
+         * SECOND count of the same member (payload over-reserved by
+         * exactly the sum of its string lengths, breaking the
+         * exact-consumption invariant). */
         if(!ptr_ft && !ucs_done) {
             if(is_str) {
                 (*E->read) = gam((*E->read), gfmt("\t%s = readStringField(%s)\n", acc, slot));
@@ -1508,8 +1508,8 @@ emit_prim(ectx *E, flat_member *m) {
                 /* sizing (the e2connectionUpdate catch): the
                  * fill's writeBitsField allocs payload for the byte slice —
                  * the size fn MUST reserve it (same rule as the bytes member
-                 * path; the undercount panicked blockArena.allocPayload on
-                 * the first BitsField-bearing struct the corpus ever drove). */
+                 * path; an undercount panics blockArena.allocPayload on
+                 * any BitsField-bearing struct). */
                 (*E->szt) = gam((*E->szt), gfmt(
                     "\tif %s != nil {\n\t\tfixed += uintptr(sizeofBitsFlat)\n\t\tpayload += uintptr(len((*%s).Bytes))\n\t}\n",
                     acc, acc));
@@ -1554,9 +1554,8 @@ emit_prim(ectx *E, flat_member *m) {
          * A plain bool: store 0/1, read back != 0.
          * A STARRED FLAT SLOT (OPTIONAL member, int32_t *x in the .h) is a
          * pointer slot: alloc the leaf, write through it, storePtr — never
-         * the value inline into the pointer field (the KPM noLabel/SUM
-         * class caught by -asan item 2: value-in-slot made to_tree deref a
-         * garbage/1 "pointer"). */
+         * the value inline into the pointer field (value-in-slot would make
+         * to_tree deref a garbage/1 "pointer"). */
         if(go_flat_ir_member_stars(m)) {
             /* the leaf carves its slot from the 8-aligned fixed region:
              * allocate the PADDED width (8) so the region's alignment
@@ -1591,7 +1590,7 @@ emit_prim(ectx *E, flat_member *m) {
                  * dispatched here — a false wire value (int32==0) must
                  * still materialize the *bool alt (pointing at false), or
                  * Encode's selected-alt nil guard fires on it
-                 * (KPM-TestCond-valueBool-false). */
+                 * (a `false` value of a *bool alt). */
                 (*E->read) = gam((*E->read), gfmt(
                     "\tsd := *(*int32)(%s) != 0\n\t%s = &sd\n",
                     slot, acc));
@@ -1692,8 +1691,8 @@ static const char *hdf_size(ectx *E, flat_type *target) {
     /* MIRRORS hdf_fill (one increment per SCC edge, the seq-of Items hop
      * included): the size walk must trip at the same depth the fill walk
      * does — a flat ", depth" never incremented, so a cyclic value
-     * stack-overflowed the size pass instead of tripping the depth guard (caught by
-     * item-3's E_DEPTH test). Same parity form: non-SCC host = plain 0. */
+     * stack-overflowed the size pass instead of tripping the depth guard (E_DEPTH).
+     * Same parity form: non-SCC host = plain 0. */
     snprintf(buf, sizeof buf, ", %s",
              (E->depth && *E->depth) ? "depth+1" : "0");
     return buf;
@@ -1796,11 +1795,10 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
          * Go stars diverge exactly here). The POINTER form additionally
          * requires the Flat slot to BE a pointer slot (member stars): the
          * C flat writes an inline header THROUGH the address (e.g.
-         * RANfunctionsID_List rides inline inside the ItemIEs value union,
-         * &out->value.RANfunctionsID_List) — the disjunctive form emitted
+         * an ID list rides inline inside the ItemIEs value union,
+         * &out->value.IDList) — the disjunctive form would emit
          * storePtr(hdr) / *(**byte)(slot) on an inline slot (the pointer
-         * test read the items FIELD as a header; live crash on the
-         * RICserviceQuery row). Same conjunction the nested arm uses
+         * test would read the items FIELD as a header). Same conjunction the nested arm uses
          * (emit_nested's go_starred). */
         const char *sft = gf_field_type(E->owner_go, tok);
         /* four star-combination cases, keyed on (Go field star, Flat member
@@ -1812,10 +1810,9 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
          *   C sft* + !stars: INLINE header at the slot, Go *NamedSlice
          *     (the value-union ALT lists)
          *   D value + !stars: plain inline header
-         * The historical single `go_starred` disjunction (sft*)||(stars)
-         * conflated A with C: C-shaped slots got storePtr/`(**byte)` forms
-         * on an inline slot (live crash: RICserviceQuery read the items
-         * FIELD as a header). */
+         * A single `go_starred` disjunction (sft*)||(stars)
+         * would conflate A with C: C-shaped slots would get storePtr/`(**byte)`
+         * forms on an inline slot (reading the items FIELD as a header). */
         int go_starred = sft && *sft == '*' && stars;   /* case A only */
         if(go_starred && sft && *sft == '*') {
             /* the starred member's Go field is the *NamedSlice: pass
@@ -1848,18 +1845,17 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
         } else if(sft && *sft == '*' && !stars) {
             /* case C — an INLINE {items,count} header at the slot whose Go
              * field is a *NamedSlice (the value-union ALT lists, e.g.
-             * RICservice-Query-IEs value.RANfunctionsID_List: the C flat
-             * writes the list INLINE at &out->value.RANfunctionsID_List).
+             * Msg-IEs value.IDList: the C flat
+             * writes the list INLINE at &out->value.IDList).
              * fill: the nil guard selects absent-vs-present; the header is
              * written AT the slot (no allocStruct/storePtr — the slot is
              * not a pointer). read: temp + (*T)(&tmp) (a []E cannot be
              * assigned to *NamedSlice directly). sizing: the inline header
              * is PART OF THE PARENT STRUCT (its 16B ride the parent's own
              * sizeof<Parent>, already counted by the owner) — NO +16 here.
-             * The old `fixed += 16` reserved 16B nothing ever allocated
-             * (every E2AP wire with a param-container IE under-consumed by
-             * exactly 16 per inline arm — the exact-consumption
-             * invariant catches it). */
+             * A `fixed += 16` here would reserve 16B nothing ever allocates
+             * (under-consuming by exactly 16 per inline arm — the
+             * exact-consumption invariant would catch it). */
             char *dacc = gfmt("*%s", acc);
             char *tn = gfmt("sl%d", g_tmpseq++);
             char *nname = gtype_q(r);
@@ -1880,7 +1876,7 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
         } else if(stars) {
             /* case B — a by-value slice field behind a STARRED Flat header
              * slot (the by-value recursion-break shape, e.g. ChoiceList.
-             * ranParameter_List: the flat slot holds a pointer to the
+             * paramList: the flat slot holds a pointer to the
              * {items,count} header). No Go pointer, no nil guard: allocate
              * one header in the fixed region, fill it, store the pointer. */
             (*E->fill) = gam((*E->fill), gfmt(
@@ -2034,8 +2030,8 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
             /* PADDED width: a STARRED leaf's
              * alloc below uses alignInt32/Int64 bump-pointer placement — a
              * 4-byte alloc between 8-aligned neighbors forces 4B of struct
-             * padding the narrow size never reserves (RICSsubscriptionAudit
-             * undercounted by exactly 4). Reserve the padded 8 like every
+             * padding the narrow size never reserves (a struct
+             * undercounts by exactly 4). Reserve the padded 8 like every
              * sibling emitter (the _bool32 arm, the generic prim-star arm). */
             int gw0 = gprim_width(prim);
             if(gw0 < 8) gw0 = 8;
@@ -2141,11 +2137,9 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
                 /* the fill allocates the bytes/bits RECORD (sizeofBytesFlat
                  * / sizeofBitsFlat / the prim width) in the FIXED region
                  * behind the pointer slot — the sizing pass MUST add the
-                 * same fixed footprint under the same nil-guard (the
-                 * historical payload-only sizing undercounted the fixed
-                 * region by exactly the record size; live panic:
-                 * "fixed-region undercounted by 8/16" on RICaction-ToBe-
-                 * Setup-Item.ric-Action-Definition). */
+                 * same fixed footprint under the same nil-guard (payload-only
+                 * sizing would undercount the fixed region by exactly the
+                 * record size: "fixed-region undercounted by 8/16"). */
                 if(is_str) {
                     (*E->fill) = gam((*E->fill), gfmt(
                         "\tif %s != nil {\n"
@@ -2497,7 +2491,7 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
  * value rides the host field (the minted named type / <X>Value union,
  * always BY VALUE — a field-shaped spec's `Value` field). The owner_go for
  * the nested rows = the nested node's own Go name (its field rows hang
- * under their minted struct-owner name: e.g. RICsubscriptionRequestIEsValue).
+ * under their minted struct-owner name: e.g. MsgIEsValue).
  */
 static void
 emit_nested(ectx *E, flat_member *m) {
@@ -2554,8 +2548,8 @@ emit_nested(ectx *E, flat_member *m) {
         emit_items_helper(er);
         /* by-value recursion break, the nested-seqof form: the Flat
          * member is a starred {items,count} header pointer, but the Go
-         * FIELD may carry the value (RANParameterTestingItemChoiceStructure.
-         * RanParameterStructure is a VALUE struct field) — the starred Go
+         * FIELD may carry the value (a nested-structure member
+         * of a recursive CHOICE is a VALUE struct field) — the starred Go
          * arm keys on the FIELD's Go star, not the Flat member's. */
         int go_starred = ft && *ft == '*' && go_flat_ir_member_stars(m);
         if(go_starred) {
@@ -2600,15 +2594,14 @@ emit_nested(ectx *E, flat_member *m) {
          * (and the alt walk does NOT chain again: emit_choice_at's package
          * vs nested distinction reads ch != E->t).
          *
-         * DOUBLE-ADD FIX (bug 2 class): the composite consts
+         * No double-add: the composite consts
          * off<Host><M><inner> are ABSOLUTE from the node top (they carry
          * offsetof(host,M) inside them — layout.go m->offset + im->offset,
          * go_flat.c:1614; the C assert's typeof-sum spells the same). The
          * walk base for inner members must therefore stay the NODE base
          * (E->cbase), NOT the member slot: slot + composite would add
-         * offsetof(host,M) twice (caught as bug 2: KPM-ActionDefinition
-         * read Present = slot+8+8 = the Format1 pointer slot, garbage
-         * 0x1dea90e0 / code=8 on re-encode). The member slot itself is
+         * offsetof(host,M) twice (Present would be read from
+         * slot+8+8, the pointer slot of a nested member, giving garbage). The member slot itself is
          * still used where the MEMBER is addressed (the SEQ OF header at
          * the slot, below). */
         char *pv = gfmt("&%s", acc);
@@ -3130,9 +3123,9 @@ emit_items_helper(flat_type *er) {
     if(!prim_elem) {
         /* an SCC element must observe the HOST's depth (each item
          * sizes at host depth; the element's own guard+threading carries
-         * the increment from there). The old literal 0 reset the chain at
+         * the increment from there). A literal 0 here would reset the chain at
          * every named SEQ-OF boundary — the Go depth guard could never
-         * trip through a SEQ-OF cycle (caught by item-3's E_DEPTH test).
+         * trip through a SEQ-OF cycle (E_DEPTH).
          * A NON-SCC element takes no depth arg at all. */
         if(scc_elem) {
             s = gam(s, gfmt(
@@ -3650,8 +3643,8 @@ static const char *GLUE_STATICS =
     "}\n";
 
 /* the bits helpers, appended to a package's glue ONLY when its emitted
- * bodies reference them (every O-RAN package does; a spec with no BIT
- * STRING omits the pair and never resolves the BITSTR placeholder). The
+ * bodies reference them (any package with a BIT STRING does; a spec with none
+ * omits the pair and never resolves the BITSTR placeholder). The
  * chunk text is carved verbatim from the static block above. */
 static const char *GLUE_WRITE_BITS =
     "func writeBitsField(fa *blockArena, recAddr unsafe.Pointer, bs BITSTR) {\n"

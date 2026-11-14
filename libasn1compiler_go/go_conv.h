@@ -49,7 +49,7 @@
  * id_gov/crit_gov: the governing Go type NAME of the class's id and
  * criticality columns (R2 of each column's declared type — the same
  * resolution the envelope members use); the ctor layer resolves consts
- * BY GOVERNING TYPE, never by an E2AP name shape. crit_gov NULL = the
+ * BY GOVERNING TYPE, never by a name shape. crit_gov NULL = the
  * class declares no criticality column (constructors omit the field).
  * id_literal: the id cell is a bare INTEGER literal (no value assignment
  * to name a const from; the ctor carries a typed literal instead). */

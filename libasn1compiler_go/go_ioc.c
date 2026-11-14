@@ -154,9 +154,8 @@ conv_flat_name(const void *t) {
 char *
 conv_type_label(const void *t) {
     /* the recorded td->name display label (expr->Identifier verbatim,
-     * prefix-free, hyphens kept — e.g. "E2SM-KPM-RANfunction-Description",
-     * E2SM-KPM-RANfunction-Description.c:308, unprefixed even under an
-     * ASN1C_PREFIX run); falls back to the prefixed tree base when
+     * prefix-free, hyphens kept — e.g. "Function-Description",
+     * unprefixed even under an ASN1C_PREFIX run); falls back to the prefixed tree base when
      * unrecorded. */
     const char *lbl = go_conv_ir_type_label(t);
     if(lbl && *lbl) return cstrdup(lbl);

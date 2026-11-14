@@ -3,13 +3,13 @@
  *
  * Produces every package-level Go identifier the backend will emit, plus the
  * published name set consumed by the name-distribution check (dump compare).
- * It owns its OWN AST walk, separate from the (frozen, classify-only) walk in
+ * It owns its OWN AST walk, separate from the (classify-only) walk in
  * go_walk.c. The two must agree on which (module, path) nodes carry a Go name
- * — the dump is cross-referenced against the real asn1c .h index and against
- * the frozen comparison units — but they serve different purposes:
+ * — the dump is cross-referenced against the real asn1c .h index — but they
+ * serve different purposes:
  * go_walk classifies (support gate), go_names resolves (naming).
  *
- * What is named here (rule base frozen; each row cites the asn1c path
+ * What is named here (each row cites the asn1c path
  * that makes the rawCid authoritative):
  *
  *   type        one Go type per top-level type assignment (the R2 transform,
@@ -161,12 +161,12 @@ kind_is_package_scoped(go_kind_e k) {
 /* ------------------------------------------------------------------------- */
 /* R2 transform: split the C identifier on '_', upper-case the first
  * char of each segment, join. Everything else passes through verbatim. Mirrors
- * the comparator and the frozen units — no curation, no aliasing.
+ * the name-distribution check — no curation, no aliasing.
  *
- *   ranFunction_ShortName    -> RanFunctionShortName
+ *   shortName_Field          -> ShortNameField
  *   ProtocolIE_ID_id_Cause   -> ProtocolIEIDIdCause
- *   RANfunction_Name         -> RANfunctionName
- *   ProcedureCode_id_E2setup -> ProcedureCodeIdE2setup
+ *   Item_Name                -> ItemName
+ *   ProcedureCode_id_Setup   -> ProcedureCodeIdSetup
  *
  * Returns a malloc'd NUL-terminated string; empty in -> empty out.
  *
@@ -361,7 +361,7 @@ static char *own_mkid(asn1p_expr_t *e) { return own(GO_MKID(e)); }
  * stamp the prefix on every identifier uniformly; the real .h rules are:
  *   - struct-member declaration tokens: make_identifier WITHOUT prefix
  *     (MKID_safe at asn1c_C.c:98 — AMI_CHECK_RESERVED, no AMI_USE_PREFIX; the
- *     member emit at asn1c_C.c:1353): `nR_Beam_ID`, never `KPM_nR_Beam_ID`;
+ *     member emit at asn1c_C.c:1353): `beam_ID`, never `PFX_beam_ID`;
  *   - the alt/enumerator PART of a _PR enumerant (c_presence_name's suffix,
  *     asn1c_naming.c:304): make_identifier(0, expr, 0) — no prefix;
  *   - every AGGREGATE name (type tags, `asn_DEF_*`, the `_PR` enum tag, the
@@ -1069,8 +1069,8 @@ row_set_is_struct(struct name_bag *b) {
  * module (it owns the FILE); this side owns the row data (name_bag — no
  * struct mirroring across TUs). Although the dump is sorted (module, path,
  * kind, goName), DECLARATION order must be the ASN.1 WALK order (ord) — the
- * frozen comparison units pair each `type X int32` with ITS const block in ASN.1 order
- * (PrNothing heads its block; alts follow in spec order; the E2AP-PDU Pr
+ * emitted code pairs each `type X int32` with ITS const block in ASN.1 order
+ * (PrNothing heads its block; alts follow in spec order; a top-level PDU Pr
  * precedes the envelope ValuePr chain it introduces) and a sorted-by-path
  * order would interleave foreign blocks between a decl and its consts.
  *
@@ -1227,10 +1227,10 @@ qualify_foreign_const_types(struct name_bag *b, const char *module) {
 /*
  * go_emit_module_decls — write one module's leaf DECLARATIONS into its
  * open types.go: leaf `type X <underlying>` lines, the BitString helper
- * (helper rows are per-module; go_types_emit_bitstring writes the frozen
- * comparison text), and const blocks.
+ * (helper rows are per-module; go_types_emit_bitstring writes the
+ * fixed helper text), and const blocks.
  *
- * Emission order (within one module; matches the frozen units' shape):
+ * Emission order (within one module; fixed order):
  * rows are visited in dump sort order; a `type`/`inline`/`spec-key` row
  * with a leaf kind prints its leaf line; a `helper` row prints the
  * BitString struct; and every run of const rows sharing one goType prints
@@ -1242,9 +1242,8 @@ qualify_foreign_const_types(struct name_bag *b, const char *module) {
  * still lands in the block scanned at the owner row (the scan takes ALL
  * rows of that goType in the module, contiguous or not).
  *
- * value consts group by governing type across the module (frozen units:
- * one const block per governing type, e.g. the ProtocolIEID block in
- * ioc-container-subscription), which the same per-goType grouping
+ * value consts group by governing type across the module (one const block
+ * per governing type, e.g. a ProtocolIEID block), which the same per-goType grouping
  * produces: their "owner row" is the governing type's own `type` row.
  */
 /* collect_module_imports — the ONE place that decides which sibling
@@ -1491,7 +1490,7 @@ go_emit_module_decls(FILE *out, const char *module) {
                 wrote_any = 1;
             } else {
                 /* The discriminant decl `type <T>Pr int32` / `type <X>ValuePr
-                 * int32` — the frozen form pairs it with its const block. */
+                 * int32` — each decl is paired with its const block. */
                 if((prev_block || !wrote_any) && fputs("\n", out) < 0) {
                     rc = -1;
                     break;
@@ -1574,7 +1573,7 @@ go_emit_module_decls(FILE *out, const char *module) {
 
     /* Standalone const blocks: value consts whose governing type row is
      * NOT in this module (e.g. a ProtocolIE-ID const defined in
-     * E2AP-Constants: the const lives HERE, its governing type is foreign).
+     * a constants module: the const lives HERE, its governing type is foreign).
      * Emitted after the local decls, walk order, gofmt-aligned, with the
      * package-qualified type the prepass set. */
     {
@@ -1719,8 +1718,8 @@ int go_oer_disabled(void) { return (go_compiler_flags & A1C_GEN_OER) == 0; }
  *           range" and the unconstrained-INTEGER_t failure klaxon)
  *   int64   iff both edges are values and fit int64
  *   else    the generator FAILS (exit 70) naming the type — "no
- *           []byte fallback until a real instance and a frozen precedent
- *           exist" (none in scope today).
+ *           []byte fallback until a real instance exists" (none in
+ *           scope today).
  * Returns the GLEAF_* for the INTEGER, printing the failure diagnostic and
  * setting failed on the bag when neither fits.
  */
@@ -1739,9 +1738,8 @@ classify_integer_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     case FL_FITS_UNSIGN: return GLEAF_UINT64;
     case FL_PRESUMED:
         /* Native `long` WITHOUT -fwide-types (asn1c_misc.c:453-454): an
-         * unconstrained INTEGER like `RIC-Format-Type ::= INTEGER` (E2SM-
-         * COMMON-IEs:132) — asn1c emits `typedef long` (RIC-Format-Type.h:
-         * 22), so the Go type is int64. FL_PRESUMED is the native branch;
+         * unconstrained INTEGER like `Format-Type ::= INTEGER` — asn1c emits
+         * `typedef long` (Format-Type.h), so the Go type is int64. FL_PRESUMED is the native branch;
          * only FL_NOTFIT is the INTEGER_t branch. */
         return GLEAF_INT64;
     default: break;   /* FL_NOTFIT: INTEGER_t (or -fwide-types forced wide) */
@@ -1779,8 +1777,7 @@ classify_integer_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     /* An extensible range's extension addition can exceed the root bound;
      * the decision uses the constraint as asn1c applies it (asn1c_type_fits_
      * long treats extensible wide ranges as NOTFIT). A (0..2^36−1,...) root
-     * with open extension still fits uint64 per the integer-wide frozen unit
-     * (GNB-CU-UP-ID is extensible? no — it is a plain 0..2^36−1; treat an
+     * with open extension still fits uint64 (treat an
      * extensible range conservatively: only accept when BOTH edges are
      * concrete values). */
     if(left.type != ARE_VALUE || right.type != ARE_VALUE) {
@@ -2253,7 +2250,7 @@ done:
                 g_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
             }
-            /* one constructor per E2AP IOC row into <pkg>/
+            /* one constructor per IOC row into <pkg>/
              * constructors.go (reads the name rows through the same
              * surface + the go_ioc tables; no hook change). */
             if(rc == 0) {
@@ -2422,9 +2419,9 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
     struct_scope_open(ctx->bag, choice_go);
     /* choice-const: <Choice>PrNothing. rawCid = <Cid>_PR_NOTHING. Value 0:
      * asn1c's _PR enum lists NOTHING first with no explicit value
-     * (asn1c_C.c:984), so the implicit numbering makes NOTHING=0 (the comparison unit
+     * (asn1c_C.c:984), so the implicit numbering makes NOTHING=0 (the
      * `<T>PrNothing <T>Pr = 0` row, the const-naming rule). The const's TYPE is the
-     * discriminant <Choice>Pr (frozen: `E2APPDUPrNothing E2APPDUPr = 0`),
+     * discriminant <Choice>Pr (e.g. `MsgPrNothing MsgPr = 0`),
      * not the CHOICE struct itself (the struct body). */
     {
         char *raw = str_append(strdup(""), choice_cid);
@@ -2522,11 +2519,11 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
         }
         /* field row: the alt's data pointer. struct-scoped to CHOICE.
          * CHOICE emission: the alt field's TYPE — always a POINTER ("every alt a
-         * pointer, leaves included"; the frozen units carry *BitString for a
+         * pointer, leaves included"; the emitted structs carry *BitString for a
          * BIT-STRING alt, *uint64 for an INTEGER alt, and NO field at all for
          * a NULL alt — a NULL alt emits no Go field, only its Pr const
-         * (the C union member is NULL_t, a zero-size payload; the frozen unit
-         * MeasurementRecordItem emits no NoValue/NotSatisfied field while
+         * (the C union member is NULL_t, a zero-size payload; a CHOICE with
+         * NULL alts emits no field for them while
          * still emitting their Pr consts; the glue never raises
          * E_CHOICE_BAD for a selected NULL alt). So NO field row at all is
          * emitted for a NULL alt, keyed on the chased terminal's class ==
@@ -2551,8 +2548,8 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             }
             if(go_construct_classify(aterm) == GO_CONSTR_NULL) {
                 /* a NULL alt emits NO Go field, only its Pr const —
-                 * the comparison unit MeasurementRecordItem shape (noValue/
-                 * notSatisfied carry consts but no field; the C union member
+                 * the shape of a CHOICE with NULL alts (they carry
+                 * consts but no field; the C union member
                  * is NULL_t, a zero-size payload). The dump emits NO field
                  * row for it either (the index side drops it in lockstep) —
                  * NOT an empty-typed row: the dump invariant rejects
@@ -2594,11 +2591,11 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 if((alt->marker.flags & EM_INDIRECT)) cstars = 1;
                 if(alt->expr_type == ASN_BASIC_ENUMERATED) {
                     /* an inline ENUMERATED alt collapses to the bare int32
-                     * slot (the ENUMERATED mapping row, the same form the frozen units author
+                     * slot (the ENUMERATED mapping row, the same form used
                      * for inline-enum members; the .h e_<X>__<alt> enum tag
                      * is not a scalar alias) — NO named alt leaf is minted
-                     * on the Flat side (flatemit-check flat-name red on the
-                     * minted-leaf form). */
+                     * on the Flat side (a minted leaf would not match the C
+                     * flat naming). */
                     cprim = "int32_t";
                 } else if(go_is_struct_kind(alt->expr_type)
                           || alt->expr_type == ASN_CONSTR_CHOICE
@@ -2691,8 +2688,8 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             }
         }
         /* An alt that is an inline ENUMERATED mints the named type
-         * <Choice><Alt> + enum-consts under it (e.g. TestCond-Type.aMBR ->
-         * TestCondTypeAMBR; the real .h compounds the parent into the enum and
+         * <Choice><Alt> + enum-consts under it (e.g. Cond-Type.rate ->
+         * CondTypeRate; the real .h compounds the parent into the enum and
          * every enumerator). An inline CHOICE alt mints <Choice><Alt> too and
          * recurses via emit_choice (the CHOICE pass: that recursion now marks its own
          * inline row a struct owner + types its alt slots). An inline SEQUENCE
@@ -2708,7 +2705,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             char *inline_go = str_append(strdup(""), choice_go);
             inline_go = str_append(inline_go, altgo);
             /* an inline tag is an AGGREGATE name — prefix once, parts
-             * unprefixed (asn1c's compound tag KPM_X__y, never KPM_X__KPM_y;
+             * unprefixed (asn1c's compound tag PFX_X__y, never PFX_X__PFX_y;
              * construct_base_name flag=0, asn1c_naming.c:185-186). */
             char *inline_cid = go_cid_compound(choice_cid, "__", altcid);
             char *alt_path = make_path(parent_path, alt->Identifier);
@@ -3044,13 +3041,13 @@ static int field_shaped_element(struct walk_ctx *ctx, asn1p_expr_t *elem);
  * its envelope members — exactly as a plain SEQUENCE does. The real C
  * struct `typedef struct <X> { <id|procedureCode>; <criticality>; struct <X>
  * __value { ... } value; asn_struct_ctx_t _asn_ctx; }` carries the envelope
- * members and the `value` wrapper; the Go struct (per the frozen units) is
+ * members and the `value` wrapper; the Go struct is
  * `{ Id|ProcedureCode; Criticality; Value <X>Value }` — the envelope members as
  * fields, the `value` wrapper as ONE `Value` field typed by the union. The
  * discriminant `present` lives on the <X>Value UNION (not on the IEs struct), so
  * it is NOT a field here (it is emitted as a choice-const + union alt field in
- * emit_spec_value_alts). The frozen rule: "a field-shaped specialization
- * is a type, so emit it as a struct with field rows for its members".
+ * emit_spec_value_alts). The rule: a field-shaped specialization
+ * is a type, so it is emitted as a struct with field rows for its members.
  *
  * Fail loud if the specialization has NO open-type &Value member (the one shape
  * invariant rests on): a field-shaped spec without it is an unforeseen
@@ -3061,7 +3058,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
     /* a field-shaped specialization's names belong in X's module — the
      * module that DEFINES the bound object set — NOT ctx->module (the template's
      * module: asn1c attaches every clone's module back-pointer to the parameter-
-     * ized type's home, e.g. E2AP-Containers for all ProtocolIE-Field clones).
+     * ized type's home, e.g. the container module for all ProtocolIE-Field clones).
      * Resolve X's module from the IOC objset (the same resolution emit_spec_
      * value_alts makes) and rebind ctx->module to it for the whole spec emit, so
      * every emit_name in this function AND emit_spec_value_alts attributes to X.
@@ -3084,8 +3081,8 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
 
     /* spec-key: R2(X). rawCid = the real C struct identifier of the clone
      * (asn1c's `typedef struct <X_cid> {...} <X_cid>_t;` — the verbatim tag,
-     * underscore-preserving, e.g. RICaction_ToBeSetup_ItemIEs, NOT the
-     * _-collapsed Go name RICactionToBeSetupItemIEs). */
+     * underscore-preserving, e.g. Action_ToBeSetup_ItemIEs, NOT the
+     * _-collapsed Go name ActionToBeSetupItemIEs). */
     emit_name(ctx->bag, ctx->module, path_key, GK_SPEC_KEY,
               own(x_cid), strdup(x_go));
     /* struct-body stage: the specialization's Go struct (envelope + the Value union
@@ -3093,7 +3090,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
     row_set_is_struct(ctx->bag);
     /* Flat: the field-shaped spec IS a Flat struct
      * in X's module ({id/procedureCode, criticality, value{present,alts}}),
-     * the frozen E2AP_RICaction_ToBeSetup_ItemIEs_flat / <Msg>_IEs_flat
+     * the PFX_Action_ToBeSetup_ItemIEs_flat / <Msg>_IEs_flat
      * shape. Members land on it through the envelope walk below. */
     (void)go_flat_struct(x_cid, ctx->module);
     go_flat_label_cur(seq_terminal->Identifier);   /* td->name label */
@@ -3108,7 +3105,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
      * `field` for each PLAIN envelope member (id/procedureCode/criticality) AND
      * for the open-type `value` member (which becomes the single `Value` field).
      * The open-type member is itself a member of the SEQUENCE body; detect it
-     * with go_construct_is_open_type (the same test the frozen walker uses). An
+     * with go_construct_is_open_type (the same test the classify walk uses). An
      * open-type member does not carry the envelope; it becomes `Value` (typed by
      * the <X>Value union emitted below). */
     asn1p_expr_t *open_member = NULL;
@@ -3202,12 +3199,12 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
         return;
     }
     /* The open-type member becomes the single `Value` field (the union holder).
-     * goName = `Value` (the envelope's value slot, matching the frozen unit
-     * `Value <X>Value>`); the path leaf is the member's ASN.1 identifier so the
+     * goName = `Value` (the envelope's value slot, i.e. the field
+     * `Value <X>Value`); the path leaf is the member's ASN.1 identifier so the
      * dump's provenance reflects the actual member (the index keys the field by
      * goName). struct-body stage: its field TYPE is the <X>Value union (by VALUE — the
-     * envelope's value slot is the union struct itself, matching the frozen units
-     * `Value RICactionToBeSetupItemIEsValue`). */
+     * envelope's value slot is the union struct itself
+     * (`Value ActionToBeSetupItemIEsValue`). */
     {
         const char *leaf = open_member->Identifier ? open_member->Identifier
                                                    : "Value";
@@ -3234,8 +3231,8 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
              * emit_nested dispatches on is_choice — without the flag the
              * union walked LINEARLY (fill/read of EVERY alt slot, nil *T
              * handed to the selected alt's fill, unselected pointer slots
-             * deref'd on read: the E2AP-envelope round trip faults at
-             * DecodeE2APPDU).
+             * deref'd on read: a PDU-envelope round trip faults at
+             * decode).
              * flat_new_type dedups by (cid, module), so this mint lands the
              * flag ON the pre-minted node above — but go_flat_choice ALSO
              * re-binds the cur register to it; emit_spec's caller keeps
@@ -3319,8 +3316,8 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
      * ProtocolIE-Field's value member references &Value; an envelope's value
      * member references &InitiatingMessage / &SuccessfulOutcome / ... The field
      * name is component[1] of the member's reference; the IOC row stores each
-     * class-field under "&<field>". The union name is <X>+"Value" regardless (the
-     * the frozen unit's InitiatingMessageValuePr<X> attests). */
+     * class-field under "&<field>". The union name is <X>+"Value" regardless
+     * (cf. InitiatingMessageValuePr<X>). */
     asn1p_expr_t *valmember = is_field_shaped_spec(seq_terminal);
     /* components[1].name already carries the leading '&' ("&Value",
      * "&InitiatingMessage"), exactly as the IOC row's field Identifier does — so
@@ -3375,7 +3372,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * "Value" + "Present"), mirroring the index bucketing (the wrapper's
          * `present` member routes to the compounded <X>Value owner); an
          * envelope-scoped path would attribute it to the IEs struct, which
-         * carries no Present (the frozen envelope is {Id, Criticality,
+         * carries no Present (the envelope is {Id, Criticality,
          * Value}). */
         {
             char *base = make_path(parent_path, "Value");
@@ -3428,7 +3425,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
      * cloned in that same deduped row order — asn1c_lang_C_OpenType:1086-1092
      * — and the _PR enum carries no explicit values, so implicit numbering IS
      * the row order). Verified non-sequential case: InitiatingMessage__value_
-     * PR_ErrorIndication = 23 (row 23 of E2AP-ELEMENTARY-PROCEDURES) while
+     * PR_ErrorIndication = 23 (row 23 of an ELEMENTARY-PROCEDURES set) while
      * procedureCode(id-ErrorIndication) = 2 — InitiatingMessage.h:88-110. */
     int value_seq = 0;
     for(size_t r = 0; r < ioc.ioct->rows; r++) {
@@ -3461,7 +3458,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * value ++value_seq renders below), alt_token = the union member
          * token, alt_msg = the payload's own prefixed cid (GO_MKID of the
          * chased terminal). The envelope marker (procedure-dispatch) keys on the id
-         * member: column 0 of an E2AP-ELEMENTARY-PROCEDURES row is
+         * member: column 0 of an ELEMENTARY-PROCEDURES row is
          * &procedureCode, of a PROTOCOL-IES row &id.
          *
          * The recognized dispatch spellings are exactly &id, &procedureCode
@@ -3491,16 +3488,16 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                 const char *fid = ocell->field->Identifier;
                 /* the cell value: an INTEGER literal (id-dispatch &id rows) or a
                  * REFERENCE to a value assignment (procedure-dispatch: PROCEDURE CODE
-                 * id-RICsubscription — chase the terminal for the integer;
+                 * id-Subscription — chase the terminal for the integer;
                  * CRITICALITY reject is an ENUMERATED reference likewise). */
                 /* VALUE-ASSIGNMENT chase (id-dispatch and procedure-dispatch id cells): the cell
-                 * value references a value assignment (id-RICrequestID ::=
-                 * 29 / id-RICsubscription ::= 8). Resolve by the SAME
+                 * value references a value assignment (id-RequestID ::=
+                 * 29 / id-Subscription ::= 8). Resolve by the SAME
                  * read-only lookup chain the C backend's IOC emitter uses
                  * (asn1c_ioc.c:161-171 — asn1f_lookup_symbol_ex loop until
                  * the value is not ATV_REFERENCED); NOT asn1f_find_terminal_
                  * value (it resolves in place and re-fatal'd the C naming
-                 * pass on E2AP). */
+                 * pass on such modules). */
                 asn1p_expr_t *cv = ocell->value;
                 while(cv && cv->value
                       && cv->value->type == ATV_REFERENCED) {
@@ -3781,9 +3778,8 @@ member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path) {
      * EM_INDIRECT on an OPTIONAL member too, giving 0x17 — OPTIONAL still).
      * So:
      *   FALSE-STAR trap (bit test `f & EM_OPTIONAL`): 0x11 & 0x07 = 0x01 ->
-     *     a mandatory recursion-broken member stars (caught: a frozen
-     *     RANParameterDefinition by-value RanParameterDefinitionChoice failed
-     *     full-tree -cmp as *RANParameterDefinitionChoice).
+     *     a mandatory recursion-broken member stars (a by-value
+     *     member of a recursive CHOICE type would be emitted as a pointer).
      *   STAR-LOSS trap (exact equality `== EM_OPTIONAL`): an OPTIONAL member
      *     carrying extra bits (0x17) compares unequal and loses its star
      *     ("OPTIONAL is always *X" — the star must survive).
@@ -3864,7 +3860,7 @@ column_governing_go(struct walk_ctx *ctx, asn1p_expr_t *field) {
  * behind it)? asn1p mints the literal's own numeric text as the resolved
  * expr's Identifier ("1" for {ID 1}), while a value-assignment reference
  * chases to the assignment node whose Identifier is the assignment's own
- * (id-RICrequestID — a legal ASN.1 identifier always starts with a
+ * (id-RequestID — a legal ASN.1 identifier always starts with a
  * lowercase letter, never a digit, so a digits-only Identifier is
  * unambiguous). */
 static int
@@ -3948,8 +3944,8 @@ qualify_field_types(struct name_bag *b) {
  * qualification of every slice-owner row's ELEMENT type (the slice side of
  * qualify_field_types; the same qualify_type lookup over the same table). A
  * `type X []pkg.Y` alias may reference an element assignment its module
- * references across a module boundary (e.g. e2ap_pdu_contents' container
- * slices over the e2ap_pdu_contents-declared ...ItemIEs — same-module there —
+ * references across a module boundary (e.g. a container module's
+ * slices over the ...ItemIEs it declares itself — same-module there —
  * and a cross-module element in a future spec); the bare stored name is
  * qualified once the bag is complete. Primitives (int64, []byte, string,
  * BitString) never match a type row and stay untouched. */
@@ -4799,8 +4795,8 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
      * marker bits beyond EM_OPTIONAL. The row INDEX is retained: the SEQ-OF
      * mint below emits its own inline row AFTER this one, and the field's
      * field_type must land on THIS row (row_set_field_type writes n_rows-1,
-     * which by then is the inline row — the param-container bug that left
-     * RICsubscriptionRequest's emitted body empty). */
+     * which by then is the inline row; a mismatch left the
+     * emitted body of a parameterized container empty). */
     int field_row_ix;
     {
         char *path = make_path(parent_path, cid);
@@ -4873,17 +4869,16 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * naming rule: the
              * anonymous inline SEQUENCE/CHOICE/ENUMERATED/SEQ-OF at a member
              * is a named Go type <Parent><Member>; an inline ENUMERATED is
-             * `type X int32` + consts — the plain-sequence frozen unit's
-             * RICIntegratedReportStyleItemRicMultipleIndividualReportingSupport).
+             * `type X int32` + consts — e.g. a SEQUENCE member
+             * `ReportingSupport` becomes `ItemReportingSupport`).
              * SEQUENCE/CHOICE/SEQ-OF inline rows carry GLEAF_NONE (bodies are
              * struct-body); a SEQ-OF of a plain leaf is a slice-stage alias. */
             if(child->expr_type == ASN_BASIC_ENUMERATED) {
                 row_set_leaf(ctx->bag, GLEAF_ENUM);
                 /* Flat: NO leaf typedef mint — an inline ENUM member
-                 * is the bare int32 slot only (the frozen units author no
-                 * <P>__<m>_flat leaf; the .h's e_<P>__<m> enum tag is not a
-                 * scalar alias the mapping table's Flat column maps). Caught red by
-                 * flatemit-check (flat-name) before this fix. */
+                 * is the bare int32 slot only (no
+                 * <P>__<m>_flat leaf is authored; the .h's e_<P>__<m> enum tag is not a
+                 * scalar alias the mapping table's Flat column maps). */
             }
         }
 
@@ -4947,7 +4942,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * inline name (the real .h: `typedef enum <P>__<member> { <P>__<member>_
          * <enumerator> }`). asn1c compounds the parent cIdent into both the enum
          * and every enumerator cIdent, so R2 of the compounded enumerator is the
-         * full `<P><Member><Enumerator>` const the frozen units declare. Go_walk does
+         * full `<P><Member><Enumerator>` const declared. Go_walk does
          * NOT descend here (it classifies the member terminal without recursing),
          * but ENUMERATED IS a supported terminal — naming it stays within the
          * supported-construct set. The real cid prefix (inline_cid) reproduces
@@ -5094,7 +5089,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
      * SingleContainer / ContainerList {{X}} reference — the asn1c C type is a
      * `ProtocolIE_Container_<N>P<slot>_t`), exactly as go_walk.c walk_child:330-
      * 346 chases the terminal. A container specialization at a member is the
-     * named slice: it mints a Go type <Parent><Member> (the comparison unit's
+     * named slice: it mints a Go type <Parent><Member> (e.g.
      * `<Msg>ProtocolIEs`), emitted as an `inline` row. */
     asn1p_expr_t *terminal = child;
     if(child->expr_type == A1TC_REFERENCE
@@ -5109,17 +5104,16 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         /* Only a param-container specialization (a SEQUENCE OF whose element is
          * itself a field-shaped specialization — a `ProtocolIE-Field {{...}}`,
          * the asn1c `ProtocolIE_Container_<N>P<slot>_t`) mints the
-         * named slice <Parent><Member> (the comparison unit's `<Msg>ProtocolIEs`). A
+         * named slice <Parent><Member> (e.g. `<Msg>ProtocolIEs`). A
          * plain reference to a NAMED top-level SEQUENCE-OF does not (that type
          * already has its own `type` row, walked as a top-level assignment);
          * the chase landing on a hand-authored assignment is detected by
          * lhs_params==NULL && spec_index==-1 (a clone carries spec_index>=0 —
-         * the same marker walk_names_expr gates the template walk on). Caught
-         * by the full-tree -cmp: RICsubscriptionDetails.ricAction-ToBe-Setup-
-         * List (a reference to the named RICactions-ToBe-Setup-List := SEQUENCE
-         * OF ProtocolIE-SingleContainer {{...}}) minted
-         * RICsubscriptionDetailsRicActionToBeSetupList where the named-type rule names the
-         * field by the assignment's own RICactionsToBeSetupList. */
+         * the same marker walk_names_expr gates the template walk on). A
+         * member `Details.items-List` referencing the named
+         * `Items-List ::= SEQUENCE OF ProtocolIE-SingleContainer {{...}}`
+         * must not mint DetailsItemsList; the named-type rule names the
+         * field by the assignment's own ItemsList. */
         asn1p_expr_t *elem = TQ_FIRST(&terminal->members);
         int named_top_level_seqof =
             terminal != child
@@ -5169,7 +5163,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * <ProtocolIE_Container_85P0> id, GO_MKID of the clone expr
              * carries the _<N>P<n> suffix), holding {<ItemIEs>_flat *items;
              * size_t count;}; the MESSAGE's member row references it by
-             * that name (the frozen `ProtocolIE_Container_85P0_flat
+             * that name (the `ProtocolIE_Container_85P0_flat
              * protocolIEs` shape — a BARE name, no run prefix on clone
              * family names). The ItemIEs element cid:
              * slice_element_type's chase target == the field-shaped clone
@@ -5254,7 +5248,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         } else if(tk == GO_CONSTR_SEQUENCE_OF) {
             /* a reference to a NAMED top-level SEQUENCE OF: the
              * member is typed by the assignment's own named {items,count}
-             * typedef (the frozen KPM_BinRangeList_flat binRangeListX
+             * typedef (a `PFX_BinRangeList_flat` member
              * shape); never a re-nested wrapper. */
             char *flat_tcid = own(GO_MKID(terminal));
             char *flat_mtok = go_mk_member(child);
@@ -5407,8 +5401,8 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
            && (governing->expr_type == ASN_BASIC_INTEGER
                || governing->expr_type == ASN_BASIC_ENUMERATED)) {
             /* the #define token is an aggregate — prefix once, parts
-             * unprefixed (the .h: E2AP_ProcedureCode_id_E2setup, never
-             * ..._id_E2AP_E2setup). own() each part into a named local BEFORE
+             * unprefixed (the .h: PFX_ProcedureCode_id_Setup, never
+             * ..._id_PFX_Setup). own() each part into a named local BEFORE
              * the second GO_MKID: GO_MKID returns the SHARED static buffer
              * (asn1c_misc.c:60), so passing two live GO_MKID returns aliases
              * one buffer (both parts read the same last-computed string).
@@ -5462,7 +5456,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
     /* a parameterized-type TEMPLATE emits nothing in Go. A parameterized
      * type's clones are reached via the specialization-recursion loop above
      * (lhs_params && spec_index==-1); asn1c attaches each clone's module back-
-     * pointer to the TEMPLATE's module (e.g. E2AP-Containers for every
+     * pointer to the TEMPLATE's module (e.g. the container module for every
      * ProtocolIE-Container specialization), so a .h-banner module attribution
      * would wrongly place a swarm of names in the clone-header module. The Go
      * placement is instead: a container/template clone that is NOT field-shaped
@@ -5493,15 +5487,15 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
          * `typedef <resolved_clone>_t <alias>_t;`) resolves to the SAME field-
          * shaped clone as the referenced parameterized type. That resolved clone
          * is named independently (the referenced type's own specialization walk
-         * emits its spec-key, e.g. RICactionToBeSetupItemIEs). The alias mints no
+         * emits its spec-key, e.g. ActionToBeSetupItemIEs). The alias mints no
          * new name — collapse (emit nothing) so the two don't double-name one
          * C type. Same shape, not a collision. A directly-defined field-
          * shaped SEQUENCE has AMT_TYPE; only an alias-to-parameterized-type is
          * AMT_TYPEREF. */
         if(expr->meta_type == AMT_TYPEREF) {
             /* Flat (alias collapse): the alias clone emits a Flat
-             * ALIAS of the resolved clone's Flat (the frozen
-             * `typedef E2AP_RICaction_ToBeSetup_ItemIEs_flat
+             * ALIAS of the resolved clone's Flat (e.g.
+             * `typedef PFX_Action_ToBeSetup_ItemIEs_flat
              * ProtocolIE_SingleContainer_88P0_flat;`). The alias cid is the
              * clone's own ACE id (BARE name, no run prefix on clone family
              * names); the target is the resolved field-shaped clone's cid. */
@@ -5516,7 +5510,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                      * module that DEFINES the bound object set — resolved
                      * the same way emit_spec does (asn1c_get_ioc_table's
                      * objset->module; the clone's own ->module back-pointer
-                     * names the TEMPLATE's module (E2AP-Containers), which
+                     * names the TEMPLATE's module (the container module), which
                      * would strand the alias in a header that never
                      * includes its target). */
                     arg_t a2;
@@ -5583,7 +5577,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * type; only inline constructs use the mapping-table type directly — a plain or
      * reference leaf assignment is named). classify_leaf resolves the
      * underlying via asn1c's own machinery (asn1c_type_fits_long for INTEGER,
-     * asn1c_misc.c:408; the frozen classifier for the rest). Constructed
+     * asn1c_misc.c:408; the leaf classifier for the rest). Constructed
      * kinds (SEQUENCE/CHOICE/SEQ-OF) carry GLEAF_NONE — their bodies are
      * the struct-body stage; ENUMERATED classifies GLEAF_ENUM and pairs with the emit_enum
      * const values below. */
@@ -5648,8 +5642,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
         /* slice stage (the slice-alias naming rule): a SEQUENCE-OF type assignment declares
          * the named slice alias `type X []Elem` right at its own `type` row
          * (emitted above; no row appended between it and here). SIZE
-         * constraints and a `...` do not change the shape (the frozen
-         * BinRangeList / MeasurementInfoList forms). The ELEMENT carries
+         * constraints and a `...` do not change the shape. The ELEMENT carries
          * the same one-resolver rule as every slice shape
          * (slice_element_type): a reference element is the assignment's
          * own goName (qualified by the prepass), an inline
@@ -5708,7 +5701,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
             /* Flat: the named SEQ OF — the element cid is the
              * chased terminal's own cid (a reference element; an inline
              * leaf element already failed loud above). A SingleContainer
-             * clone element takes its BARE clone id (frozen units: the
+             * clone element takes its BARE clone id (the
              * 88P0 list's items read ProtocolIE_SingleContainer_88P0_flat,
              * the alias of the ItemIEs Flat). */
             {

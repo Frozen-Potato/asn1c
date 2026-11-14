@@ -46,8 +46,8 @@ int go_flat_struct_nested(const char *cid, const char *module);
 /* Save/restore the current-struct register (the cur_ix the member hooks
  * target): the walk saves before recursing into an inline construct's CHOICE
  * / SEQUENCE member body and restores after, so a member AFTER the inline
- * construct lands on the ENCLOSING struct again (the flatemit-check
- * member-class check: nextMathOp landed inside the paramType inline CHOICE). */
+ * construct lands on the ENCLOSING struct again (otherwise
+ * a member would land inside the preceding inline CHOICE). */
 int go_flat_cur_get(void);
 void go_flat_cur_restore(int ix);
 
@@ -107,8 +107,8 @@ int go_flat_alias(const char *cid, const char *of_cid, const char *module);
 /* A param-container clone struct (the ProtocolIE-Container_85P0 form):
  * `typedef struct { <elem>_flat *items; size_t count; } <cid>_flat;` —
  * the cid arrives AS the clone's own id (85P0 suffix included); the name
- * keeps it VERBATIM (no run prefix on clone family names, the frozen
- * units' bare ProtocolIE_Container_85P0_flat / ..._88P0_flat). */
+ * keeps it VERBATIM (no run prefix on clone family names: bare
+ * ProtocolIE_Container_85P0_flat / ..._88P0_flat). */
 int go_flat_seqof_container(const char *cid, const char *elem_cid,
                             const char *module);
 
@@ -146,7 +146,7 @@ void go_flat_member_seqof_on(int nest_ix, const char *elem_cid,
 
 /* A BARE-NAMED alias (the SingleContainer collapse): `typedef
  * <of_cid>_flat <cid>_flat;` — NO run prefix on either side (clone family
- * names are bare, matching the frozen units). */
+ * names are bare). */
 int go_flat_alias_bare(const char *cid, const char *of_cid,
                        const char *module);
 

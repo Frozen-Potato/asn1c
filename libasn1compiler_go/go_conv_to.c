@@ -119,8 +119,8 @@ ir_neighbors(void *t, int *out, int cap) {
             if(!nw) continue;
             /* the nested-wrapper edge itself: the OWNER converter runs the
              * wrapper's conversion inline (an SCC edge owner→wrapper; without
-             * it a wrapper embedded in a cycle looks acyclic — the
-             * ranParameter-Testing inline CHOICE case found by convconf) */
+             * it a wrapper embedded in a cycle looks acyclic — e.g.
+             * an inline CHOICE inside a recursive type) */
             if(nb.c < nb.cap) nb.out[nb.c++] = nix;
             if(go_flat_ir_is_seqof(nw)) {
                 if(!go_flat_ir_elem_prim(nw))
@@ -448,7 +448,7 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
             } else {
                 if(r && conv_is_scc(t) && conv_is_scc(r)) {
                     /* depth guard: a by-value CHOICE alt into a recursion-SCC type
-                     * (the whole E2SM-RC ranParameter-Testing graph); guard
+                     * (a recursive graph of inline CHOICEs); guard
                      * the entry, call, decrement, test inline. */
                     { char *_cf = cfmt("        if (++err->depth > ASN1CGO_MAX_DEPTH) return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", label, mlab); s = ca(s, _cf); free(_cf); }
                     { char *_cf = cfmt("        int itrc = %s_to_tree(&%s%s%s, &%s%schoice.%s, err);\n", rb, in_sel, deref, tok, out_sel, deref, utok); s = ca(s, _cf); free(_cf); }
@@ -861,8 +861,8 @@ arm_ref_to(void *t, void *m, const char *in_acc, const char *out_acc) {
          * call boundary only. */
         if(guarded) {
             char *root_label = label;
-            /* the guard labels the SCC root (the comparison units label the ROOT
-             * type, not the member owner, when the edge returns to it) */
+            /* the guard labels the SCC root (the ROOT type, not the member
+             * owner, when the edge returns to it) */
             s = ca(s, "    if (++err->depth > ASN1CGO_MAX_DEPTH)\n");
             { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_DEPTH, \"%s\", \"%s\", \"depth > %%d\", ASN1CGO_MAX_DEPTH);\n", root_label, mlab); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("    int rc = %s_to_tree(&%s, &%s, err);\n", rb, in_acc, out_acc); s = ca(s, _cf); free(_cf); }
@@ -986,7 +986,7 @@ arm_nested_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             s = ca(s, "    }\n");
         } else {
             /* INLINE wrapper: the slot is the wrapper VALUE — accessors
-             * compose '.' into it (the comparison units' in->value.present form). */
+             * compose '.' into it (the in->value.present form). */
             char *sw = choice_switch_to_deref(n, in_sel, out_sel, ".");
             s = ca(s, sw);
             free(sw);
@@ -1006,7 +1006,7 @@ arm_nested_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             free(body); free(in_pfx); free(out_pfx);
             s = ca(s, "    }\n");
         } else {
-            /* INLINE wrapper: descend with '.' (the comparison units' in->value.id
+            /* INLINE wrapper: descend with '.' (the in->value.id
              * form — the tree nests the wrapper by value). */
             char *in_pfx = cfmt("%s.", in_sel);
             char *out_pfx = cfmt("%s.", out_sel);

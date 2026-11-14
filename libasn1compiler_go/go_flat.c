@@ -28,7 +28,7 @@
  * referencing package's header (quoted include, one per foreign package,
  * sorted; both headers sit in the same c/ dir per the generated-module
  * layout rule, resolved by the
- * cgo -I flag — the comparison units' quoted-include discipline at generator scale).
+ * cgo -I flag).
  *
  * Shared primitives (asn1cgo_bytes_flat / asn1cgo_bits_flat) and the rt
  * files (arena/err/types) are copied once per module into c/rt/ by
@@ -184,9 +184,8 @@ struct flat_type {
     char *label;        /* display label: the asn1c td->name string
                          * — the ASN.1 expr->Identifier verbatim, hyphens
                          * kept, run prefix NEVER applied (td->name is a
-                         * display name; the oracle carries it unprefixed
-                         * even under ASN1C_PREFIX — E2SM-KPM-RANfunction-
-                         * Description.c:308). NULL = unrecorded (falls back
+                         * display name; asn1c's C output carries it
+                         * unprefixed even under ASN1C_PREFIX). NULL = unrecorded (falls back
                          * to the C-ident form at emission).                */
     const char *module; /* owning module name (borrowed)                    */
     flat_member *members;
@@ -200,9 +199,9 @@ struct flat_type {
     int is_set_of;      /* 1 = SET OF list (converter spells ASN_SET_ADD)   */
     char *alias_of;     /* FLT_ALIAS target cid                             */
     char *tree_base;    /* tree typedef base override (a bare-
-                         * named FLAT whose ORACLE typedef is prefixed —
+                         * named FLAT whose C typedef is prefixed —
                          * the container clones: Flat ProtocolIE_Container_
-                         * 85P0_flat, tree E2AP_ProtocolIE_Container_85P0).
+                         * 85P0_flat, tree PFX_ProtocolIE_Container_85P0).
                          * NULL = derive from name (strip _flat).           */
     char *c_alias_of;   /* top-level `A ::= B` that resolves to a CHOICE B:
                          * B's cid. C has only `typedef B_t A_t;`, so every
@@ -402,9 +401,9 @@ void
 go_flat_cur_restore(int ix) {
     /* after an inline construct's member recursion (emit_choice /
      * walk_names_members), cur must return to the ENCLOSING struct: a member
-     * AFTER the inline construct belongs to the parent again (e.g.
-     * EventParameterItem's nextMathOp after the paramType inline CHOICE,
-     * which would otherwise land inside paramType). */
+     * AFTER the inline construct belongs to the parent again (e.g. a
+     * member after an inline CHOICE member, which would otherwise land
+     * inside that CHOICE). */
     if(ix >= 0 && ix < g_flat.n_types) g_flat.cur_ix = ix;
 }
 
@@ -417,7 +416,7 @@ go_flat_leaf(const char *cid, const char *prim, const char *module) {
      * after the leaf mint at go_names.c:3829) must land on THIS node. The
      * real td->name of a leaf typedef'd onto a NativeInteger scalar is the
      * C identifier spelling (asn1c_C.c:3194 uses expr->Identifier — for a
-     * scalar leaf that is the C ident, e.g. "RANfunctionID", no hyphens). */
+     * scalar leaf that is the C ident, e.g. "FunctionID", no hyphens). */
     g_flat.cur_ix = (int)(t - g_flat.types);
     return g_flat.cur_ix;
 }
@@ -864,7 +863,7 @@ flat_ref_resolve_scan(const char *ref) {
      * (go_conv_record_pdu stores via cid_dup). Normalize ONE strip, then
      * match; on a miss where a strip happened, the input may have been an
      * already-stripped cid whose own text starts with the run prefix
-     * (E2AP-PDU -> stored cid "E2AP_PDU" under prefix "E2AP_") — the second
+     * (Top-PDU -> stored cid "Top_PDU" under prefix "Top_") — the second
      * strip then ate a legitimate part of the cid. In that case the ORIGINAL
      * input spelling left intact IS the stored cid: match it directly
      * (never recursively — P_PDU strips back to PDU and loops forever). */
@@ -1445,7 +1444,7 @@ layout_nested_consts(flat_type *t, flat_member *m, const char *chain,
 }
 
 /* The asserts of one node (the sizeof + one offsetof per member, in member
- * order) appended to layout_check.c text. Nested members use the frozen units
+ * order) appended to layout_check.c text. Nested members use the
  * typeof-sum forms: offsetof(T, tok) + offsetof(typeof(((T*)0)->tok), m). */
 static void
 render_node_asserts(flat_type *t, char **s) {
@@ -1479,7 +1478,7 @@ render_node_asserts(flat_type *t, char **s) {
         *s = fa(*s, "\");\n");
         (void)msize; (void)moff;
         /* a nested-by-value wrapper: also assert its inner offsets via the
-         * typeof-sum form (the frozen units' nested-assert grammar), at every
+         * typeof-sum form (offsetof(T, tok) + offsetof(typeof(...), m)), at every
          * nesting depth */
         if(m->kind == FT_NESTED && !m->stars) {
             {
@@ -1606,7 +1605,7 @@ pkg_of(const char *module, pkg_unit *pkgs, int n_pkgs) {
 
 
 /* Go const-name mangling: the node cid (prefix + _flat stripped) CamelCased,
- * e.g. RICrequestID_flat -> RicrequestIDFlat; the frozen units' sizeof<...> /
+ * e.g. RequestID_flat -> RequestIDFlat; the sizeof<...> /
  * off<...> const forms (unexported: off-lowercased first letter). */
 const char *go_alt_node(const char *node_name);
 const char *go_alt_tok(const char *node_name, const char *tok);

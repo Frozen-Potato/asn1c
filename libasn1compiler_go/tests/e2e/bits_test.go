@@ -326,7 +326,7 @@ func TestNamedBitCConverter(t *testing.T) {
 // STRING members in the same -Fgo run).
 //
 //   - OPTIONAL inline BIT STRING (C: BIT_STRING_t *): absent and present,
-//     fixed and variable size, and a TNLinformation-shaped SEQUENCE. A present
+//     fixed and variable size, and a SEQUENCE of an address-like BIT STRING plus an optional port-like one. A present
 //     value used to be written INTO the pointer slot and crash the C encoder.
 //   - Several modules in one run, each with its own BitString type (one that
 //     only imports a BIT STRING type, one that owns members), all building.
@@ -423,7 +423,7 @@ func bsCases() []bsCase {
 		variable("optvar-"+strconv.Itoa(n), &bitsa.BitString{Bytes: b, BitsUnused: u})
 	}
 
-	// 2. TNLinformation shape.
+	// 2. Address + optional port shape.
 	tnl := func(name string, addr bitsa.BitString, port *bitsa.BitString) {
 		x := "<TnlInfo><tnlAddress>" + bsText(addr.Bytes, addr.BitsUnused) + "</tnlAddress>" + optElem("tnlPort", port) + "</TnlInfo>"
 		add(bsCase{name, "TnlInfo", x,

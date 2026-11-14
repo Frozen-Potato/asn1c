@@ -5,8 +5,8 @@ BEGIN
 -- bytes, held behind a pointer or in an item array and followed by further
 -- fixed-region allocations. The Go size pass must reserve exactly what the
 -- 8-aligned arena allocator consumes ("fixed-region undercounted by 4").
--- Mirrors E2SM-RC TriggerType-Choice-MIMOandBFconfig inside
--- E2SM-RC-EventTrigger-Format4-PaItem. Driven by randenc_test.go.
+-- Shape: a CHOICE inside a CHOICE inside a list item, the innermost alt a
+-- 4-byte struct. Driven by randenc_test.go.
 
 	-- a 4-byte Flat struct
 	Mimo ::= SEQUENCE {
@@ -19,7 +19,7 @@ BEGIN
 		y	OCTET STRING (SIZE(1..3)) OPTIONAL
 	}
 
-	-- the MIMO shape: a 4-byte struct is a CHOICE alt (a pointer under
+	-- the nested shape: a 4-byte struct is a CHOICE alt (a pointer under
 	-- -findirect-choice) inside an alt, inside a list item that carries
 	-- further OPTIONAL allocations
 	PaInner ::= CHOICE {

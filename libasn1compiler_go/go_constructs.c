@@ -7,7 +7,7 @@
  * kind, never replace it (go_walk.c records them alongside classify()).
  *
  * Reference resolution for class-field members is split out from classify():
- * a member like `value E2AP-PROTOCOL-IES.&Value` is still an A1TC_REFERENCE on
+ * a member like `value MY-PROTOCOL-IES.&Value` is still an A1TC_REFERENCE on
  * the post-fix AST, so it never reaches classify() as a terminal. go_walk.c
  * consults the is_open_type / is_classfield_* predicates first and only hands
  * an already-dereferenced terminal to classify().

@@ -6,7 +6,7 @@
  * DECLARATIONS: every leaf type assignment's `type X <underlying>` line, the
  * BitString helper once per BIT-STRING-owning module, CHOICE/ENUM/value
  * const blocks (with the values the name pass recorded from asn1c's own AST
- * fields), each const re-stating its type — the comparison unit decl form. Struct
+ * fields), each const re-stating its type. Struct
  * bodies, CHOICE alt pointer sets, flat structs, converters are the struct-body
  * stage.
  *

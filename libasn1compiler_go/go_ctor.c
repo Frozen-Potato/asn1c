@@ -1,5 +1,5 @@
 /*
- * go_ctor.c — one E2AP IE constructor per IOC row.
+ * go_ctor.c — one IE constructor per IOC row.
  *
  * Emitted into <go_outdir>/<X's module pkg>/constructors.go, one function
  * per row of every id-dispatch PROTOCOL-IES object set (procedure-dispatch envelope rows carry
@@ -29,8 +29,8 @@
  *                 (the alt payload type, a named type)
  *   Id const    — the value-const row whose intval == the IOC row's id
  *                 AND whose goType == the id column's governing declared
- *                 type (the row's id_gov fact — e.g. ProtocolIEID under
- *                 E2AP; never a name shape)
+ *                 type (the row's id_gov fact — e.g. ProtocolIEID;
+ *                 never a name shape)
  *   Criticality — the ENUM const whose intval == the row's criticality
  *                 AND whose goType == the criticality column's governing
  *                 type (row's crit_gov), when the class HAS a criticality
@@ -115,7 +115,7 @@ typedef struct {
 } ctor_info;
 
 /* goType equality under cross-module qualification: a const's goType may
- * carry its defining package prefix (e2ap_commondatatypes.ProtocolIEID —
+ * carry its defining package prefix (pkg_commondatatypes.ProtocolIEID —
  * qualify_foreign_const_types); the recorded governing name is the
  * unqualified R2 form. Equal iff equal OR the qualified suffix matches. */
 static int
@@ -161,7 +161,7 @@ criticality_const2(long crit, const char *crit_gov, char **out_mod) {
 }
 
 /* goType equality under cross-module qualification: a const's goType may
- * carry its defining package prefix (e2ap_commondatatypes.ProtocolIEID —
+ * carry its defining package prefix (pkg_commondatatypes.ProtocolIEID —
  * qualify_foreign_const_types); the recorded governing name is the
  * unqualified R2 form. Equal iff equal OR the qualified suffix matches. */
 static int
@@ -344,9 +344,9 @@ go_ctor_emit(const char *go_outdir) {
 
         /* Id value + Criticality const, each with its
          * DEFINING module (the reference from X's package qualifies a
-         * foreign const: e2ap_constants.Id..., e2ap_commondatatypes.-).
+         * foreign const: pkg_constants.Id..., pkg_commondatatypes.-).
          * Both resolve BY GOVERNING TYPE + value — the class's own
-         * declared column types, never an E2AP name shape. Two id forms:
+         * declared column types, never a name shape. Two id forms:
          * a REFERENCE cell resolves the governing-typed value const; a
          * LITERAL cell (no value assignment exists) carries the governing
          * type's own conversion of the decimal. A class with no
