@@ -20,4 +20,9 @@ TwoNest ::= SEQUENCE {
 	p CHOICE { s SEQUENCE { q CHOICE { u BOOLEAN, v NULL } }, z NULL }
 }
 
+-- An empty SEQUENCE alternative as the last allocation of the value: a
+-- top-level CHOICE, and the only inline CHOICE of a SEQUENCE.
+EmTop ::= CHOICE { e SEQUENCE {}, k BOOLEAN }
+EmSeq ::= SEQUENCE { m CHOICE { e SEQUENCE {}, k BOOLEAN } }
+
 END

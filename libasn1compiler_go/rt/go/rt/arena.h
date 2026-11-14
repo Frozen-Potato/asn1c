@@ -16,7 +16,8 @@ typedef struct asn1cgo_arena asn1cgo_arena;
 /* NULL on OOM. first_chunk = size of the initial chunk (0 => default). */
 asn1cgo_arena *asn1cgo_arena_new(size_t first_chunk);
 
-/* Zeroed; n bytes, aligned to align (power-of-two). NULL on OOM. */
+/* Zeroed; n bytes (n == 0 is served as 1), aligned to align (power-of-two).
+ * NULL on OOM. */
 void *asn1cgo_arena_alloc(asn1cgo_arena *, size_t n, size_t align);
 
 /* Frees all chunks; the arena handle is invalid after. */
@@ -54,7 +55,7 @@ void asn1cgo_block_free(void *p);
  * asn1cgo_arena_fail_at(n) makes the n-th rt ALLOCATION EVENT return NULL
  * (1-based; n<=0 disables injection but keeps counting). An "event" is one
  * arena_new call, the first-chunk allocation inside it, plus each
- * arena_alloc call that passes its !a/n==0 guard, plus each
+ * arena_alloc call that passes its !a guard, plus each
  * asn1cgo_calloc call — i.e. every rt allocation the E_ALLOC failure paths
  * in the generated code can see. (asn1c's own internal allocations inside
  * the skeletons are not counted.)

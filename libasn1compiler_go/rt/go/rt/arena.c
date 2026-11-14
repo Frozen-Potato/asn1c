@@ -119,7 +119,11 @@ asn1cgo_arena *asn1cgo_arena_new(size_t first_chunk) {
 }
 
 void *asn1cgo_arena_alloc(asn1cgo_arena *a, size_t n, size_t align) {
-    if (!a || n == 0) return NULL;
+    if (!a) return NULL;
+    /* A zero-size request (the flat struct of an empty SEQUENCE {}) still
+     * gets a distinct non-NULL slot: NULL would read as an allocation failure
+     * to the callers. */
+    if (n == 0) n = 1;
     if (align == 0) align = 1;
     ARENA_EVENT();
     if (ARENA_EVENT_FAILS()) return NULL;

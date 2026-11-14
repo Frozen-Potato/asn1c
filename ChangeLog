@@ -22,6 +22,11 @@
       asn_SET_specifics_t gained first_extension and ext_end (at the end, so
       older initializers still compile; regenerate to use PER on a SET).
     FIXES:
+    * Go backend: a CHOICE alternative that is an empty `SEQUENCE {}` no
+      longer panics in Encode (index out of range in the arena helper) or
+      fails Decode with E_ALLOC. Every generated glue.go changes in the
+      arena helper (allocStruct/allocPayload), so regenerate. The C runtime
+      arena now serves a zero-size request as a distinct non-NULL slot.
     * C runtime (also for plain C users): SET_OF_encode_uper used the sorted
       element buffers without checking for NULL (allocation or element
       encode failure) and went on to encode; it now fails the encode and

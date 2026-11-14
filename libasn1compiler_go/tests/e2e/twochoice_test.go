@@ -75,9 +75,7 @@ func tcCases() []tcCase {
 	}{
 		{tc.TwoSeqM{Present: tc.TwoSeqMPrF, F: &tc.TwoSeqMF{X: true}}, "<f><x><true/></x></f>"},
 		{tc.TwoSeqM{Present: tc.TwoSeqMPrF, F: &tc.TwoSeqMF{X: false}}, "<f><x><false/></x></f>"},
-		// The empty SEQUENCE alternative e compiles but is not encoded here:
-		// an empty alternative struct fails at run time with or without a
-		// second CHOICE (KNOWN-ISSUES.md #27).
+		{tc.TwoSeqM{Present: tc.TwoSeqMPrE, E: &tc.TwoSeqME{}}, "<e></e>"},
 		{tc.TwoSeqM{Present: tc.TwoSeqMPrK, K: i(9)}, "<k>9</k>"},
 	} {
 		for _, p := range []struct {
@@ -161,13 +159,21 @@ func tcCases() []tcCase {
 				tc.TwoNest{M: m.v, P: p.v}, tc.DecodeTwoNest))
 		}
 	}
+
+	// E: an empty SEQUENCE alternative selected, as the last allocation.
+	em := &tc.EmTopE{}
+	cs = append(cs,
+		tcMk("et e", "EmTop", "<e></e>", tc.EmTop{Present: tc.EmTopPrE, E: em}, tc.DecodeEmTop),
+		tcMk("et k", "EmTop", "<k><true/></k>", tc.EmTop{Present: tc.EmTopPrK, K: &tr}, tc.DecodeEmTop),
+		tcMk("es e", "EmSeq", "<m><e></e></m>", tc.EmSeq{M: tc.EmSeqM{Present: tc.EmSeqMPrE, E: &tc.EmSeqME{}}}, tc.DecodeEmSeq),
+		tcMk("es k", "EmSeq", "<m><k><false/></k></m>", tc.EmSeq{M: tc.EmSeqM{Present: tc.EmSeqMPrK, K: &fl}}, tc.DecodeEmSeq))
 	return cs
 }
 
 func TestTwoChoiceRoundTrip(t *testing.T) {
 	bin := converter(t)
 	cs := tcCases()
-	if len(cs) != 59 {
+	if len(cs) != 69 {
 		t.Fatalf("only %d cases", len(cs))
 	}
 	for _, c := range cs {
