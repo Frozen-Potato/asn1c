@@ -2,6 +2,7 @@
  * Don't look into this file. First, because it's a mess, and second, because
  * it's a brain of the compiler, and you don't wanna mess with brains do you? ;)
  */
+#include <stdarg.h>
 #include "asn1c_internal.h"
 #include "asn1c_C.h"
 #include "asn1c_constraint.h"
@@ -3267,6 +3268,835 @@ bad:
 }
 
 /*
+ * DEFAULT of a SEQUENCE, SET, SEQUENCE OF or SET OF member.
+ *
+ * The DEFAULT value notation is converted, at generation time, into an XER
+ * document of the member's type. The generated default_value_set decodes that
+ * document (so the nested DEFAULTs are filled by the decoder itself) and
+ * default_value_cmp compares the member with a freshly decoded default.
+ * Each step of the conversion either appends XER text or fails with a reason
+ * that names the member path.
+ */
+#define XD_MAX_DEPTH 32
+
+typedef struct { char *b; size_t n, cap; } xd_buf_t;
+
+typedef enum {
+	XV_INT, XV_IDENT, XV_STR, XV_BITS, XV_BRACE, XV_TRUE, XV_FALSE, XV_NULL,
+	XV_REF, XV_NUMS
+} xv_kind;
+
+typedef struct {
+	xv_kind k;
+	const char *p, *e;	/* INT / IDENT text; BRACE: the text inside */
+	const char *op, *oe;	/* BRACE: the text with the braces */
+	char num[32];		/* INT written from a parsed value */
+	uint8_t *s;		/* STR bytes / BITS bits */
+	size_t sl;		/* STR length */
+	int nbits;
+	int own;		/* s is malloc()ed */
+	const asn1p_ref_t *ref;	/* XV_REF */
+	long nums[4];
+	int nnums;
+} xv_t;
+
+typedef struct { const char *p, *e; } xd_range_t;
+
+static char xd_msg[512];
+static asn1p_expr_t *xd_active[XD_MAX_DEPTH];
+static int xd_nactive;
+static int xd_cycle;
+
+static int
+xd_fail(const char *path, const char *fmt, ...) {
+	size_t l = snprintf(xd_msg, sizeof(xd_msg), "%s: ", path);
+	va_list ap;
+	va_start(ap, fmt);
+	if(l < sizeof(xd_msg))
+		vsnprintf(xd_msg + l, sizeof(xd_msg) - l, fmt, ap);
+	va_end(ap);
+	return 0;
+}
+
+static int
+xd_put(xd_buf_t *x, const char *s, size_t n) {
+	if(x->n + n + 1 > x->cap) {
+		size_t nc = x->cap ? x->cap * 2 : 128;
+		char *nb;
+		while(nc < x->n + n + 1) nc *= 2;
+		nb = realloc(x->b, nc);
+		if(!nb) { snprintf(xd_msg, sizeof(xd_msg), "out of memory"); return 0; }
+		x->b = nb;
+		x->cap = nc;
+	}
+	memcpy(x->b + x->n, s, n);
+	x->n += n;
+	x->b[x->n] = '\0';
+	return 1;
+}
+
+static int xd_puts(xd_buf_t *x, const char *s) { return xd_put(x, s, strlen(s)); }
+
+static int xd_is_ws(int c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
+static int xd_is_idc(int c) {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+		|| (c >= '0' && c <= '9') || c == '-';
+}
+
+static void xv_free(xv_t *v) { if(v->own) free(v->s); v->s = NULL; v->own = 0; }
+
+static void
+xd_trim(const char **p, const char **e) {
+	while(*p < *e && xd_is_ws(**p)) (*p)++;
+	while(*e > *p && xd_is_ws((*e)[-1])) (*e)--;
+}
+
+/* A parsed value as a value of the converter. */
+static int
+xv_from_dv(const asn1p_value_t *dv, xv_t *v, const char *path) {
+	memset(v, 0, sizeof(*v));
+	if(!dv)
+		return xd_fail(path, "the parser kept no value here");
+	switch(dv->type) {
+	case ATV_INTEGER:
+		v->k = XV_INT;
+		snprintf(v->num, sizeof(v->num), "%s", asn1p_itoa(dv->value.v_integer));
+		v->p = v->num;
+		v->e = v->num + strlen(v->num);
+		return 1;
+	case ATV_TRUE: v->k = XV_TRUE; return 1;
+	case ATV_FALSE: v->k = XV_FALSE; return 1;
+	case ATV_NULL: v->k = XV_NULL; return 1;
+	case ATV_STRING:
+		v->k = XV_STR;
+		v->s = dv->value.string.buf;
+		v->sl = dv->value.string.size;
+		return 1;
+	case ATV_BITVECTOR:
+		v->k = XV_BITS;
+		v->s = dv->value.binary_vector.bits;
+		v->nbits = dv->value.binary_vector.size_in_bits;
+		if(v->nbits < 0 || (v->nbits && !v->s))
+			return xd_fail(path, "malformed hstring/bstring value");
+		return 1;
+	case ATV_REFERENCED:
+		v->k = XV_REF;
+		v->ref = dv->value.reference;
+		return 1;
+	case ATV_UNPARSED: {
+		const char *p, *e;
+		if(!default_unbrace(dv, &p, &e))
+			return xd_fail(path, "the value is not written in braces");
+		v->k = XV_BRACE;
+		v->p = p;
+		v->e = e;
+		v->op = p - 1;
+		v->oe = e + 1;
+		return 1;
+	}
+	case ATV_TUPLE: {
+		long x = (long)dv->value.v_integer;
+		v->k = XV_NUMS;
+		v->nnums = 2;
+		v->nums[0] = x >> 4;
+		v->nums[1] = x & 15;
+		return 1;
+	}
+	case ATV_QUADRUPLE: {
+		long x = (long)dv->value.v_integer;
+		v->k = XV_NUMS;
+		v->nnums = 4;
+		v->nums[0] = (x >> 24) & 255;
+		v->nums[1] = (x >> 16) & 255;
+		v->nums[2] = (x >> 8) & 255;
+		v->nums[3] = x & 255;
+		return 1;
+	}
+	default:
+		return xd_fail(path, "this form of value is not supported");
+	}
+}
+
+/* A value written in the text of an enclosing "{ ... }". */
+static int
+xv_from_text(const char *p, const char *e, xv_t *v, const char *path) {
+	memset(v, 0, sizeof(*v));
+	xd_trim(&p, &e);
+	if(p == e)
+		return xd_fail(path, "a value is missing");
+	if(*p == '"') {
+		const char *q = p + 1;
+		uint8_t *s = malloc((e - p) + 1);
+		size_t n = 0;
+		int closed = 0;
+		if(!s) return xd_fail(path, "out of memory");
+		while(q < e) {
+			if(*q == '"') {
+				if(q + 1 < e && q[1] == '"') { s[n++] = '"'; q += 2; continue; }
+				closed = 1;
+				q++;
+				break;
+			}
+			s[n++] = (uint8_t)*q++;
+		}
+		if(!closed || q != e) {
+			free(s);
+			return xd_fail(path, "malformed string value");
+		}
+		v->k = XV_STR;
+		v->s = s;
+		v->sl = n;
+		v->own = 1;
+		return 1;
+	}
+	if(*p == '\'') {
+		const char *q = p + 1;
+		const char *c;
+		uint8_t *bits;
+		int n = 0, hex;
+		while(q < e && *q != '\'') q++;
+		if(q >= e || q + 2 != e || (q[1] != 'H' && q[1] != 'B'))
+			return xd_fail(path, "malformed hstring/bstring value");
+		hex = (q[1] == 'H');
+		bits = calloc(((q - p) * (hex ? 4 : 1)) / 8 + 2, 1);
+		if(!bits) return xd_fail(path, "out of memory");
+		for(c = p + 1; c < q; c++) {
+			int d;
+			if(xd_is_ws(*c)) continue;
+			if(hex) {
+				if(*c >= '0' && *c <= '9') d = *c - '0';
+				else if(*c >= 'A' && *c <= 'F') d = *c - 'A' + 10;
+				else if(*c >= 'a' && *c <= 'f') d = *c - 'a' + 10;
+				else { free(bits); return xd_fail(path, "malformed hstring"); }
+				bits[n / 8] |= (n % 8 == 0) ? (d << 4) : d;
+				n += 4;
+			} else {
+				if(*c != '0' && *c != '1') {
+					free(bits);
+					return xd_fail(path, "malformed bstring");
+				}
+				if(*c == '1') bits[n / 8] |= 0x80 >> (n % 8);
+				n++;
+			}
+		}
+		v->k = XV_BITS;
+		v->s = bits;
+		v->nbits = n;
+		v->own = 1;
+		return 1;
+	}
+	if(*p == '{') {
+		const char *q;
+		int depth = 0, instr = 0, inq = 0;
+		for(q = p; q < e; q++) {
+			if(instr) { if(*q == '"') instr = 0; continue; }
+			if(inq) { if(*q == '\'') inq = 0; continue; }
+			if(*q == '"') instr = 1;
+			else if(*q == '\'') inq = 1;
+			else if(*q == '{') depth++;
+			else if(*q == '}') {
+				if(--depth == 0) { q++; break; }
+			}
+		}
+		if(depth != 0 || q != e || e[-1] != '}')
+			return xd_fail(path, "unbalanced braces in the value");
+		v->k = XV_BRACE;
+		v->p = p + 1;
+		v->e = e - 1;
+		v->op = p;
+		v->oe = e;
+		return 1;
+	}
+	if((*p >= '0' && *p <= '9') || (*p == '-' && p + 1 < e && p[1] >= '0' && p[1] <= '9')) {
+		const char *q = p + 1;
+		while(q < e && *q >= '0' && *q <= '9') q++;
+		if(q != e)
+			return xd_fail(path, "`%.*s` is not a whole number", (int)(e - p), p);
+		v->k = XV_INT;
+		v->p = p;
+		v->e = e;
+		return 1;
+	}
+	if((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')) {
+		const char *q = p;
+		while(q < e && xd_is_idc(*q)) q++;
+		if(q != e)
+			return xd_fail(path, "`%.*s` is a CHOICE value or a notation the "
+				"generator does not convert", (int)(e - p), p);
+		if(e - p == 4 && !memcmp(p, "TRUE", 4)) v->k = XV_TRUE;
+		else if(e - p == 5 && !memcmp(p, "FALSE", 5)) v->k = XV_FALSE;
+		else if(e - p == 4 && !memcmp(p, "NULL", 4)) v->k = XV_NULL;
+		else if(*p >= 'a' && *p <= 'z') {
+			v->k = XV_IDENT;
+			v->p = p;
+			v->e = e;
+		} else
+			return xd_fail(path, "`%.*s` is not a value notation the "
+				"generator converts", (int)(e - p), p);
+		return 1;
+	}
+	return xd_fail(path, "unexpected `%c` in the value", *p);
+}
+
+/* Split the inside of braces at top-level commas. */
+static int
+xd_split(const char *p, const char *e, xd_range_t **out, int *n,
+		const char *path) {
+	xd_range_t *r = NULL;
+	int cnt = 0, cap = 0, depth = 0, instr = 0, inq = 0;
+	const char *start = p, *q;
+	*out = NULL;
+	*n = 0;
+	{
+		const char *a = p, *b = e;
+		xd_trim(&a, &b);
+		if(a == b) return 1;
+	}
+	for(q = p; q <= e; q++) {
+		int cut = 0;
+		if(q == e) cut = 1;
+		else if(instr) { if(*q == '"') instr = 0; }
+		else if(inq) { if(*q == '\'') inq = 0; }
+		else if(*q == '"') instr = 1;
+		else if(*q == '\'') inq = 1;
+		else if(*q == '{') depth++;
+		else if(*q == '}') depth--;
+		else if(*q == ',' && depth == 0) cut = 1;
+		if(!cut) continue;
+		{
+			const char *a = start, *b = q;
+			xd_trim(&a, &b);
+			if(a == b) { free(r); return xd_fail(path, "an empty element between commas"); }
+			if(cnt == cap) {
+				xd_range_t *nr;
+				cap = cap ? cap * 2 : 8;
+				nr = realloc(r, cap * sizeof(*r));
+				if(!nr) { free(r); return xd_fail(path, "out of memory"); }
+				r = nr;
+			}
+			r[cnt].p = a;
+			r[cnt].e = b;
+			cnt++;
+		}
+		start = q + 1;
+	}
+	if(depth || instr || inq) {
+		free(r);
+		return xd_fail(path, "unbalanced braces or quotes in the value");
+	}
+	*out = r;
+	*n = cnt;
+	return 1;
+}
+
+static asn1p_expr_t *
+xd_terminal(arg_t *arg, asn1p_expr_t *te) {
+	return WITH_MODULE_NAMESPACE(te->module, ns,
+		asn1f_find_terminal_type_ex(arg->asn, ns, te));
+}
+
+static int
+xd_is_constructed4(asn1p_expr_type_e t) {
+	return t == ASN_CONSTR_SEQUENCE || t == ASN_CONSTR_SET
+	    || t == ASN_CONSTR_SEQUENCE_OF || t == ASN_CONSTR_SET_OF;
+}
+
+static int xd_conv(arg_t *arg, asn1p_expr_t *ctx, asn1p_expr_t *te, xv_t *v,
+		xd_buf_t *x, const char *path, int depth);
+static int xd_default_xml(arg_t *arg, asn1p_expr_t *expr, xd_buf_t *x);
+
+/* A value reference (a name or a reference) stands for the value it names. */
+static int
+xd_deref(arg_t *arg, asn1p_expr_t *ctx, asn1p_expr_t *term, const char *name,
+		size_t namelen, const asn1p_ref_t *ref, xd_buf_t *x,
+		const char *path, int depth) {
+	char nm[128];
+	asn1p_expr_type_e tt;
+	asn1p_expr_t *f, *fterm;
+	xv_t nv;
+	int r;
+	const char *shown;
+
+	if(depth >= XD_MAX_DEPTH)
+		return xd_fail(path, "values refer to each other too deeply (a cycle?)");
+	if(!ref) {
+		if(namelen >= sizeof(nm))
+			return xd_fail(path, "a name in the value is too long");
+		memcpy(nm, name, namelen);
+		nm[namelen] = '\0';
+		shown = nm;
+	} else {
+		shown = asn1f_printable_reference(ref);
+	}
+	f = oid_lookup(arg, ctx, ref ? NULL : nm, ref, &tt);
+	if(!f)
+		return xd_fail(path, "`%s` is not the name of a value that can be found", shown);
+	fterm = xd_terminal(arg, f);
+	if(!fterm || fterm->expr_type != term->expr_type
+	   || (xd_is_constructed4(term->expr_type) && fterm != term))
+		return xd_fail(path, "the value `%s` is not of the type it is used for", shown);
+	if(!f->value)
+		return xd_fail(path, "the value `%s` has no value", shown);
+	if(!xv_from_dv(f->value, &nv, path)) return 0;
+	r = xd_conv(arg, f, f, &nv, x, path, depth + 1);
+	xv_free(&nv);
+	return r;
+}
+
+/* The XML element name SET OF / SEQUENCE OF gives an element. */
+static int
+xd_elem_tag(arg_t *arg, asn1p_expr_t *el, char *buf, size_t sz) {
+	if(!(el->_anonymous_type && el->Identifier && !strcmp(el->Identifier, "Member"))
+	   && el->Identifier) {
+		snprintf(buf, sz, "%s", el->Identifier);
+		return 1;
+	}
+	if(el->expr_type == A1TC_REFERENCE) {
+		asn1p_expr_t *f = WITH_MODULE_NAMESPACE(el->module, ns,
+			asn1f_lookup_symbol_ex(arg->asn, ns, el, el->reference));
+		if(!f || !f->Identifier) return 0;
+		snprintf(buf, sz, "%s", f->Identifier);
+		return 1;
+	} else {
+		const char *s = ASN_EXPR_TYPE2STR(el->expr_type);
+		size_t i;
+		if(!s) return 0;
+		snprintf(buf, sz, "%s", s);
+		for(i = 0; buf[i]; i++)
+			if(buf[i] == ' ' || buf[i] == '-') buf[i] = '_';
+		return 1;
+	}
+}
+
+/*
+ * A member that the value omits but that has a DEFAULT of its own: the XER
+ * decoder does not fill it, so its default is written into the document
+ * (this is also where a default that is filled from itself shows up). A
+ * default the generator cannot convert is left out: that member has no
+ * callbacks and stays absent, which compares equal to its default.
+ */
+static int
+xd_fill_default(arg_t *arg, asn1p_expr_t *m, xd_buf_t *x, const char *path,
+		int depth) {
+	xd_buf_t tmp = { NULL, 0, 0 };
+	asn1p_expr_t *mt = xd_terminal(arg, m);
+	int r;
+	if(!m->marker.default_value || !mt)
+		return 1;
+	if(xd_is_constructed4(mt->expr_type)) {
+		r = xd_default_xml(arg, m, &tmp);
+		if(!r && xd_cycle) {
+			free(tmp.b);
+			return xd_fail(path, "filling the omitted member `%s` from its "
+				"DEFAULT leads back to a DEFAULT being converted (a "
+				"recursive type)", m->Identifier ? m->Identifier : "?");
+		}
+	} else {
+		xv_t dv;
+		char msg[sizeof(xd_msg)];
+		memcpy(msg, xd_msg, sizeof(msg));
+		r = xv_from_dv(m->marker.default_value, &dv, path)
+		    && xd_conv(arg, m, m, &dv, &tmp, path, depth + 1);
+		if(r) xv_free(&dv);
+		if(!r) memcpy(xd_msg, msg, sizeof(msg));
+	}
+	if(r) {
+		r = xd_puts(x, "<") && xd_puts(x, m->Identifier) && xd_puts(x, ">")
+		 && xd_put(x, tmp.b ? tmp.b : "", tmp.n)
+		 && xd_puts(x, "</") && xd_puts(x, m->Identifier) && xd_puts(x, ">");
+		free(tmp.b);
+		return r;
+	}
+	free(tmp.b);
+	return 1;	/* not convertible: no callbacks for that member */
+}
+
+static int
+xd_name_eq(const xd_range_t *r, const char *id) {
+	size_t n = r->e - r->p;
+	return id && strlen(id) == n && !memcmp(id, r->p, n);
+}
+
+static int
+xd_seq(arg_t *arg, asn1p_expr_t *ctx, asn1p_expr_t *term, xv_t *v, xd_buf_t *x,
+		const char *path, int depth, int is_set) {
+	xd_range_t *el = NULL;
+	xd_range_t *nm = NULL, *vt = NULL;
+	char *used = NULL;
+	asn1p_expr_t *m;
+	int n = 0, i, gi = 0, ext = 0, ok = 0;
+	char sub[320];
+
+	if(!xd_split(v->p, v->e, &el, &n, path)) return 0;
+	nm = calloc(n + 1, sizeof(*nm));
+	vt = calloc(n + 1, sizeof(*vt));
+	used = calloc(n + 1, 1);
+	if(!nm || !vt || !used) { xd_fail(path, "out of memory"); goto out; }
+	for(i = 0; i < n; i++) {
+		const char *p = el[i].p, *q = p;
+		if(!(*p >= 'a' && *p <= 'z'))
+			{ xd_fail(path, "`%.*s` does not start with a member name",
+				(int)(el[i].e - p > 20 ? 20 : el[i].e - p), p); goto out; }
+		while(q < el[i].e && xd_is_idc(*q)) q++;
+		nm[i].p = p; nm[i].e = q;
+		vt[i].p = q; vt[i].e = el[i].e;
+		xd_trim(&vt[i].p, &vt[i].e);
+		if(vt[i].p == vt[i].e)
+			{ xd_fail(path, "member `%.*s` has no value", (int)(q - p), p); goto out; }
+		if(*vt[i].p == ':')
+			{ xd_fail(path, "member `%.*s`: `:` marks a CHOICE value, which is not "
+				"converted", (int)(q - p), p); goto out; }
+	}
+	TQ_FOR(m, &(term->members), next) {
+		int idx = -1;
+		size_t pl;
+		if(m->expr_type == A1TC_EXTENSIBLE) { ext++; continue; }
+		if(!m->Identifier || m->expr_type == A1TC_COMPONENTS_OF) {
+			xd_fail(path, "the type has an extension addition group or "
+				"COMPONENTS OF, which is not converted");
+			goto out;
+		}
+		if(is_set) {
+			for(i = 0; i < n; i++)
+				if(xd_name_eq(&nm[i], m->Identifier)) {
+					if(idx >= 0) {
+						xd_fail(path, "member `%s` is given twice", m->Identifier);
+						goto out;
+					}
+					idx = i;
+				}
+		} else if(gi < n && xd_name_eq(&nm[gi], m->Identifier)) {
+			idx = gi++;
+		}
+		if(idx >= 0) {
+			xv_t mv;
+			int r;
+			used[idx] = 1;
+			pl = snprintf(sub, sizeof(sub), "%s.%s", path, m->Identifier);
+			(void)pl;
+			if(!xv_from_text(vt[idx].p, vt[idx].e, &mv, sub)) goto out;
+			if(!xd_puts(x, "<") || !xd_puts(x, m->Identifier) || !xd_puts(x, ">")) {
+				xv_free(&mv);
+				goto out;
+			}
+			r = xd_conv(arg, ctx, m, &mv, x, sub, depth + 1);
+			xv_free(&mv);
+			if(!r) goto out;
+			if(!xd_puts(x, "</") || !xd_puts(x, m->Identifier) || !xd_puts(x, ">"))
+				goto out;
+		} else {
+			if(!(ext == 1) && !(m->marker.flags & 0x04) && !m->marker.default_value) {
+				xd_fail(path, "the required member `%s` is not given", m->Identifier);
+				goto out;
+			}
+			snprintf(sub, sizeof(sub), "%s.%s", path, m->Identifier);
+			if(!xd_fill_default(arg, m, x, sub, depth)) goto out;
+		}
+	}
+	for(i = 0; i < n; i++) {
+		if(used[i]) continue;
+		{
+			int known = 0;
+			TQ_FOR(m, &(term->members), next)
+				if(m->Identifier && xd_name_eq(&nm[i], m->Identifier)) known = 1;
+			if(known)
+				xd_fail(path, "member `%.*s` is %s", (int)(nm[i].e - nm[i].p),
+					nm[i].p, "given out of order or twice");
+			else
+				xd_fail(path, "`%.*s` is not a member of the type",
+					(int)(nm[i].e - nm[i].p), nm[i].p);
+		}
+		goto out;
+	}
+	ok = 1;
+out:
+	free(el); free(nm); free(vt); free(used);
+	return ok;
+}
+
+static int
+xd_seqof(arg_t *arg, asn1p_expr_t *ctx, asn1p_expr_t *term, xv_t *v, xd_buf_t *x,
+		const char *path, int depth) {
+	asn1p_expr_t *el = TQ_FIRST(&(term->members));
+	xd_range_t *rg = NULL;
+	int n = 0, i, valuelist, ok = 0;
+	char tag[160], sub[320];
+	asn1p_expr_t *elt;
+
+	if(!el || el->expr_type == A1TC_EXTENSIBLE) return xd_fail(path, "no element type");
+	elt = xd_terminal(arg, el);
+	if(!elt) return xd_fail(path, "the element type cannot be resolved");
+	valuelist = (elt->expr_type == ASN_BASIC_BOOLEAN
+		  || elt->expr_type == ASN_BASIC_ENUMERATED
+		  || elt->expr_type == ASN_BASIC_NULL);
+	if(!valuelist || elt->expr_type == ASN_BASIC_NULL) {
+		if(!xd_elem_tag(arg, el, tag, sizeof(tag)))
+			return xd_fail(path, "the XML name of the elements is not known");
+	}
+	if(v->k == XV_NUMS) n = v->nnums;
+	else if(!xd_split(v->p, v->e, &rg, &n, path)) return 0;
+	for(i = 0; i < n; i++) {
+		xv_t ev;
+		size_t before = x->n;
+		int r;
+		const char *name = (!(el->_anonymous_type && el->Identifier
+				&& !strcmp(el->Identifier, "Member")) && el->Identifier)
+			? el->Identifier : tag;
+		snprintf(sub, sizeof(sub), "%s[%d]", path, i);
+		if(v->k == XV_NUMS) {
+			memset(&ev, 0, sizeof(ev));
+			ev.k = XV_INT;
+			snprintf(ev.num, sizeof(ev.num), "%ld", v->nums[i]);
+			ev.p = ev.num;
+			ev.e = ev.num + strlen(ev.num);
+		} else if(!xv_from_text(rg[i].p, rg[i].e, &ev, sub)) goto out;
+		if(!valuelist) {
+			if(!xd_puts(x, "<") || !xd_puts(x, name) || !xd_puts(x, ">")) {
+				xv_free(&ev); goto out;
+			}
+		}
+		before = x->n;
+		r = xd_conv(arg, ctx, el, &ev, x, sub, depth + 1);
+		xv_free(&ev);
+		if(!r) goto out;
+		if(!valuelist) {
+			if(!xd_puts(x, "</") || !xd_puts(x, name) || !xd_puts(x, ">")) goto out;
+		} else if(x->n == before) {
+			if(!xd_puts(x, "<") || !xd_puts(x, tag) || !xd_puts(x, "/>")) goto out;
+		}
+	}
+	ok = 1;
+out:
+	free(rg);
+	return ok;
+}
+
+static int
+xd_text(xd_buf_t *x, const uint8_t *s, size_t n, int allow8, const char *path) {
+	size_t i;
+	for(i = 0; i < n; i++) {
+		uint8_t c = s[i];
+		const char *r = NULL;
+		if(c == '&') r = "&amp;";
+		else if(c == '<') r = "&lt;";
+		else if(c == '>') r = "&gt;";
+		else if((c < 0x20 && c != '\t' && c != '\n') || c == 0x7f
+			|| (c >= 0x80 && !allow8))
+			return xd_fail(path, "the string holds a character (0x%02x) that the "
+				"generator does not write into XER", c);
+		if(r) { if(!xd_puts(x, r)) return 0; }
+		else if(!xd_put(x, (const char *)&c, 1)) return 0;
+	}
+	return 1;
+}
+
+static int
+xd_conv(arg_t *arg, asn1p_expr_t *ctx, asn1p_expr_t *te, xv_t *v, xd_buf_t *x,
+		const char *path, int depth) {
+	asn1p_expr_t *term = xd_terminal(arg, te);
+	asn1p_expr_type_e t;
+	asn1p_expr_t *m;
+	char buf[96];
+
+	if(depth > XD_MAX_DEPTH)
+		return xd_fail(path, "the value is nested deeper than %d levels (a cycle?)",
+			XD_MAX_DEPTH);
+	if(!term) return xd_fail(path, "the type cannot be resolved");
+	t = term->expr_type;
+
+	if(v->k == XV_REF)
+		return xd_deref(arg, ctx, term, NULL, 0, v->ref, x, path, depth);
+
+	switch(t) {
+	case ASN_BASIC_BOOLEAN:
+		if(v->k == XV_TRUE) return xd_puts(x, "<true/>");
+		if(v->k == XV_FALSE) return xd_puts(x, "<false/>");
+		if(v->k == XV_IDENT)
+			return xd_deref(arg, ctx, term, v->p, v->e - v->p, NULL, x, path, depth);
+		return xd_fail(path, "a BOOLEAN value must be TRUE or FALSE");
+	case ASN_BASIC_NULL:
+		if(v->k == XV_NULL) return 1;
+		if(v->k == XV_IDENT)
+			return xd_deref(arg, ctx, term, v->p, v->e - v->p, NULL, x, path, depth);
+		return xd_fail(path, "a NULL value must be NULL");
+	case ASN_BASIC_INTEGER:
+		if(v->k == XV_INT) return xd_put(x, v->p, v->e - v->p);
+		if(v->k == XV_IDENT) {
+			TQ_FOR(m, &(term->members), next) {
+				if(m->expr_type == A1TC_UNIVERVAL && m->Identifier
+				   && xd_name_eq(&(xd_range_t){ v->p, v->e }, m->Identifier)
+				   && m->value && m->value->type == ATV_INTEGER)
+					return xd_puts(x, asn1p_itoa(m->value->value.v_integer));
+			}
+			return xd_deref(arg, ctx, term, v->p, v->e - v->p, NULL, x, path, depth);
+		}
+		return xd_fail(path, "an INTEGER value must be a number or a name");
+	case ASN_BASIC_ENUMERATED:
+		if(v->k == XV_INT) {
+			/* A DEFAULT the parser resolved to the enumerator's number */
+			TQ_FOR(m, &(term->members), next) {
+				if(m->expr_type == A1TC_UNIVERVAL && m->Identifier && m->value
+				   && m->value->type == ATV_INTEGER
+				   && !strncmp(asn1p_itoa(m->value->value.v_integer), v->p,
+						v->e - v->p)
+				   && strlen(asn1p_itoa(m->value->value.v_integer))
+						== (size_t)(v->e - v->p))
+					return xd_puts(x, "<") && xd_puts(x, m->Identifier)
+						&& xd_puts(x, "/>");
+			}
+			return xd_fail(path, "no enumerator has the value %.*s",
+				(int)(v->e - v->p), v->p);
+		}
+		if(v->k == XV_IDENT) {
+			TQ_FOR(m, &(term->members), next) {
+				if(m->expr_type == A1TC_UNIVERVAL && m->Identifier
+				   && xd_name_eq(&(xd_range_t){ v->p, v->e }, m->Identifier)) {
+					return xd_puts(x, "<") && xd_puts(x, m->Identifier)
+						&& xd_puts(x, "/>");
+				}
+			}
+			return xd_fail(path, "`%.*s` is not an enumerator of the type",
+				(int)(v->e - v->p), v->p);
+		}
+		return xd_fail(path, "an ENUMERATED value must be an enumerator name");
+	case ASN_BASIC_OCTET_STRING:
+	case ASN_BASIC_BIT_STRING: {
+		int i;
+		if(v->k == XV_IDENT)
+			return xd_deref(arg, ctx, term, v->p, v->e - v->p, NULL, x, path, depth);
+		if(v->k != XV_BITS)
+			return xd_fail(path, "only an hstring/bstring value is converted here");
+		if(t == ASN_BASIC_OCTET_STRING) {
+			if(v->nbits % 8)
+				return xd_fail(path, "an OCTET STRING value must be a whole "
+					"number of octets");
+			for(i = 0; i < v->nbits / 8; i++) {
+				snprintf(buf, sizeof(buf), "%02X", v->s[i]);
+				if(!xd_puts(x, buf)) return 0;
+			}
+		} else {
+			for(i = 0; i < v->nbits; i++)
+				if(!xd_puts(x, (v->s[i / 8] & (0x80 >> (i % 8))) ? "1" : "0"))
+					return 0;
+		}
+		return 1;
+	}
+	case ASN_BASIC_OBJECT_IDENTIFIER:
+	case ASN_BASIC_RELATIVE_OID: {
+		int relative = (t == ASN_BASIC_RELATIVE_OID);
+		asn1p_value_t tmp;
+		asn1p_ref_t *nref = NULL;
+		oid_vec_t vec = { NULL, 0, 0 };
+		size_t i;
+		int ok;
+		memset(&tmp, 0, sizeof(tmp));
+		if(v->k == XV_BRACE) {
+			tmp.type = ATV_UNPARSED;
+			tmp.value.string.buf = (uint8_t *)(uintptr_t)v->op;
+			tmp.value.string.size = (int)(v->oe - v->op);
+		} else if(v->k == XV_IDENT) {
+			char nm[128];
+			if((size_t)(v->e - v->p) >= sizeof(nm))
+				return xd_fail(path, "a name in the value is too long");
+			memcpy(nm, v->p, v->e - v->p);
+			nm[v->e - v->p] = '\0';
+			nref = asn1p_ref_new(0, ctx->module);
+			if(!nref) return xd_fail(path, "out of memory");
+			asn1p_ref_add_component(nref, nm, RLT_lowercase);
+			tmp.type = ATV_REFERENCED;
+			tmp.value.reference = nref;
+		} else
+			return xd_fail(path, "an OBJECT IDENTIFIER value must be written "
+				"{ arc arc ... } or be a value reference");
+		ok = oid_append(arg, ctx, &tmp, relative, &vec, 0);
+		if(nref) asn1p_ref_free(nref);
+		if(!ok) {
+			free(vec.a);
+			return xd_fail(path, "%s", oid_msg);
+		}
+		if(vec.n < (relative ? 1u : 2u)) {
+			free(vec.a);
+			return xd_fail(path, "too few arcs in the object identifier value");
+		}
+		for(i = 0; i < vec.n; i++) {
+			snprintf(buf, sizeof(buf), "%s%u", i ? "." : "", (unsigned)vec.a[i]);
+			if(!xd_puts(x, buf)) { free(vec.a); return 0; }
+		}
+		free(vec.a);
+		return 1;
+	}
+	case ASN_CONSTR_SEQUENCE:
+	case ASN_CONSTR_SET:
+		if(v->k == XV_IDENT)
+			return xd_deref(arg, ctx, term, v->p, v->e - v->p, NULL, x, path, depth);
+		if(v->k != XV_BRACE)
+			return xd_fail(path, "a SEQUENCE / SET value must be written in braces");
+		return xd_seq(arg, ctx, term, v, x, path, depth, t == ASN_CONSTR_SET);
+	case ASN_CONSTR_SEQUENCE_OF:
+	case ASN_CONSTR_SET_OF:
+		if(v->k == XV_IDENT)
+			return xd_deref(arg, ctx, term, v->p, v->e - v->p, NULL, x, path, depth);
+		if(v->k != XV_BRACE && v->k != XV_NUMS)
+			return xd_fail(path, "a SEQUENCE OF / SET OF value must be written "
+				"in braces");
+		return xd_seqof(arg, ctx, term, v, x, path, depth);
+	case ASN_CONSTR_CHOICE:
+		return xd_fail(path, "a CHOICE value is not converted");
+	default:
+		if((t & ASN_STRING_MASK) || t == ASN_BASIC_UTCTime
+		   || t == ASN_BASIC_GeneralizedTime) {
+			if(v->k == XV_IDENT)
+				return xd_deref(arg, ctx, term, v->p, v->e - v->p, NULL, x,
+					path, depth);
+			if(v->k != XV_STR)
+				return xd_fail(path, "only a quoted string value is converted "
+					"for a character string type");
+			if(default_string_width(t) > 1)
+				return xd_fail(path, "BMPString / UniversalString values are not "
+					"converted inside a constructed DEFAULT");
+			return xd_text(x, v->s, v->sl,
+				t == ASN_STRING_UTF8String, path);
+		}
+		return xd_fail(path, "a value of this type is not converted inside a "
+			"constructed DEFAULT");
+	}
+}
+
+/*
+ * The XER text of the DEFAULT of `expr` (a member of SEQUENCE, SET,
+ * SEQUENCE OF or SET OF type), without the enclosing element.
+ */
+static int
+xd_default_xml(arg_t *arg, asn1p_expr_t *expr, xd_buf_t *x) {
+	xv_t v;
+	char path[160];
+	int k, r;
+
+	if(xd_nactive == 0) xd_cycle = 0;
+	if(!expr->marker.default_value) {
+		snprintf(xd_msg, sizeof(xd_msg), "no DEFAULT value");
+		return 0;
+	}
+	snprintf(path, sizeof(path), "%s", expr->Identifier ? expr->Identifier : "?");
+	for(k = 0; k < xd_nactive; k++)
+		if(xd_active[k] == expr) {
+			xd_cycle = 1;
+			return xd_fail(path, "the DEFAULT is filled from itself (a recursive "
+				"type)");
+		}
+	if(xd_nactive >= XD_MAX_DEPTH) {
+		xd_cycle = 1;
+		return xd_fail(path, "DEFAULT values nest too deeply (a recursive type?)");
+	}
+	if(!xv_from_dv(expr->marker.default_value, &v, path)) return 0;
+	xd_active[xd_nactive++] = expr;
+	r = xd_conv(arg, expr, expr, &v, x, path, 0);
+	xd_nactive--;
+	xv_free(&v);
+	return r;
+}
+
+/*
  * The ONE decision "does the C generator emit default_value_cmp/default_value_set
  * for this member's DEFAULT". try_inline_default() emits the callbacks iff this
  * returns 1; the Go backend's pre-flight calls it too, so the two can never
@@ -3338,6 +4168,24 @@ default_callbacks_check(arg_t *arg, asn1p_expr_t *expr, const char **why, int *f
 			return 0;
 		}
 		return 1;
+	case ASN_CONSTR_SEQUENCE:
+	case ASN_CONSTR_SET:
+	case ASN_CONSTR_SEQUENCE_OF:
+	case ASN_CONSTR_SET_OF: {
+		xd_buf_t xb = { NULL, 0, 0 };
+		int ok;
+		if(dv == NULL) {
+			*why = "the member has no DEFAULT value";
+			return 0;
+		}
+		ok = xd_default_xml(arg, expr, &xb);
+		free(xb.b);
+		if(!ok) {
+			*why = xd_msg;	/* never fatal: treated like OPTIONAL */
+			return 0;
+		}
+		return 1;
+	}
 	case ASN_BASIC_UTCTime:
 	case ASN_BASIC_GeneralizedTime:
 	default:
@@ -3746,6 +4594,114 @@ try_inline_oid_default(arg_t *arg, asn1p_expr_t *expr, int relative, int out) {
 	return 1;
 }
 
+/*
+ * DEFAULT of a SEQUENCE / SET / SEQUENCE OF / SET OF member: the value is
+ * converted to XER (xd_default_xml) and decoded by the generated callbacks.
+ */
+static const char *
+default_comment_text(const asn1p_value_t *dv, char *buf, size_t sz) {
+	const char *src;
+	size_t i, o = 0;
+	if(dv->type == ATV_UNPARSED)
+		src = (const char *)dv->value.string.buf;
+	else
+		src = asn1f_printable_value((asn1p_value_t *)(uintptr_t)dv);
+	if(!src) src = "";
+	for(i = 0; src[i] && o + 5 < sz; i++) {
+		unsigned char c = (unsigned char)src[i];
+		if(c < 0x20 || c == 0x7f) { if(o && buf[o-1] != ' ') buf[o++] = ' '; continue; }
+		if(c == '*' && src[i+1] == '/') { buf[o++] = '*'; buf[o++] = ' '; continue; }
+		if(c == '/' && src[i+1] == '*') { buf[o++] = '/'; buf[o++] = ' '; continue; }
+		buf[o++] = c;
+	}
+	if(src[i]) { buf[o++] = '.'; buf[o++] = '.'; buf[o++] = '.'; }
+	buf[o] = '\0';
+	return buf;
+}
+
+static int
+try_inline_constructed_default(arg_t *arg, asn1p_expr_t *expr, int out) {
+	int save_target = arg->target->target;
+	xd_buf_t x = { NULL, 0, 0 };
+	char pv[160], dsc[320];
+	size_t i;
+	int complex_type = (expr->expr_type & ASN_CONSTR_MASK) != 0;
+
+	if(!xd_default_xml(arg, expr, &x)) {
+		free(x.b);
+		return 0;
+	}
+	default_comment_text(expr->marker.default_value, pv, sizeof(pv));
+	if(!out) {
+		default_callbacks_ref(arg, expr, pv);
+		free(x.b);
+		return 1;
+	}
+	/* The descriptor expression emit_member_table prints for ".type" */
+	if(complex_type) {
+		snprintf(dsc, sizeof(dsc), "asn_DEF_%s", MKID(expr));
+		if(!(arg->flags & A1C_ALL_DEFS_GLOBAL))
+			snprintf(dsc + strlen(dsc), sizeof(dsc) - strlen(dsc), "_%d",
+				expr->_type_unique_index);
+	} else {
+		snprintf(dsc, sizeof(dsc), "asn_DEF_%s",
+			asn1c_type_name(arg, expr, TNF_SAFE));
+	}
+
+	REDIR(OT_STAT_DEFS);
+	if(complex_type) {
+		/* The inline descriptor is defined after the callbacks */
+		if(arg->flags & A1C_ALL_DEFS_GLOBAL)
+			OUT("extern asn_TYPE_descriptor_t %s;\n", dsc);
+		else
+			OUT("static asn_TYPE_descriptor_t %s;\n", dsc);
+	}
+	OUT("static int asn_DFL_%d_set(void **sptr) {\n", expr->_type_unique_index);
+	INDENT(+1);
+	OUT("/* DEFAULT %s */\n", pv);
+	OUT("static const char lit[] =\n");
+	OUT("\t\"<d>");
+	for(i = 0; i < x.n; i++) {
+		unsigned char c = (unsigned char)x.b[i];
+		if(c == '"' || c == '\\' || c == '?' || c < 0x20 || c >= 0x7f)
+			OUT("\\%03o", c);
+		else
+			OUT("%c", c);
+	}
+	OUT("</d>\";\n");
+	OUT("asn_codec_ctx_t ctx;\n");
+	OUT("asn_dec_rval_t rv;\n");
+	OUT("\n");
+	OUT("memset(&ctx, 0, sizeof(ctx));\n");
+	OUT("if(*sptr) ASN_STRUCT_RESET(%s, *sptr);\n", dsc);
+	OUT("rv = %s.op->xer_decoder(&ctx, &%s, sptr, \"d\",\n", dsc, dsc);
+	OUT("\tlit, sizeof(lit) - 1);\n");
+	OUT("return rv.code == RC_OK ? 0 : -1;\n");
+	INDENT(-1);
+	OUT("}\n");
+
+	OUT("static int asn_DFL_%d_cmp(const void *sptr) {\n", expr->_type_unique_index);
+	INDENT(+1);
+	OUT("void *dv = 0;\n");
+	OUT("int r;\n");
+	OUT("\n");
+	OUT("if(!sptr) {\n");
+	OUT("\treturn -1; /* No value is not a default value */\n");
+	OUT("}\n");
+	OUT("if(asn_DFL_%d_set(&dv)) {\n", expr->_type_unique_index);
+	OUT("\tASN_STRUCT_FREE(%s, dv);\n", dsc);
+	OUT("\treturn -1;\n");
+	OUT("}\n");
+	OUT("r = %s.op->compare_struct(&%s, sptr, dv);\n", dsc, dsc);
+	OUT("ASN_STRUCT_FREE(%s, dv);\n", dsc);
+	OUT("return r;\n");
+	INDENT(-1);
+	OUT("}\n");
+	REDIR(save_target);
+	free(x.b);
+	return 1;
+}
+
 static int
 try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	int save_target = arg->target->target;
@@ -3862,6 +4818,11 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	case ASN_BASIC_RELATIVE_OID:
 		return try_inline_oid_default(arg, expr,
 			etype == ASN_BASIC_RELATIVE_OID, out);
+	case ASN_CONSTR_SEQUENCE:
+	case ASN_CONSTR_SET:
+	case ASN_CONSTR_SEQUENCE_OF:
+	case ASN_CONSTR_SET_OF:
+		return try_inline_constructed_default(arg, expr, out);
 	case ASN_BASIC_UTCTime:
 	case ASN_BASIC_GeneralizedTime:
 	default:

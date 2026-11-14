@@ -88,6 +88,16 @@
     * The comment the C generator writes next to a REAL DEFAULT member shows
       the value to full precision ("DEFAULT 1.5", "DEFAULT 0.1"; it was
       "1.500000" and "0.100000"), and the special values by name.
+    * C generator (also for plain C users): a DEFAULT on a SEQUENCE, SET,
+      SEQUENCE OF or SET OF member now gets default_value_cmp /
+      default_value_set (an absent member decodes to the default, a member
+      equal to the default is omitted by DER, CANONICAL-PER and PER). The
+      value ({ id v, ... }, { v, v }, { }, a value reference, nested values)
+      is converted to XER at generation time and decoded by the generated
+      callbacks. A form the generator cannot convert (a CHOICE value, an
+      unknown, duplicated or missing member, a REAL or BMPString inside the
+      value, a default that is filled from itself) keeps the previous
+      behaviour: the member is treated like OPTIONAL, with no message.
 
 0.9.29-go.8:
     NEW:
