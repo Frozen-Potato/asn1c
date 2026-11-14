@@ -3740,24 +3740,6 @@ member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path) {
         darg.ns = ctx->ns;
         darg.expr = child;
         int dflt_ok = asn1c_default_callbacks_supported(&darg, child, &why);
-        if(dflt_ok) {
-            /* BMPString / UniversalString: the C generator stores the DEFAULT
-             * as the raw one-byte-per-character literal (asn1c_C.c default
-             * set callbacks), which is not valid UCS-2 / UCS-4 content, so a
-             * decoded absent member would not be the declared value. */
-            asn1p_expr_t *dt = child;
-            if(child->expr_type == A1TC_REFERENCE
-               || child->meta_type == AMT_TYPEREF) {
-                asn1p_expr_t *t = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, child);
-                if(t) dt = t;
-            }
-            if(go_construct_classify(dt) == GO_CONSTR_STRING
-               && go_string_subkind(dt) != GO_STR_PLAIN) {
-                why = "the C generator stores a BMPString / UniversalString "
-                      "DEFAULT as single-byte characters, not as UCS-2 / UCS-4";
-                dflt_ok = 0;
-            }
-        }
         if(!dflt_ok) {
             fprintf(stderr,
                     "asn1cgo: DEFAULT member %s is out of model in "

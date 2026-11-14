@@ -1,3 +1,17 @@
+0.9.29-go.9 (unreleased):
+    NEW:
+    * Go backend: a DEFAULT on a BMPString or UniversalString member is
+      accepted (a plain string in Go). Before, it was refused (exit 70).
+    FIXES:
+    * C generator (also for plain C users): the DEFAULT of a BMPString or
+      UniversalString member is stored as UCS-2 / UCS-4 big-endian ("hi" is
+      00 68 00 69 and 00 00 00 68 00 00 00 69), converted from the UTF-8
+      literal in the specification. Before, it was stored one byte per
+      character, so a decoder filled an absent member with the wrong value
+      and the encoder never omitted a correct one. A character that does not
+      fit (above U+FFFF for BMPString) or invalid UTF-8 now stops generation
+      with an error naming the member. Other string types are unchanged.
+
 0.9.29-go.8:
     NEW:
     * Go backend: SET OF maps to []T like SEQUENCE OF (named or inline

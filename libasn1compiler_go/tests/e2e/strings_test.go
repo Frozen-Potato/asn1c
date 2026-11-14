@@ -242,6 +242,17 @@ func stCases() []stCase {
 	add(stMk("dflt-other", "Dflt", "", &st.Dflt{Ia5: "yo", Vis: "ww", Num: "7", Flag: false}, st.DecodeDflt,
 		"<ia5>yo</ia5>", "<vis>ww</vis>", "<num>7</num>"))
 
+	// ---- DEFAULT BMPString / UniversalString (stored as UCS-2 / UCS-4) ----
+	// All members equal to their DEFAULT: omitted from the encoding, so the
+	// APER is the C encoding of the value with them absent.
+	add(stMk("dfltw-defaults", "DfltW", "",
+		&st.DfltW{Bmp: st.DfltWBmpDefault, Bmpu: st.DfltWBmpuDefault, Univ: st.DfltWUnivDefault, Univu: st.DfltWUnivuDefault, Flag: true}, st.DecodeDfltW,
+		"<bmp>hi</bmp>", "<bmpu>é€</bmpu>", "<univ>hi</univ>", "<univu>😀</univu>"))
+	add(stMk("dfltw-other", "DfltW", "", &st.DfltW{Bmp: "yo", Bmpu: "€é", Univ: "x", Univu: "😁", Flag: false}, st.DecodeDfltW,
+		"<bmp>yo</bmp>", "<bmpu>€é</bmpu>", "<univ>x</univ>", "<univu>😁</univu>"))
+	add(stMk("dfltw-mixed", "DfltW", "", &st.DfltW{Bmp: "hi", Bmpu: "é", Univ: "hi", Univu: "😀", Flag: true}, st.DecodeDfltW,
+		"<bmpu>é</bmpu>"))
+
 	// ---- extension additions ----
 	add(stMk("ext-all", "Ext", "", &st.Ext{A: 3, Bmp: stp(stMulti), Univo: stp(stClef), Ia5: stp("ext")}, st.DecodeExt,
 		"<bmp>"+stMulti+"</bmp>", "<univo>"+stClef+"</univo>", "<ia5>ext</ia5>"))
@@ -589,4 +600,31 @@ func TestStringsDeepEqualDecoded(t *testing.T) {
 		t.Errorf("decoded values differ:\n%+v\n%+v", a, b)
 	}
 	balanced(t, "rec")
+}
+
+// An all-default DfltW omits every DEFAULT member (a 4-bit preamble of zeros
+// plus the BOOLEAN), and a decoder fills the absent members with the DEFAULT
+// as real UCS-2 / UCS-4 text.
+func TestStringsBmpDefaultOmitted(t *testing.T) {
+	v := &st.DfltW{Bmp: "hi", Bmpu: "é€", Univ: "hi", Univu: "😀", Flag: true}
+	b, err := v.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []byte{0x08}; !bytes.Equal(b, want) {
+		t.Fatalf("APER of the all-default value = % x, want % x", b, want)
+	}
+	// The C converter agrees: XER with the members absent -> the same APER.
+	bin := converter(t)
+	c := siMk("dfltw-absent", "DfltW", "", v, st.DecodeDfltW)
+	if ref, ok := siConv(t, bin, c, []byte("<DfltW><flag><true/></flag></DfltW>"), "-ixer", "-oaper"); ok && !bytes.Equal(ref, b) {
+		t.Errorf("C APER of the absent-members XER % x != Go % x", ref, b)
+	}
+	got, err := st.DecodeDfltW(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Bmp != "hi" || got.Bmpu != "é€" || got.Univ != "hi" || got.Univu != "😀" || !got.Flag {
+		t.Fatalf("decoded %+v", got)
+	}
 }

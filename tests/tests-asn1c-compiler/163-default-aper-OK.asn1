@@ -29,4 +29,11 @@ BEGIN
 		extNon	INTEGER (0..7) DEFAULT 5
 	}
 
+	-- BMPString / UniversalString DEFAULT: stored as UCS-2 / UCS-4 big-endian
+	V ::= SEQUENCE {
+		a	BMPString DEFAULT "hi",
+		u	UniversalString DEFAULT "hi",
+		b	BOOLEAN
+	}
+
 END

@@ -1,13 +1,11 @@
 any	REFUSED	asn1cgo: ANY in module Probe
 charstring	REFUSED	asn1cgo: CHARACTER STRING in module Probe
-dflt-bmp	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-namedbit	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-null	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-oid	REFUSED	no DEFAULT support in the C generator
 dflt-real	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-roid	REFUSED	no DEFAULT support in the C generator
 dflt-seq	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
-dflt-universal	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-utctime	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 dflt-utf8	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
 embedded	REFUSED	asn1cgo: EMBEDDED PDV in module Probe

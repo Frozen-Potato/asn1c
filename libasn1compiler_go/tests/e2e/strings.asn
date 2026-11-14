@@ -113,12 +113,21 @@ BEGIN
 		...
 	}
 
-	-- ---- DEFAULT members (single-byte string types only: a BMPString / UniversalString
-	-- DEFAULT is refused, see KNOWN-ISSUES.md) ----
+	-- ---- DEFAULT members ----
 	Dflt ::= SEQUENCE {
 		ia5	IA5String DEFAULT "hi",
 		vis	VisibleString DEFAULT "vv",
 		num	NumericString DEFAULT "42",
+		flag	BOOLEAN
+	}
+
+	-- BMPString / UniversalString DEFAULT: the C generator stores the value as
+	-- UCS-2 / UCS-4 (the literal is UTF-8 in this file).
+	DfltW ::= SEQUENCE {
+		bmp	BMPString DEFAULT "hi",
+		bmpu	BMPString DEFAULT "é€",
+		univ	UniversalString DEFAULT "hi",
+		univu	UniversalString DEFAULT "😀",
 		flag	BOOLEAN
 	}
 

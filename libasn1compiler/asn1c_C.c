@@ -413,7 +413,7 @@ asn1c_lang_C_type_SEQUENCE(arg_t *arg) {
 	    if(comp_mode < 3) comp_mode++;
 	  if(comp_mode == 1)
 	    v->marker.flags |= EM_OMITABLE | EM_INDIRECT;
-	  try_inline_default(arg, v, 1);
+	  if(try_inline_default(arg, v, 1) < 0) return -1;
 	  if(is_open_type(arg, v, ioc_tao.ioct ? &ioc_tao : 0)) {
             arg_t tmp_arg = *arg;
             tmp_arg.embed++;
@@ -676,7 +676,7 @@ asn1c_lang_C_type_SET(arg_t *arg) {
 			if(comp_mode < 3) comp_mode++;
 		if(comp_mode == 1)
 			v->marker.flags |= EM_OMITABLE | EM_INDIRECT;
-		try_inline_default(arg, v, 1);
+		if(try_inline_default(arg, v, 1) < 0) return -1;
 
 		if((v->expr_type == ASN_CONSTR_SEQUENCE) &&
 		   (v->marker.flags & EM_OPTIONAL) &&
@@ -2445,13 +2445,90 @@ safe_string(const uint8_t *buf, int size) {
 	return 1;
 }
 
+/*
+ * Character width of the DEFAULT value as stored in the C structure:
+ * BMPString holds UCS-2 and UniversalString UCS-4, both big-endian; the other
+ * known-multiplier strings hold one byte per character.
+ */
+static int
+default_string_width(asn1p_expr_type_e etype) {
+	if(etype == ASN_STRING_BMPString) return 2;
+	if(etype == ASN_STRING_UniversalString) return 4;
+	return 1;
+}
+
+/*
+ * Convert the quoted-string DEFAULT of a BMPString / UniversalString to
+ * big-endian UCS-2 / UCS-4. The lexer copies the bytes of the quoted string
+ * as they are in the specification file, so a non-ASCII character arrives as
+ * its UTF-8 sequence (ATV_STRING buf/size, no escapes, no transcoding).
+ * Returns a malloc'ed buffer (*outlen bytes), or NULL with *why set when the
+ * literal is not valid UTF-8 or a character does not fit the type.
+ */
+static uint8_t *
+default_ucs_convert(asn1p_expr_type_e etype, const asn1p_value_t *v,
+		    size_t *outlen, const char **why) {
+	int width = default_string_width(etype);
+	const uint8_t *b = v->value.string.buf;
+	const uint8_t *e = b + v->value.string.size;
+	uint8_t *out = malloc((size_t)v->value.string.size * width + 1);
+	size_t n = 0;
+
+	if(!out) { *why = "out of memory"; return NULL; }
+	while(b < e) {
+		uint32_t cp;
+		int len, i;
+		if(*b < 0x80) { cp = *b; len = 1; }
+		else if(*b >= 0xc2 && *b <= 0xdf) { cp = *b & 0x1f; len = 2; }
+		else if(*b >= 0xe0 && *b <= 0xef) { cp = *b & 0x0f; len = 3; }
+		else if(*b >= 0xf0 && *b <= 0xf4) { cp = *b & 0x07; len = 4; }
+		else { *why = "the quoted string is not valid UTF-8"; goto bad; }
+		if(e - b < len) { *why = "the quoted string is not valid UTF-8"; goto bad; }
+		for(i = 1; i < len; i++) {
+			if((b[i] & 0xc0) != 0x80) {
+				*why = "the quoted string is not valid UTF-8";
+				goto bad;
+			}
+			cp = (cp << 6) | (b[i] & 0x3f);
+		}
+		if((len == 3 && cp < 0x800) || (len == 4 && cp < 0x10000)
+		   || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+			*why = "the quoted string is not valid UTF-8";
+			goto bad;
+		}
+		if(width == 2 && cp > 0xffff) {
+			*why = "a character above U+FFFF does not fit a BMPString";
+			goto bad;
+		}
+		for(i = width - 1; i >= 0; i--)
+			out[n++] = (cp >> (8 * i)) & 0xff;
+		b += len;
+	}
+	*outlen = n;
+	return out;
+bad:
+	free(out);
+	return NULL;
+}
+
 static void
-emit_default_string_value(arg_t *arg, asn1p_value_t *v) {
+emit_default_string_value(arg_t *arg, asn1p_expr_type_e etype, asn1p_value_t *v) {
 
 	OUT("static const uint8_t defv[] = ");
 	assert(v->type == ATV_STRING);
 
-	if(safe_string(v->value.string.buf, v->value.string.size)) {
+	if(default_string_width(etype) > 1) {
+		const char *why = "";
+		size_t n = 0, i;
+		uint8_t *u = default_ucs_convert(etype, v, &n, &why);
+		/* Already validated by try_inline_default(). */
+		assert(u);
+		OUT("{ ");
+		for(i = 0; i < n; i++)
+			OUT("0x%02x, ", u[i]);
+		OUT("0 };\n");
+		free(u);
+	} else if(safe_string(v->value.string.buf, v->value.string.size)) {
 		OUT("\"%s\";\n", v->value.string.buf);
 	} else {
 		uint8_t *b = v->value.string.buf;
@@ -2668,6 +2745,12 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 				       "for a character string type";
 				return 0;
 			}
+			if(default_string_width(etype) > 1) {
+				size_t n;
+				uint8_t *u = default_ucs_convert(etype, dv, &n, why);
+				if(!u) return 0;
+				free(u);
+			}
 			return 1;
 		}
 		*why = "this type has no DEFAULT support in the C generator "
@@ -2682,9 +2765,21 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	int save_target = arg->target->target;
 	asn1p_expr_type_e etype = expr_get_type(arg, expr);
 	int fits_long = 0;
+	const char *why = NULL;
 
-	if(!asn1c_default_callbacks_supported(arg, expr, NULL))
+	if(!asn1c_default_callbacks_supported(arg, expr, &why)) {
+		/* A BMPString / UniversalString literal that cannot be
+		 * converted must stop the generation, not drop the DEFAULT. */
+		if(default_string_width(etype) > 1 && why
+		   && expr->marker.default_value
+		   && expr->marker.default_value->type == ATV_STRING) {
+			if(!out)
+				return 0;
+			FATAL("DEFAULT of member %s: %s", expr->Identifier, why);
+			return -1;
+		}
 		return 0;
+	}
 
 	switch(etype) {
 	case ASN_BASIC_BOOLEAN:
@@ -2790,7 +2885,7 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
         OUT("static int asn_DFL_%d_cmp(const void *sptr) {\n",
             expr->_type_unique_index);
         INDENT(+1);
-        emit_default_string_value(arg, expr->marker.default_value);
+        emit_default_string_value(arg, etype, expr->marker.default_value);
         OUT("const %s *st = sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
         OUT("\n");
         OUT("if(!st) {\n");
@@ -2807,7 +2902,7 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
         OUT("static int asn_DFL_%d_set(void **sptr) {\n",
             expr->_type_unique_index);
         INDENT(+1);
-		emit_default_string_value(arg, expr->marker.default_value);
+		emit_default_string_value(arg, etype, expr->marker.default_value);
 		OUT("%s *st = *sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
         OUT("uint8_t *nstr = MALLOC(sizeof(defv));\n");
 		OUT("\n");

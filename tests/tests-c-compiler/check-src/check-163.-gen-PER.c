@@ -14,6 +14,7 @@
 
 #include <T.h>
 #include <U.h>
+#include <V.h>
 
 static T_t *roundtrip(const T_t *ti, uint8_t *buf, size_t bufsz, ssize_t *bits) {
 	asn_enc_rval_t er;
@@ -106,6 +107,71 @@ static void u_cases(int aper) {
 	(void)n3;
 }
 
+/*
+ * V: a BMPString / UniversalString DEFAULT is held as UCS-2 / UCS-4
+ * big-endian, so "hi" is 00 68 00 69 and 00 00 00 68 00 00 00 69. A decoder
+ * fills an absent member with exactly that, and an encoder omits a value equal
+ * to it (presence bits 00, then b=TRUE: 001 -> 0x20, 3 bits).
+ */
+static void v_cases(int aper) {
+	static const uint8_t bmp[] = {0x00, 0x68, 0x00, 0x69};
+	static const uint8_t uni[] = {0, 0, 0, 0x68, 0, 0, 0, 0x69};
+	uint8_t buf[64];
+	asn_enc_rval_t er;
+	asn_dec_rval_t rv;
+	asn_codec_ctx_t ctx;
+	V_t v, *vo = 0;
+	int i;
+
+	memset(&ctx, 0, sizeof(ctx));
+	/* Absent members decode to the DEFAULT */
+	{
+		static const uint8_t in[] = {0x20};
+		rv = aper ? aper_decode(&ctx, &asn_DEF_V, (void *)&vo, in, 1, 0, 0)
+			  : uper_decode(&ctx, &asn_DEF_V, (void *)&vo, in, 1, 0, 0);
+		assert(rv.code == RC_OK && vo);
+		assert(vo->a && vo->a->size == sizeof(bmp));
+		assert(memcmp(vo->a->buf, bmp, sizeof(bmp)) == 0);
+		assert(vo->u && vo->u->size == sizeof(uni));
+		assert(memcmp(vo->u->buf, uni, sizeof(uni)) == 0);
+		assert(vo->b == 1);
+		/* ... and re-encode omits them again */
+		memset(buf, 0, sizeof(buf));
+		er = aper ? aper_encode_to_buffer(&asn_DEF_V, 0, vo, buf, sizeof(buf))
+			  : uper_encode_to_buffer(&asn_DEF_V, 0, vo, buf, sizeof(buf));
+		assert(er.encoded == 3 && buf[0] == 0x20);
+		ASN_STRUCT_FREE(asn_DEF_V, vo);
+		vo = 0;
+	}
+	/* Explicit "hi" (UCS-2 / UCS-4) is omitted too */
+	memset(&v, 0, sizeof(v));
+	v.a = calloc(1, sizeof(*v.a));
+	v.u = calloc(1, sizeof(*v.u));
+	assert(OCTET_STRING_fromBuf((OCTET_STRING_t *)v.a, (const char *)bmp, 4) == 0);
+	assert(OCTET_STRING_fromBuf((OCTET_STRING_t *)v.u, (const char *)uni, 8) == 0);
+	v.b = 1;
+	memset(buf, 0, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_V, 0, &v, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_V, 0, &v, buf, sizeof(buf));
+	assert(er.encoded == 3 && buf[0] == 0x20);
+	/* A different value is encoded, and survives the round trip */
+	for(i = 0; i < 2; i++) {
+		OCTET_STRING_t *o = i ? (OCTET_STRING_t *)v.u : (OCTET_STRING_t *)v.a;
+		o->buf[o->size - 1] = 0x6a; /* "hj" */
+	}
+	memset(buf, 0, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_V, 0, &v, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_V, 0, &v, buf, sizeof(buf));
+	assert(er.encoded > 3 && (buf[0] & 0xc0) == 0xc0);
+	rv = aper ? aper_decode(&ctx, &asn_DEF_V, (void *)&vo, buf, sizeof(buf), 0, 0)
+		  : uper_decode(&ctx, &asn_DEF_V, (void *)&vo, buf, sizeof(buf), 0, 0);
+	assert(rv.code == RC_OK && vo);
+	assert(vo->a->size == 4 && vo->a->buf[3] == 0x6a);
+	assert(vo->u->size == 8 && vo->u->buf[7] == 0x6a);
+	ASN_STRUCT_FREE(asn_DEF_V, vo);
+	ASN_STRUCT_RESET(asn_DEF_V, &v);
+}
+
 int main() {
 	uint8_t buf[64];
 	ssize_t bits;
@@ -164,6 +230,8 @@ int main() {
 
 	u_cases(1);
 	u_cases(0);
+	v_cases(1);
+	v_cases(0);
 
 	return 0;
 }
