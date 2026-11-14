@@ -22,6 +22,12 @@
       asn_SET_specifics_t gained first_extension and ext_end (at the end, so
       older initializers still compile; regenerate to use PER on a SET).
     FIXES:
+    * Go backend: an OPTIONAL BIT STRING-alias member and an OPTIONAL inline
+      SEQUENCE OF member of a type imported from another module no longer
+      fail the build of the importing package (undefined: BitString /
+      undefined: <List>). Their types are now package-qualified; a package
+      without a BIT STRING of its own takes the helper type from a package
+      it imports.
     * Go backend: a CHOICE alternative that is an empty `SEQUENCE {}` no
       longer panics in Encode (index out of range in the arena helper) or
       fails Decode with E_ALLOC. Every generated glue.go changes in the

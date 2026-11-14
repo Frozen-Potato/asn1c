@@ -1120,7 +1120,7 @@ errlit(flat_type *t, const char *mfield, const char *code, const char *msg) {
  * emits). */
 static char *local_bitstring(void) {
     char *bsname = gown("BitString");
-    const char *foreign = NULL;
+    const char *foreign = NULL, *used = NULL;
     for(int bi = 0; bi < go_names_rows_n(); bi++) {
         const char *bk = go_names_row_kind(bi);
         if(!bk || (strcmp(bk, "type") != 0 && strcmp(bk, "helper") != 0))
@@ -1130,8 +1130,27 @@ static char *local_bitstring(void) {
         const char *bm = go_names_row_module(bi);
         if(bm && g_emit_mod && strcmp(bm, g_emit_mod) == 0)
             return bsname;   /* ours: bare, wherever its row sits */
-        if(bm && !foreign) foreign = bm;   /* first foreign owner */
+        if(bm && g_emit_mod && strcmp(bm, g_emit_mod) != 0) {
+            /* prefer a foreign owner this package's own field types
+             * reference (its types.go imports that package, so the name is
+             * bound); a package it never imports would be undefined here. */
+            if(!foreign) foreign = bm;
+            if(!used) {
+                char *pk = gmodule_pkg(bm);
+                char *pre = gfmt("%s.", pk);
+                size_t pl = strlen(pre);
+                for(int ri = 0; ri < go_names_rows_n() && !used; ri++) {
+                    const char *rm = go_names_row_module(ri);
+                    const char *rf = go_names_row_field_type(ri);
+                    if(!rm || strcmp(rm, g_emit_mod) != 0 || !rf) continue;
+                    while(*rf == '*') rf++;
+                    if(strncmp(rf, pre, pl) == 0) used = bm;
+                }
+                free(pk); free(pre);
+            }
+        }
     }
+    if(used) foreign = used;
     if(foreign) {
         char *pk = gmodule_pkg(foreign);
         free(bsname);
@@ -2196,11 +2215,13 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
                         bst = gown("BitString");
                     }
                 }
+                char *lbsq = local_bitstring();
                 (*E->fill) = gam((*E->fill), gfmt(
                     "\tif %s != nil {\n"
                     "\t\twv := fa.allocStruct(%s, alignInt64)\n"
-                    "\t\twriteBitsField(fa, wv, BitString(%s(*%s)))\n"
-                    "\t\tstorePtr(%s, wv)\n\t}\n", acc, szexpr, bst, acc, slot));
+                    "\t\twriteBitsField(fa, wv, %s(%s(*%s)))\n"
+                    "\t\tstorePtr(%s, wv)\n\t}\n", acc, szexpr, lbsq, bst, acc, slot));
+                free(lbsq);
                 (*E->read) = gam((*E->read), gfmt(
                     "\tif p := *(**byte)(%s); p != nil {\n"
                     "\t\tbs := %s(readBitsField(unsafe.Pointer(p)))\n"
@@ -2547,15 +2568,16 @@ emit_nested(ectx *E, flat_member *m) {
                 "\t\t\treturn err\n\t\t}\n"
                 "\t\tstorePtr(%s, hdr)\n\t}\n",
                 acc, erb, stride, dacc, hdf_fill(E, er), slot));
+            char *sqa = qualify_alias(ft + 1);
             (*E->read) = gam((*E->read), gfmt(
                 "\tif p := *(**byte)(%s); p != nil {\n"
                 "\t\t%s := read%sItems(unsafe.Pointer(p), uintptr(%s))\n"
                 "\t\t%s = (*%s)(&%s)\n\t}\n",
-                slot, tn, erb, stride, acc, ft && *ft == '*' ? ft + 1 : ft, tn));
+                slot, tn, erb, stride, acc, sqa, tn));
             (*E->szt) = gam((*E->szt), gfmt(
                 "\tif %s != nil {\n\t\tfixed += uintptr(16)\n\t\tif err := size%sItems(&fixed, &payload, %s%s); err != nil {\n\t\t\treturn 0, 0, err\n\t\t}\n\t}\n",
                 acc, erb, dacc, hdf_size(E, er)));
-            free(dacc); free(tn);
+            free(dacc); free(tn); free(sqa);
         } else {
             (*E->fill) = gam((*E->fill), gfmt(
                 "\tif err := fill%sItems(fa, %s, uintptr(%s), %s%s); err != nil {\n\t\treturn err\n\t}\n", erb, slot, stride, acc, hdf_fill(E, er)));
