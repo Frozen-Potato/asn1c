@@ -1,5 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-T ::= SEQUENCE { a INTEGER (0..3), ..., [[ b BOOLEAN, c INTEGER (0..3) ]] }
-
-END

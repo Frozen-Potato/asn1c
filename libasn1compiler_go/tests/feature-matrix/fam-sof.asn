@@ -1,0 +1,207 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- sof-bitstr-mem
+SofBitstrMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF BIT STRING, b BOOLEAN }
+
+-- sof-bitstr-top
+SofBitstrTop ::= SEQUENCE (SIZE(1..4)) OF BIT STRING
+
+-- sof-bmpstring-top
+SofBmpstringTop ::= SEQUENCE OF BMPString
+
+-- sof-bool-mem
+SofBoolMem ::= SEQUENCE { a SEQUENCE OF BOOLEAN, b BOOLEAN }
+
+-- sof-bool-top
+SofBoolTop ::= SEQUENCE OF BOOLEAN
+
+-- sof-bool-top-size
+SofBoolTopSize ::= SEQUENCE (SIZE(1..8)) OF BOOLEAN
+
+-- sof-choice-alt
+SofChoiceAlt ::= CHOICE { a SEQUENCE (SIZE(1..4)) OF CHOICE { x INTEGER (0..3), y BOOLEAN }, b BOOLEAN }
+
+-- sof-choice-mem
+SofChoiceMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF CHOICE { x INTEGER (0..3), y BOOLEAN }, b BOOLEAN }
+
+-- sof-choice-top
+SofChoiceTop ::= SEQUENCE OF CHOICE { a INTEGER (0..3), b BOOLEAN }
+
+-- sof-enum-alt
+SofEnumAlt ::= CHOICE { a SEQUENCE (SIZE(1..4)) OF ENUMERATED { x, y }, b BOOLEAN }
+
+-- sof-enum-mem
+SofEnumMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF ENUMERATED { x, y }, b BOOLEAN }
+
+-- sof-enum-top
+SofEnumTop ::= SEQUENCE OF ENUMERATED { x, y }
+
+-- sof-ext-size
+SofExtSize ::= SEQUENCE (SIZE(1..4, ...)) OF INTEGER (0..3)
+
+-- sof-ia5-mem
+SofIa5Mem ::= SEQUENCE { a SEQUENCE OF IA5String, b BOOLEAN }
+
+-- sof-ia5-top
+SofIa5Top ::= SEQUENCE OF IA5String
+
+-- sof-in-alt-seq
+SofInAltSeq ::= CHOICE { a SEQUENCE { b SEQUENCE (SIZE(1..4)) OF INTEGER (0..3) }, c BOOLEAN }
+
+-- sof-inl-choice-in-seq
+SofInlChoiceInSeq ::= SEQUENCE (SIZE(0..3)) OF SEQUENCE { x CHOICE { p BOOLEAN, q SEQUENCE { r INTEGER (0..3) } }, y SEQUENCE { z BOOLEAN } OPTIONAL }
+
+-- sof-inl-seq-alt-choice
+SofInlSeqAltChoice ::= SEQUENCE (SIZE(0..3)) OF CHOICE { x SEQUENCE { z BOOLEAN }, y CHOICE { p BOOLEAN, q INTEGER (0..3) } }
+
+-- sof-inl-seq-in-seq
+SofInlSeqInSeq ::= SEQUENCE (SIZE(0..3)) OF SEQUENCE { x INTEGER (0..3), y SEQUENCE { z BOOLEAN } }
+
+-- sof-inl-seq-mem-seq
+SofInlSeqMemSeq ::= SEQUENCE { a SEQUENCE (SIZE(0..3)) OF SEQUENCE { x INTEGER (0..3), y SEQUENCE { z BOOLEAN } }, b BOOLEAN }
+
+-- sof-int-alt
+SofIntAlt ::= CHOICE { a SEQUENCE (SIZE(1..8)) OF INTEGER (0..3), b BOOLEAN }
+
+-- sof-int-mem
+SofIntMem ::= SEQUENCE { a SEQUENCE (SIZE(1..8)) OF INTEGER (0..3), b BOOLEAN }
+
+-- sof-int-mem-opt
+SofIntMemOpt ::= SEQUENCE { a SEQUENCE (SIZE(1..8)) OF INTEGER (0..3) OPTIONAL, b BOOLEAN }
+
+-- sof-int-top
+SofIntTop ::= SEQUENCE OF INTEGER (0..3)
+
+-- sof-int-top-size
+SofIntTopSize ::= SEQUENCE (SIZE(0..8)) OF INTEGER (0..3)
+
+-- sof-int-u32-top
+SofIntU32Top ::= SEQUENCE (SIZE(1..4)) OF INTEGER (0..4294967295)
+
+-- sof-int-unconstr-top
+SofIntUnconstrTop ::= SEQUENCE OF INTEGER
+
+-- sof-int-wide-top
+SofIntWideTop ::= SEQUENCE (SIZE(1..4)) OF INTEGER (-2147483648..2147483647)
+
+-- sof-named-null-alias
+SofNamedNullAliasN ::= NULL
+SofNamedNullAliasN2 ::= SofNamedNullAliasN
+SofNamedNullAliasN3 ::= SofNamedNullAliasN2
+SofNamedNullAlias ::= SEQUENCE (SIZE(1..4)) OF SofNamedNullAliasN3
+SofNamedNullAliasU ::= SEQUENCE { a SEQUENCE (SIZE(0..3)) OF SofNamedNullAliasN2 }
+
+-- sof-named-null-mem
+SofNamedNullMemN ::= NULL
+SofNamedNullMem ::= SEQUENCE {
+    a SEQUENCE (SIZE(0..3)) OF SofNamedNullMemN,
+    b SEQUENCE (SIZE(0..3)) OF SofNamedNullMemN OPTIONAL,
+    c BOOLEAN
+}
+SofNamedNullMemU ::= CHOICE { a SEQUENCE (SIZE(0..3)) OF SofNamedNullMemN, b BOOLEAN }
+
+-- sof-named-null-top
+SofNamedNullTopN ::= NULL
+SofNamedNullTop ::= SEQUENCE (SIZE(1..4)) OF SofNamedNullTopN
+
+-- sof-namedbit-mem
+SofNamedbitMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF BIT STRING { p(0), q(1) }, b BOOLEAN }
+
+-- sof-namedbit-top
+SofNamedbitTop ::= SEQUENCE OF BIT STRING { p(0) }
+
+-- sof-null-alt
+SofNullAlt ::= CHOICE { a SEQUENCE (SIZE(1..4)) OF NULL, b BOOLEAN }
+
+-- sof-null-mem
+SofNullMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF NULL, b BOOLEAN }
+
+-- sof-null-ref
+SofNullRefE ::= NULL
+SofNullRef ::= SEQUENCE (SIZE(1..4)) OF SofNullRefE
+
+-- sof-null-top
+SofNullTop ::= SEQUENCE (SIZE(1..4)) OF NULL
+
+-- sof-octet-mem-opt
+SofOctetMemOpt ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF OCTET STRING OPTIONAL, b BOOLEAN }
+
+-- sof-octet-top
+SofOctetTop ::= SEQUENCE OF OCTET STRING
+
+-- sof-octet-top-size
+SofOctetTopSize ::= SEQUENCE (SIZE(1..4)) OF OCTET STRING (SIZE(1..4))
+
+-- sof-oid-mem
+SofOidMem ::= SEQUENCE { a SEQUENCE OF OBJECT IDENTIFIER, b BOOLEAN }
+
+-- sof-oid-top
+SofOidTop ::= SEQUENCE OF OBJECT IDENTIFIER
+
+-- sof-printable-alt
+SofPrintableAlt ::= CHOICE { a SEQUENCE (SIZE(1..4)) OF PrintableString, b BOOLEAN }
+
+-- sof-printable-top
+SofPrintableTop ::= SEQUENCE (SIZE(1..4)) OF PrintableString
+
+-- sof-real-mem
+SofRealMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF REAL, b BOOLEAN }
+
+-- sof-real-top
+SofRealTop ::= SEQUENCE (SIZE(1..4)) OF REAL
+
+-- sof-roid-mem
+SofRoidMem ::= SEQUENCE { a SEQUENCE OF RELATIVE-OID, b BOOLEAN }
+
+-- sof-roid-top
+SofRoidTop ::= SEQUENCE OF RELATIVE-OID
+
+-- sof-seq-alt
+SofSeqAlt ::= CHOICE { a SEQUENCE (SIZE(1..4)) OF SEQUENCE { x INTEGER (0..3) }, b BOOLEAN }
+
+-- sof-seq-mem
+SofSeqMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF SEQUENCE { x INTEGER (0..3), y BOOLEAN }, b BOOLEAN }
+
+-- sof-seq-mem-opt
+SofSeqMemOpt ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF SEQUENCE { x INTEGER (0..3) } OPTIONAL, b BOOLEAN }
+
+-- sof-seq-seqmem
+SofSeqSeqmem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF SEQUENCE { b SEQUENCE (SIZE(1..2)) OF INTEGER (0..3), c BOOLEAN } }
+
+-- sof-seq-top
+SofSeqTop ::= SEQUENCE OF SEQUENCE { a INTEGER (0..3) }
+
+-- sof-sof-alt
+SofSofAlt ::= CHOICE { a SEQUENCE OF SEQUENCE OF BOOLEAN, b BOOLEAN }
+
+-- sof-sof-bool-mem
+SofSofBoolMem ::= SEQUENCE { a SEQUENCE OF SEQUENCE OF BOOLEAN OPTIONAL, b BOOLEAN }
+
+-- sof-sof-choice-top
+SofSofChoiceTop ::= SEQUENCE OF SEQUENCE OF CHOICE { a INTEGER (0..3), b BOOLEAN }
+
+-- sof-sof-enum-top
+SofSofEnumTop ::= SEQUENCE OF SEQUENCE OF ENUMERATED { x, y }
+
+-- sof-sof-mem
+SofSofMem ::= SEQUENCE { a SEQUENCE (SIZE(1..4)) OF SEQUENCE OF INTEGER, b BOOLEAN }
+
+-- sof-sof-namedbit
+SofSofNamedbit ::= SEQUENCE OF SEQUENCE OF BIT STRING { p(0) }
+
+-- sof-sof-seq-top
+SofSofSeqTop ::= SEQUENCE (SIZE(1..3)) OF SEQUENCE OF SEQUENCE { a INTEGER (0..3) }
+
+-- sof-sof-size-both
+SofSofSizeBoth ::= SEQUENCE (SIZE(1..3)) OF SEQUENCE (SIZE(1..3)) OF INTEGER (0..3)
+
+-- sof-sof-top
+SofSofTop ::= SEQUENCE OF SEQUENCE OF INTEGER
+
+-- sof-universalstring-top
+SofUniversalstringTop ::= SEQUENCE OF UniversalString
+
+-- sof-utctime-top
+SofUtctimeTop ::= SEQUENCE OF UTCTime
+
+END

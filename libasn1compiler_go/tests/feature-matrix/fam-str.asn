@@ -1,0 +1,118 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- gentime
+Gentime ::= GeneralizedTime
+
+-- printable-alpha
+PrintableAlpha ::= PrintableString (FROM ("a".."z"))
+
+-- str-bmpstring
+StrBmpstring ::= BMPString
+
+-- str-bmpstring-alt
+StrBmpstringAlt ::= CHOICE { a BMPString, b BOOLEAN }
+
+-- str-bmpstring-mem
+StrBmpstringMem ::= SEQUENCE { a BMPString, b BOOLEAN }
+
+-- str-bmpstring-opt
+StrBmpstringOpt ::= SEQUENCE { a BMPString OPTIONAL, b BOOLEAN }
+
+-- str-bmpstring-ref
+StrBmpstringRefR ::= BMPString
+StrBmpstringRef ::= SEQUENCE { a StrBmpstringRefR, b StrBmpstringRefR OPTIONAL }
+
+-- str-generalizedtime-mem
+StrGeneralizedtimeMem ::= SEQUENCE { a GeneralizedTime, b BOOLEAN }
+
+-- str-generalstring
+StrGeneralstring ::= GeneralString
+
+-- str-generalstring-mem
+StrGeneralstringMem ::= SEQUENCE { a GeneralString, b BOOLEAN }
+
+-- str-graphicstring
+StrGraphicstring ::= GraphicString
+
+-- str-graphicstring-mem
+StrGraphicstringMem ::= SEQUENCE { a GraphicString, b BOOLEAN }
+
+-- str-ia5string
+StrIa5string ::= IA5String
+
+-- str-ia5string-alt
+StrIa5stringAlt ::= CHOICE { a IA5String, b BOOLEAN }
+
+-- str-ia5string-mem
+StrIa5stringMem ::= SEQUENCE { a IA5String, b BOOLEAN }
+
+-- str-ia5string-opt
+StrIa5stringOpt ::= SEQUENCE { a IA5String OPTIONAL, b BOOLEAN }
+
+-- str-numericstring
+StrNumericstring ::= NumericString
+
+-- str-numericstring-mem
+StrNumericstringMem ::= SEQUENCE { a NumericString, b BOOLEAN }
+
+-- str-objectdescriptor
+StrObjectdescriptor ::= ObjectDescriptor
+
+-- str-objectdescriptor-mem
+StrObjectdescriptorMem ::= SEQUENCE { a ObjectDescriptor, b BOOLEAN }
+
+-- str-t61string
+StrT61string ::= T61String
+
+-- str-t61string-mem
+StrT61stringMem ::= SEQUENCE { a T61String, b BOOLEAN }
+
+-- str-teletexstring
+StrTeletexstring ::= TeletexString
+
+-- str-teletexstring-mem
+StrTeletexstringMem ::= SEQUENCE { a TeletexString, b BOOLEAN }
+
+-- str-universalstring
+StrUniversalstring ::= UniversalString
+
+-- str-universalstring-alt
+StrUniversalstringAlt ::= CHOICE { a UniversalString, b BOOLEAN }
+
+-- str-universalstring-mem
+StrUniversalstringMem ::= SEQUENCE { a UniversalString, b BOOLEAN }
+
+-- str-universalstring-opt
+StrUniversalstringOpt ::= SEQUENCE { a UniversalString OPTIONAL, b BOOLEAN }
+
+-- str-utctime-alt
+StrUtctimeAlt ::= CHOICE { a UTCTime, b BOOLEAN }
+
+-- str-utctime-mem
+StrUtctimeMem ::= SEQUENCE { a UTCTime, b BOOLEAN }
+
+-- str-utctime-opt
+StrUtctimeOpt ::= SEQUENCE { a UTCTime OPTIONAL, b BOOLEAN }
+
+-- str-utf8string
+StrUtf8string ::= UTF8String
+
+-- str-utf8string-mem
+StrUtf8stringMem ::= SEQUENCE { a UTF8String, b BOOLEAN }
+
+-- str-videotexstring
+StrVideotexstring ::= VideotexString
+
+-- str-videotexstring-mem
+StrVideotexstringMem ::= SEQUENCE { a VideotexString, b BOOLEAN }
+
+-- str-visiblestring
+StrVisiblestring ::= VisibleString
+
+-- str-visiblestring-mem
+StrVisiblestringMem ::= SEQUENCE { a VisibleString, b BOOLEAN }
+
+-- utctime
+Utctime ::= UTCTime
+
+END

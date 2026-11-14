@@ -1,0 +1,46 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- oid
+Oid ::= OBJECT IDENTIFIER
+
+-- oid-alt
+OidAlt ::= CHOICE { a OBJECT IDENTIFIER, b BOOLEAN }
+
+-- oid-ext
+OidExt ::= SEQUENCE { a BOOLEAN, ..., b OBJECT IDENTIFIER OPTIONAL }
+
+-- oid-mem
+OidMem ::= SEQUENCE { a OBJECT IDENTIFIER, b BOOLEAN }
+
+-- oid-opt
+OidOpt ::= SEQUENCE { a OBJECT IDENTIFIER OPTIONAL, b BOOLEAN }
+
+-- oid-ref
+OidRefR ::= OBJECT IDENTIFIER
+OidRef ::= SEQUENCE { a OidRefR, b OidRefR OPTIONAL }
+
+-- oid-ref-alt
+OidRefAltR ::= OBJECT IDENTIFIER
+OidRefAlt ::= CHOICE { a OidRefAltR, b BOOLEAN }
+
+-- roid
+Roid ::= RELATIVE-OID
+
+-- roid-alt
+RoidAlt ::= CHOICE { a RELATIVE-OID, b BOOLEAN }
+
+-- roid-mem
+RoidMem ::= SEQUENCE { a RELATIVE-OID, b BOOLEAN }
+
+-- roid-opt
+RoidOpt ::= SEQUENCE { a RELATIVE-OID OPTIONAL, b BOOLEAN }
+
+-- roid-ref
+RoidRefR ::= RELATIVE-OID
+RoidRef ::= SEQUENCE { a RoidRefR, b RoidRefR OPTIONAL }
+
+-- roid-ref-alt
+RoidRefAltR ::= RELATIVE-OID
+RoidRefAlt ::= CHOICE { a RoidRefAltR, b BOOLEAN }
+
+END

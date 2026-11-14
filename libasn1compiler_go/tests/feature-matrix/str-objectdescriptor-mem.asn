@@ -1,5 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-T ::= SEQUENCE { a ObjectDescriptor, b BOOLEAN }
-
-END

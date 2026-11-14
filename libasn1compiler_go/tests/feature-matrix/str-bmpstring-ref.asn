@@ -1,6 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-R ::= BMPString
-T ::= SEQUENCE { a R, b R OPTIONAL }
-
-END

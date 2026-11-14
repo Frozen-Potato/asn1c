@@ -1,6 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-P { Y } ::= SEQUENCE { y Y, b BOOLEAN }
-T ::= P { INTEGER (0..3) }
-
-END

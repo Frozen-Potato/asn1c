@@ -1,7 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-T ::= SEQUENCE (SIZE(1..4)) OF SEQUENCE { x INTEGER (0..3) }
-U ::= T
-V ::= SEQUENCE { u U, t T }
-
-END

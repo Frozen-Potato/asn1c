@@ -1,0 +1,30 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- set
+Set ::= SET { a INTEGER (0..3), b BOOLEAN }
+
+-- set-ext
+SetExt ::= SET { a INTEGER (0..3), b BOOLEAN OPTIONAL, ..., c INTEGER (0..3) OPTIONAL }
+
+-- set-group
+SetGroup ::= SET { a INTEGER (0..3), ..., [[ b BOOLEAN, c INTEGER (0..3) OPTIONAL ]] }
+
+-- set-inline
+SetInline ::= SEQUENCE { s SET { x BOOLEAN, y INTEGER (0..3) OPTIONAL }, o SET { z BOOLEAN } OPTIONAL }
+
+-- set-default
+SetDefault ::= SET { a INTEGER (0..7) DEFAULT 3, b BOOLEAN DEFAULT TRUE, c INTEGER (0..255) }
+
+-- setof
+Setof ::= SET OF INTEGER (0..3)
+
+-- setof-mem
+SetofMem ::= SEQUENCE { a SET OF INTEGER (0..3), b BOOLEAN }
+
+-- setof-alt
+SetofAlt ::= CHOICE { a SET (SIZE(1..4)) OF INTEGER (0..3), b BOOLEAN }
+
+-- setof-nested
+SetofNested ::= SET (SIZE(0..3)) OF SET (SIZE(0..3)) OF SEQUENCE { f BOOLEAN, n INTEGER (0..7) }
+
+END

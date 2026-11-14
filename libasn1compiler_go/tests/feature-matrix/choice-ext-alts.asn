@@ -1,5 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-T ::= CHOICE { a INTEGER (0..3), b BOOLEAN, ..., c INTEGER (0..7) }
-
-END

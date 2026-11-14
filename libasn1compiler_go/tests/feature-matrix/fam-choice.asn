@@ -1,0 +1,41 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- alias-alias-choice
+-- An alias of an alias of a CHOICE, with a nested CHOICE, a SEQUENCE OF and
+-- an inline SEQUENCE under it.
+AliasAliasChoiceOrig ::= CHOICE {
+    t1 INTEGER (0..31),
+    n CHOICE { u INTEGER (0..3), v BOOLEAN },
+    l SEQUENCE (SIZE(1..3)) OF INTEGER (0..9),
+    s SEQUENCE { q SEQUENCE { z INTEGER (0..3) }, w BOOLEAN OPTIONAL }
+}
+AliasAliasChoiceAlias ::= AliasAliasChoiceOrig
+AliasAliasChoiceAlias2 ::= AliasAliasChoiceAlias
+AliasAliasChoiceL ::= SEQUENCE (SIZE(1..4)) OF AliasAliasChoiceAlias2
+
+-- alias-choice
+-- An alias of a CHOICE with an inline SEQUENCE alternative: C has only
+-- `typedef Orig_t Alias_t;`, so the converters use Orig_PR and struct Orig__t2.
+AliasChoiceOrig ::= CHOICE {
+    t1 INTEGER (0..31),
+    t2 SEQUENCE { p1 INTEGER (0..23), p2 INTEGER (1..3) OPTIONAL }
+}
+AliasChoiceAlias ::= AliasChoiceOrig
+AliasChoiceL ::= SEQUENCE (SIZE(1..4)) OF AliasChoiceAlias
+
+-- choice-ext-alts
+ChoiceExtAlts ::= CHOICE { a INTEGER (0..3), b BOOLEAN, ..., c INTEGER (0..7) }
+
+-- choice-present
+ChoicePresent ::= CHOICE { present INTEGER (0..3), b BOOLEAN }
+
+-- choice-reserved
+-- CHOICE alternatives named after C reserved words: the union member is
+-- upcased (`Explicit`), the _PR constant keeps the lower case.
+ChoiceReservedC ::= CHOICE { explicit BOOLEAN, int INTEGER (0..3), struct CHOICE { p BOOLEAN, q NULL }, x NULL }
+
+-- choice-seqof-ref-alt
+ChoiceSeqofRefAltE ::= INTEGER (0..3)
+ChoiceSeqofRefAlt ::= CHOICE { a SEQUENCE (SIZE(1..4)) OF ChoiceSeqofRefAltE, b BOOLEAN }
+
+END

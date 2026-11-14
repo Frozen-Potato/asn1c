@@ -1,5 +1,0 @@
-Probe DEFINITIONS EXPLICIT TAGS ::= BEGIN
-
-T ::= SET { n [3] INTEGER (0..7), u CHOICE { p [5] BOOLEAN, q [1] NULL } }
-
-END

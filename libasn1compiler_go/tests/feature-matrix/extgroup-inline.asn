@@ -1,5 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-T ::= SEQUENCE { s SEQUENCE { p BOOLEAN, ..., [[ q BOOLEAN ]] }, ..., [[ t BOOLEAN ]] }
-
-END

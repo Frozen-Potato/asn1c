@@ -1,5 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-T ::= CHOICE { a SEQUENCE (SIZE(1..4)) OF PrintableString, b BOOLEAN }
-
-END

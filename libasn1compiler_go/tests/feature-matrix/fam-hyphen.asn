@@ -1,0 +1,33 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- bits-hyphen
+BitsHyphenB ::= BIT STRING { b1(0), b-1(1) }
+
+BitsHyphen ::= SEQUENCE { b BIT STRING { c1(0), c-1(1) } }
+
+-- choice-hyphen
+-- CHOICE alternatives that differ only by a hyphen before a digit (a NULL
+-- one, and two with an inline SEQUENCE).
+ChoiceHyphen ::= CHOICE {
+    a1  BOOLEAN,
+    a-1 NULL,
+    c1  SEQUENCE { x INTEGER (0..9) },
+    c-1 SEQUENCE { y BOOLEAN }
+}
+
+-- enum-hyphen
+EnumHyphenDrift ::= ENUMERATED { d1, d-1, d2, d-2, ... }
+
+EnumHyphen ::= SEQUENCE { e ENUMERATED { a1, a-1 }, d EnumHyphenDrift }
+
+-- seq-hyphen
+-- SEQUENCE fields that differ only by a hyphen before a digit; both with an
+-- inline SEQUENCE, one with a DEFAULT.
+SeqHyphen ::= SEQUENCE {
+    a1  SEQUENCE { x INTEGER (0..9) },
+    a-1 SEQUENCE { y BOOLEAN },
+    b1  BOOLEAN DEFAULT TRUE,
+    b-1 INTEGER (0..9) DEFAULT 4
+}
+
+END

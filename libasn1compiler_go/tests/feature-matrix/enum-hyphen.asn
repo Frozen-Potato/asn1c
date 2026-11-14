@@ -1,7 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-Drift ::= ENUMERATED { d1, d-1, d2, d-2, ... }
-
-T ::= SEQUENCE { e ENUMERATED { a1, a-1 }, d Drift }
-
-END

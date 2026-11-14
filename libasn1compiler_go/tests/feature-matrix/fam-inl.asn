@@ -1,0 +1,68 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- inl-choice-alt-deep
+InlChoiceAltDeep ::= CHOICE { a CHOICE { b CHOICE { x INTEGER (0..3), y BOOLEAN }, c BOOLEAN }, d BOOLEAN }
+
+-- inl-choice-alt-mid
+InlChoiceAltMid ::= CHOICE { b BOOLEAN, a CHOICE { x INTEGER (0..3), y BOOLEAN }, c INTEGER (0..3) }
+
+-- inl-choice-alt-seq-deep
+InlChoiceAltSeqDeep ::= CHOICE { a CHOICE { b SEQUENCE { x INTEGER (0..3) }, c BOOLEAN }, d SEQUENCE { e CHOICE { f BOOLEAN, g INTEGER (0..3) } } }
+
+-- inl-choice-alt1
+InlChoiceAlt1 ::= CHOICE { a CHOICE { x INTEGER (0..3), y BOOLEAN }, b BOOLEAN }
+
+-- inl-choice-alt2
+InlChoiceAlt2 ::= CHOICE { b BOOLEAN, a CHOICE { x INTEGER (0..3), y BOOLEAN } }
+
+-- inl-choice-alt3
+InlChoiceAlt3 ::= CHOICE { b BOOLEAN, a CHOICE { x INTEGER (0..3), y BOOLEAN } }
+
+-- inl-choice-mem-opt
+InlChoiceMemOpt ::= SEQUENCE { a CHOICE { x INTEGER (0..3), y BOOLEAN } OPTIONAL, b BOOLEAN }
+
+-- inl-field-shadow-choice
+InlFieldShadowChoice ::= CHOICE { a SEQUENCE { x BOOLEAN, l INTEGER (0..7) }, l INTEGER (0..7) }
+
+-- inl-field-shadow-deep
+InlFieldShadowDeepL ::= INTEGER (0..7)
+
+InlFieldShadowDeep ::= SEQUENCE { p CHOICE { a SEQUENCE { x BOOLEAN, l InlFieldShadowDeepL }, l InlFieldShadowDeepL } }
+
+-- inl-field-shadow-seq
+InlFieldShadowSeq ::= SEQUENCE { a SEQUENCE { x BOOLEAN, y INTEGER (0..3) }, x BOOLEAN }
+
+-- inl-seq-alt
+InlSeqAlt ::= CHOICE { a SEQUENCE { x INTEGER (0..3) }, b BOOLEAN }
+
+-- inl-seq-alt-last
+InlSeqAltLast ::= CHOICE { b BOOLEAN, a SEQUENCE { x INTEGER (0..3) OPTIONAL, y BOOLEAN } }
+
+-- inl-seq-alt-mid
+InlSeqAltMid ::= CHOICE { b BOOLEAN, a SEQUENCE { x INTEGER (0..3), y BOOLEAN OPTIONAL }, c INTEGER (0..3) }
+
+-- inl-seq-mem
+InlSeqMem ::= SEQUENCE { a SEQUENCE { x INTEGER (0..3) }, b BOOLEAN }
+
+-- inl-seq-mem-choice
+InlSeqMemChoice ::= SEQUENCE { a SEQUENCE { c CHOICE { x INTEGER (0..3), y BOOLEAN }, d BOOLEAN }, e BOOLEAN }
+
+-- inl-seq-mem-deep
+InlSeqMemDeep ::= SEQUENCE { a SEQUENCE { b SEQUENCE { x INTEGER (0..3) } }, c BOOLEAN }
+
+-- inl-seq-mem-deep-opt
+InlSeqMemDeepOpt ::= SEQUENCE { a SEQUENCE { b SEQUENCE { x INTEGER (0..3) } OPTIONAL, c SEQUENCE { z BOOLEAN } OPTIONAL } OPTIONAL, d BOOLEAN }
+
+-- inl-seq-mem-ext
+InlSeqMemExt ::= SEQUENCE { a SEQUENCE { x INTEGER (0..3), y BOOLEAN OPTIONAL, ..., z INTEGER (0..7) OPTIONAL }, b BOOLEAN }
+
+-- inl-seq-mem-opt
+InlSeqMemOpt ::= SEQUENCE { a SEQUENCE { x INTEGER (0..3) } OPTIONAL, b BOOLEAN }
+
+-- seq-inline-choice
+SeqInlineChoice ::= SEQUENCE { a CHOICE { x INTEGER (0..3), y BOOLEAN }, b BOOLEAN }
+
+-- two-inline-choice
+TwoInlineChoice ::= SEQUENCE { m CHOICE { f BOOLEAN, t NULL }, p CHOICE { b BOOLEAN, a NULL } }
+
+END

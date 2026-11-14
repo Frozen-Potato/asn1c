@@ -1,0 +1,15 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- int-u64-mem
+IntU64Mem ::= SEQUENCE { a INTEGER (0..18446744073709551615) }
+
+-- int-u64-mem-opt
+IntU64MemOpt ::= SEQUENCE { a INTEGER (0..18446744073709551615) OPTIONAL }
+
+-- int-u64top
+IntU64top ::= INTEGER (0..18446744073709551615)
+
+-- int-unconstr
+IntUnconstr ::= INTEGER
+
+END

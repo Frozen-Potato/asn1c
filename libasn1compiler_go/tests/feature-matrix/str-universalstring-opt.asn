@@ -1,5 +1,0 @@
-Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
-
-T ::= SEQUENCE { a UniversalString OPTIONAL, b BOOLEAN }
-
-END

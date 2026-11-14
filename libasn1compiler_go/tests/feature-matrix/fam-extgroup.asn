@@ -1,0 +1,24 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- ext-mandatory
+ExtMandatory ::= SEQUENCE { a INTEGER (0..3), ..., b BOOLEAN }
+
+-- ext-mandatory2
+ExtMandatory2 ::= SEQUENCE { a INTEGER (0..3), ..., b BOOLEAN OPTIONAL, c INTEGER (0..7) }
+
+-- extgroup
+Extgroup ::= SEQUENCE { a INTEGER (0..3), ..., [[ b BOOLEAN, c INTEGER (0..3) ]] }
+
+-- extgroup-inline
+ExtgroupInline ::= SEQUENCE { s SEQUENCE { p BOOLEAN, ..., [[ q BOOLEAN ]] }, ..., [[ t BOOLEAN ]] }
+
+-- extgroup-mixed
+ExtgroupMixed ::= SEQUENCE { a INTEGER (0..3), ..., x BOOLEAN OPTIONAL, [[ b BOOLEAN ]], y BOOLEAN, [[ c BOOLEAN ]] }
+
+-- extgroup-multi
+ExtgroupMulti ::= SEQUENCE { a INTEGER (0..3), ..., [[ b BOOLEAN ]], [[ c BOOLEAN, d INTEGER (0..3) OPTIONAL ]] }
+
+-- extgroup-optdef
+ExtgroupOptdef ::= SEQUENCE { a INTEGER (0..3), ..., [[ b BOOLEAN OPTIONAL, c INTEGER (0..9) DEFAULT 4 ]] }
+
+END

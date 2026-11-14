@@ -1,0 +1,9 @@
+Probe DEFINITIONS EXPLICIT TAGS ::= BEGIN
+
+-- set-tags
+SetTags ::= SET { z [2] INTEGER (0..15), y [0] BOOLEAN, x [1] INTEGER (0..3) OPTIONAL }
+
+-- set-untagged-choice
+SetUntaggedChoice ::= SET { n [3] INTEGER (0..7), u CHOICE { p [5] BOOLEAN, q [1] NULL } }
+
+END

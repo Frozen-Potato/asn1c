@@ -1,0 +1,9 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- dflt-enum-ok
+DfltEnumOk ::= SEQUENCE { a ENUMERATED { x, y } DEFAULT y, b BOOLEAN }
+
+-- dflt-ia5
+DfltIa5 ::= SEQUENCE { a IA5String DEFAULT "hi", b BOOLEAN }
+
+END

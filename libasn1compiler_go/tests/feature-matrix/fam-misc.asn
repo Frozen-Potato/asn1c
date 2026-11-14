@@ -1,0 +1,63 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- bitstr-unconstr
+BitstrUnconstr ::= BIT STRING
+
+-- bool-top
+BoolTop ::= BOOLEAN
+
+-- components-of
+ComponentsOfA ::= SEQUENCE { a INTEGER (0..3) }
+ComponentsOf ::= SEQUENCE { COMPONENTS OF ComponentsOfA, b BOOLEAN }
+
+-- enum-ext
+EnumExt ::= ENUMERATED { x, y, ..., z }
+
+-- explicit
+Explicit ::= SEQUENCE { a [0] EXPLICIT INTEGER (0..3), b BOOLEAN }
+
+-- null-alt
+NullAlt ::= CHOICE { a NULL, b BOOLEAN }
+
+-- null-mem
+NullMem ::= SEQUENCE { a NULL, b BOOLEAN }
+
+-- null-top
+NullTop ::= NULL
+
+-- octet-unconstr
+OctetUnconstr ::= OCTET STRING
+
+-- param
+ParamP { Y } ::= SEQUENCE { y Y, b BOOLEAN }
+Param ::= ParamP { INTEGER (0..3) }
+
+-- real-mem
+RealMem ::= SEQUENCE { a REAL, b BOOLEAN }
+
+-- real-top
+RealTop ::= REAL
+
+-- recursive
+Recursive ::= SEQUENCE { a INTEGER (0..3), next Recursive OPTIONAL }
+
+-- recursive-seqof
+RecursiveSeqof ::= SEQUENCE { a INTEGER (0..3), kids SEQUENCE OF RecursiveSeqof }
+
+-- seq-present
+SeqPresent ::= SEQUENCE { present INTEGER (0..3), ... }
+
+-- seqof-alias-inline
+SeqofAliasInline ::= SEQUENCE (SIZE(1..4)) OF INTEGER (0..3)
+SeqofAliasInlineU ::= SeqofAliasInline
+
+-- seqof-alias-inline-seq
+SeqofAliasInlineSeq ::= SEQUENCE (SIZE(1..4)) OF SEQUENCE { x INTEGER (0..3) }
+SeqofAliasInlineSeqU ::= SeqofAliasInlineSeq
+SeqofAliasInlineSeqV ::= SEQUENCE { u SeqofAliasInlineSeqU, t SeqofAliasInlineSeq }
+
+-- seqof-ref-top
+SeqofRefTopE ::= INTEGER (0..3)
+SeqofRefTop ::= SEQUENCE (SIZE(1..8)) OF SeqofRefTopE
+
+END

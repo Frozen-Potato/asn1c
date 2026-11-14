@@ -1,0 +1,40 @@
+ModA DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- xmod-bitalias-opt
+XmodBitaliasOptRnti ::= BIT STRING (SIZE(16))
+XmodBitaliasOptSP ::= SEQUENCE { r XmodBitaliasOptRnti OPTIONAL }
+
+-- xmod-bitstring
+XmodBitstringSP ::= SEQUENCE { bm BIT STRING { c1(0), c2(1) } (SIZE(8)), n INTEGER (0..7) }
+
+-- xmod-seqof-opt
+XmodSeqofOptIt ::= SEQUENCE { n INTEGER (0..7) }
+XmodSeqofOptSP ::= SEQUENCE { l SEQUENCE (SIZE(1..4)) OF XmodSeqofOptIt OPTIONAL }
+
+-- import-seqof
+ImportSeqofItem ::= SEQUENCE { a INTEGER (0..7) }
+ImportSeqofItemList ::= SEQUENCE (SIZE(1..4)) OF ImportSeqofItem
+
+END
+
+ModB DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+IMPORTS XmodBitaliasOptSP,
+    XmodBitstringSP,
+    XmodSeqofOptSP,
+    ImportSeqofItemList FROM ModA;
+
+-- xmod-bitalias-opt
+XmodBitaliasOptMsg ::= SEQUENCE { sp XmodBitaliasOptSP }
+
+-- xmod-bitstring
+XmodBitstringMsg ::= SEQUENCE { sp XmodBitstringSP, own BIT STRING (SIZE(4)) }
+
+-- xmod-seqof-opt
+XmodSeqofOptMsg ::= SEQUENCE { sp XmodSeqofOptSP }
+
+-- import-seqof
+ImportSeqofMsg ::= SEQUENCE { l ImportSeqofItemList OPTIONAL }
+ImportSeqofReq ::= SEQUENCE { l ImportSeqofItemList }
+
+END
