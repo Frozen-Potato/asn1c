@@ -253,6 +253,15 @@ func stCases() []stCase {
 	add(stMk("dfltw-mixed", "DfltW", "", &st.DfltW{Bmp: "hi", Bmpu: "é", Univ: "hi", Univu: "😀", Flag: true}, st.DecodeDfltW,
 		"<bmpu>é</bmpu>"))
 
+	// ---- DEFAULT UTF8String / UTCTime / GeneralizedTime / GraphicString ----
+	add(stMk("dflts-defaults", "DfltS", "",
+		&st.DfltS{Utf: st.DfltSUtfDefault, Utc: st.DfltSUtcDefault, Gt: st.DfltSGtDefault, Gr: st.DfltSGrDefault, Flag: true}, st.DecodeDfltS,
+		"<utf>é€</utf>", "<utc>250102030405Z</utc>", "<gt>20250102030405Z</gt>", "<gr>"+stHex("gg")+"</gr>"))
+	add(stMk("dflts-other", "DfltS", "", &st.DfltS{Utf: "ü", Utc: "260102030405Z", Gt: "20260102030405.5Z", Gr: "g", Flag: false}, st.DecodeDfltS,
+		"<utf>ü</utf>", "<utc>260102030405Z</utc>", "<gt>20260102030405.5Z</gt>", "<gr>"+stHex("g")+"</gr>"))
+	add(stMk("dflts-mixed", "DfltS", "", &st.DfltS{Utf: "é€", Utc: "260102030405Z", Gt: "20250102030405Z", Gr: "gg", Flag: true}, st.DecodeDfltS,
+		"<utc>260102030405Z</utc>"))
+
 	// ---- extension additions ----
 	add(stMk("ext-all", "Ext", "", &st.Ext{A: 3, Bmp: stp(stMulti), Univo: stp(stClef), Ia5: stp("ext")}, st.DecodeExt,
 		"<bmp>"+stMulti+"</bmp>", "<univo>"+stClef+"</univo>", "<ia5>ext</ia5>"))
@@ -627,4 +636,43 @@ func TestStringsBmpDefaultOmitted(t *testing.T) {
 	if got.Bmp != "hi" || got.Bmpu != "é€" || got.Univ != "hi" || got.Univu != "😀" || !got.Flag {
 		t.Fatalf("decoded %+v", got)
 	}
+}
+
+// An all-default DfltS omits the four DEFAULT members (4 preamble bits of
+// zeros plus the BOOLEAN), and a decoder fills the absent members with the
+// DEFAULT (UTF-8 text, time text, 8-bit text).
+func TestStringsOtherDefaultOmitted(t *testing.T) {
+	v := &st.DfltS{Utf: "é€", Utc: "250102030405Z", Gt: "20250102030405Z", Gr: "gg", Flag: true}
+	b, err := v.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []byte{0x08}; !bytes.Equal(b, want) {
+		t.Fatalf("APER of the all-default value = % x, want % x", b, want)
+	}
+	bin := converter(t)
+	c := siMk("dflts-absent", "DfltS", "", v, st.DecodeDfltS)
+	if ref, ok := siConv(t, bin, c, []byte("<DfltS><flag><true/></flag></DfltS>"), "-ixer", "-oaper"); ok && !bytes.Equal(ref, b) {
+		t.Errorf("C APER of the absent-members XER % x != Go % x", ref, b)
+	}
+	got, err := st.DecodeDfltS(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Utf != "é€" || got.Utc != "250102030405Z" || got.Gt != "20250102030405Z" || got.Gr != "gg" || !got.Flag {
+		t.Fatalf("decoded %+v", got)
+	}
+	// One member off its DEFAULT is encoded and the others stay omitted.
+	v.Utc = "260102030405Z"
+	b2, err := v.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b2) <= 1 || b2[0]&0xf0 != 0x40 {
+		t.Fatalf("APER with only utc set = % x", b2)
+	}
+	if ref, ok := siConv(t, bin, c, []byte("<DfltS><utc>260102030405Z</utc><flag><true/></flag></DfltS>"), "-ixer", "-oaper"); ok && !bytes.Equal(ref, b2) {
+		t.Errorf("C APER % x != Go % x", ref, b2)
+	}
+	t.Logf("APER utc-only: % x", b2)
 }

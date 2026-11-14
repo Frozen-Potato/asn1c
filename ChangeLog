@@ -2,6 +2,11 @@
     NEW:
     * Go backend: a DEFAULT on a BMPString or UniversalString member is
       accepted (a plain string in Go). Before, it was refused (exit 70).
+    * Go backend: a DEFAULT on a UTF8String, GeneralString, GraphicString,
+      TeletexString, T61String, VideotexString, ObjectDescriptor, UTCTime or
+      GeneralizedTime member is accepted (a plain string in Go). Before, it
+      was refused (exit 70) with a message that wrongly blamed character
+      strings in general.
     FIXES:
     * C generator (also for plain C users): the DEFAULT of a BMPString or
       UniversalString member is stored as UCS-2 / UCS-4 big-endian ("hi" is
@@ -11,6 +16,16 @@
       and the encoder never omitted a correct one. A character that does not
       fit (above U+FFFF for BMPString) or invalid UTF-8 now stops generation
       with an error naming the member. Other string types are unchanged.
+    * C generator (also for plain C users): a quoted-string DEFAULT on a
+      UTF8String, GeneralString, GraphicString, TeletexString, T61String,
+      VideotexString, ObjectDescriptor, UTCTime or GeneralizedTime member now
+      gets default_value_cmp / default_value_set, as for the other string
+      types. The bytes of the literal are stored as written (UTF-8 for
+      UTF8String). The generator does not check the syntax of a time literal;
+      an invalid one is stored as is (decoding fills it in; the constraint
+      check then rejects the value).
+      Before, such a member had no callbacks: it was always encoded and was
+      NULL when absent.
 
 0.9.29-go.8:
     NEW:

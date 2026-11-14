@@ -12,4 +12,19 @@ DfltBmp ::= SEQUENCE { a BMPString DEFAULT "hi", b BOOLEAN }
 -- dflt-universal
 DfltUniversal ::= SEQUENCE { a UniversalString DEFAULT "hi", b BOOLEAN }
 
+-- dflt-utf8
+DfltUtf8 ::= SEQUENCE { a UTF8String DEFAULT "é€", b BOOLEAN }
+
+-- dflt-utctime
+DfltUtctime ::= SEQUENCE { a UTCTime DEFAULT "250102030405Z", b BOOLEAN }
+
+-- dflt-gentime
+DfltGentime ::= SEQUENCE { a GeneralizedTime DEFAULT "20250102030405Z", b BOOLEAN }
+
+-- dflt-other-str
+DfltOtherStr ::= SEQUENCE {
+    gen GeneralString DEFAULT "g", gra GraphicString DEFAULT "g",
+    tel TeletexString DEFAULT "g", t61 T61String DEFAULT "g",
+    vid VideotexString DEFAULT "g", od ObjectDescriptor DEFAULT "g", b BOOLEAN }
+
 END

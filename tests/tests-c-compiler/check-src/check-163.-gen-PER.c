@@ -15,6 +15,7 @@
 #include <T.h>
 #include <U.h>
 #include <V.h>
+#include <W.h>
 
 static T_t *roundtrip(const T_t *ti, uint8_t *buf, size_t bufsz, ssize_t *bits) {
 	asn_enc_rval_t er;
@@ -172,6 +173,62 @@ static void v_cases(int aper) {
 	ASN_STRUCT_RESET(asn_DEF_V, &v);
 }
 
+/*
+ * W: a UTF8String / UTCTime DEFAULT is held as the bytes of the literal as
+ * written ("é€" is the UTF-8 c3 a9 e2 82 ac). The generator does not check the
+ * time syntax of a UTCTime literal; an invalid one is stored as it is, and
+ * the constraint check (asn_check_constraints) then rejects a decoded
+ * default that is not a valid time.
+ */
+static void w_cases(int aper) {
+	static const uint8_t utf[] = {0xc3, 0xa9, 0xe2, 0x82, 0xac};
+	static const char tm[] = "250102030405Z";
+	uint8_t buf[64];
+	asn_enc_rval_t er;
+	asn_dec_rval_t rv;
+	asn_codec_ctx_t ctx;
+	W_t w, *wo = 0;
+
+	memset(&ctx, 0, sizeof(ctx));
+	/* Absent members decode to the DEFAULT */
+	{
+		static const uint8_t in[] = {0x20};
+		rv = aper ? aper_decode(&ctx, &asn_DEF_W, (void *)&wo, in, 1, 0, 0)
+			  : uper_decode(&ctx, &asn_DEF_W, (void *)&wo, in, 1, 0, 0);
+		assert(rv.code == RC_OK && wo);
+		assert(wo->a && wo->a->size == sizeof(utf));
+		assert(memcmp(wo->a->buf, utf, sizeof(utf)) == 0);
+		assert(wo->t && wo->t->size == sizeof(tm) - 1);
+		assert(memcmp(wo->t->buf, tm, sizeof(tm) - 1) == 0);
+		assert(wo->b == 1);
+		/* ... and re-encode omits them again */
+		memset(buf, 0, sizeof(buf));
+		er = aper ? aper_encode_to_buffer(&asn_DEF_W, 0, wo, buf, sizeof(buf))
+			  : uper_encode_to_buffer(&asn_DEF_W, 0, wo, buf, sizeof(buf));
+		assert(er.encoded == 3 && buf[0] == 0x20);
+		ASN_STRUCT_FREE(asn_DEF_W, wo);
+		wo = 0;
+	}
+	/* Explicit equal values are omitted too */
+	memset(&w, 0, sizeof(w));
+	w.a = calloc(1, sizeof(*w.a));
+	w.t = calloc(1, sizeof(*w.t));
+	assert(OCTET_STRING_fromBuf((OCTET_STRING_t *)w.a, (const char *)utf, sizeof(utf)) == 0);
+	assert(OCTET_STRING_fromBuf((OCTET_STRING_t *)w.t, tm, sizeof(tm) - 1) == 0);
+	w.b = 1;
+	memset(buf, 0, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_W, 0, &w, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_W, 0, &w, buf, sizeof(buf));
+	assert(er.encoded == 3 && buf[0] == 0x20);
+	/* A different time is encoded */
+	w.t->buf[11] = '6';
+	memset(buf, 0, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_W, 0, &w, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_W, 0, &w, buf, sizeof(buf));
+	assert(er.encoded > 3 && (buf[0] & 0xc0) == 0x40);
+	ASN_STRUCT_RESET(asn_DEF_W, &w);
+}
+
 int main() {
 	uint8_t buf[64];
 	ssize_t bits;
@@ -232,6 +289,8 @@ int main() {
 	u_cases(0);
 	v_cases(1);
 	v_cases(0);
+	w_cases(1);
+	w_cases(0);
 
 	return 0;
 }

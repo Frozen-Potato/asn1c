@@ -2738,8 +2738,11 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 		}
 		return 1;
 	}
+	case ASN_BASIC_UTCTime:
+	case ASN_BASIC_GeneralizedTime:
 	default:
-		if(etype & ASN_STRING_KM_MASK) {
+		if((etype & ASN_STRING_MASK) || etype == ASN_BASIC_UTCTime
+		   || etype == ASN_BASIC_GeneralizedTime) {
 			if(dv == NULL || dv->type != ATV_STRING) {
 				*why = "only a quoted-string DEFAULT value is supported "
 				       "for a character string type";
@@ -2753,9 +2756,10 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 			}
 			return 1;
 		}
-		*why = "this type has no DEFAULT support in the C generator "
-		       "(only BOOLEAN, INTEGER, ENUMERATED, OCTET STRING, BIT "
-		       "STRING and character strings do)";
+		*why = "the C generator emits no default callbacks for a DEFAULT "
+		       "of this type (it handles BOOLEAN, INTEGER, ENUMERATED, "
+		       "OCTET STRING, BIT STRING, character strings, UTCTime "
+		       "and GeneralizedTime)";
 		return 0;
 	}
 }
@@ -2867,8 +2871,11 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	case ASN_BASIC_OCTET_STRING:
 	case ASN_BASIC_BIT_STRING:
 		return try_inline_blob_default(arg, expr, etype, out);
+	case ASN_BASIC_UTCTime:
+	case ASN_BASIC_GeneralizedTime:
 	default:
-	  if(etype & ASN_STRING_KM_MASK) {
+	  if((etype & ASN_STRING_MASK) || etype == ASN_BASIC_UTCTime
+	     || etype == ASN_BASIC_GeneralizedTime) {
 		if(!out) {
             if(C99_MODE) OUT(".default_value_cmp = ");
 			OUT("&asn_DFL_%d_cmp,\t/* Compare DEFAULT \"%s\" */\n",

@@ -4730,7 +4730,9 @@ note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
         break;
     }
     default:
-        if(term->expr_type & ASN_STRING_KM_MASK) {
+        if((term->expr_type & ASN_STRING_MASK)
+           || term->expr_type == ASN_BASIC_UTCTime
+           || term->expr_type == ASN_BASIC_GeneralizedTime) {
             lit = go_quote(dv->value.string.buf, (size_t)dv->value.string.size);
             break;
         }

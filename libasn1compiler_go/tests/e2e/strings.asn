@@ -131,6 +131,16 @@ BEGIN
 		flag	BOOLEAN
 	}
 
+	-- DEFAULT on the other string types and the time types: a plain string
+	-- in Go, the literal's bytes as written.
+	DfltS ::= SEQUENCE {
+		utf	UTF8String DEFAULT "é€",
+		utc	UTCTime DEFAULT "250102030405Z",
+		gt	GeneralizedTime DEFAULT "20250102030405Z",
+		gr	GraphicString DEFAULT "gg",
+		flag	BOOLEAN
+	}
+
 	-- ---- extensible SEQUENCE with the string types as additions ----
 	Ext ::= SEQUENCE {
 		a	INTEGER (0..7),

@@ -36,4 +36,11 @@ BEGIN
 		b	BOOLEAN
 	}
 
+	-- UTF8String and UTCTime DEFAULT: the literal's bytes as written
+	W ::= SEQUENCE {
+		a	UTF8String DEFAULT "é€",
+		t	UTCTime DEFAULT "250102030405Z",
+		b	BOOLEAN
+	}
+
 END
