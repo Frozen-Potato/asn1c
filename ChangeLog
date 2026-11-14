@@ -22,6 +22,12 @@
       asn_SET_specifics_t gained first_extension and ext_end (at the end, so
       older initializers still compile; regenerate to use PER on a SET).
     FIXES:
+    * Go backend: encoding a zero-length BIT STRING (a plain, OPTIONAL or
+      CHOICE-alternative member, or a SEQUENCE OF element) failed with
+      "BIT STRING: value not given", so a value that Decode had produced
+      could not be encoded again. The converter now always gives the C value
+      a buffer. Every generated C converter that handles a BIT STRING
+      changes, so regenerate.
     * Go backend: an OPTIONAL BIT STRING-alias member and an OPTIONAL inline
       SEQUENCE OF member of a type imported from another module no longer
       fail the build of the importing package (undefined: BitString /

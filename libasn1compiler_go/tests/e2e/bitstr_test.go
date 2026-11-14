@@ -19,6 +19,7 @@ package e2e
 
 import (
 	"bytes"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -26,6 +27,7 @@ import (
 	"asn1cgo.test/go/bitsa"
 	"asn1cgo.test/go/bitsb"
 	"asn1cgo.test/go/bitsc"
+	"asn1cgo.test/go/ebs"
 )
 
 // bsParts builds the buffer of an n-bit string (MSB first) with the given bit
@@ -275,4 +277,115 @@ func TestBitStrHandAPER(t *testing.T) {
 	if want := []byte{0xD2, 0xC0}; !bytes.Equal(got, want) {
 		t.Errorf("OptFixed = % x, want % x", got, want)
 	}
+}
+
+// ---- zero-length BIT STRING (module EBS) ----
+//
+// Zero-length BIT STRING (tests/e2e/ebs.asn): a valid value that the Go side
+// both decodes and must be able to encode. Covered as an OPTIONAL member, a
+// plain member (next to OCTET STRINGs), a CHOICE alternative and a SEQUENCE OF
+// element. Each case is encoded in Go and must equal fixed APER bytes (the C
+// converter's APER of the XER below); the C converter must render the Go bytes
+// as that XER; decoding the bytes must give back the input (a zero-length
+// BIT STRING decodes to a Bytes slice of length 0); and re-encoding the
+// decoded value must give the same bytes. Copied into the generated module by
+// tests/run-e2e.sh with default_test.go.
+//
+// APER, worked out per X.691 (every length determinant is octet-aligned):
+//
+// 	EbT{o: zero-length, p: '1'B, q: '01'H}
+// 	  preamble o,r = 1,0 -> 10, pad to the octet: 80
+// 	  o: length 0 -> 00;  p: length 1 -> 01, bits '1' + pad -> 80
+// 	  q: length 1 -> 01, 01                          => 80 00 01 80 01 01
+// 	EbT{p: '1'B, q: '01'H}: preamble 00, then p, q    => 00 01 80 01 01
+// 	EbC{a: zero-length}: choice index 0 (1 bit), pad: 00, length 0: 00 => 00 00
+// 	EbL{zero-length, '1'B}: count 2 -> 02; 00; 01 80  => 02 00 01 80
+
+func TestZeroLengthBitString(t *testing.T) {
+	bin := converter(t)
+	empty := ebs.BitString{}
+	one := ebs.BitString{Bytes: []byte{0x80}, BitsUnused: 7}
+	cases := []struct {
+		name string
+		pdu  string
+		enc  func() ([]byte, error)
+		dec  func([]byte) (any, error)
+		want any
+		xer  string
+		aper []byte
+	}{
+		{"opt-present", "EbT",
+			func() ([]byte, error) { return (&ebs.EbT{O: &empty, P: one, Q: []byte{1}}).Encode() },
+			func(b []byte) (any, error) { return ebs.DecodeEbT(b) },
+			&ebs.EbT{O: &empty, P: one, Q: []byte{1}},
+			"<EbT><o></o><p>1</p><q>01</q></EbT>",
+			[]byte{0x80, 0x00, 0x01, 0x80, 0x01, 0x01}},
+		{"plain-empty", "EbT",
+			func() ([]byte, error) { return (&ebs.EbT{P: empty, Q: []byte{1}}).Encode() },
+			func(b []byte) (any, error) { return ebs.DecodeEbT(b) },
+			&ebs.EbT{P: empty, Q: []byte{1}},
+			"<EbT><p></p><q>01</q></EbT>",
+			[]byte{0x00, 0x00, 0x01, 0x01}},
+		{"plain-one", "EbT",
+			func() ([]byte, error) { return (&ebs.EbT{P: one, Q: []byte{1}}).Encode() },
+			func(b []byte) (any, error) { return ebs.DecodeEbT(b) },
+			&ebs.EbT{P: one, Q: []byte{1}},
+			"<EbT><p>1</p><q>01</q></EbT>",
+			[]byte{0x00, 0x01, 0x80, 0x01, 0x01}},
+		{"choice-alt", "EbC",
+			func() ([]byte, error) { return (&ebs.EbC{Present: ebs.EbCPrA, A: &empty}).Encode() },
+			func(b []byte) (any, error) { return ebs.DecodeEbC(b) },
+			&ebs.EbC{Present: ebs.EbCPrA, A: &empty},
+			"<EbC><a></a></EbC>",
+			[]byte{0x00, 0x00}},
+		{"seqof-element", "EbL",
+			func() ([]byte, error) { l := ebs.EbL{empty, one}; return (&l).Encode() },
+			func(b []byte) (any, error) { return ebs.DecodeEbL(b) },
+			&ebs.EbL{empty, one},
+			"<EbL><BIT_STRING></BIT_STRING><BIT_STRING>1</BIT_STRING></EbL>",
+			[]byte{0x02, 0x00, 0x01, 0x80}},
+	}
+	squash := func(b []byte) string { return strings.Join(strings.Fields(string(b)), "") }
+	for _, c := range cases {
+		aper, err := c.enc()
+		if err != nil {
+			t.Errorf("%s: encode: %v", c.name, err)
+			continue
+		}
+		if !bytes.Equal(aper, c.aper) {
+			t.Errorf("%s: Go APER % x, want % x", c.name, aper, c.aper)
+		}
+		if ref := convPDU(t, bin, c.pdu, []byte(c.xer), "-ixer", "-oaper"); !bytes.Equal(ref, c.aper) {
+			t.Errorf("%s: C APER of the XER % x, want % x", c.name, ref, c.aper)
+		}
+		if x := squash(convPDU(t, bin, c.pdu, aper, "-iaper", "-oxer")); x != c.xer {
+			t.Errorf("%s: XER of the Go bytes %s, want %s", c.name, x, c.xer)
+		}
+		got, err := c.dec(aper)
+		if err != nil {
+			t.Errorf("%s: decode: %v", c.name, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, got, c.want)
+		}
+		again, err := reencode(got)
+		if err != nil {
+			t.Errorf("%s: re-encode: %v", c.name, err)
+		} else if !bytes.Equal(again, c.aper) {
+			t.Errorf("%s: re-encoded % x, want % x", c.name, again, c.aper)
+		}
+	}
+}
+
+func reencode(v any) ([]byte, error) {
+	switch x := v.(type) {
+	case *ebs.EbT:
+		return x.Encode()
+	case *ebs.EbC:
+		return x.Encode()
+	case *ebs.EbL:
+		return x.Encode()
+	}
+	return nil, nil
 }

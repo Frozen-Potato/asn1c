@@ -64,3 +64,14 @@ BEGIN
 	}
 
 END
+
+EBS DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A zero-length BIT STRING is a valid value: as an OPTIONAL and a plain
+-- SEQUENCE member (next to OCTET STRINGs), as a CHOICE alternative and as a
+-- SEQUENCE OF element.
+EbT ::= SEQUENCE { o BIT STRING OPTIONAL, p BIT STRING, q OCTET STRING, r OCTET STRING OPTIONAL }
+EbC ::= CHOICE { a BIT STRING, b INTEGER (0..3) }
+EbL ::= SEQUENCE OF BIT STRING
+
+END
