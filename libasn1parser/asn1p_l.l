@@ -27,7 +27,7 @@ int asn1p_lexer_extended_values = 0;
 
 int asn1p_as_pointer;
 
-static asn1c_integer_t _lex_atoi(const char *ptr);
+static asn1c_integer_t _lex_atoi(const char *ptr), _lex_digits(const char *ptr);
 static double          _lex_atod(const char *ptr);
 
 /*
@@ -467,21 +467,21 @@ WITH			return TOK_WITH;
 		char *p;
 		for(p = yytext; *p; p++)
 			if(*p >= '0' && *p <= '9')
-			{ v1 = _lex_atoi(p); break; }
+			{ v1 = _lex_digits(p); break; }
 		while(*p >= '0' && *p <= '9') p++;	/* Skip digits */
 		for(; *p; p++) if(*p >= '0' && *p <= '9')
-			{ v2 = _lex_atoi(p); break; }
+			{ v2 = _lex_digits(p); break; }
 		if(v1 < 0 || v1 > 7) {
-			fprintf(stderr, "%s at line %d: X.680:2003, #37.14 "
-				"mandates 0..7 range for Tuple's TableColumn\n",
-				yytext, yylineno);
-			return -1;
+			/* Not a Tuple (e.g. a SEQUENCE OF value { 1, 20 }):
+			 * give back all but the brace, parse as a value. */
+			yyless(1);
+			return '{';
 		}
 		if(v2 < 0 || v2 > 15) {
-			fprintf(stderr, "%s at line %d: X.680:2003, #37.14 "
-				"mandates 0..15 range for Tuple's TableRow\n",
-				yytext, yylineno);
-			return -1;
+			/* Not a Tuple (e.g. a SEQUENCE OF value { 1, 20 }):
+			 * give back all but the brace, parse as a value. */
+			yyless(1);
+			return '{';
 		}
 		asn1p_lval.a_int = (v1 << 4) + v2;
 		return TOK_tuple;
@@ -492,39 +492,39 @@ WITH			return TOK_WITH;
 		char *p;
 		for(p = yytext; *p; p++)
 			if(*p >= '0' && *p <= '9')
-			{ v1 = _lex_atoi(p); break; }
+			{ v1 = _lex_digits(p); break; }
 		while(*p >= '0' && *p <= '9') p++;	/* Skip digits */
 		for(; *p; p++) if(*p >= '0' && *p <= '9')
-			{ v2 = _lex_atoi(p); break; }
+			{ v2 = _lex_digits(p); break; }
 		while(*p >= '0' && *p <= '9') p++;
 		for(; *p; p++) if(*p >= '0' && *p <= '9')
-			{ v3 = _lex_atoi(p); break; }
+			{ v3 = _lex_digits(p); break; }
 		while(*p >= '0' && *p <= '9') p++;
 		for(; *p; p++) if(*p >= '0' && *p <= '9')
-			{ v4 = _lex_atoi(p); break; }
+			{ v4 = _lex_digits(p); break; }
 		if(v1 < 0 || v1 > 127) {
-			fprintf(stderr, "%s at line %d: X.680:2003, #37.12 "
-				"mandates 0..127 range for Quadruple's Group\n",
-				yytext, yylineno);
-			return -1;
+			/* Not a Quadruple (e.g. a SEQUENCE OF value { 1, 20 }):
+			 * give back all but the brace, parse as a value. */
+			yyless(1);
+			return '{';
 		}
 		if(v2 < 0 || v2 > 255) {
-			fprintf(stderr, "%s at line %d: X.680:2003, #37.12 "
-				"mandates 0..255 range for Quadruple's Plane\n",
-				yytext, yylineno);
-			return -1;
+			/* Not a Quadruple (e.g. a SEQUENCE OF value { 1, 20 }):
+			 * give back all but the brace, parse as a value. */
+			yyless(1);
+			return '{';
 		}
 		if(v3 < 0 || v3 > 255) {
-			fprintf(stderr, "%s at line %d: X.680:2003, #37.12 "
-				"mandates 0..255 range for Quadruple's Row\n",
-				yytext, yylineno);
-			return -1;
+			/* Not a Quadruple (e.g. a SEQUENCE OF value { 1, 20 }):
+			 * give back all but the brace, parse as a value. */
+			yyless(1);
+			return '{';
 		}
 		if(v4 < 0 || v4 > 255) {
-			fprintf(stderr, "%s at line %d: X.680:2003, #37.12 "
-				"mandates 0..255 range for Quadruple's Cell\n",
-				yytext, yylineno);
-			return -1;
+			/* Not a Quadruple (e.g. a SEQUENCE OF value { 1, 20 }):
+			 * give back all but the brace, parse as a value. */
+			yyless(1);
+			return '{';
 		}
 		asn1p_lval.a_int = (v1 << 24) | (v2 << 16) | (v3 << 8) | v4;
 		return TOK_quadruple;
@@ -586,7 +586,8 @@ void asn1p_lexer_hack_push_encoding_control() {
 
 static asn1c_integer_t
 _lex_atoi(const char *ptr) {
-	asn1c_integer_t value;
+	asn1c_integer_t value = 0;
+	errno = 0;
 	if(asn1p_atoi(ptr, &value)) {
 		fprintf(stderr,
 			"Value \"%s\" at line %d is too large "
@@ -595,6 +596,14 @@ _lex_atoi(const char *ptr) {
 		errno = ERANGE;
 	}
 	return value;
+}
+
+static asn1c_integer_t
+_lex_digits(const char *ptr) {
+	asn1c_integer_t v = 0;
+	for(; *ptr >= '0' && *ptr <= '9'; ptr++)
+		if(v <= 1000) v = v * 10 + (*ptr - '0');	/* saturates, only range-checked */
+	return v;
 }
 
 static double

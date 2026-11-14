@@ -1,0 +1,34 @@
+ModuleBraceTuple { iso org(3) dod(6) internet(1) private(4) enterprise(1)
+	spelio(9363) software(1) asn1c(5) test(1) 174 }
+DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+S ::= IA5String (FROM({0, 7}..{0, 9}))
+
+U ::= INTEGER (0..9)
+
+B ::= BMPString (FROM({0, 0, 0, 65}..{0, 0, 0, 90}))
+
+Ls ::= SEQUENCE OF INTEGER
+
+T1 ::= SEQUENCE {
+    e	 [0] IMPLICIT Ls DEFAULT {1, 2},
+    f	 [1] IMPLICIT INTEGER (0..9)
+}
+
+T2 ::= SEQUENCE {
+    e	 [0] IMPLICIT Ls DEFAULT { 1, 20 },
+    f	 [1] IMPLICIT INTEGER (0..9)
+}
+
+T3 ::= SEQUENCE {
+    e	 [0] IMPLICIT Ls DEFAULT {1, 2, 3, 4},
+    f	 [1] IMPLICIT INTEGER (0..9)
+}
+
+T4 ::= SEQUENCE {
+    e	 [0] IMPLICIT Ls DEFAULT { 1, 2, 3, 400 },
+    f	 [1] IMPLICIT INTEGER (0..9)
+}
+
+END

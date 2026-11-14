@@ -1,0 +1,28 @@
+-- OK: brace groups of 2 or 4 numbers. In a character-string constraint they
+-- are a Tuple / Quadruple; elsewhere (a SEQUENCE OF value) they are an
+-- ordinary value, also when out of the Tuple / Quadruple range. A later
+-- number must still parse after each of them.
+
+-- iso.org.dod.internet.private.enterprise (1.3.6.1.4.1)
+-- .spelio.software.asn1c.test (9363.1.5.1)
+-- .174
+
+ModuleBraceTuple
+	{ iso org(3) dod(6) internet(1) private(4) enterprise(1)
+		spelio(9363) software(1) asn1c(5) test(1) 174 }
+	DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+	S ::= IA5String (FROM ({0, 7}..{0, 9}))
+	U ::= INTEGER (0..9)
+
+	B ::= BMPString (FROM ({0, 0, 0, 65}..{0, 0, 0, 90}))
+
+	Ls ::= SEQUENCE OF INTEGER
+
+	T1 ::= SEQUENCE { e Ls DEFAULT { 1, 2 }, f INTEGER (0..9) }
+	T2 ::= SEQUENCE { e Ls DEFAULT { 1, 20 }, f INTEGER (0..9) }
+	T3 ::= SEQUENCE { e Ls DEFAULT { 1, 2, 3, 4 }, f INTEGER (0..9) }
+	T4 ::= SEQUENCE { e Ls DEFAULT { 1, 2, 3, 400 }, f INTEGER (0..9) }
+
+END

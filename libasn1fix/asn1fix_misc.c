@@ -65,7 +65,7 @@ asn1f_printable_value(asn1p_value_t *v) {
 	case ATV_TUPLE:
 		ret = snprintf(buf, sizeof(buf), "{%d, %d}",
 			(int)(v->value.v_integer >> 4),
-			(int)(v->value.v_integer & 0xff));
+			(int)(v->value.v_integer & 0x0f));
 		if(ret >= (ssize_t)sizeof(buf))
 			memcpy(buf + sizeof(buf) - 4, "...", 4);
 		return buf;
