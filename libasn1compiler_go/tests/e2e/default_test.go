@@ -10,6 +10,7 @@ package e2e
 
 import (
 	"bytes"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -496,4 +497,193 @@ func TestDefaultWideInteger(t *testing.T) {
 	over := df.WideDefaults{W5: 1099511627776}
 	_, err = over.Encode()
 	wantErr(t, "wide constraint", err, rt.ErrConstraint)
+}
+
+// ---- NULL and REAL DEFAULT (RealDefaults) ----
+
+func realDflt() *df.RealDefaults {
+	return &df.RealDefaults{
+		N: df.RealDefaultsNDefault, R: df.RealDefaultsRDefault,
+		Z: df.RealDefaultsZDefault, M: df.RealDefaultsMDefault,
+		P: df.RealDefaultsPDefault, Q: df.RealDefaultsQDefault,
+		Nz: df.RealDefaultsNzDefault, Na: df.RealDefaultsNaDefault,
+		B: true,
+	}
+}
+
+// sameReal compares two floats the way the DEFAULT does: by value, but a NaN
+// equals a NaN and -0.0 differs from 0.0.
+func sameReal(a, b float64) bool {
+	if math.IsNaN(a) || math.IsNaN(b) {
+		return math.IsNaN(a) && math.IsNaN(b)
+	}
+	return math.Float64bits(a) == math.Float64bits(b)
+}
+
+func sameRealDefaults(a, b *df.RealDefaults) bool {
+	return a.N == b.N && a.B == b.B && sameReal(a.R, b.R) &&
+		sameReal(a.Z, b.Z) && sameReal(a.M, b.M) && sameReal(a.P, b.P) &&
+		sameReal(a.Q, b.Q) && sameReal(a.Nz, b.Nz) && sameReal(a.Na, b.Na)
+}
+
+func TestRealDefaultConstants(t *testing.T) {
+	if df.RealDefaultsRDefault != 1.5 || df.RealDefaultsZDefault != 0 ||
+		df.RealDefaultsMDefault != -2.25 ||
+		!math.IsInf(df.RealDefaultsPDefault, 1) ||
+		!math.IsInf(df.RealDefaultsQDefault, -1) ||
+		df.RealDefaultsNzDefault != 0 || !math.Signbit(df.RealDefaultsNzDefault) ||
+		!math.IsNaN(df.RealDefaultsNaDefault) ||
+		df.RealDefaultsNDefault != struct{}{} {
+		t.Fatal("generated REAL / NULL DEFAULT values are wrong")
+	}
+	if math.Signbit(df.RealDefaultsZDefault) {
+		t.Fatal("DEFAULT 0 is minus zero")
+	}
+}
+
+// Hand-computed APER. The preamble is eight presence bits (n r z m p q nz na)
+// and then the members present, each REAL as a length octet and the X.690
+// content; b is the last bit.
+//
+//	all defaults:  00000000 | b=1                          -> 00 80
+//	r=2.5:         01000000 | 03 80 ff 05 (5 * 2^-1) | b   -> 40 03 80 ff 05 80
+//	z=-0.0:        00100000 | 01 43 (minus zero)     | b   -> 20 01 43 80
+//	m=0.0:         00010000 | 00 (zero: no content)  | b   -> 10 00 80
+//	p=1.0:         00001000 | 03 80 00 01            | b   -> 08 03 80 00 01 80
+//	nz=+0.0:       00000010 | 00 (zero: no content)  | b   -> 02 00 80
+//	na=1.0:        00000001 | 03 80 00 01            | b   -> 01 03 80 00 01 80
+//	b=false:       00000000 | b=0                          -> 00 00
+var realHandCases = []struct {
+	name string
+	mut  func(*df.RealDefaults)
+	want []byte
+}{
+	{"all-default", func(*df.RealDefaults) {}, []byte{0x00, 0x80}},
+	{"r-2.5", func(p *df.RealDefaults) { p.R = 2.5 }, []byte{0x40, 0x03, 0x80, 0xff, 0x05, 0x80}},
+	{"z-minus-zero", func(p *df.RealDefaults) { p.Z = math.Copysign(0, -1) }, []byte{0x20, 0x01, 0x43, 0x80}},
+	{"m-zero", func(p *df.RealDefaults) { p.M = 0 }, []byte{0x10, 0x00, 0x80}},
+	{"p-1", func(p *df.RealDefaults) { p.P = 1 }, []byte{0x08, 0x03, 0x80, 0x00, 0x01, 0x80}},
+	{"nz-plus-zero", func(p *df.RealDefaults) { p.Nz = 0 }, []byte{0x02, 0x00, 0x80}},
+	{"na-1", func(p *df.RealDefaults) { p.Na = 1 }, []byte{0x01, 0x03, 0x80, 0x00, 0x01, 0x80}},
+	{"b-false", func(p *df.RealDefaults) { p.B = false }, []byte{0x00, 0x00}},
+}
+
+func TestRealDefaultHandAPER(t *testing.T) {
+	for _, c := range realHandCases {
+		p := realDflt()
+		c.mut(p)
+		got, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if !bytes.Equal(got, c.want) {
+			t.Errorf("%s: APER = % x, want % x", c.name, got, c.want)
+		}
+		back, err := df.DecodeRealDefaults(c.want)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if !sameRealDefaults(back, p) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, back, p)
+		}
+		balanced(t, c.name)
+	}
+}
+
+// Other values round-trip, among them infinities and a -0.0 member whose
+// DEFAULT is 0.
+func TestRealDefaultRoundTrip(t *testing.T) {
+	base, err := realDflt().Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		mut  func(*df.RealDefaults)
+	}{
+		{"r-0.1", func(p *df.RealDefaults) { p.R = 0.1 }},
+		{"r-large", func(p *df.RealDefaults) { p.R = 1e300 }},
+		{"r-neg", func(p *df.RealDefaults) { p.R = -1.5 }},
+		{"r-nan", func(p *df.RealDefaults) { p.R = math.NaN() }},
+		{"z-5", func(p *df.RealDefaults) { p.Z = 5 }},
+		{"m-pinf", func(p *df.RealDefaults) { p.M = math.Inf(1) }},
+		{"p-minf", func(p *df.RealDefaults) { p.P = math.Inf(-1) }},
+		{"q-pinf", func(p *df.RealDefaults) { p.Q = math.Inf(1) }},
+		{"nz-1.5", func(p *df.RealDefaults) { p.Nz = 1.5 }},
+		{"na-zero", func(p *df.RealDefaults) { p.Na = 0 }},
+		{"na-inf", func(p *df.RealDefaults) { p.Na = math.Inf(1) }},
+		{"everything", func(p *df.RealDefaults) {
+			p.R, p.Z, p.M, p.P = 3, math.Copysign(0, -1), 9.75, -8
+			p.Q, p.Nz, p.Na, p.B = 100, 7, -0.5, false
+		}},
+	} {
+		p := realDflt()
+		c.mut(p)
+		b, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if bytes.Equal(b, base) {
+			t.Errorf("%s: non-default value encoded like the default", c.name)
+		}
+		back, err := df.DecodeRealDefaults(b)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if !sameRealDefaults(back, p) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, back, p)
+		}
+		balanced(t, c.name)
+	}
+	// The all-default value decodes from the two bytes with every default
+	// filled in, NULL included.
+	got, err := df.DecodeRealDefaults([]byte{0x00, 0x80})
+	if err != nil || !sameRealDefaults(got, realDflt()) {
+		t.Fatalf("decode 00 80: %+v, %v", got, err)
+	}
+	balanced(t, "real-absent")
+}
+
+func TestRealDefaultCConverter(t *testing.T) {
+	bin := converter(t)
+	cases := []struct {
+		name string
+		mut  func(*df.RealDefaults)
+	}{{"all-default", func(*df.RealDefaults) {}}}
+	for _, c := range realHandCases[1:] {
+		cases = append(cases, struct {
+			name string
+			mut  func(*df.RealDefaults)
+		}{c.name, c.mut})
+	}
+	for _, c := range cases {
+		p := realDflt()
+		c.mut(p)
+		aper, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		// C decodes the Go APER and re-encodes it bit-exact.
+		if re := convPDU(t, bin, "RealDefaults", aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: C APER re-encode % x != Go % x", c.name, re, aper)
+		}
+		xer := convPDU(t, bin, "RealDefaults", aper, "-iaper", "-oxer")
+		if re := convPDU(t, bin, "RealDefaults", xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: XER round trip % x != Go % x\n%s", c.name, re, aper, xer)
+		}
+		uper := convPDU(t, bin, "RealDefaults", aper, "-iaper", "-oper")
+		if re := convPDU(t, bin, "RealDefaults", uper, "-iper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s: UPER round trip % x != Go % x", c.name, re, aper)
+		}
+	}
+	// XER of the absent members shows the defaults.
+	x := strings.Join(strings.Fields(string(convPDU(t, bin, "RealDefaults",
+		[]byte{0x00, 0x80}, "-iaper", "-oxer"))), "")
+	for _, el := range []string{"<n></n>", "<r>1.5</r>", "<m>-2.25</m>",
+		"<p><PLUS-INFINITY/></p>", "<q><MINUS-INFINITY/></q>",
+		"<nz>-0</nz>", "<na><NOT-A-NUMBER/></na>"} {
+		if !strings.Contains(x, el) {
+			t.Errorf("XER of absent members lacks %s: %s", el, x)
+		}
+	}
 }

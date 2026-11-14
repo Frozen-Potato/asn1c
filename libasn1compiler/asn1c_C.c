@@ -60,6 +60,8 @@ static int expr_defined_recursively(arg_t *arg, asn1p_expr_t *expr);
 static int asn1c_recurse(arg_t *arg, asn1p_expr_t *expr, int (*callback)(arg_t *arg, void *key), void *key);
 static asn1p_expr_type_e expr_get_type(arg_t *arg, asn1p_expr_t *expr);
 static int try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out);
+static int try_inline_null_default(arg_t *arg, asn1p_expr_t *expr, int out);
+static int try_inline_real_default(arg_t *arg, asn1p_expr_t *expr, int out);
 static int *compute_canonical_members_order(arg_t *arg, int el_count);
 
 /*
@@ -2679,6 +2681,62 @@ try_inline_blob_default(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_type_e etype,
 }
 
 /*
+ * REAL DEFAULT. The parser produces ATV_REAL for a decimal literal (1.5, -2.25,
+ * 1e3) and for PLUS-INFINITY / MINUS-INFINITY / NOT-A-NUMBER (the lexer turns
+ * them into +inf / -inf / NaN), and ATV_INTEGER for DEFAULT 2. The
+ * { mantissa M, base B, exponent E } form is kept as opaque ATV_UNPARSED text
+ * and is refused. Returns 1 and stores the value in *out, or 0 with *why set.
+ */
+static int
+default_real_value(const asn1p_value_t *dv, double *out, const char **why) {
+	if(dv && dv->type == ATV_REAL) {
+		*out = dv->value.v_double;
+		return 1;
+	}
+	if(dv && dv->type == ATV_INTEGER) {
+		asn1c_integer_t i = dv->value.v_integer;
+		/* Only integers a double holds exactly (|i| <= 2^53). */
+		if(i > (asn1c_integer_t)9007199254740992LL
+		   || i < -(asn1c_integer_t)9007199254740992LL) {
+			*why = "an integer DEFAULT of a REAL type is not exactly "
+			       "representable as a double";
+			return 0;
+		}
+		*out = (double)i;
+		return 1;
+	}
+	if(dv && dv->type == ATV_UNPARSED) {
+		*why = "the { mantissa, base, exponent } form of a REAL DEFAULT "
+		       "is not supported (use a decimal number, PLUS-INFINITY, "
+		       "MINUS-INFINITY or NOT-A-NUMBER)";
+		return 0;
+	}
+	*why = "only a decimal number, PLUS-INFINITY, MINUS-INFINITY or "
+	       "NOT-A-NUMBER is supported as a REAL DEFAULT value";
+	return 0;
+}
+
+/* The REAL DEFAULT as ASN.1 text that reads back exactly (also the C comment). */
+static const char *
+default_real_text(double d) {
+	asn1p_value_t v;
+	memset(&v, 0, sizeof(v));
+	v.type = ATV_REAL;
+	v.value.v_double = d;
+	return asn1f_printable_value(&v);
+}
+
+/* The same value as a C double literal ("1000" -> "1000.0"). */
+static const char *
+default_real_c_literal(double d) {
+	static char buf[64];
+	const char *t = default_real_text(d);
+	snprintf(buf, sizeof(buf), "%s", t);
+	if(!strpbrk(buf, ".eE")) strcat(buf, ".0");
+	return buf;
+}
+
+/*
  * The ONE decision "does the C generator emit default_value_cmp/default_value_set
  * for this member's DEFAULT". try_inline_default() emits the callbacks iff this
  * returns 1; the Go backend's pre-flight calls it too, so the two can never
@@ -2707,8 +2765,15 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 		}
 		return 1;
 	case ASN_BASIC_NULL:
-		*why = "NULL DEFAULT has no default callbacks in the C generator";
-		return 0;
+		if(dv == NULL || dv->type != ATV_NULL) {
+			*why = "the DEFAULT value of a NULL member must be NULL";
+			return 0;
+		}
+		return 1;
+	case ASN_BASIC_REAL: {
+		double d;
+		return default_real_value(dv, &d, why);
+	}
 	case ASN_BASIC_OCTET_STRING:
 	case ASN_BASIC_BIT_STRING: {
 		int is_bit = (etype == ASN_BASIC_BIT_STRING);
@@ -2758,10 +2823,194 @@ asn1c_default_callbacks_supported(arg_t *arg, asn1p_expr_t *expr, const char **w
 		}
 		*why = "the C generator emits no default callbacks for a DEFAULT "
 		       "of this type (it handles BOOLEAN, INTEGER, ENUMERATED, "
-		       "OCTET STRING, BIT STRING, character strings, UTCTime "
-		       "and GeneralizedTime)";
+		       "NULL, REAL, OCTET STRING, BIT STRING, character "
+		       "strings, UTCTime and GeneralizedTime)";
 		return 0;
 	}
+}
+
+/* Emit (out) or name (!out) the callbacks of a NULL / REAL DEFAULT. */
+static void
+default_callbacks_ref(arg_t *arg, asn1p_expr_t *expr, const char *pv) {
+	if(C99_MODE) OUT(".default_value_cmp = ");
+	OUT("&asn_DFL_%d_cmp,\t/* Compare DEFAULT %s */\n",
+		expr->_type_unique_index, pv);
+	if(C99_MODE) OUT(".default_value_set = ");
+	OUT("&asn_DFL_%d_set,\t/* Set DEFAULT %s */\n",
+		expr->_type_unique_index, pv);
+}
+
+/*
+ * NULL has one value, so a present NULL always equals the default: cmp says
+ * "default" for any present value (the encoder omits it) and set allocates
+ * the member (the decoder fills it when absent).
+ */
+static int
+try_inline_null_default(arg_t *arg, asn1p_expr_t *expr, int out) {
+	int save_target = arg->target->target;
+
+	if(!out) {
+		default_callbacks_ref(arg, expr, "NULL");
+		return 1;
+	}
+	REDIR(OT_STAT_DEFS);
+
+	OUT("static int asn_DFL_%d_cmp(const void *sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	OUT("if(!sptr) {\n");
+	OUT("\treturn -1; /* No value is not a default value */\n");
+	OUT("}\n");
+	OUT("\n");
+	OUT("return 0; /* NULL has a single value: the default */\n");
+	INDENT(-1);
+	OUT("}\n");
+
+	OUT("static int asn_DFL_%d_set(void **sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	OUT("%s *st = *sptr;\n", asn1c_type_name(arg, expr, TNF_CTYPE));
+	OUT("\n");
+	OUT("if(!st) {\n");
+	OUT("\tst = (*sptr = CALLOC(1, sizeof(*st)));\n");
+	OUT("\tif(!st) return -1;\n");
+	OUT("}\n");
+	OUT("\n");
+	OUT("*st = 0;\n");
+	OUT("return 0;\n");
+	INDENT(-1);
+	OUT("}\n");
+
+	REDIR(save_target);
+	return 1;
+}
+
+/*
+ * REAL DEFAULT. The member is a native double, a float (REAL constrained to
+ * fit a float) or, under -fwide-types, a REAL_t. The comparison is exact on
+ * the double value: NaN equals NaN, and -0.0 is NOT the default 0.0 (they are
+ * distinct ASN.1 REAL values with different encodings). A float member is
+ * compared with the default rounded to float, which is what set stores.
+ */
+static int
+try_inline_real_default(arg_t *arg, asn1p_expr_t *expr, int out) {
+	int save_target = arg->target->target;
+	arg_t marg = *arg;
+	const char *ctype;
+	const char *why = "";
+	const char *pv;
+	const char *lit;
+	int is_float, is_wide;
+	double d = 0.0;
+
+	/* Already validated by asn1c_default_callbacks_supported(). */
+	if(!default_real_value(expr->marker.default_value, &d, &why))
+		return 0;
+	pv = default_real_text(d);
+	if(!out) {
+		default_callbacks_ref(arg, expr, pv);
+		return 1;
+	}
+
+	/*
+	 * ctype is the member's C type: double, float, REAL_t, or a typedef
+	 * name (Rf_t) that stands for one of them -- the terminal REAL type
+	 * says which.
+	 */
+	ctype = asn1c_type_name(arg, expr, TNF_CTYPE);
+	{
+		const char *rep = ctype;
+		if(strcmp(rep, "double") && strcmp(rep, "float")
+		   && strcmp(rep, "REAL_t")) {
+			asn1p_expr_t *term = asn1f_find_terminal_type_ex(
+				arg->asn, arg->ns, expr);
+			marg.expr = term ? term : expr;
+			rep = asn1c_type_name(&marg, marg.expr, TNF_CTYPE);
+		}
+		is_float = !strcmp(rep, "float");
+		is_wide = strcmp(rep, "float") && strcmp(rep, "double");
+	}
+	lit = default_real_c_literal(d);
+
+	REDIR(OT_STAT_DEFS);
+
+	OUT("static int asn_DFL_%d_cmp(const void *sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	OUT("const %s *st = sptr;\n", ctype);
+	OUT("double v;\n");
+	OUT("\n");
+	OUT("if(!st) {\n");
+	OUT("\treturn -1; /* No value is not a default value */\n");
+	OUT("}\n");
+	OUT("\n");
+	if(is_wide) {
+		OUT("if(asn_REAL2double(st, &v))\n");
+		OUT("\treturn -1;\n");
+	} else {
+		OUT("v = *st;\n");
+	}
+	OUT("/* Test default value %s */\n", pv);
+	if(d != d) {
+		OUT("return (v == v);\n");
+	} else if(d > 1.7976931348623157e308) {
+		OUT("return !(v > 1.7976931348623157e308);\n");
+	} else if(d < -1.7976931348623157e308) {
+		OUT("return !(v < -1.7976931348623157e308);\n");
+	} else if(d == 0.0) {
+		/* Tell -0.0 from 0.0 by the bit pattern */
+		OUT("{\n");
+		OUT("\tstatic const double defv = %s;\n", lit);
+		OUT("\treturn (memcmp(&v, &defv, sizeof(v)) != 0);\n");
+		OUT("}\n");
+	} else if(is_float) {
+		OUT("return (v != (double)(float)%s);\n", lit);
+	} else {
+		OUT("return (v != %s);\n", lit);
+	}
+	INDENT(-1);
+	OUT("}\n");
+
+	OUT("static int asn_DFL_%d_set(void **sptr) {\n",
+		expr->_type_unique_index);
+	INDENT(+1);
+	OUT("%s *st = *sptr;\n", ctype);
+	if(d != d || d > 1.7976931348623157e308
+	   || d < -1.7976931348623157e308) {
+		/* No portable literal without <math.h>: use the IEEE bits. */
+		OUT("static const uint64_t defbits = 0x%s;\n",
+			(d != d) ? "7ff8000000000000ULL"
+			: (d > 0) ? "7ff0000000000000ULL" : "fff0000000000000ULL");
+		OUT("double defv;\n");
+	} else {
+		OUT("const double defv = %s;\n", lit);
+	}
+	OUT("\n");
+	OUT("if(!st) {\n");
+	OUT("\tst = (*sptr = CALLOC(1, sizeof(*st)));\n");
+	OUT("\tif(!st) return -1;\n");
+	OUT("}\n");
+	OUT("\n");
+	if(d != d || d > 1.7976931348623157e308
+	   || d < -1.7976931348623157e308) {
+		OUT("if(sizeof(defv) != sizeof(defbits)) return -1;\n");
+		OUT("memcpy(&defv, &defbits, sizeof(defv));\n");
+	}
+	OUT("/* Install default value %s */\n", pv);
+	if(is_wide) {
+		OUT("return asn_double2REAL(st, defv);\n");
+	} else {
+		if(is_float)
+			OUT("*st = (float)defv;\n");
+		else
+			OUT("*st = defv;\n");
+		OUT("return 0;\n");
+	}
+	INDENT(-1);
+	OUT("}\n");
+
+	REDIR(save_target);
+	return 1;
 }
 
 static int
@@ -2866,8 +3115,9 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 		REDIR(save_target);
 		return 1;
 	case ASN_BASIC_NULL:
-		//expr->marker.flags &= ~EM_INDIRECT;
-		return 0;
+		return try_inline_null_default(arg, expr, out);
+	case ASN_BASIC_REAL:
+		return try_inline_real_default(arg, expr, out);
 	case ASN_BASIC_OCTET_STRING:
 	case ASN_BASIC_BIT_STRING:
 		return try_inline_blob_default(arg, expr, etype, out);

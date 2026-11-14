@@ -265,7 +265,9 @@ struct name_row {
     int opt_extra_bits;     /* extra marker bits beyond EM_OPTIONAL, or 0   */
     /* GK_DEFAULT_VALUE rows: the exported Go declaration of one DEFAULT
      * member's value. dflt_form: 1 = `const Name T = dflt_lit`, 2 =
-     * `var Name = T{dflt_lit}` (slice/struct valued). dflt_owner/dflt_field
+     * `var Name = T{dflt_lit}` (slice/struct valued), 3 =
+     * `var Name T = T(dflt_lit)` (a float64 expression with no Go constant:
+     * an infinity, NaN, minus zero). dflt_owner/dflt_field
      * name the member's Go struct and field (the field row, found at emit
      * time, supplies the final package-qualified Go type T). */
     int dflt_form;
@@ -1450,6 +1452,9 @@ go_emit_module_decls(FILE *out, const char *module) {
                     else if(dr->dflt_form == 1)
                         rc = fprintf(out, "const %s %s = %s\n", dr->goName, ft,
                                      dr->dflt_lit) < 0 ? -1 : 0;
+                    else if(dr->dflt_form == 3)
+                        rc = fprintf(out, "var %s %s = %s(%s)\n", dr->goName,
+                                     ft, ft, dr->dflt_lit) < 0 ? -1 : 0;
                     else
                         rc = fprintf(out, "var %s = %s{%s}\n", dr->goName, ft,
                                      dr->dflt_lit) < 0 ? -1 : 0;
@@ -4726,6 +4731,41 @@ note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
         if(is_bit) {
             snprintf(t, sizeof t, "}, BitsUnused: %d", unused);
             lit = str_append(lit, t);
+        }
+        break;
+    }
+    case ASN_BASIC_NULL:
+        /* The only value: `var Name = T{}` with T = struct{} (or its name) */
+        form = 2;
+        lit = strdup("");
+        break;
+    case ASN_BASIC_REAL: {
+        /* A decimal / integer DEFAULT is a Go constant. Infinity and NaN
+         * are not constants in Go, and a constant -0.0 is +0: those are
+         * computed from a variable at start-up (no "math" import needed:
+         * float division by a zero variable yields +-Inf / NaN, negating a
+         * zero variable yields -0). */
+        double d = dv->type == ATV_REAL ? dv->value.v_double
+                                        : (double)dv->value.v_integer;
+        if(d != d) {
+            form = 3;
+            lit = strdup("func() float64 { z := 0.0; return z / z }()");
+        } else if(d > 1.7976931348623157e308) {
+            form = 3;
+            lit = strdup("func() float64 { z := 0.0; return 1 / z }()");
+        } else if(d < -1.7976931348623157e308) {
+            form = 3;
+            lit = strdup("func() float64 { z := 0.0; return -1 / z }()");
+        } else if(d == 0.0 && 1.0 / d < 0.0) {
+            form = 3;
+            lit = strdup("func() float64 { z := 0.0; return -z }()");
+        } else {
+            asn1p_value_t rv;
+            memset(&rv, 0, sizeof rv);
+            rv.type = ATV_REAL;
+            rv.value.v_double = d;
+            /* shortest text that reads back as the same double */
+            lit = strdup(asn1f_printable_value(&rv));
         }
         break;
     }

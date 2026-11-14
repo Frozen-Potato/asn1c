@@ -269,15 +269,24 @@ a named-bit BIT STRING is refused.
 
 - BOOLEAN, INTEGER and ENUMERATED with a plain integer / `TRUE` / `FALSE` /
   enumerator value (also through a type reference);
-- PrintableString, IA5String, VisibleString and NumericString with a quoted
-  string;
+- every character string type and the two time types (UTCTime,
+  GeneralizedTime) with a quoted string (a plain `string` in Go; the bytes are
+  the literal as written, UTF-8 for UTF8String);
 - OCTET STRING with an `'..'H` / `'..'B` value of whole octets, and a BIT STRING
-  (no named bits) with an `'..'H` / `'..'B` value.
+  (no named bits) with an `'..'H` / `'..'B` value;
+- NULL with `NULL` (the member is `struct{}`; a present NULL always equals the
+  DEFAULT, so it is never encoded);
+- REAL with a decimal number (`1.5`, `-2.25`, `1e3`), an integer (`0`), or
+  `PLUS-INFINITY`, `MINUS-INFINITY`, `NOT-A-NUMBER` (a `float64`). The value is
+  compared exactly: NaN equals NaN, and `-0.0` is not the DEFAULT `0` (they are
+  two REAL values with different encodings). Go has no constant for an
+  infinity, NaN or minus zero, so for those the exported declaration is a
+  `var` computed at start-up.
 
-Every other form (REAL, NULL, OID, SEQUENCE / CHOICE / SEQUENCE OF values,
-named-bit BIT STRING, BMPString, UniversalString, UTF8String, time types, ...)
-is refused at generation with exit 70, because the C generator would silently
-treat the member as OPTIONAL.
+Every other form (REAL as `{ mantissa M, base B, exponent E }`, OID,
+SEQUENCE / CHOICE / SEQUENCE OF values, named-bit BIT STRING, ...) is refused
+at generation with exit 70, because the C generator would silently treat the
+member as OPTIONAL.
 
 ```go
 type DefaultsPDU struct {

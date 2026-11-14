@@ -27,4 +27,16 @@ DfltOtherStr ::= SEQUENCE {
     tel TeletexString DEFAULT "g", t61 T61String DEFAULT "g",
     vid VideotexString DEFAULT "g", od ObjectDescriptor DEFAULT "g", b BOOLEAN }
 
+-- dflt-null
+DfltNull ::= SEQUENCE { a NULL DEFAULT NULL, b BOOLEAN }
+
+-- dflt-real
+DfltReal ::= SEQUENCE { a REAL DEFAULT 1.5, b BOOLEAN }
+
+-- dflt-real-forms
+DfltRealForms ::= SEQUENCE {
+    z REAL DEFAULT 0, m REAL DEFAULT -2.25, i REAL DEFAULT 2, e REAL DEFAULT 1e3,
+    p REAL DEFAULT PLUS-INFINITY, q REAL DEFAULT MINUS-INFINITY,
+    n REAL DEFAULT NOT-A-NUMBER, nz REAL DEFAULT -0.0, b BOOLEAN }
+
 END

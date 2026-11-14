@@ -7,6 +7,11 @@
       GeneralizedTime member is accepted (a plain string in Go). Before, it
       was refused (exit 70) with a message that wrongly blamed character
       strings in general.
+    * Go backend: a DEFAULT on a NULL member (a struct{} in Go) or a REAL
+      member (a float64: decimal, integer, PLUS-INFINITY, MINUS-INFINITY or
+      NOT-A-NUMBER) is accepted. Before, both were refused (exit 70). For an
+      infinity, NaN or minus zero the exported <Type><Field>Default is a var,
+      not a const (Go has no such constant).
     FIXES:
     * C generator (also for plain C users): the DEFAULT of a BMPString or
       UniversalString member is stored as UCS-2 / UCS-4 big-endian ("hi" is
@@ -26,6 +31,24 @@
       check then rejects the value).
       Before, such a member had no callbacks: it was always encoded and was
       NULL when absent.
+    * C generator (also for plain C users): a NULL DEFAULT member now gets
+      default_value_cmp / default_value_set. A present NULL always equals the
+      DEFAULT, so the encoder omits it and the decoder fills an absent one.
+      Before, the member was always encoded and was NULL when absent.
+    * C generator (also for plain C users): a REAL DEFAULT member (decimal,
+      integer, PLUS-INFINITY, MINUS-INFINITY, NOT-A-NUMBER) now gets
+      default_value_cmp / default_value_set, for a native double, a float
+      (REAL narrowed by WITH COMPONENTS) and a REAL_t (-fwide-types). The
+      comparison is exact: NaN equals NaN and -0.0 is not the DEFAULT 0.
+      The { mantissa, base, exponent } form is not supported; the Go backend
+      refuses it with a reason. Before, such a member was always encoded and
+      was NULL when absent.
+    * Parser (also for plain C users): PLUS-INFINITY, MINUS-INFINITY and
+      NOT-A-NUMBER are accepted as REAL values (they were a syntax error or,
+      for NOT-A-NUMBER, read as a type reference).
+    * The comment the C generator writes next to a REAL DEFAULT member shows
+      the value to full precision ("DEFAULT 1.5", "DEFAULT 0.1"; it was
+      "1.500000" and "0.100000"), and the special values by name.
 
 0.9.29-go.8:
     NEW:

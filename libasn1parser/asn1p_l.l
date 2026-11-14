@@ -336,7 +336,7 @@ INTERSECTION		return TOK_INTERSECTION;
 ISO646String		return TOK_ISO646String;
 MAX			return TOK_MAX;
 MIN			return TOK_MIN;
-MINUS-INFINITY		return TOK_MINUS_INFINITY;
+MINUS-INFINITY		{ asn1p_lval.a_dbl = strtod("-inf", 0); return TOK_realnumber; }
 NULL			return TOK_NULL;
 NumericString		return TOK_NumericString;
 OBJECT			return TOK_OBJECT;
@@ -346,7 +346,7 @@ OF			return TOK_OF;
 OPTIONAL		return TOK_OPTIONAL;
 PATTERN			return TOK_PATTERN;
 PDV			return TOK_PDV;
-PLUS-INFINITY		return TOK_PLUS_INFINITY;
+PLUS-INFINITY		{ asn1p_lval.a_dbl = strtod("inf", 0); return TOK_realnumber; }
 PRESENT			return TOK_PRESENT;
 PrintableString		return TOK_PrintableString;
 PRIVATE			return TOK_PRIVATE;
@@ -400,8 +400,8 @@ WITH			return TOK_WITH;
 	 * objectclassreference
 	 */
 <INITIAL,extended_values>[A-Z][A-Z0-9]*([-][A-Z0-9]+)*	{
-		asn1p_lval.tv_str = strdup(yytext);
-		return TOK_capitalreference;
+		if(!strcmp(yytext, "NOT-A-NUMBER")) { asn1p_lval.a_dbl = strtod("nan", 0); return TOK_realnumber; }
+		asn1p_lval.tv_str = strdup(yytext); return TOK_capitalreference;
 	}
 
 	/*

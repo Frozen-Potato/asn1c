@@ -43,4 +43,23 @@ BEGIN
 		b	BOOLEAN
 	}
 
+	-- NULL DEFAULT: a present NULL is always the default, so it is omitted
+	X ::= SEQUENCE {
+		n	NULL DEFAULT NULL,
+		b	BOOLEAN
+	}
+
+	-- REAL DEFAULT: decimal, integer form, signed, the three special
+	-- values and minus zero
+	Y ::= SEQUENCE {
+		r	REAL DEFAULT 1.5,
+		z	REAL DEFAULT 0,
+		m	REAL DEFAULT -2.25,
+		p	REAL DEFAULT PLUS-INFINITY,
+		q	REAL DEFAULT MINUS-INFINITY,
+		na	REAL DEFAULT NOT-A-NUMBER,
+		nz	REAL DEFAULT -0.0,
+		b	BOOLEAN
+	}
+
 END

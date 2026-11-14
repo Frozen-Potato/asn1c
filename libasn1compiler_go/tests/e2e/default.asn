@@ -45,4 +45,18 @@ WideDefaults ::= SEQUENCE {
     ...
 }
 
+-- NULL and REAL DEFAULT: a present NULL always equals its DEFAULT; a REAL
+-- compares exactly (NaN equals NaN, -0.0 is not 0.0).
+RealDefaults ::= SEQUENCE {
+    n   NULL DEFAULT NULL,
+    r   REAL DEFAULT 1.5,
+    z   REAL DEFAULT 0,
+    m   REAL DEFAULT -2.25,
+    p   REAL DEFAULT PLUS-INFINITY,
+    q   REAL DEFAULT MINUS-INFINITY,
+    nz  REAL DEFAULT -0.0,
+    na  REAL DEFAULT NOT-A-NUMBER,
+    b   BOOLEAN
+}
+
 END

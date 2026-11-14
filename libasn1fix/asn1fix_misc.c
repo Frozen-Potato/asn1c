@@ -39,11 +39,20 @@ asn1f_printable_value(asn1p_value_t *v) {
 		return "<NO VALUE>";
 	case ATV_NULL:
 		return "NULL";
-	case ATV_REAL:
-		ret = snprintf(buf, sizeof(buf), "%f", v->value.v_double);
-		if(ret >= (ssize_t)sizeof(buf))
-			memcpy(buf + sizeof(buf) - 4, "...", 4);
+	case ATV_REAL: {
+		/* The shortest text that reads back as the same double. */
+		double d = v->value.v_double;
+		int prec;
+		if(d != d) return "NOT-A-NUMBER";
+		if(d > 1.7976931348623157e308) return "PLUS-INFINITY";
+		if(d < -1.7976931348623157e308) return "MINUS-INFINITY";
+		if(d == 0.0) return (1.0 / d < 0.0) ? "-0.0" : "0.0";
+		for(prec = 15; prec <= 17; prec++) {
+			snprintf(buf, sizeof(buf), "%.*g", prec, d);
+			if(strtod(buf, 0) == d) break;
+		}
 		return buf;
+	}
 	case ATV_INTEGER:
 		ret = snprintf(buf, sizeof(buf), "%s", asn1p_itoa(v->value.v_integer));
 		if(ret >= (ssize_t)sizeof(buf))

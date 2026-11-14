@@ -1,0 +1,5 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+T ::= SEQUENCE { a REAL DEFAULT { mantissa 15, base 10, exponent -1 }, b BOOLEAN }
+
+END

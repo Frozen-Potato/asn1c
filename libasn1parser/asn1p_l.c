@@ -3094,7 +3094,7 @@ return TOK_MIN;
 case 85:
 YY_RULE_SETUP
 #line 339 "asn1p_l.l"
-return TOK_MINUS_INFINITY;
+{ asn1p_lval.a_dbl = strtod("-inf", 0); return TOK_realnumber; }
 	YY_BREAK
 case 86:
 YY_RULE_SETUP
@@ -3144,7 +3144,7 @@ return TOK_PDV;
 case 95:
 YY_RULE_SETUP
 #line 349 "asn1p_l.l"
-return TOK_PLUS_INFINITY;
+{ asn1p_lval.a_dbl = strtod("inf", 0); return TOK_realnumber; }
 	YY_BREAK
 case 96:
 YY_RULE_SETUP
@@ -3300,8 +3300,8 @@ case 122:
 YY_RULE_SETUP
 #line 402 "asn1p_l.l"
 {
-		asn1p_lval.tv_str = strdup(asn1p_text);
-		return TOK_capitalreference;
+		if(!strcmp(asn1p_text, "NOT-A-NUMBER")) { asn1p_lval.a_dbl = strtod("nan", 0); return TOK_realnumber; }
+		asn1p_lval.tv_str = strdup(asn1p_text); return TOK_capitalreference;
 	}
 	YY_BREAK
 /*
