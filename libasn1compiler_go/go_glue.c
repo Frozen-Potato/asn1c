@@ -1019,12 +1019,14 @@ static void refhost_index(void) {
 }
 
 static char *local_bitstring(void);
+static char *owner_bitstring(const char *mod);
 static char *gtype_q(flat_type *t) {
     /* a hidden inline-element leaf (`SEQUENCE OF INTEGER`...) has no Go type
      * row: its Go type IS the unnamed leaf mapping text. */
     if(t && go_flat_ir_go_type(t)) {
         const char *gt = go_flat_ir_go_type(t);
-        return strcmp(gt, "BitString") == 0 ? local_bitstring() : gown(gt);
+        return strcmp(gt, "BitString") == 0
+            ? owner_bitstring(go_flat_ir_module(t)) : gown(gt);
     }
     /* a SEQ-OF CONTAINER CLONE node (asn1c's ProtocolIE-Container 85Px
      * instantiations) has NO Go type row of its own — its Go spelling is
@@ -1137,6 +1139,30 @@ static char *local_bitstring(void) {
         free(pk);
     }
     return bsname;
+}
+
+/* the Go spelling of a BitString VALUE owned by module `mod`: bare when that
+ * is the module being emitted, else qualified with the owner's package (a
+ * value's type is its owner's, whatever this package's helpers take). */
+static char *owner_bitstring(const char *mod) {
+    if(!mod || !g_emit_mod || strcmp(mod, g_emit_mod) == 0)
+        return gown("BitString");
+    char *pk = gmodule_pkg(mod);
+    char *r = gfmt("%s.BitString", pk);
+    free(pk);
+    return r;
+}
+
+/* wrap/unwrap a scalar BitString value `expr` of the owner `mod` for the
+ * helpers: "<local>(expr)" when the owner's and the local spelling differ,
+ * `expr` unchanged otherwise (so unaffected output stays byte-identical).
+ * `to_local` selects the direction. Malloc'd. */
+static char *bits_bridge(const char *mod, const char *expr, int to_local) {
+    char *ow = owner_bitstring(mod), *lo = local_bitstring();
+    char *r = strcmp(ow, lo) == 0 ? gown(expr)
+            : gfmt("%s(%s)", to_local ? lo : ow, expr);
+    free(ow); free(lo);
+    return r;
 }
 
 static int is_prim_view(const char *ft) {
@@ -1488,11 +1514,20 @@ emit_prim(ectx *E, flat_member *m) {
             free(lbs3);
             free(bst2);
         } else {
-        (*E->fill) = gam((*E->fill), gfmt("\twriteBitsField(fa, %s, %s)\n", slot, acc));
+        {
+            char *wa = bits_bridge(go_flat_ir_module(E->t), acc, 1);
+            (*E->fill) = gam((*E->fill), gfmt("\twriteBitsField(fa, %s, %s)\n", slot, wa));
+            free(wa);
+        }
         /* sizing: the plain (non-star, non-alias) member's bytes payload
          * (same rule as the starred form above). */
         (*E->szt) = gam((*E->szt), gfmt("\tpayload += uintptr(len(%s.Bytes))\n", acc));
-        (*E->read) = gam((*E->read), gfmt("\t%s = readBitsField(%s)\n", acc, slot));
+        {
+            char *rd = gfmt("readBitsField(%s)", slot);
+            char *rb = bits_bridge(go_flat_ir_module(E->t), rd, 0);
+            (*E->read) = gam((*E->read), gfmt("\t%s = %s\n", acc, rb));
+            free(rd); free(rb);
+        }
         }
     } else if(prim && strcmp(prim, "_bool32") == 0) {
         /* a starred bool view (an OPTIONAL BOOLEAN whose Go field is *bool
@@ -2220,10 +2255,14 @@ emit_ref(ectx *E, flat_member *m, flat_type *r) {
                     }
                     free(tn); free(qa);
                 } else {
+                    char *wa = bits_bridge(go_flat_ir_module(E->t), acc, 1);
+                    char *rd = gfmt("readBitsField(%s)", slot);
+                    char *rb = bits_bridge(go_flat_ir_module(E->t), rd, 0);
                     (*E->fill) = gam((*E->fill), gfmt(
-                        "\twriteBitsField(fa, %s, %s)\n", slot, acc));
+                        "\twriteBitsField(fa, %s, %s)\n", slot, wa));
                     (*E->read) = gam((*E->read), gfmt(
-                        "\t%s = readBitsField(%s)\n", acc, slot));
+                        "\t%s = %s\n", acc, rb));
+                    free(wa); free(rd); free(rb);
                 }
                 (*E->szt) = gam((*E->szt), gfmt(
                     "\tpayload += uintptr(len(%s.Bytes))\n", acc));
@@ -3288,13 +3327,14 @@ emit_type_fn(flat_type *t) {
              * field-wise — BitString{Bytes, BitsUnused} both ways; the
              * BitString side of the bridge is THIS package's spelling. */
             char *lbs = local_bitstring();
+            char *obs = owner_bitstring(go_flat_ir_module(t));
             (*E.fill) = gam((*E.fill), gfmt(
                 "\twriteBitsField(fa, slot, %s{Bytes: (*v).Bytes, BitsUnused: (*v).BitsUnused})\n", lbs));
             (*E.read) = gam((*E.read), gfmt(
                 "\tbs := %s(readBitsField(slot))\n"
                 "\t*v = %s{Bytes: bs.Bytes, BitsUnused: bs.BitsUnused}\n",
-                lbs, (alq && *alq) ? alq : lbs));
-            free(lbs);
+                lbs, (alq && *alq && strcmp(alq, "BitString") != 0) ? alq : obs));
+            free(lbs); free(obs);
             (*E.szt) = ga((*E.szt), "\tpayload += uintptr(len((*v).Bytes))\n");
         } else if(go_flat_ir_null_leaf(t)) {
             /* the hidden leaf of a NULL type assignment, the element of a

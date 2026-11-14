@@ -211,3 +211,4 @@ two-inline-choice	OK
 type-hyphen	OK
 utctime	OK
 value-hyphen	OK
+xmod-bitstring	OK

@@ -70,6 +70,14 @@
       block in the fill and size code. The generated code of specifications
       with one inline CHOICE changes only by the added braces; regenerate
       (asn1c -Fgo).
+    * Go backend: a BIT STRING member, DEFAULT member or SEQUENCE OF BIT
+      STRING imported from another module failed the cgo build
+      (`cannot use v.Bm (variable of struct type moda.BitString) as BitString
+      value`) when the importing module has a BIT STRING of its own. A
+      BitString value is now spelled with its owning module's type and
+      converted where the importing package's helpers take its own. Output
+      for specifications without such an import is unchanged. The
+      examples/rrc-7.1.0.asn1 build gets past this (SynchronisationParameters-r4).
 
 0.9.29-go.7:
     NEW:
