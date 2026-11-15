@@ -4069,6 +4069,22 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         }
         mods[n_mods++] = pdus[i].module;
     }
+    /* a module that owns a Default func gets a package too, PDU or not */
+    for(int k = 0, nd = go_names_dflt_n(); k < nd; k++) {
+        const struct go_dflt_fn *df = go_names_dflt_at(k);
+        if(!df || !df->module || !*df->module
+           || !go_flat_ir_ref_resolve(df->root_cid)) continue;
+        int seen = 0;
+        for(int j = 0; j < n_mods; j++)
+            if(strcmp(mods[j], df->module) == 0) { seen = 1; break; }
+        if(seen) continue;
+        if(n_mods == cap_mods) {
+            cap_mods = cap_mods ? cap_mods * 2 : 8;
+            mods = realloc(mods, (size_t)cap_mods * sizeof(char *));
+            if(!mods) { GFAIL("oom"); return -1; }
+        }
+        mods[n_mods++] = df->module;
+    }
 
     int rc = 0;
     for(int m = 0; m < n_mods && rc == 0; m++) {
@@ -4470,6 +4486,23 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             /* gofmt normalization: expand one-line ifs, then trailing
              * newline count. */
             sb_set(&sb, expand_oneline_ifs(reindent_case_blocks(gsb_take(&sb))));
+            /* a package without a PDU (only Default funcs) may use none of
+             * the optional std imports: drop the unused ones */
+            {
+                int has_pdu = 0;
+                for(int i = 0; i < n_pdu_e; i++)
+                    if(strcmp(pdus[i].module, mod) == 0) { has_pdu = 1; break; }
+                static const char *const opt[] = { "math", "runtime", "strconv" };
+                for(int o = 0; !has_pdu && o < 3; o++) {
+                    char *ln = gfmt("\t\"%s\"\n", opt[o]);
+                    char *use = gfmt("%s.", opt[o]);
+                    char *at = strstr(sb.p, ln);
+                    char *endimp = strstr(sb.p, "\n)\n");
+                    if(at && endimp && at < endimp && !strstr(endimp, use))
+                        memmove(at, at + strlen(ln), strlen(at + strlen(ln)) + 1);
+                    free(ln); free(use);
+                }
+            }
             while(strlen(sb.p) > 1 && sb.p[strlen(sb.p)-1] == '\n'
                   && sb.p[strlen(sb.p)-2] == '\n')
                 sb.p[strlen(sb.p)-1] = '\0';

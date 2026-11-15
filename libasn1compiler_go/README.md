@@ -319,10 +319,13 @@ a named-bit BIT STRING is accepted: see "DEFAULT members".
 
   The func builds the value with the C codec's own default callback and
   panics if that fails (a generator bug; the message names the owner, member
-  and type). It is emitted into `glue.go`, so a module that has no PDU has none
-  of these funcs; a member whose owner is a CHOICE alternative, a DEFAULT
-  inline SEQUENCE or a type with parameters has the plain-value field but no
-  func (KNOWN-ISSUES #40).
+  and type). It is emitted into the `glue.go` of the package that owns the
+  member, also a package without a PDU (shared types in one module, the
+  messages in another), and for a member of an inline SEQUENCE / SET
+  alternative of a CHOICE (`ChSQDefault()` for `Ch ::= CHOICE { s SEQUENCE
+  { q Pt DEFAULT { x 2 } } }`). A member whose owner is a DEFAULT inline
+  SEQUENCE, a recursion break or a type with parameters has the plain-value
+  field but no func (KNOWN-ISSUES #40).
 
 Every other form is refused at generation with exit 70, because the C
 generator would silently treat the member as OPTIONAL: REAL as `{ mantissa M,

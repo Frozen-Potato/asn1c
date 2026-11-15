@@ -21,6 +21,8 @@ import (
 	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	df "asn1cgo.test/go/defaults"
 	dfb "asn1cgo.test/go/defaultsoidbase"
+	dc "asn1cgo.test/go/defaultscom"
+	dt "asn1cgo.test/go/defaultstop"
 )
 
 // dflt returns a DefaultsPDU with every DEFAULT member set to its generated
@@ -1369,4 +1371,125 @@ func TestConsDefaultInnerOwners(t *testing.T) {
 		}
 	}
 	balanced(t, "cons-inner")
+}
+
+// Default funcs of a module without a PDU (DefaultsCom) and of members owned
+// by an inline SEQUENCE alternative of a CHOICE (DefaultsTop). Hand-computed
+// APER, cross-checked with the C converter:
+//   TopMsg b.p = {1,7}, k 2, n 3 -> 46   (p absent, k 2, n 3)
+//   TopMsg b.p = {5,7}           -> 80 05 8c
+//   TopM2 c.s.q = {2,7}          -> 00
+func TestDefaultFuncNoPDUModuleAndChoiceAlt(t *testing.T) {
+	if got, want := dc.ComBoxPDefault(), (dc.ComPt{X: 1, Y: 7}); got != want {
+		t.Errorf("ComBoxPDefault = %+v, want %+v", got, want)
+	}
+	if got, want := dt.TopChSQDefault(), (dc.ComPt{X: 2, Y: 7}); got != want {
+		t.Errorf("TopChSQDefault = %+v, want %+v", got, want)
+	}
+	if got, want := dt.TopDeepSMQDefault(), (dc.ComPt{X: 4, Y: 7}); got != want {
+		t.Errorf("TopDeepSMQDefault = %+v, want %+v", got, want)
+	}
+	if got, want := dt.TopTCSQDefault(), (dc.ComPt{X: 3, Y: 7}); got != want {
+		t.Errorf("TopTCSQDefault = %+v, want %+v", got, want)
+	}
+	// independent values (a struct is a value: a second call is unaffected)
+	a := dc.ComBoxPDefault()
+	a.X = 99
+	if got := dc.ComBoxPDefault(); got.X != 1 {
+		t.Errorf("second call = %+v", got)
+	}
+
+	msg := func(p dc.ComPt) *dt.TopMsg { return &dt.TopMsg{B: dc.ComBox{P: p, K: 2}, N: 3} }
+	cases := []struct {
+		name string
+		msg  *dt.TopMsg
+		want []byte
+	}{
+		{"default", msg(dc.ComBoxPDefault()), []byte{0x46}},
+		{"other", msg(dc.ComPt{X: 5, Y: 7}), []byte{0x80, 0x05, 0x8c}},
+	}
+	bin := os.Getenv("ASN1CGO_C_CONVERTER")
+	for _, c := range cases {
+		b, err := c.msg.Encode()
+		if err != nil || !bytes.Equal(b, c.want) {
+			t.Fatalf("%s: % x, %v; want % x", c.name, b, err, c.want)
+		}
+		back, err := dt.DecodeTopMsg(c.want)
+		if err != nil || !reflect.DeepEqual(back, c.msg) {
+			t.Fatalf("%s: decoded %+v, %v", c.name, back, err)
+		}
+		if bin != "" {
+			if re := convPDU(t, bin, "TopMsg", c.want, "-iaper", "-oaper"); !bytes.Equal(re, c.want) {
+				t.Errorf("%s: C re-encode % x != % x", c.name, re, c.want)
+			}
+		}
+	}
+	// absent on the wire -> the decoded field equals the func's value
+	back, _ := dt.DecodeTopMsg([]byte{0x46})
+	if back.B.P != dc.ComBoxPDefault() {
+		t.Errorf("absent p decoded as %+v", back.B.P)
+	}
+	// a different value (y differs) round-trips
+	o := msg(dc.ComPt{X: 1, Y: 8})
+	ob, err := o.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ob2, _ := cases[0].msg.Encode(); bytes.Equal(ob, ob2) {
+		t.Errorf("non-default encodes like the default")
+	}
+	if back, err := dt.DecodeTopMsg(ob); err != nil || !reflect.DeepEqual(back, o) {
+		t.Errorf("other value: %+v, %v", back, err)
+	}
+
+	// the CHOICE alternative owner
+	m2 := &dt.TopM2{C: dt.TopCh{Present: dt.TopChPrS, S: &dt.TopChS{Q: dt.TopChSQDefault()}}}
+	b2, err := m2.Encode()
+	if err != nil || !bytes.Equal(b2, []byte{0x00}) {
+		t.Fatalf("TopM2 default: % x, %v", b2, err)
+	}
+	if back, err := dt.DecodeTopM2(b2); err != nil || !reflect.DeepEqual(back, m2) {
+		t.Fatalf("TopM2 decode: %+v, %v", back, err)
+	}
+	m2.C.S.Q = dc.ComPt{X: 2, Y: 9}
+	b2o, err := m2.Encode()
+	if err != nil || bytes.Equal(b2o, b2) {
+		t.Fatalf("TopM2 other: % x, %v", b2o, err)
+	}
+	if back, err := dt.DecodeTopM2(b2o); err != nil || !reflect.DeepEqual(back, m2) {
+		t.Fatalf("TopM2 other decode: %+v, %v", back, err)
+	}
+	if bin != "" {
+		for _, b := range [][]byte{b2, b2o} {
+			if re := convPDU(t, bin, "TopM2", b, "-iaper", "-oaper"); !bytes.Equal(re, b) {
+				t.Errorf("TopM2 C re-encode % x != % x", re, b)
+			}
+		}
+	}
+
+	// the nested shapes
+	d := &dt.TopDeep{Present: dt.TopDeepPrS, S: &dt.TopDeepS{M: dt.TopDeepSM{Q: dt.TopDeepSMQDefault(), K: true}, J: true}}
+	db, err := d.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back, err := dt.DecodeTopDeep(db); err != nil || !reflect.DeepEqual(back, d) {
+		t.Fatalf("TopDeep: %+v, %v", back, err)
+	}
+	tt := &dt.TopT{C: dt.TopTC{Present: dt.TopTCPrS, S: &dt.TopTCS{Q: dt.TopTCSQDefault()}}}
+	tb, err := tt.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back, err := dt.DecodeTopT(tb); err != nil || !reflect.DeepEqual(back, tt) {
+		t.Fatalf("TopT: %+v, %v", back, err)
+	}
+	if bin != "" {
+		for pdu, b := range map[string][]byte{"TopDeep": db, "TopT": tb} {
+			if re := convPDU(t, bin, pdu, b, "-iaper", "-oaper"); !bytes.Equal(re, b) {
+				t.Errorf("%s C re-encode % x != % x", pdu, re, b)
+			}
+		}
+	}
+	balanced(t, "default-nopdu-choice")
 }

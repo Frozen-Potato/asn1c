@@ -164,3 +164,29 @@ id-ext OBJECT IDENTIFIER ::= { 2 5 29 }
 ImpPt ::= SEQUENCE { x INTEGER (0..255), y INTEGER (0..255) DEFAULT 7 }
 imp-pt ImpPt ::= { x 9, y 8 }
 END
+
+-- Default funcs of a module without a PDU (common types shared by the
+-- messages of another module), and of members owned by a CHOICE alternative.
+DefaultsCom DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+EXPORTS ALL;
+ComPt ::= SEQUENCE { x INTEGER (0..255), y INTEGER (0..255) DEFAULT 7 }
+ComBox ::= SEQUENCE { p ComPt DEFAULT { x 1 }, k INTEGER (0..3) }
+END
+
+DefaultsTop DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+IMPORTS ComBox, ComPt FROM DefaultsCom;
+TopMsg ::= SEQUENCE { b ComBox, n INTEGER (0..9) }
+TopCh ::= CHOICE { s SEQUENCE { q ComPt DEFAULT { x 2 } }, o INTEGER }
+TopM2 ::= SEQUENCE { c TopCh }
+-- a CHOICE alternative holding an inline SEQUENCE that holds the member
+TopDeep ::= CHOICE {
+    s SEQUENCE { m SEQUENCE { q ComPt DEFAULT { x 4 }, k BOOLEAN }, j BOOLEAN },
+    o INTEGER (0..9)
+}
+-- an inline CHOICE inside a SEQUENCE
+TopT ::= SEQUENCE {
+    c CHOICE { s SEQUENCE { q ComPt DEFAULT { x 3 } }, o INTEGER (0..9) }
+}
+END

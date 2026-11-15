@@ -4726,8 +4726,9 @@ dflt_push(char ***v, int *n, char *s) {
  * top-level type, an element of an inline SEQUENCE OF, or an inline SEQUENCE
  * that is OPTIONAL; the inline SEQUENCEs the Flat holds by value below it are
  * followed by token (toks) and Go field (gopath). An owner reached through a
- * CHOICE alternative, a DEFAULT inline SEQUENCE or a recursion break, or in a
- * parameterized type, has no Default func (NULL). */
+ * DEFAULT inline SEQUENCE or a recursion break, or in a parameterized type,
+ * has no Default func (NULL). An inline SEQUENCE / SET alternative of a CHOICE
+ * is a node with a reader of its own, like an OPTIONAL inline SEQUENCE. */
 static struct go_dflt_fn *
 dflt_fn_build(struct walk_ctx *ctx, asn1p_expr_t *child, const char *owner,
               const char *fgo) {
@@ -4740,7 +4741,8 @@ dflt_fn_build(struct walk_ctx *ctx, asn1p_expr_t *child, const char *owner,
     }
     asn1p_expr_t *top = e;
     if(!top || top->lhs_params || top->spec_index >= 0
-       || !(go_is_struct_kind(top->expr_type) || go_is_list_kind(top->expr_type)))
+       || !(go_is_struct_kind(top->expr_type) || go_is_list_kind(top->expr_type)
+            || top->expr_type == ASN_CONSTR_CHOICE))
         return NULL;
     struct go_dflt_fn *f = calloc(1, sizeof *f);
     if(!f) return NULL;
@@ -4765,6 +4767,41 @@ dflt_fn_build(struct walk_ctx *ctx, asn1p_expr_t *child, const char *owner,
             for(int k = 0; k < f->ngo; k++) free(f->gopath[k]);
             f->ngo = 0;
             dflt_push(&f->desc, &f->ndesc, strdup(""));
+            free(cid); cid = nc;
+            prev = a;
+            continue;
+        }
+        if(prev->expr_type == ASN_CONSTR_CHOICE) {
+            /* an inline SEQUENCE / SET alternative: a node with its own
+             * reader (the Flat slot may be a pointer to it) */
+            if(!go_is_struct_kind(a->expr_type) || a->meta_type == AMT_TYPEREF
+               || a->expr_type == A1TC_REFERENCE) {
+                free(cid); dflt_fn_free(f);
+                return NULL;
+            }
+            mc = own_mkid(a);
+            nc = go_cid_compound(cid, "__", mc);
+            free(mc);
+            free(f->root_cid); f->root_cid = strdup(nc);
+            for(int k = 0; k < f->ntok; k++) free(f->toks[k]);
+            f->ntok = 0;
+            for(int k = 0; k < f->ngo; k++) free(f->gopath[k]);
+            f->ngo = 0;
+            dflt_push(&f->desc, &f->ndesc, strdup(a->Identifier ? a->Identifier : ""));
+            free(cid); cid = nc;
+            prev = a;
+            continue;
+        }
+        if(a->expr_type == ASN_CONSTR_CHOICE && a->meta_type != AMT_TYPEREF
+           && a->expr_type != A1TC_REFERENCE
+           && (a->marker.flags & EM_DEFAULT) != EM_DEFAULT
+           && i > 0 && go_is_struct_kind(anc[i - 1]->expr_type)) {
+            /* an inline CHOICE on the way down: only descended into by an
+             * inline SEQUENCE / SET alternative, which restarts the Flat path */
+            mc = own_mkid(a);
+            nc = go_cid_compound(cid, "__", mc);
+            free(mc);
+            dflt_push(&f->desc, &f->ndesc, strdup(a->Identifier ? a->Identifier : ""));
             free(cid); cid = nc;
             prev = a;
             continue;

@@ -1,4 +1,5 @@
 Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+IMPORTS DfltNoPduBox FROM DfltNoPdu;
 
 -- dflt-enum-ok
 DfltEnumOk ::= SEQUENCE { a ENUMERATED { x, y } DEFAULT y, b BOOLEAN }
@@ -109,4 +110,23 @@ DfltNested ::= SEQUENCE {
     c SEQUENCE { d SEQUENCE { e DfltNestedPt DEFAULT { x 1 }, f BOOLEAN } },
     z BOOLEAN }
 
+-- dflt-choice
+DfltChoicePt ::= SEQUENCE { x INTEGER (0..7), y INTEGER (0..7) DEFAULT 3 }
+DfltChoice ::= CHOICE {
+    s SEQUENCE { q DfltChoicePt DEFAULT { x 2 } },
+    t SEQUENCE { m SEQUENCE { r DfltChoicePt DEFAULT { x 4 }, k BOOLEAN }, j BOOLEAN },
+    o INTEGER (0..9) }
+DfltChoiceIn ::= SEQUENCE {
+    c CHOICE { s SEQUENCE { q DfltChoicePt DEFAULT { x 3 } }, o INTEGER (0..9) } }
+
+-- dflt-nopdu-use
+DfltNoPduUse ::= SEQUENCE { b DfltNoPduBox, n INTEGER (0..9) }
+
+END
+
+-- dflt-nopdu: the owner lives in a module without a PDU
+DfltNoPdu DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+EXPORTS ALL;
+DfltNoPduPt ::= SEQUENCE { x INTEGER (0..7), y INTEGER (0..7) DEFAULT 3 }
+DfltNoPduBox ::= SEQUENCE { p DfltNoPduPt DEFAULT { x 1 }, k INTEGER (0..3) }
 END
