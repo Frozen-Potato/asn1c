@@ -3747,6 +3747,25 @@ xd_seq(arg_t *arg, asn1p_expr_t *ctx, asn1p_expr_t *term, xv_t *v, xd_buf_t *x,
 			{ xd_fail(path, "member `%.*s`: `:` marks a CHOICE value, which is not "
 				"converted", (int)(q - p), p); goto out; }
 	}
+	/* Name every unknown or repeated identifier before judging the members. */
+	for(i = 0; i < n; i++) {
+		int known = 0, j;
+		TQ_FOR(m, &(term->members), next)
+			if(m->Identifier && xd_name_eq(&nm[i], m->Identifier)) known = 1;
+		if(!known) {
+			xd_fail(path, "`%.*s` is not a member of the type",
+				(int)(nm[i].e - nm[i].p), nm[i].p);
+			goto out;
+		}
+		for(j = 0; j < i; j++) {
+			if((nm[j].e - nm[j].p) == (nm[i].e - nm[i].p)
+			&& memcmp(nm[j].p, nm[i].p, nm[i].e - nm[i].p) == 0) {
+				xd_fail(path, "member `%.*s` is given twice",
+					(int)(nm[i].e - nm[i].p), nm[i].p);
+				goto out;
+			}
+		}
+	}
 	TQ_FOR(m, &(term->members), next) {
 		int idx = -1;
 		size_t pl;
@@ -3785,7 +3804,18 @@ xd_seq(arg_t *arg, asn1p_expr_t *ctx, asn1p_expr_t *term, xv_t *v, xd_buf_t *x,
 			if(!xd_puts(x, "</") || !xd_puts(x, m->Identifier) || !xd_puts(x, ">"))
 				goto out;
 		} else {
-			if(!(ext == 1) && !(m->marker.flags & 0x04) && !m->marker.default_value) {
+			if(!is_set) {
+				/* given, but not at this position: it came later */
+				for(i = gi; i < n; i++)
+					if(xd_name_eq(&nm[i], m->Identifier)) {
+						xd_fail(path, "member `%s` is given out of order",
+							m->Identifier);
+						goto out;
+					}
+			}
+			/* EM_OPTIONAL is also set for DEFAULT (EM_DEFAULT includes it) */
+			if(!(ext == 1) && (m->marker.flags & EM_OPTIONAL) != EM_OPTIONAL
+			&& !m->marker.default_value) {
 				xd_fail(path, "the required member `%s` is not given", m->Identifier);
 				goto out;
 			}

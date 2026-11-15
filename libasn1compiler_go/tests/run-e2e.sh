@@ -211,6 +211,34 @@ run_unsupported_default() {
         echo "run-e2e: unsupported-DEFAULT case wrote output" >&2
         return 1
     fi
+    # Precise reasons for a constructed DEFAULT that names the wrong members.
+    while IFS='|' read -r label member want; do
+        w="$tmp/unsupported-default-$label"
+        mkdir -p "$w/c"
+        cat >"$w/spec.asn" <<EOT
+M DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Pt ::= SEQUENCE { x INTEGER (0..255), y INTEGER (0..255) DEFAULT 7 }
+T ::= SEQUENCE { $member, z BOOLEAN }
+END
+EOT
+        rc=0
+        (
+            cd "$w"
+            ASN1CGO_GO_MODULE_PREFIX=example.com "$tmp/bin/asn1c" \
+                -S "$repo/skeletons" -gen-PER -no-gen-OER -pdu=auto \
+                -D "$w/c" -Fgo="$w/gout" spec.asn
+        ) >"$w/asn1c.log" 2>&1 || rc=$?
+        if [ "$rc" != 70 ] || ! grep -qF "module M: $want" "$w/asn1c.log"; then
+            cat "$w/asn1c.log" >&2
+            echo "run-e2e: DEFAULT case '$label' (rc $rc) lacks: $want" >&2
+            return 1
+        fi
+    done <<'EOT'
+unknown|u Pt DEFAULT { q 1 }|u: `q` is not a member of the type
+order|o Pt DEFAULT { y 2, x 1 }|o: member `x` is given out of order
+twice|d Pt DEFAULT { x 1, x 2 }|d: member `x` is given twice
+missing|m Pt DEFAULT { y 2 }|m: the required member `x` is not given
+EOT
 }
 
 # A bare -Fgo basename that is a standard-library top-level element (and no
