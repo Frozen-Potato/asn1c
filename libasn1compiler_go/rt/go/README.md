@@ -24,6 +24,10 @@ It contains:
   without any tag. `-tags asn1cgo_oer` only compiles the runtime's OER codec
   in; the generated Go API is APER-only, so this matters only if you call the
   C OER functions yourself.
+- JER: this module defines `ASN_ENABLE_JER_SUPPORT`, so the JER (X.697)
+  codec is always compiled in. The descriptor layout is the same with or
+  without it, so trees generated without `-gen-JER` link and behave as
+  before; trees generated with `-gen-JER` get `EncodeJER` / `DecodeJER<T>`.
 
 ## Requirements
 

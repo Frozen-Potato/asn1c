@@ -24,10 +24,15 @@
 // codec pointers are just NULL). `-tags asn1cgo_oer` only compiles the
 // runtime's OER codec in; the generated Go API is APER-only, so it matters
 // only if you call the C OER functions yourself.
+//
+// JER: this module defines ASN_ENABLE_JER_SUPPORT, so the JER (X.697)
+// codec is always compiled in. The descriptor layout is the same with or
+// without it, so trees generated without -gen-JER link and behave as
+// before; trees generated with -gen-JER get EncodeJER / DecodeJER<T>.
 package rt
 
 /*
-#cgo CFLAGS: -I${SRCDIR}
+#cgo CFLAGS: -I${SRCDIR} -DASN_ENABLE_JER_SUPPORT
 #cgo !asn1cgo_oer CFLAGS: -DASN_DISABLE_OER_SUPPORT
 #cgo LDFLAGS: -lm -lpthread
 #include "arena.h"

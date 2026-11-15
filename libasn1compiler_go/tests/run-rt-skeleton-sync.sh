@@ -3,7 +3,8 @@
 # in skeletons/. The only allowed difference is the leading
 # "//go:build asn1cgo_oer" line plus the blank line after it, which the OER
 # files carry. Also: every rt .c must compile warning-free with
-# `$CC -pthread -Wall -Wextra -Werror=cpp` (cgo passes -pthread, which
+# `$CC -pthread -Wall -Wextra -Werror=cpp -DASN_ENABLE_JER_SUPPORT` (the cgo flags are
+# mirrored: JER is always compiled in; cgo passes -pthread, which
 # predefines _REENTRANT; a redefinition must not come back).
 # Exit codes: 0 pass, 77 skipped (no compiler), anything else failure.
 set -eu
@@ -48,7 +49,7 @@ for f in "$rt"/*.c; do
     # support, so they are compiled without -DASN_DISABLE_OER_SUPPORT.
     oer=-DASN_DISABLE_OER_SUPPORT
     [ "$(sed -n 1p "$f")" = "//go:build asn1cgo_oer" ] && oer=
-    if ! $cc -pthread -Wall -Wextra -Werror=cpp -I"$rt" $oer \
+    if ! $cc -pthread -Wall -Wextra -Werror=cpp -DASN_ENABLE_JER_SUPPORT -I"$rt" $oer \
             -c "$f" -o /dev/null 2>"$tmp/err"; then
         echo "run-rt-skeleton-sync: $(basename "$f") failed with $cc:" >&2
         cat "$tmp/err" >&2
