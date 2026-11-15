@@ -1,3 +1,7 @@
+0.9.29-go.11 (unreleased):
+    * C runtime: JER (X.697) support in progress; compiled out unless
+      ASN_ENABLE_JER_SUPPORT is defined (no -gen-JER yet).
+
 0.9.29-go.10:
     FIXES:
     * C generator (also for plain C users): a type's own constraint function

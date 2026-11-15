@@ -5,6 +5,10 @@
 #include <asn_internal.h>
 #include <asn_application.h>
 #include <errno.h>
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+#include <jer_encoder.h>
+#include <jer_decoder.h>
+#endif
 
 static asn_enc_rval_t asn_encode_internal(const asn_codec_ctx_t *opt_codec_ctx,
                                           enum asn_transfer_syntax syntax,
@@ -406,6 +410,30 @@ asn_encode_internal(const asn_codec_ctx_t *opt_codec_ctx,
         }
         break;
 
+    case ATS_JER_MINIFIED:
+    case ATS_JER:
+#if defined(ASN_DISABLE_JER_SUPPORT)
+        errno = ENOENT; /* JER is compiled out. */
+        ASN__ENCODE_FAILED;
+#else
+        if(td->op->jer_encoder) {
+            enum jer_encoder_flags_e jer_flags =
+                (syntax == ATS_JER_MINIFIED) ? JER_F_MINIFIED : JER_F;
+            er = jer_encode(td, sptr, jer_flags, callback, callback_key);
+            if(er.encoded == -1) {
+                if(er.failed_type && er.failed_type->op->jer_encoder) {
+                    errno = EBADF;  /* Structure has incorrect form. */
+                } else {
+                    errno = ENOENT; /* JER is not defined for this type. */
+                }
+            }
+        } else {
+            errno = ENOENT; /* Transfer syntax is not defined for this type. */
+            ASN__ENCODE_FAILED;
+        }
+        break;
+#endif  /* ASN_DISABLE_JER_SUPPORT */
+
     default:
         errno = ENOENT;
         ASN__ENCODE_FAILED;
@@ -476,6 +504,19 @@ asn_decode(const asn_codec_ctx_t *opt_codec_ctx,
     case ATS_BASIC_XER:
     case ATS_CANONICAL_XER:
         return xer_decode(opt_codec_ctx, td, sptr, buffer, size);
+
+    case ATS_JER:
+    case ATS_JER_MINIFIED:
+#ifdef  ASN_DISABLE_JER_SUPPORT
+        errno = ENOENT;
+        ASN__DECODE_FAILED;
+#else
+        if(!td->op->jer_decoder) {
+            errno = ENOENT; /* JER is not defined for this type. */
+            ASN__DECODE_FAILED;
+        }
+        return jer_decode(opt_codec_ctx, td, sptr, buffer, size);
+#endif
     }
 }
 

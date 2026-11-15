@@ -12,6 +12,19 @@
 #include "config.h"
 #endif
 
+/*
+ * JER (X.697, JSON Encoding Rules) is opt-in. The runtime sources test
+ * ASN_DISABLE_JER_SUPPORT (the convention of the other codecs), so JER is
+ * compiled out unless the build defines ASN_ENABLE_JER_SUPPORT. This header
+ * is included first by every runtime file, which makes the rule global.
+ * If both macros are defined, ASN_DISABLE_JER_SUPPORT wins.
+ * The JER slots in the type descriptors exist (zeroed) either way, so the
+ * layout does not depend on this switch.
+ */
+#if !defined(ASN_ENABLE_JER_SUPPORT) && !defined(ASN_DISABLE_JER_SUPPORT)
+#define ASN_DISABLE_JER_SUPPORT
+#endif
+
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE 1
 #endif

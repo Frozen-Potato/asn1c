@@ -53,6 +53,41 @@ typedef void asn_oer_constraints_t;
 #endif
 
 /*
+ * JER (X.697) type-operation declarations. They are UNCONDITIONAL, so that
+ * asn_TYPE_operation_t and asn_encoding_constraints_t have the same layout
+ * whether or not JER is compiled in (objects built either way can be mixed).
+ * Hence no JER header is included here: jer_encoder.h and jer_decoder.h are
+ * only present in builds that were generated with JER support.
+ */
+struct asn_jer_constraints_s;	/* Forward declaration (jer_support.h) */
+
+/* Flags used by the jer_encode() and (*jer_type_encoder_f) */
+enum jer_encoder_flags_e {
+	/* Mode of encoding */
+	JER_F	        = 0x01,	/* JER (pretty-printing) */
+	JER_F_MINIFIED	= 0x02	/* JER (minified) */
+};
+
+/* Type of the type-specific JER decoder function. */
+typedef asn_dec_rval_t(jer_type_decoder_f)(
+    const asn_codec_ctx_t *opt_codec_ctx,
+    const struct asn_TYPE_descriptor_s *type_descriptor,
+    const struct asn_jer_constraints_s *constraints,
+    void **struct_ptr,
+    const void *buf_ptr, size_t size);
+
+/* Type of the type-specific JER encoder function. */
+typedef asn_enc_rval_t(jer_type_encoder_f)(
+    const struct asn_TYPE_descriptor_s *type_descriptor,
+    const struct asn_jer_constraints_s *constraints,
+    const void *struct_ptr, /* Structure to be encoded */
+    int ilevel,             /* Level of indentation */
+    enum jer_encoder_flags_e jer_flags,
+    asn_app_consume_bytes_f *consume_bytes_cb, /* Callback */
+    void *app_key                              /* Arbitrary callback argument */
+);
+
+/*
  * Free the structure according to its specification.
  * Use one of ASN_STRUCT_{FREE,RESET,CONTENTS_ONLY} macros instead.
  * Do not use directly.
@@ -157,6 +192,9 @@ typedef struct asn_TYPE_operation_s {
     per_type_encoder_f *aper_encoder;     /* Aligned PER encoder */
     asn_random_fill_f *random_fill;       /* Initialize with a random value */
     asn_outmost_tag_f *outmost_tag;       /* <optional, internal> */
+    /* Added after outmost_tag to keep the layout of the members above. */
+    jer_type_decoder_f *jer_decoder;      /* Generic JER decoder */
+    jer_type_encoder_f *jer_encoder;      /* Generic JER encoder */
 } asn_TYPE_operation_t;
 
 /*
@@ -166,6 +204,8 @@ typedef struct asn_encoding_constraints_s {
     const struct asn_oer_constraints_s *oer_constraints;
     const struct asn_per_constraints_s *per_constraints;
     asn_constr_check_f *general_constraints;
+    /* Added after general_constraints to keep the layout above. */
+    const struct asn_jer_constraints_s *jer_constraints;
 } asn_encoding_constraints_t;
 
 /*

@@ -25,7 +25,12 @@ check_LTLIBRARIES =             \
 libasn1cskeletons_c89_la_CFLAGS = $(SKELETONS_CFLAGS)
 libasn1cskeletons_c89_la_SOURCES = $(libasn1cskeletons_la_SOURCES)
 
-libasn1cskeletons_la_CFLAGS = $(TESTSUITE_CFLAGS)
+# JER is opt-in (see asn_system.h). The test library is built with it ON so
+# that tests/tests-skeletons can exercise the JER support code. The c89
+# libraries and converter-example keep the default (JER compiled out), which
+# also checks that the jer_* sources compile to nothing under strict C89.
+# Exception: the -m32 library below is JER-ON, for check-32-JER-support.
+libasn1cskeletons_la_CFLAGS = $(TESTSUITE_CFLAGS) -DASN_ENABLE_JER_SUPPORT
 libasn1cskeletons_la_SOURCES =                  \
     ANY.c ANY.h                                 \
     BIT_STRING.c BIT_STRING.h                   \
@@ -93,7 +98,10 @@ libasn1cskeletons_la_SOURCES =                  \
     per_support.c per_support.h                 \
     xer_decoder.c xer_decoder.h                 \
     xer_encoder.c xer_encoder.h                 \
-    xer_support.c xer_support.h
+    xer_support.c xer_support.h                 \
+    jer_decoder.c jer_decoder.h                 \
+    jer_encoder.c jer_encoder.h                 \
+    jer_support.c jer_support.h
 
 check_PROGRAMS =                    \
     check-converter_example         \
@@ -110,7 +118,7 @@ check_converter_c89_example_LDADD = libasn1cskeletons_c89.la
 
 if EXPLICIT_M32
 check_LTLIBRARIES += libasn1cskeletons_c89_32.la
-libasn1cskeletons_c89_32_la_CFLAGS = $(CFLAGS_M32) -Wno-format
+libasn1cskeletons_c89_32_la_CFLAGS = $(CFLAGS_M32) -Wno-format -DASN_ENABLE_JER_SUPPORT
 libasn1cskeletons_c89_32_la_SOURCES = $(libasn1cskeletons_la_SOURCES)
 
 check_PROGRAMS += check-converter_c89_32_example

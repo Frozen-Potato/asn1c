@@ -59,7 +59,16 @@ enum asn_transfer_syntax {
      * CANONICAL-XER is a more strict variant of BASIC-XER.
      */
     ATS_BASIC_XER,
-    ATS_CANONICAL_XER
+    ATS_CANONICAL_XER,
+    /*
+     * X.697:
+     * JER: JSON Encoding Rules (pretty-printed / minified).
+     * Appended last so the values above do not change. Available only when
+     * the runtime is built with ASN_ENABLE_JER_SUPPORT; otherwise the
+     * generic encoder and decoder fail with ENOENT.
+     */
+    ATS_JER,
+    ATS_JER_MINIFIED
 };
 
 /*
