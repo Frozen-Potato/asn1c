@@ -1,0 +1,43 @@
+ModuleJERMixed
+    { iso org(3) dod(6) internet(1) private(4) enterprise(1)
+        spelio(9363) software(1) asn1c(5) test(1) 180 }
+DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Leaves ::= SEQUENCE {
+    r    REAL,
+    u8   UTF8String,
+    ia   IA5String (SIZE(0..8)),
+    pr   PrintableString OPTIONAL,
+    vis  VisibleString OPTIONAL,
+    num  NumericString OPTIONAL,
+    bmp  BMPString OPTIONAL,
+    uni  UniversalString OPTIONAL,
+    gt   GeneralizedTime OPTIONAL,
+    ut   UTCTime OPTIONAL,
+    oid  OBJECT IDENTIFIER OPTIONAL,
+    roid RELATIVE-OID OPTIONAL,
+    nul  NULL OPTIONAL,
+    en   ENUMERATED { a, b, c } DEFAULT b,
+    os   OCTET STRING OPTIONAL,
+    bs   BIT STRING OPTIONAL,
+    nb   BIT STRING { x(0), y(3) } OPTIONAL,
+    ...,
+    [[ g1 REAL OPTIONAL, g2 UTF8String OPTIONAL ]],
+    z    INTEGER (0..7) OPTIONAL
+}
+Alt ::= CHOICE {
+    r   REAL,
+    s   UTF8String,
+    t   GeneralizedTime,
+    o   OBJECT IDENTIFIER,
+    ...,
+    b   BMPString
+}
+Lists ::= SEQUENCE {
+    reals  SEQUENCE (SIZE(0..4)) OF REAL,
+    strs   SET OF UTF8String,
+    alts   SEQUENCE OF Alt,
+    times  SEQUENCE OF UTCTime OPTIONAL
+}
+Fl ::= SEQUENCE { f REAL (WITH COMPONENTS { mantissa (-16777215..16777215), base (2), exponent (-125..128) }), d REAL }
+B12 ::= BIT STRING (SIZE(12))
+END
