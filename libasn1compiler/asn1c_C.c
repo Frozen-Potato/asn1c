@@ -913,7 +913,10 @@ asn1c_lang_C_type_SEx_OF(arg_t *arg) {
 	 * (see emit_member_table() and asn1c_lang_C_type_SIMPLE_TYPE()).
 	 */
 	|| (memb->expr_type == ASN_BASIC_INTEGER
-		&& asn1c_type_fits_long(arg, memb) == FL_FITS_UNSIGN)) {
+		&& asn1c_type_fits_long(arg, memb) == FL_FITS_UNSIGN)
+	/* A float-narrowed REAL likewise (NativeReal with specifics). */
+	|| (memb->expr_type == ASN_BASIC_REAL
+		&& asn1c_REAL_fits(arg, memb) == RL_FITS_FLOAT32)) {
 		arg_t tmp;
 		asn1p_expr_t *tmp_memb = memb;
 		enum asn1p_expr_marker_e flags = memb->marker.flags;
@@ -5413,7 +5416,9 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 			&& expr->expr_type == ASN_BASIC_INTEGER
 			&& expr_elements_count(arg, expr))
 		|| (expr->expr_type == ASN_BASIC_INTEGER
-			&& asn1c_type_fits_long(arg, expr) == FL_FITS_UNSIGN);
+			&& asn1c_type_fits_long(arg, expr) == FL_FITS_UNSIGN)
+		|| (expr->expr_type == ASN_BASIC_REAL
+			&& asn1c_REAL_fits(arg, expr) == RL_FITS_FLOAT32);
 	if(C99_MODE) OUT(".type = ");
 
     OUT("&asn_DEF_");

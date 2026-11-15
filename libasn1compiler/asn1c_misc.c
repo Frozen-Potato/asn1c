@@ -421,7 +421,7 @@ expr_get_type(arg_t *arg, asn1p_expr_t *expr) {
 
 enum asn1c_fitsfloat_e
 asn1c_REAL_fits(arg_t *arg, asn1p_expr_t *expr) {
-    asn1p_expr_type_e etype = expr_get_type(arg, arg->expr);
+    asn1p_expr_type_e etype = expr_get_type(arg, expr);
     if(etype == ASN_BASIC_REAL) {
         asn1cnst_range_t *range = asn1constraint_compute_OER_range(
             expr->Identifier, etype, expr->combined_constraints, ACT_EL_RANGE,

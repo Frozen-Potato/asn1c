@@ -8,6 +8,18 @@
       now delegates to the checker of the type it is implemented with, which
       still checks the size and the elements. Member constraint functions are
       unchanged.
+    * C generator and C runtime (also for plain C users): a REAL narrowed to
+      a C float (WITH COMPONENTS { mantissa (-16777215..16777215), base (2),
+      exponent (-100..100) }) now works as an inline member of a SEQUENCE,
+      SET or CHOICE, as an OPTIONAL member and as the element of a SEQUENCE
+      OF, in every codec. Before, the member table named the double
+      descriptor, so the codecs read and wrote 8 bytes through a 4-byte
+      member, and an inline SEQUENCE OF element had no descriptor at all.
+      The aligned PER codec of NativeReal (NativeReal_{en,de}code_aper) now
+      honours the float size like the unaligned one; the bytes of a double
+      REAL are unchanged. With -fwide-types such a member is a float in the
+      header and compiles. Two such members with the same name in different
+      types no longer stop generation under -fcompound-names.
 
 0.9.29-go.9:
     NEW:

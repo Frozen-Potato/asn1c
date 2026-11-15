@@ -2,10 +2,8 @@
  * A REAL DEFAULT on a float-narrowed member: the default is held as the float
  * nearest to 0.1 (and +inf for g), an absent member decodes to it, and the
  * decoded value is recognised as the default again, so it is omitted.
- * Only the DEFAULT callbacks are exercised: the member descriptors of a float
- * member in a SEQUENCE name the generic NativeReal type (no float size), so
- * the runtime cannot yet encode or decode a float member that is not the
- * DEFAULT.
+ * A float member that is not the default value is encoded and decoded as well
+ * (the member descriptors name the float NativeReal type, see check-177).
  */
 #undef	NDEBUG
 #include <stdio.h>
@@ -45,7 +43,34 @@ static void z_cases(int aper) {
 	ASN_STRUCT_FREE(asn_DEF_Z, zo);
 }
 
+static void non_default(int aper) {
+	uint8_t buf[32];
+	asn_enc_rval_t er;
+	asn_dec_rval_t rv;
+	asn_codec_ctx_t ctx;
+	Z_t z, *zo = 0;
+	float f = 1.5f, g = -2.25f;
+
+	memset(&ctx, 0, sizeof(ctx));
+	memset(&z, 0, sizeof(z));
+	z.b = 1;
+	z.f = &f;
+	z.g = &g;
+	memset(buf, 0, sizeof(buf));
+	er = aper ? aper_encode_to_buffer(&asn_DEF_Z, 0, &z, buf, sizeof(buf))
+		  : uper_encode_to_buffer(&asn_DEF_Z, 0, &z, buf, sizeof(buf));
+	assert(er.encoded > 0);
+	rv = aper ? aper_decode(&ctx, &asn_DEF_Z, (void *)&zo, buf, sizeof(buf), 0, 0)
+		  : uper_decode(&ctx, &asn_DEF_Z, (void *)&zo, buf, sizeof(buf), 0, 0);
+	assert(rv.code == RC_OK && zo && zo->f && zo->g && zo->b);
+	assert(*zo->f == 1.5f);
+	assert(*zo->g == -2.25f);
+	ASN_STRUCT_FREE(asn_DEF_Z, zo);
+}
+
 int main() {
+	non_default(1);
+	non_default(0);
 	z_cases(1);
 	z_cases(0);
 	return 0;

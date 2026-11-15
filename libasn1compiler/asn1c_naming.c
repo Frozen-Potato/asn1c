@@ -199,7 +199,8 @@ c_name_impl(arg_t *arg, asn1p_expr_t *expr, int avoid_keywords) {
         if((expr_type & ASN_CONSTR_MASK)
            || expr_type == ASN_BASIC_ENUMERATED
            || ((expr_type == ASN_BASIC_INTEGER
-                || expr_type == ASN_BASIC_BIT_STRING))) {
+                || expr_type == ASN_BASIC_BIT_STRING
+                || expr_type == ASN_BASIC_REAL))) {
             compound_names = 1;
         }
     }
