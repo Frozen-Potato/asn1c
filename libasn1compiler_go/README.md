@@ -28,6 +28,9 @@ Run it as a binary named `asn1c` (or through `exec -a asn1c`): asn1c stamps its
 command line into every generated file, and a stable argv keeps the output
 reproducible.
 
+`-gen-JER` may be added: every PDU type then also gets `EncodeJER` /
+`DecodeJER<PDU>` (see Using the generated code).
+
 `-no-gen-OER` is the supported configuration. Trees generated with OER on also
 build and work for APER; the generated Go API is APER-only.
 
@@ -80,6 +83,19 @@ For each PDU type the generated package exports exactly:
 func (p *<PDU>) Encode() ([]byte, error)   // APER bytes
 func Decode<PDU>(b []byte) (*<PDU>, error) // APER bytes -> value
 ```
+
+and, with `-gen-JER`, also:
+
+```go
+func (p *<PDU>) EncodeJER() ([]byte, error)    // JER, minified JSON
+func DecodeJER<PDU>(b []byte) (*<PDU>, error)  // JER -> value
+```
+
+JER is the X.697 JSON encoding. `EncodeJER` writes it minified. `DecodeJER`
+accepts any member order and white space, but nothing except white space
+after the value (`ErrTrailing`). Constraints are checked on both sides as for
+APER, and errors are the same `*rt.Error` codes. An open-type member must come
+after its identifier member in `DecodeJER` input (known issue #42).
 
 Example specification (a SEQUENCE, a nested CHOICE, an OPTIONAL member):
 
@@ -393,7 +409,7 @@ generates an empty union; do not use it. For bugs and open limitations see
 ## Runtime module
 
 Generated code imports the runtime module (error model, arena allocator and a
-copy of the asn1c skeleton codec). Its source is `libasn1compiler_go/rt/go`.
+copy of the asn1c skeleton codec; it always contains the JER codec). Its source is `libasn1compiler_go/rt/go`.
 
 - **Module path:** `github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go`;
   `ASN1CGO_GO_MODULE_PREFIX` does not change it.

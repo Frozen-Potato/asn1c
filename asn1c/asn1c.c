@@ -284,10 +284,6 @@ main(int ac, char **av) {
         /* Drop the stray 'F' the -Fgo bundle set (don't trip "-F requires -E"). */
         print_arg__fix_n_print = 0;
     }
-    if(go_requested && (asn1_compiler_flags & A1C_GEN_JER)) {
-        fprintf(stderr, "asn1c: -gen-JER is not supported with -Fgo yet\n");
-        exit(EX_USAGE);
-    }
     if(print_arg__print_out) {
         if((asn1_printer_flags & APF_PRINT_CONSTRAINTS)
            && !print_arg__fix_n_print) {

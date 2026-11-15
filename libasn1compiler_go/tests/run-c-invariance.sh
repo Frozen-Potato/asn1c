@@ -95,6 +95,8 @@ check ioc 0 "$e2e/ioc.asn"
 check default 0 "$e2e/default.asn"
 check nsmall 0 "$e2e/nsmall.asn"
 check bits 0 "$e2e/bits.asn"
+check ex-jer 0 -gen-JER "$e2e/ex.asn"
+check ioc-jer 0 -gen-JER "$e2e/ioc.asn"
 
 # A spec the Go pass rejects (default-unsupported.asn: a SEQUENCE-valued
 # DEFAULT, which the C generator gives no default callbacks for) must be

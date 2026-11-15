@@ -24,6 +24,11 @@
  *                         asn1cgo_err *err)
  *       _to_tree -> asn_encode_to_new_buffer(ATS_CANONICAL_XER) -> free
  *
+ * With -gen-JER (go_jer_enabled) two more per PDU, the APER pair's twins:
+ *
+ *   int asn1cgo_jerenc_<PDU>(...)   as _encode_, ATS_JER_MINIFIED
+ *   int asn1cgo_jerdec_<PDU>(...)   as _decode_, ATS_JER
+ *
  * asn1cgo_buf + asn1cgo_buf_free live in the asn1cgo-rt module (the per-spec prefix rule
  * amendment): the entry .c carries the local typedef only.
  */
@@ -58,16 +63,23 @@
 extern char *node_to_body_pub(void *t);
 extern char *conv_from_node(void *t, int scc);
 
-/* One PDU's three entry points (encode/decode/xer), emitted text. */
+/* The codec word of a message ("aper"/"jer") in capitals, for the comments. */
+static const char *
+word_up(const char *w) { return strcmp(w, "aper") == 0 ? "APER" : "JER"; }
+
+/* One PDU's entry points (encode/decode/xer, plus jerenc/jerdec with
+ * -gen-JER), emitted text. entry_encode / entry_decode take the entry-point
+ * name part, the ATS_* constant and the codec word of the messages. */
 static char *
-entry_encode(void *rt, const char *fbasename, const char *tbasename) {
+entry_encode(void *rt, const char *fbasename, const char *tbasename,
+             const char *part, const char *ats, const char *word) {
     char *label = conv_type_label(rt);   /* td->name display label */
     char *s = cstrdup("");
-    s = ca(s, "/* ---- encode ---- */\n");
-    { char *_cf = cfmt("int asn1cgo_encode_%s(\n"
+    { char *_cf = cfmt("/* ---- %s ---- */\n", part); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("int asn1cgo_%s_%s(\n"
                    "        const %s_flat *in,\n"
                    "        asn1cgo_buf *out, asn1cgo_err *err) {\n",
-                   tbasename, fbasename); s = ca(s, _cf); free(_cf); }
+                   part, tbasename, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!in || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    out->buf = NULL; out->len = 0;\n\n");
     { char *_cf = cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
@@ -80,26 +92,27 @@ entry_encode(void *rt, const char *fbasename, const char *tbasename) {
     { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_CONSTRAINT, \"%s\", NULL,\n"
                    "                            \"%%.*s\", (int)(cerrlen < sizeof(cerr) ? cerrlen : sizeof(cerr)-1), cerr);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    asn_encode_to_new_buffer_result_t r =\n"
-             "        asn_encode_to_new_buffer(NULL, ATS_ALIGNED_BASIC_PER,\n");
+    { char *_cf = cfmt("    asn_encode_to_new_buffer_result_t r =\n"
+             "        asn_encode_to_new_buffer(NULL, %s,\n", ats); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("                                 &asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    if (r.result.encoded < 0 || !r.buffer) {\n        free(r.buffer);\n");
-    { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"aper encode failed\");\n    }\n", label); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"%s encode failed\");\n    }\n", label, word); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    out->buf = (uint8_t *)r.buffer;\n    out->len = (size_t)r.result.encoded;   /* bytes, not bits */\n    return 0;\n}\n\n");
     free(label);
     return s;
 }
 
 static char *
-entry_decode(void *rt, const char *fbasename, const char *tbasename) {
+entry_decode(void *rt, const char *fbasename, const char *tbasename,
+             const char *part, const char *ats, const char *word) {
     char *label = conv_type_label(rt);   /* td->name display label */
     char *s = cstrdup("");
-    s = ca(s, "/* ---- decode ---- */\n");
-    { char *_cf = cfmt("int asn1cgo_decode_%s(\n"
+    { char *_cf = cfmt("/* ---- %s ---- */\n", part); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("int asn1cgo_%s_%s(\n"
                    "        const uint8_t *buf, size_t len, asn1cgo_arena **arena_out,\n"
                    "        %s_flat **out, asn1cgo_err *err) {\n",
-                   tbasename, fbasename); s = ca(s, _cf); free(_cf); }
+                   part, tbasename, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!buf || !arena_out || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    *arena_out = NULL; *out = NULL;\n\n");
     s = ca(s, "    asn1cgo_arena *ar = asn1cgo_arena_new(0);\n");
@@ -116,16 +129,16 @@ entry_decode(void *rt, const char *fbasename, const char *tbasename) {
      * it maps to E_DECODE. ASN1CGO_MAX_DEPTH (64 units) is the separate,
      * precise cap applied in *_from_tree; the default stack budget is sized
      * so that no input within that cap trips the C guard. */
-    s = ca(s, "    void *sptr = NULL;\n    asn_codec_ctx_t dctx = {0};   /* stack local: the guard measures from its address */\n    dctx.max_stack_size = ASN1CGO_C_STACK_MAX;\n    asn_dec_rval_t dr = asn_decode(&dctx, ATS_ALIGNED_BASIC_PER,\n");
+    { char *_cf = cfmt("    void *sptr = NULL;\n    asn_codec_ctx_t dctx = {0};   /* stack local: the guard measures from its address */\n    dctx.max_stack_size = ASN1CGO_C_STACK_MAX;\n    asn_dec_rval_t dr = asn_decode(&dctx, %s,\n", ats); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("                                   &asn_DEF_%s, (void **)&sptr, buf, len);\n", tbasename); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    if (dr.code != RC_OK) {\n");
     { char *_cf = cfmt("        if (sptr) ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"aper decode RC=%%d (malformed input, or C stack budget ASN1CGO_C_STACK_MAX exceeded)\", dr.code);\n    }\n", label); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"%s decode RC=%%d (malformed input, or C stack budget ASN1CGO_C_STACK_MAX exceeded)\", dr.code);\n    }\n", label, word); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    /* Trailing bytes after the PDU are an error. */\n");
     s = ca(s, "    if (dr.consumed < len) {\n");
     { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_TRAILING, \"%s\", NULL, \"%%zu trailing bytes\", len - dr.consumed);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    /* asn1c's APER decoder does not range/size/permitted-alphabet\n");
+    { char *_cf = cfmt("    /* asn1c's %s decoder does not range/size/permitted-alphabet\n", word_up(word)); s = ca(s, _cf); free(_cf); }
     s = ca(s, "     * check; reject a decoded Tree its own constraints would fail. */\n");
     s = ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
     { char *_cf = cfmt("    if (asn_check_constraints(&asn_DEF_%s, sptr, cerr, &cerrlen) != 0) {\n", tbasename); s = ca(s, _cf); free(_cf); }
@@ -294,6 +307,7 @@ conv_module_pkg(const char *module_name) {
 
 /* cspec cgo.go text (the import path is parameterized by the rt module). */
 extern int go_oer_disabled(void);
+extern int go_jer_enabled(void);
 
 static char *
 cspec_cgo_go_text(void) {
@@ -1328,9 +1342,14 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                     fb[fl - 5] = '\0';
             }
             free(fbn);
-            { char *eb = entry_encode(rt, fb, tb); s = ca(s, eb); free(eb); }
-            { char *db = entry_decode(rt, fb, tb); s = ca(s, db); free(db); }
+            { char *eb = entry_encode(rt, fb, tb, "encode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, eb); free(eb); }
+            { char *db = entry_decode(rt, fb, tb, "decode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, db); free(db); }
             { char *xb = entry_xer(rt, fb, tb); s = ca(s, xb); free(xb); }
+            if(go_jer_enabled()) {
+                s = ca(s, "\n");
+                { char *eb = entry_encode(rt, fb, tb, "jerenc", "ATS_JER_MINIFIED", "jer"); s = ca(s, eb); free(eb); }
+                { char *db = entry_decode(rt, fb, tb, "jerdec", "ATS_JER", "jer"); s = ca(s, db); free(db); }
+            }
             free(tb); free(fb);
             any_pdu = 1;
         }

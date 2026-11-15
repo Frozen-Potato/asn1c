@@ -1709,6 +1709,13 @@ static enum asn1c_flags go_compiler_flags;
 int go_oer_disabled(void);
 int go_oer_disabled(void) { return (go_compiler_flags & A1C_GEN_OER) == 0; }
 
+/* go_jer_enabled: nonzero when this run was started with -gen-JER
+ * (A1C_GEN_JER set). Only then does each PDU get the two JER C entry points
+ * and the Go EncodeJER / DecodeJER<T> wrappers; without it the generated
+ * files are exactly what they were before JER existed in the Go backend. */
+int go_jer_enabled(void);
+int go_jer_enabled(void) { return (go_compiler_flags & A1C_GEN_JER) != 0; }
+
 /* -------------------------------------------------------------------------
  * leaf-kind classification. The INTEGER class comes from asn1c's own
  * decision function (asn1c_type_fits_long, asn1c_misc.c:408 — note:

@@ -1,16 +1,23 @@
 0.9.29-go.11 (unreleased):
     * C runtime and generator: JER (X.697) support in progress; compiled out
       unless ASN_ENABLE_JER_SUPPORT is defined. asn1c has a -gen-JER option
-      (off by default; refused together with -Fgo) that copies the JER
+      (off by default) that copies the JER
       runtime, defines ASN_ENABLE_JER_SUPPORT in the generated makefiles and
       adds "-ijer" / "-ojer" to converter-example. The primitive types are
       done (BOOLEAN, NULL, INTEGER, ENUMERATED, REAL, OCTET STRING,
       BIT STRING, OBJECT IDENTIFIER, RELATIVE-OID, times, character strings,
       ANY), with the fixed-size BIT STRING constraint, and the constructed
       types (SEQUENCE with [[ ]] groups, SET, CHOICE, SEQUENCE OF, SET OF,
-      open types). JER remains C-only (refused with -Fgo).
+      open types). The JER encoder writes the padding bits of a BIT STRING
+      as 0.
       Generated C: every descriptor and member initializer gains a fourth
       encoding-constraints value (0), the new JER constraints slot.
+    * Go backend: with -gen-JER every PDU type T also gets
+      `func (p *T) EncodeJER() ([]byte, error)` (minified JSON) and
+      `func DecodeJER<T>(b []byte) (*T, error)`, with the same error codes
+      and constraint checks as Encode / Decode<T>. Without -gen-JER the
+      generated code is unchanged. The runtime module now always contains
+      the JER codec.
 
 0.9.29-go.10:
     FIXES:

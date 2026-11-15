@@ -2,7 +2,8 @@
 # End-to-end test of the Go backend: generate Go from tests/e2e/ex.asn and
 # tests/e2e/ioc.asn, build it with cgo (CGO_CFLAGS with -Werror=incompatible-pointer-types), check an APER
 # round-trip, every reachable error code, and an allocation-fault sweep.
-# Runs twice: with -no-gen-OER and with OER enabled.
+# Runs three times: with -no-gen-OER, with OER enabled, and with -no-gen-OER
+# -gen-JER (which adds EncodeJER / DecodeJER<T> and their tests).
 # Exit codes: 0 pass, 77 skipped (automake SKIP), anything else failure.
 set -eu
 
@@ -38,6 +39,9 @@ run_one() {
     label=$1; shift   # remaining args: extra asn1c flags
     oerdef=
     case " $* " in *" -no-gen-OER "*) oerdef=-DASN_DISABLE_OER_SUPPORT ;; esac
+    jer=0
+    jerdef=
+    case " $* " in *" -gen-JER "*) jer=1; jerdef=-DASN_ENABLE_JER_SUPPORT ;; esac
     work="$tmp/$label"
     mkdir -p "$work/c"
     echo "== run-e2e: $label =="
@@ -81,6 +85,10 @@ run_one() {
        "$work/go/"
     # The BMPString / UniversalString helpers are unexported: their test lives
     # in the generated strs package.
+    # JER tests exist only when the JER functions are generated.
+    if [ "$jer" = 1 ]; then
+        cp "$here/e2e/jer_test.go" "$here/e2e/jer_faults_test.go" "$work/go/"
+    fi
     cp "$here/e2e/strs_internal_test.go" "$work/go/strs/"
     # Likewise the OBJECT IDENTIFIER / RELATIVE-OID helpers and XER entry
     # points of the generated oids package.
@@ -106,6 +114,9 @@ run_one() {
             [ -f "$d/glue.go" ] || continue
             for ty in $(sed -n 's/^func (p \*\([A-Za-z0-9_]*\)) Encode().*/\1/p' "$d/glue.go"); do
                 echo "	randPDUs = append(randPDUs, randPDU{\"$n.$ty\", reflect.TypeOf((*p_$n.$ty)(nil)).Elem()})"
+                if [ "$jer" = 1 ]; then
+                    echo "	jerDec[\"$n.$ty\"] = func(b []byte) (any, error) { return p_$n.DecodeJER$ty(b) }"
+                fi
             done
         done
         echo "}"
@@ -115,7 +126,7 @@ run_one() {
     (
         cd "$work/c"
         # shellcheck disable=SC2046
-        ${CC:-cc} -O1 -w -DASN_PDU_COLLECTION $oerdef -I. -o "$work/converter" \
+        ${CC:-cc} -O1 -w -DASN_PDU_COLLECTION $oerdef $jerdef -I. -o "$work/converter" \
             $(ls ./*.c | grep -v '/converter-example.c$') ./converter-example.c -lm
     ) >"$work/converter.log" 2>&1 || { cat "$work/converter.log" >&2; echo "run-e2e: converter build failed" >&2; return 1; }
     (
@@ -128,6 +139,9 @@ run_one() {
         # cases under the race detector.
         go test -race -count=1 -run 'SeqofInline|Set|InlConstr|ExtWide|ExtNil|ExtOld|ExtGroup|Strings|Oids' .
         go test -race -count=1 ./strs/ ./oids/
+        if [ "$jer" = 1 ]; then
+            go test -race -count=1 -run JER .
+        fi
         # Allocation-fault sweep (needs the injection hooks compiled in).
         # -v so the per-direction N and the "no injectable allocations" note
         # for encode are visible.
@@ -137,6 +151,7 @@ run_one() {
 
 run_one aper-no-oer -no-gen-OER
 run_one aper-oer
+run_one aper-jer -no-gen-OER -gen-JER
 # Two modules importing each other must be rejected before any Go is written.
 run_cycle() {
     work="$tmp/cycle"

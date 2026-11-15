@@ -16,6 +16,9 @@
  *     func (p *<T>) Encode() ([]byte, error)          (method)
  *     func Decode<T>(b []byte) (*<T>, error)          (free fn)
  *     func xer(p *<T>) ([]byte, error)                (unexported)
+ * and, with -gen-JER only:
+ *     func (p *<T>) EncodeJER() ([]byte, error)       (method, minified JER)
+ *     func DecodeJER<T>(b []byte) (*<T>, error)       (free fn)
  *
  * Per reachable STRUCT/CHOICE node G:
  *     sizeG(v *G) (fixed, payload uintptr, err error) [+depth on SCC types]
@@ -3418,6 +3421,8 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
     char *s;
     if(strcmp(kind, "encode") == 0)
         s = cfmt("func (p *%s) Encode() ([]byte, error) {\n", go);
+    else if(strcmp(kind, "jerenc") == 0)
+        s = cfmt("func (p *%s) EncodeJER() ([]byte, error) {\n", go);
     else
         s = cfmt("func xer%s(p *%s) ([]byte, error) {\n", go, go);
     { char *_cf = cfmt(
@@ -3444,6 +3449,32 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
     return s;
 }
 
+extern int go_jer_enabled(void);
+
+/* One PDU root's Decode-style function: `fn` the Go name prefix ("Decode" /
+ * "DecodeJER"), `ent` the C entry part ("decode" / "jerdec"). */
+static char *
+pdu_decode_fn(const char *fn, const char *ent, const char *go,
+              const char *label, const char *fna, const char *tb) {
+    return gfmt(
+        "func %s%s(b []byte) (*%s, error) {\n"
+        "\tif len(b) == 0 {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
+        "\tvar cerr C.asn1cgo_err\n"
+        "\tvar arena *C.asn1cgo_arena\n"
+        "\tvar flat *C.%s\n"
+        "\trc := C.asn1cgo_%s_%s((*C.uint8_t)(unsafe.Pointer(&b[0])), C.size_t(len(b)), &arena, &flat, &cerr)\n"
+        "\truntime.KeepAlive(b)\n"
+        "\tif rc != 0 {\n"
+        "\t\tif arena != nil {\n\t\t\tC.asn1cgo_arena_free(arena)\n\t\t}\n"
+        "\t\treturn nil, goErr(&cerr)\n\t}\n"
+        "\tv, err := read%s(unsafe.Pointer(flat))\n"
+        "\tC.asn1cgo_arena_free(arena)\n"
+        "\tif err != nil { return nil, err }\n"
+        "\treturn v, nil\n"
+        "}\n\n",
+        fn, go, go, label, fna, ent, tb, go);
+}
+
 /* one PDU root's API surface + its type fn queueing. `tb` = the
  * tree base (<P><cid>, the entry-point name suffix), `go` = the Go type. */
 static void
@@ -3460,7 +3491,9 @@ emit_pdu_api(flat_type *rt_, gsb *src) {
     char *fna = gown(go_flat_ir_name(rt_));   /* the C Flat typedef name */
     const char *d0 = conv_is_scc(rt_) ? ", 0" : "";   /* the root call's depth arg */
 
-    sb_am(src, gfmt("// %s — the public API (Encode/Decode entry points; xer unexported).\n", go));
+    sb_am(src, gfmt(go_jer_enabled()
+        ? "// %s — the public API (Encode/Decode/EncodeJER/DecodeJER entry points; xer unexported).\n"
+        : "// %s — the public API (Encode/Decode entry points; xer unexported).\n", go));
     /* the ROOT's own struct: the size fns count only CHILD allocations
      * (every nested caller allocs the child slot via allocStruct and so
      * counts it), but the PDU root's Flat sits at the block base for
@@ -3474,26 +3507,15 @@ emit_pdu_api(flat_type *rt_, gsb *src) {
         char *wb = entry_go_wrapper("encode", go, label, tb, fna, root_sz, d0);
         sb_am(src, wb);   /* gam frees wb */
     }
-    sb_am(src, gfmt(
-        "func Decode%s(b []byte) (*%s, error) {\n"
-        "\tif len(b) == 0 {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
-        "\tvar cerr C.asn1cgo_err\n"
-        "\tvar arena *C.asn1cgo_arena\n"
-        "\tvar flat *C.%s\n"
-        "\trc := C.asn1cgo_decode_%s((*C.uint8_t)(unsafe.Pointer(&b[0])), C.size_t(len(b)), &arena, &flat, &cerr)\n"
-        "\truntime.KeepAlive(b)\n"
-        "\tif rc != 0 {\n"
-        "\t\tif arena != nil {\n\t\t\tC.asn1cgo_arena_free(arena)\n\t\t}\n"
-        "\t\treturn nil, goErr(&cerr)\n\t}\n"
-        "\tv, err := read%s(unsafe.Pointer(flat))\n"
-        "\tC.asn1cgo_arena_free(arena)\n"
-        "\tif err != nil { return nil, err }\n"
-        "\treturn v, nil\n"
-        "}\n\n",
-        go, go, label, fna, tb, go));
+    sb_am(src, pdu_decode_fn("Decode", "decode", go, label, fna, tb));
     {
         char *wb = entry_go_wrapper("xer", go, label, tb, fna, root_sz, d0);
         sb_am(src, wb);   /* gam frees wb */
+    }
+    if(go_jer_enabled()) {
+        char *wb = entry_go_wrapper("jerenc", go, label, tb, fna, root_sz, d0);
+        sb_am(src, wb);   /* gam frees wb */
+        sb_am(src, pdu_decode_fn("DecodeJER", "jerdec", go, label, fna, tb));
     }
     free(root_sz);
     free(tb); free(go); free(label); free(fna);
@@ -4136,6 +4158,14 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             pdu_ext = gam(pdu_ext, gfmt(
                 "extern int asn1cgo_xer_%s(const %s *in, asn1cgo_buf *xer_out, asn1cgo_err *err);\n",
                 tb, flatn));
+            if(go_jer_enabled()) {
+                pdu_ext = gam(pdu_ext, gfmt(
+                    "extern int asn1cgo_jerenc_%s(const %s *in, asn1cgo_buf *out, asn1cgo_err *err);\n",
+                    tb, flatn));
+                pdu_ext = gam(pdu_ext, gfmt(
+                    "extern int asn1cgo_jerdec_%s(const uint8_t *buf, size_t len, struct asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err);\n",
+                    tb, flatn));
+            }
             free(tb); free(flatn);
         }
         /* the Default helpers' externs (SEQUENCE / SET / SEQUENCE OF / SET OF
