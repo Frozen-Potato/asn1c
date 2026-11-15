@@ -42,6 +42,7 @@ static const char *
 flat_scalar(const char *prim) {
     if(!prim) return "int64_t";
     if(strcmp(prim, "double") == 0) return "double";
+    if(strcmp(prim, "float") == 0) return "float";
     if(strcmp(prim, "uint64_t") == 0) return "uint64_t";
     if(strcmp(prim, "int32_t") == 0) return "int32_t";
     if(strcmp(prim, "_bool32") == 0) return "int32_t";
@@ -190,6 +191,8 @@ arm_prim_from(void *t, void *m, const char *in_acc, const char *out_acc) {
         { char *_cf = cfmt("    %s = (uint64_t)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "double") == 0) {
         { char *_cf = cfmt("    %s = (double)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+    } else if(prim && strcmp(prim, "float") == 0) {
+        { char *_cf = cfmt("    %s = (float)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "int32_t") == 0) {
         { char *_cf = cfmt("    %s = (int32_t)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "_bool32") == 0) {
@@ -812,6 +815,8 @@ node_from_body(void *t) {
             else { char *_cf = cfmt("    *out = (%s)(*(const %s *)in);\n", prim ? (strcmp(prim, "_bool32") == 0 ? "int32_t" : prim) : "int64_t", ct); s = ca(s, _cf); free(_cf); }
         } else if(prim && strcmp(prim, "double") == 0) {
             s = ca(s, "    *out = (double)(*(const double *)in);\n");
+        } else if(prim && strcmp(prim, "float") == 0) {
+            s = ca(s, "    *out = *in;\n");
         } else if(prim && strcmp(prim, "uint64_t") == 0) {
             s = ca(s, "    *out = (uint64_t)(*(const unsigned long *)in);\n");
         } else {

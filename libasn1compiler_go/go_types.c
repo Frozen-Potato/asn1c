@@ -20,7 +20,7 @@
  *                                             leaf row never carries "neither"
  *                                    BOOLEAN  bool
  *                                    NULL     struct{}
- *                                    REAL     float64
+ *                                    REAL     float64 (float32 when asn1c stores a C float)
  *                                    OCTET STRING / unresolved open type
  *                                             []byte (the mapping table's
  *                                             OCTET STRING row)
@@ -88,6 +88,7 @@ go_leaf_underlying(go_leaf_kind k) {
     case GLEAF_BOOL:      return "bool";
     case GLEAF_NULL:      return "struct{}";
     case GLEAF_REAL:      return "float64";
+    case GLEAF_REAL32:    return "float32";
     case GLEAF_OCTETS:    return "[]byte";
     case GLEAF_OID:
     case GLEAF_ROID:      return "[]uint64";

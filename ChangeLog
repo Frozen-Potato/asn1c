@@ -20,6 +20,12 @@
       REAL are unchanged. With -fwide-types such a member is a float in the
       header and compiles. Two such members with the same name in different
       types no longer stop generation under -fcompound-names.
+    * Go backend: a REAL that asn1c stores as a C float (the WITH COMPONENTS
+      constraint above) is a float32 in Go, as an inline member, an OPTIONAL
+      member, a CHOICE alternative, a named type and a SEQUENCE OF element,
+      and a DEFAULT on it is a float32. Every other REAL stays a float64.
+      Before, the Go type was float64 while C stored a float, and the
+      SEQUENCE OF element and named-type paths encoded wrong values (zeros).
 
 0.9.29-go.9:
     NEW:

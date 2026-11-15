@@ -1858,7 +1858,18 @@ classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
         return classify_integer_leaf(ctx, terminal, path_for_diag);
     case GO_CONSTR_BOOLEAN:  return GLEAF_BOOL;
     case GO_CONSTR_NULL:     return GLEAF_NULL;
-    case GO_CONSTR_REAL:     return GLEAF_REAL;
+    case GO_CONSTR_REAL: {
+        /* a REAL asn1c stores as a C float (a WITH COMPONENTS constraint
+         * narrows it, asn1c_misc.c asn1c_REAL_fits) is float32 in Go */
+        arg_t a;
+        memset(&a, 0, sizeof a);
+        a.asn = ctx->asn;
+        a.ns = ctx->ns;
+        a.expr = terminal;
+        a.flags = go_compiler_flags;
+        return asn1c_REAL_fits(&a, terminal) == RL_FITS_FLOAT32
+               ? GLEAF_REAL32 : GLEAF_REAL;
+    }
     case GO_CONSTR_OCTET_STRING: return GLEAF_OCTETS;
     case GO_CONSTR_BIT_STRING:   return GLEAF_BITSTRING;
     case GO_CONSTR_OID:
@@ -4597,6 +4608,7 @@ mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
         case GLEAF_BOOL:   ctype = "BOOLEAN_t"; break;
         case GLEAF_NULL:   ctype = "NULL_t"; break;
         case GLEAF_REAL:   ctype = "double"; break;
+        case GLEAF_REAL32: ctype = "float"; break;
         case GLEAF_OCTETS: ctype = "OCTET_STRING_t"; break;
         case GLEAF_OID:    ctype = "OBJECT_IDENTIFIER_t"; break;
         case GLEAF_ROID:   ctype = "RELATIVE_OID_t"; break;

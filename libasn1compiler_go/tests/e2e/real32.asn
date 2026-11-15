@@ -1,0 +1,41 @@
+Real32 DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- A REAL that asn1c stores as a C float (X.696 12.2: a WITH COMPONENTS
+-- constraint that narrows it) is float32 in Go; any other REAL is float64.
+
+RsFl ::= REAL (WITH COMPONENTS { mantissa (-16777215..16777215),
+        base (2), exponent (-100..100) })
+
+-- a member referencing the named type
+RsN ::= SEQUENCE { a BOOLEAN, f RsFl }
+
+-- an inline member, OPTIONAL, a CHOICE alternative
+RsM ::= SEQUENCE { a BOOLEAN,
+    r REAL (WITH COMPONENTS { mantissa (-16777215..16777215),
+        base (2), exponent (-100..100) }) }
+
+RsO ::= SEQUENCE { a BOOLEAN,
+    r REAL (WITH COMPONENTS { mantissa (-16777215..16777215),
+        base (2), exponent (-100..100) }) OPTIONAL }
+
+F32C ::= CHOICE { a BOOLEAN,
+    r REAL (WITH COMPONENTS { mantissa (-16777215..16777215),
+        base (2), exponent (-100..100) }) }
+
+-- SEQUENCE OF an inline element, and of the named type
+RsL ::= SEQUENCE OF REAL (WITH COMPONENTS { mantissa (-16777215..16777215),
+        base (2), exponent (-100..100) })
+
+RsLF ::= SEQUENCE OF RsFl
+
+-- DEFAULT members, inline and through the named type
+RsD ::= SEQUENCE { a BOOLEAN,
+    r REAL (WITH COMPONENTS { mantissa (-16777215..16777215),
+        base (2), exponent (-100..100) }) DEFAULT 0.1,
+    g RsFl DEFAULT 0.1 }
+
+-- a double REAL member next to them
+RsM2 ::= SEQUENCE { a BOOLEAN, r REAL }
+
+END

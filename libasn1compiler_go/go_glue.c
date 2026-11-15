@@ -700,7 +700,8 @@ static char *qconst(const char *node_name, char *o) {
 
 
 static const char *g_alignconst(const char *prim) {
-    if(prim && (strcmp(prim, "int32_t") == 0 || strcmp(prim, "_bool32") == 0))
+    if(prim && (strcmp(prim, "int32_t") == 0 || strcmp(prim, "_bool32") == 0
+                || strcmp(prim, "float") == 0))
         return "alignInt32";
     return "alignInt64";
 }
@@ -710,6 +711,7 @@ static int gprim_width(const char *prim) {
     if(strcmp(prim, "int64_t") == 0) return 8;
     if(strcmp(prim, "uint64_t") == 0) return 8;
     if(strcmp(prim, "double") == 0) return 8;
+    if(strcmp(prim, "float") == 0) return 4;
     if(strcmp(prim, "int32_t") == 0) return 4;
     if(strcmp(prim, "_bool32") == 0) return 4;
     if(strcmp(prim, "asn1cgo_bytes_flat") == 0) return 16;
@@ -725,6 +727,7 @@ static const char *gprim_go(const char *prim) {
     if(strcmp(prim, "int64_t") == 0) return "int64";
     if(strcmp(prim, "uint64_t") == 0) return "uint64";
     if(strcmp(prim, "double") == 0) return "float64";
+    if(strcmp(prim, "float") == 0) return "float32";
     return "";
 }
 
@@ -1185,7 +1188,7 @@ static char *bits_bridge(const char *mod, const char *expr, int to_local) {
 }
 
 static int is_prim_view(const char *ft) {
-    static const char *P[] = { "int32", "int64", "uint64", "float64", "bool",
+    static const char *P[] = { "int32", "int64", "uint64", "float64", "float32", "bool",
                                "string", "[]byte", "BitString", "struct{}", "" };
     if(!ft) return 1;
     const char *u = unqual(ft);

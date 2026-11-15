@@ -271,6 +271,7 @@ bits_copy_blk(const char *ind, const char *len, const char *out_buf,
 static const char *
 tree_scalar(const char *prim) {
     if(prim && strcmp(prim, "double") == 0) return "double";
+    if(prim && strcmp(prim, "float") == 0) return "float";
     if(prim && strcmp(prim, "_bool32") == 0) return "BOOLEAN_t";
     if(prim && strcmp(prim, "uint64_t") == 0) return "unsigned long";
     /* BOOLEAN mapping row: the tree member is BOOLEAN_t (int), not long. An
@@ -576,6 +577,8 @@ leaf_to_body(void *t, const char *label) {
      * (enum) -> long, double -> double. */
     if(prim && strcmp(prim, "double") == 0)
         return cstrdup("    *(double *)out = (double)*in;\n");
+    if(prim && strcmp(prim, "float") == 0)
+        return cstrdup("    *out = *in;\n");
     return cstrdup("    *(long *)out = (long)*in;\n");
 }
 
@@ -695,6 +698,8 @@ arm_prim_to(void *t, void *m, const char *in_acc, const char *out_acc) {
         { char *_cf = cfmt("    %s.size = (int)%s.len;\n    %s.bits_unused = (int)%s.bits_unused;\n", out_acc, in_acc, out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "double") == 0) {
         { char *_cf = cfmt("    %s = (double)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
+    } else if(prim && strcmp(prim, "float") == 0) {
+        { char *_cf = cfmt("    %s = (float)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "uint64_t") == 0) {
         { char *_cf = cfmt("    %s = (unsigned long)%s;\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
     } else {

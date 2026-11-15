@@ -193,7 +193,7 @@ with `rt.ErrDepth`.
 | BOOLEAN | `bool` |
 | INTEGER | `int64`; for a range that does not fit a C `long`: `uint64` (lower bound >= 0, upper <= 2^64-1) or `int64`. A range that fits neither is refused |
 | ENUMERATED | `type <T> int32` plus one constant per enumerator |
-| REAL | `float64` |
+| REAL | `float64`; `float32` when a `WITH COMPONENTS` constraint (mantissa, base 2, exponent) makes asn1c store it as a C `float`, so the Go type matches C and values round-trip bit for bit |
 | NULL | `struct{}` |
 | BIT STRING | `BitString` (`type X BitString` when named). Named bits add `int` position constants `<GoType><Bit>` |
 | OCTET STRING | `[]byte` |
@@ -298,7 +298,8 @@ a named-bit BIT STRING is accepted: see "DEFAULT members".
 - NULL with `NULL` (the member is `struct{}`; a present NULL always equals the
   DEFAULT, so it is never encoded);
 - REAL with a decimal number (`1.5`, `-2.25`, `1e3`), an integer (`0`), or
-  `PLUS-INFINITY`, `MINUS-INFINITY`, `NOT-A-NUMBER` (a `float64`). The value is
+  `PLUS-INFINITY`, `MINUS-INFINITY`, `NOT-A-NUMBER` (a `float64`, or a `float32`
+  for a float-narrowed REAL, the value being the float C stores). The value is
   compared exactly: NaN equals NaN, and `-0.0` is not the DEFAULT `0` (they are
   two REAL values with different encodings). Go has no constant for an
   infinity, NaN or minus zero, so for those the exported declaration is a

@@ -30,7 +30,8 @@ typedef enum {
     GLEAF_STRING_Z,      /* every restricted string / time type (PrintableString
                             included) → string, bytes as-is, buffer allocated
                             even when empty */
-    GLEAF_ROID           /* RELATIVE-OID → []uint64 arcs                    */
+    GLEAF_ROID,          /* RELATIVE-OID → []uint64 arcs                    */
+    GLEAF_REAL32         /* REAL asn1c stores as a C float → float32        */
 } go_leaf_kind;
 
 /* The Flat-column C prim token of a leaf kind; NULL for GLEAF_NONE and
@@ -43,6 +44,7 @@ go_leaf_flat_prim(int k) {
     case GLEAF_UINT64:     return "uint64_t";
     case GLEAF_BOOL:       return "_bool32";
     case GLEAF_REAL:       return "double";
+    case GLEAF_REAL32:     return "float";
     case GLEAF_OCTETS:
     case GLEAF_OID:
     case GLEAF_STRING:

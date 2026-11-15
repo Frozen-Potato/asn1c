@@ -35,6 +35,17 @@ Param ::= ParamP { INTEGER (0..3) }
 -- real-mem
 RealMem ::= SEQUENCE { a REAL, b BOOLEAN }
 
+-- real-float
+RealFloatT ::= REAL (WITH COMPONENTS { mantissa (-16777215..16777215),
+    base (2), exponent (-100..100) })
+RealFloat ::= SEQUENCE { a RealFloatT, b REAL (WITH COMPONENTS {
+    mantissa (-16777215..16777215), base (2), exponent (-100..100) }) OPTIONAL,
+    c BOOLEAN }
+RealFloatC ::= CHOICE { x RealFloatT, y BOOLEAN }
+RealFloatL ::= SEQUENCE OF REAL (WITH COMPONENTS {
+    mantissa (-16777215..16777215), base (2), exponent (-100..100) })
+RealFloatLT ::= SEQUENCE OF RealFloatT
+
 -- real-top
 RealTop ::= REAL
 

@@ -40,6 +40,14 @@ DfltRealForms ::= SEQUENCE {
     p REAL DEFAULT PLUS-INFINITY, q REAL DEFAULT MINUS-INFINITY,
     n REAL DEFAULT NOT-A-NUMBER, nz REAL DEFAULT -0.0, b BOOLEAN }
 
+-- dflt-real-float
+DfltRealFloat ::= SEQUENCE {
+    a REAL (WITH COMPONENTS { mantissa (-16777215..16777215), base (2),
+        exponent (-100..100) }) DEFAULT 0.1,
+    p REAL (WITH COMPONENTS { mantissa (-16777215..16777215), base (2),
+        exponent (-100..100) }) DEFAULT PLUS-INFINITY,
+    b BOOLEAN }
+
 -- dflt-namedbit
 DfltNamedBit ::= SEQUENCE { a BIT STRING { p(0), q(1) } DEFAULT { p }, b BOOLEAN }
 
