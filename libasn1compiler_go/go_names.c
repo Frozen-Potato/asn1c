@@ -274,6 +274,11 @@ struct name_row {
     char *dflt_lit;
     char *dflt_owner;
     char *dflt_field;
+    /* dflt_form 4 (a SEQUENCE / SET / SEQUENCE OF / SET OF value): no
+     * declaration in types.go; the glue emits a func <Name>() returning a
+     * new value, built by a C helper from the owner's top-level descriptor. */
+    struct go_dflt_fn *dfn;
+    int dflt_field_row;     /* the member's field row (its Go type) */
     /* GK_ENUM_CONST rows that are the bit-position constants of a named-bit
      * BIT STRING (`BIT STRING { a(0), b(1) }`): bit_group is non-zero and
      * identical for all bits of one type (the first bit row's ord + 1),
@@ -970,6 +975,8 @@ add_row(struct name_bag *b, const char *module,
     b->rows[b->n_rows].dflt_lit = NULL;
     b->rows[b->n_rows].dflt_owner = NULL;
     b->rows[b->n_rows].dflt_field = NULL;
+    b->rows[b->n_rows].dfn = NULL;
+    b->rows[b->n_rows].dflt_field_row = -1;
     b->rows[b->n_rows].bit_group = 0;
     b->rows[b->n_rows].bit_type = NULL;
     b->rows[b->n_rows].ord = b->n_rows;
@@ -1437,6 +1444,7 @@ go_emit_module_decls(FILE *out, const char *module) {
                             break;
                         }
                     }
+                    if(dr->dflt_form >= 4) continue;   /* a func in glue.go */
                     if(!ft || !*ft) {
                         fprintf(stderr, "asn1cgo: DEFAULT member %s has no Go "
                                 "type\n", dr->path);
@@ -2240,7 +2248,9 @@ done:
              * skeleton rides ASN1CGO_FORK_SKEL; see go_conv.h). The rt
              * import line writes g_go_rt_module_path (prefix-aware). */
             if(rc == 0) {
+                g_emit_bag = &bag;   /* go_conv_emit reads the Default funcs */
                 rc = go_conv_emit(stage, g_go_rt_module_path);
+                g_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
             }
             /* Glue (App. G): emit the per-package glue.go
@@ -2317,6 +2327,7 @@ done:
             free(bag.rows[j].dflt_lit);
             free(bag.rows[j].dflt_owner);
             free(bag.rows[j].dflt_field);
+            dflt_fn_free(bag.rows[j].dfn);
             free(bag.rows[j].bit_type);
         }
         free(bag.rows);
@@ -4687,6 +4698,162 @@ go_quote(const unsigned char *b, size_t n) {
     return str_append(o, "\"");
 }
 
+void
+dflt_fn_free(struct go_dflt_fn *f) {
+    if(!f) return;
+    free(f->cname); free(f->root_cid); free(f->start_cid); free(f->tree_ctype); free(f->label);
+    free(f->member_tok);
+    for(int i = 0; i < f->ntok; i++) free(f->toks[i]);
+    for(int i = 0; i < f->ndesc; i++) free(f->desc[i]);
+    for(int i = 0; i < f->ngo; i++) free(f->gopath[i]);
+    free(f->toks); free(f->desc); free(f->gopath);
+    free(f);
+}
+
+static void
+dflt_push(char ***v, int *n, char *s) {
+    char **nv = realloc(*v, (size_t)(*n + 1) * sizeof(char *));
+    if(!nv) { free(s); return; }
+    nv[(*n)++] = s;
+    *v = nv;
+}
+
+/* dflt_fn_build: how the C helper reaches the member's default_value_set.
+ * Inline owner types are static in C, so the helper starts at the descriptor
+ * of the nearest top-level type (start_cid) and follows member names (the
+ * element of a SEQUENCE OF / SET OF has no name). The Flat side starts at the
+ * nearest enclosing node that has a reader of its own (root_cid): the
+ * top-level type, an element of an inline SEQUENCE OF, or an inline SEQUENCE
+ * that is OPTIONAL; the inline SEQUENCEs the Flat holds by value below it are
+ * followed by token (toks) and Go field (gopath). An owner reached through a
+ * CHOICE alternative, a DEFAULT inline SEQUENCE or a recursion break, or in a
+ * parameterized type, has no Default func (NULL). */
+static struct go_dflt_fn *
+dflt_fn_build(struct walk_ctx *ctx, asn1p_expr_t *child, const char *owner,
+              const char *fgo) {
+    asn1p_expr_t *anc[64];
+    int na = 0;
+    asn1p_expr_t *e = child->parent_expr;
+    for(; e && e->parent_expr; e = e->parent_expr) {
+        if(na == 64) return NULL;
+        anc[na++] = e;
+    }
+    asn1p_expr_t *top = e;
+    if(!top || top->lhs_params || top->spec_index >= 0
+       || !(go_is_struct_kind(top->expr_type) || go_is_list_kind(top->expr_type)))
+        return NULL;
+    struct go_dflt_fn *f = calloc(1, sizeof *f);
+    if(!f) return NULL;
+    f->start_cid = own_mkid(top);
+    f->root_cid = strdup(f->start_cid);
+    char *cid = strdup(f->start_cid);
+    asn1p_expr_t *prev = top;
+    for(int i = na - 1; i >= 0; i--) {
+        asn1p_expr_t *a = anc[i];
+        char *mc, *nc;
+        if(go_is_list_kind(prev->expr_type)) {
+            /* the element of an inline list: a node with its own reader */
+            if(!go_is_struct_kind(a->expr_type) || a->meta_type == AMT_TYPEREF
+               || a->expr_type == A1TC_REFERENCE) {
+                free(cid); dflt_fn_free(f);
+                return NULL;
+            }
+            nc = go_cid_compound(cid, "__", "Member");
+            free(f->root_cid); f->root_cid = strdup(nc);
+            for(int k = 0; k < f->ntok; k++) free(f->toks[k]);
+            f->ntok = 0;
+            for(int k = 0; k < f->ngo; k++) free(f->gopath[k]);
+            f->ngo = 0;
+            dflt_push(&f->desc, &f->ndesc, strdup(""));
+            free(cid); cid = nc;
+            prev = a;
+            continue;
+        }
+        if(!(go_is_struct_kind(a->expr_type) || go_is_list_kind(a->expr_type))
+           || a->meta_type == AMT_TYPEREF || a->expr_type == A1TC_REFERENCE
+           || (a->marker.flags & EM_DEFAULT) == EM_DEFAULT
+           || (a->marker.flags & (EM_DEFAULT & ~EM_INDIRECT) & ~EM_OPTIONAL)) {
+            free(cid); dflt_fn_free(f);
+            return NULL;
+        }
+        mc = own_mkid(a);
+        nc = go_cid_compound(cid, "__", mc);
+        free(mc);
+        dflt_push(&f->desc, &f->ndesc, strdup(a->Identifier ? a->Identifier : ""));
+        if(go_is_list_kind(a->expr_type)) {
+            /* the next ancestor is the element: no token, no Go field */
+        } else if((a->marker.flags & EM_OPTIONAL) == EM_OPTIONAL
+                  || (a->marker.flags & EM_OMITABLE) == EM_OMITABLE) {
+            /* a starred inline SEQUENCE is a node of its own */
+            free(f->root_cid); f->root_cid = strdup(nc);
+            for(int k = 0; k < f->ntok; k++) free(f->toks[k]);
+            f->ntok = 0;
+            for(int k = 0; k < f->ngo; k++) free(f->gopath[k]);
+            f->ngo = 0;
+        } else if(a->marker.flags & EM_INDIRECT) {
+            free(nc); free(cid); dflt_fn_free(f);
+            return NULL;
+        } else {
+            dflt_push(&f->toks, &f->ntok, go_mk_member(a));
+            dflt_push(&f->gopath, &f->ngo, go_member_go(a));
+        }
+        free(cid); cid = nc;
+        prev = a;
+    }
+    if(!go_is_struct_kind(prev->expr_type)) { free(cid); dflt_fn_free(f); return NULL; }
+    f->member_tok = go_mk_member(child);
+    dflt_push(&f->desc, &f->ndesc, strdup(child->Identifier ? child->Identifier : ""));
+    dflt_push(&f->gopath, &f->ngo, strdup(fgo));
+    if(go_is_struct_kind(child->expr_type) || go_is_list_kind(child->expr_type)) {
+        /* an inline member: `struct <compound cid>` */
+        char *mc = own_mkid(child);
+        char *nc = go_cid_compound(cid, "__", mc);
+        f->tree_ctype = str_append(strdup("struct "), nc);
+        free(mc); free(nc);
+    }
+    f->label = str_append(str_append(strdup(owner), "."), fgo);
+    f->cname = strdup(f->root_cid);
+    for(int i = 0; i < f->ntok; i++)
+        f->cname = str_append(str_append(f->cname, "_"), f->toks[i]);
+    f->cname = str_append(str_append(f->cname, "_"), f->member_tok);
+    free(cid);
+    (void)ctx;
+    return f;
+}
+
+int
+go_names_dflt_n(void) {
+    int n = 0;
+    if(!g_emit_bag) return 0;
+    for(int i = 0; i < g_emit_bag->n_rows; i++)
+        if(g_emit_bag->rows[i].dfn) n++;
+    return n;
+}
+
+const struct go_dflt_fn *
+go_names_dflt_at(int k) {
+    if(!g_emit_bag) return NULL;
+    for(int i = 0; i < g_emit_bag->n_rows; i++) {
+        struct name_row *r = &g_emit_bag->rows[i];
+        if(!r->dfn || k-- > 0) continue;
+        r->dfn->module = r->module;
+        r->dfn->goname = r->goName;
+        r->dfn->field_type = NULL;
+        for(int j = 0; j < g_emit_bag->n_rows; j++) {
+            struct name_row *f = &g_emit_bag->rows[j];
+            if(f->kind == GK_FIELD && f->sf_owner && f->module == r->module
+               && r->dflt_owner && r->dflt_field
+               && strcmp(f->sf_owner, r->dflt_owner) == 0
+               && strcmp(f->goName, r->dflt_field) == 0) {
+                r->dfn->field_type = f->field_type;
+                break;
+            }
+        }
+        return r->dfn;
+    }
+    return NULL;
+}
+
 /* note_default_value: record the exported Go declaration of one supported
  * DEFAULT member's value (a GK_DEFAULT_VALUE row, package-scoped so a clash
  * with any other name fails the run like every other collision). The
@@ -4813,6 +4980,14 @@ note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
         }
         break;
     }
+    case ASN_CONSTR_SEQUENCE:
+    case ASN_CONSTR_SET:
+    case ASN_CONSTR_SEQUENCE_OF:
+    case ASN_CONSTR_SET_OF:
+        /* A value, not a constant: a func in glue.go (see dflt_fn_build). */
+        form = 4;
+        lit = strdup("");
+        break;
     default:
         if((term->expr_type & ASN_STRING_MASK)
            || term->expr_type == ASN_BASIC_UTCTime
@@ -4838,6 +5013,13 @@ note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
     r->dflt_lit = lit;
     r->dflt_owner = strdup(owner);
     r->dflt_field = strdup(fgo);
+    r->dflt_field_row = field_row_ix;
+    if(form == 4) {
+        r->dfn = dflt_fn_build(ctx, child, owner, fgo);
+        /* An owner the helper cannot reach (see dflt_fn_build) has no Default
+         * func; the member itself works. */
+        if(!r->dfn) r->dflt_form = 5;
+    }
 }
 
 /* Walk one child member of a struct at path `parent_path` (dotted path that
@@ -4998,6 +5180,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                 char *m = go_mk_member(child);
                 go_flat_member_nested(flat_nest_ix, m, stars && *stars == '*');
                 go_flat_label_last_member(child->Identifier);
+                if(is_dflt) go_flat_last_member_default(tree_ptr);
                 free(m);
             }
             /* re-bind cur to the nested node: every member the recursion below
@@ -5144,6 +5327,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                                      child->expr_type == ASN_CONSTR_SET_OF,
                                      flat_mtok, stars && *stars == '*');
                 go_flat_label_last_member(child->Identifier);
+                if(is_dflt) go_flat_last_member_default(tree_ptr);
                 free(flat_selem); free(flat_mtok);
             }
         }
@@ -5322,6 +5506,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             char *flat_mtok = go_mk_member(child);
             go_flat_member_ref(flat_tcid, flat_mtok, flat_star);
             go_flat_label_last_member(child->Identifier);
+            if(is_dflt) go_flat_last_member_default(tree_ptr);
             free(flat_tcid); free(flat_mtok);
         } else {
             char *flat_tcid = own(GO_MKID(terminal));

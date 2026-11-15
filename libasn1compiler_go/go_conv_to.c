@@ -1031,7 +1031,8 @@ struct_members_to(void *t, const char *in_acc, const char *out_acc) {
         char *ia = cfmt("%s%s", in_acc, tok);
         char *oa = cfmt("%s%s", out_acc, tok);
         char *body = NULL;
-        if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)) {
+        if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)
+           && (go_flat_ir_member_is_prim(m) || go_flat_ir_member_is_ref(m))) {
             /* DEFAULT member whose C tree slot is a pointer: the Flat slot
              * is by value, so allocate the tree slot and fill it through the
              * dereference (the decoder/encoder callbacks expect the pointer
@@ -1051,6 +1052,21 @@ struct_members_to(void *t, const char *in_acc, const char *out_acc) {
             body = arm_prim_to(t, m, ia, oa);
         } else if(go_flat_ir_member_is_ref(m)) {
             body = arm_ref_to(t, m, ia, oa);
+        } else if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)) {
+            /* DEFAULT member that is an inline SEQUENCE / SET / SEQUENCE OF /
+             * SET OF: the Flat slot is by value, the C tree slot a pointer.
+             * Allocate it, then let the by-value arm write through a macro
+             * that names the dereferenced slot (the arm composes
+             * <prefix><token> for the tree side). */
+            char *ml = conv_member_label(m), *tl = conv_type_label(t);
+            char *tslot = cfmt("%s%s", out_acc, tok);
+            char *inner = arm_nested_to(t, m, in_acc, "asn1cgo_dflt_");
+            body = cfmt(
+                "    %s = asn1cgo_calloc(1, sizeof(*%s));\n"
+                "    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n"
+                "#define asn1cgo_dflt_%s (*%s)\n%s#undef asn1cgo_dflt_%s\n",
+                tslot, tslot, tslot, tl, ml, tok, tslot, inner, tok);
+            free(inner); free(tslot); free(ml); free(tl);
         } else {
             body = arm_nested_to(t, m, in_acc, out_acc);
         }

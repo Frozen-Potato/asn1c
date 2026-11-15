@@ -1,7 +1,7 @@
 any	REFUSED	asn1cgo: ANY in module Probe
 charstring	REFUSED	asn1cgo: CHARACTER STRING in module Probe
 dflt-real-mantissa	REFUSED	the { mantissa, base, exponent } form of a REAL DEFAULT is not supported
-dflt-seq	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe
+dflt-seq-choice	REFUSED	asn1cgo: DEFAULT member T.a is out of model in module Probe: a.c: `n : 3` is a CHOICE value
 embedded	REFUSED	asn1cgo: EMBEDDED PDV in module Probe
 external	REFUSED	asn1cgo: EXTERNAL in module Probe
 extgroup-clash	REFUSED	asn1cgo: collision in module Probe

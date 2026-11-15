@@ -674,6 +674,64 @@ arm_nested_from(void *t, void *m, const char *in_acc, const char *out_acc) {
     return s;
 }
 
+/* One member's from_tree arm (the loop body of struct_members_from; also the
+ * Default helpers' entry point, see conv_member_from_pub). */
+static char *
+member_from(void *t, void *m, const char *in_acc, const char *out_acc) {
+        const char *tok = go_flat_ir_member_token(m);
+        char *ia = cfmt("%s%s", in_acc, tok);
+        char *oa = cfmt("%s%s", out_acc, tok);
+        char *body = NULL;
+        if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)
+           && (go_flat_ir_member_is_prim(m) || go_flat_ir_member_is_ref(m))) {
+            /* DEFAULT member whose C tree slot is a pointer: the C decoder
+             * fills an absent default, so NULL here is a runtime bug --
+             * report it, never substitute the Go zero value. */
+            char *ml = conv_member_label(m), *tl = conv_type_label(t);
+            void *rr = go_flat_ir_member_is_ref(m)
+                           ? ir_resolve2(go_flat_ir_member_ref(m)) : NULL;
+            if(rr && !go_flat_ir_is_leaf(rr)) {
+                /* constructed member: a NULL slot (cannot happen after a
+                 * decode) reads as the Go zero value */
+                char *dia = cfmt("(*%s%s)", in_acc, tok);
+                char *inner = arm_ref_from(t, m, dia, oa);
+                body = cfmt("    if (%s) {\n%s    }\n", ia, inner);
+                free(inner); free(dia);
+            } else {
+                char *pre = cfmt(
+                    "    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"DEFAULT member is NULL after decode\");\n",
+                    ia, tl, ml);
+                free(ia);
+                ia = cfmt("(*%s%s)", in_acc, tok);
+                body = go_flat_ir_member_is_prim(m) ? arm_prim_from(t, m, ia, oa)
+                                                    : arm_ref_from(t, m, ia, oa);
+                { char *j = ca(pre, body); free(body); body = j; }
+            }
+            free(ml); free(tl);
+        } else if(go_flat_ir_member_is_prim(m)) {
+            body = arm_prim_from(t, m, ia, oa);
+        } else if(go_flat_ir_member_is_ref(m)) {
+            body = arm_ref_from(t, m, ia, oa);
+        } else if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)) {
+            /* DEFAULT member that is an inline SEQUENCE / SET / SEQUENCE OF /
+             * SET OF: Flat by value, C tree slot a pointer. The decoder
+             * fills an absent default; a NULL slot (cannot happen after a
+             * decode) leaves the Go zero value. */
+            char *tslot = cfmt("%s%s", in_acc, tok);
+            char *inner = arm_nested_from(t, m, "asn1cgo_dflt_", out_acc);
+            body = cfmt(
+                "    if (%s) {\n"
+                "#define asn1cgo_dflt_%s (*%s)\n%s#undef asn1cgo_dflt_%s\n"
+                "    }\n",
+                tslot, tok, tslot, inner, tok);
+            free(inner); free(tslot);
+        } else {
+            body = arm_nested_from(t, m, in_acc, out_acc);
+        }
+    free(ia); free(oa);
+    return body;
+}
+
 /* Walk one struct-like node's members (from_tree arms). */
 static char *
 struct_members_from(void *t, const char *in_acc, const char *out_acc) {
@@ -681,35 +739,16 @@ struct_members_from(void *t, const char *in_acc, const char *out_acc) {
     int nm = go_flat_ir_members(t);
     for(int i = 0; i < nm; i++) {
         void *m = go_flat_ir_member(t, i);
-        const char *tok = go_flat_ir_member_token(m);
-        char *ia = cfmt("%s%s", in_acc, tok);
-        char *oa = cfmt("%s%s", out_acc, tok);
-        char *body = NULL;
-        if(go_flat_ir_member_is_default(m) && go_flat_ir_member_tree_ptr(m)) {
-            /* DEFAULT member whose C tree slot is a pointer: the C decoder
-             * fills an absent default, so NULL here is a runtime bug --
-             * report it, never substitute the Go zero value. */
-            char *ml = conv_member_label(m), *tl = conv_type_label(t);
-            char *pre = cfmt(
-                "    if (!%s) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"DEFAULT member is NULL after decode\");\n",
-                ia, tl, ml);
-            free(ia);
-            ia = cfmt("(*%s%s)", in_acc, tok);
-            body = go_flat_ir_member_is_prim(m) ? arm_prim_from(t, m, ia, oa)
-                                                : arm_ref_from(t, m, ia, oa);
-            { char *j = ca(pre, body); free(body); body = j; }
-            free(ml); free(tl);
-        } else if(go_flat_ir_member_is_prim(m)) {
-            body = arm_prim_from(t, m, ia, oa);
-        } else if(go_flat_ir_member_is_ref(m)) {
-            body = arm_ref_from(t, m, ia, oa);
-        } else {
-            body = arm_nested_from(t, m, in_acc, out_acc);
-        }
+        char *body = member_from(t, m, in_acc, out_acc);
         s = ca(s, body);
-        free(body); free(ia); free(oa);
+        free(body);
     }
     return s;
+}
+
+char *
+conv_member_from_pub(void *t, void *m, const char *in_acc, const char *out_acc) {
+    return member_from(t, m, in_acc, out_acc);
 }
 
 /* ---------------------------------------------------------------------------

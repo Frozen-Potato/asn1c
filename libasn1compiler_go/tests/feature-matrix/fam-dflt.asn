@@ -71,4 +71,42 @@ DfltOidRef ::= SEQUENCE {
     d OBJECT IDENTIFIER DEFAULT { dflt-oid-ref-base dflt-oid-ref-rel },
     r RELATIVE-OID DEFAULT { dflt-oid-ref-rel 1 }, b BOOLEAN }
 
+-- dflt-seq
+DfltSeqPt ::= SEQUENCE { x INTEGER (0..7), y INTEGER (0..7) DEFAULT 3 }
+dflt-seq-pt0 DfltSeqPt ::= { x 1, y 2 }
+DfltSeq ::= SEQUENCE {
+    a DfltSeqPt DEFAULT { x 1, y 2 },
+    b DfltSeqPt DEFAULT dflt-seq-pt0,
+    c SEQUENCE { m INTEGER (0..9) } DEFAULT { m 5 },
+    z BOOLEAN }
+
+-- dflt-seqof
+DfltSeqofLs ::= SEQUENCE (SIZE (0..4)) OF INTEGER (0..9)
+DfltSeqofPt ::= SEQUENCE { x INTEGER (0..7) }
+DfltSeqof ::= SEQUENCE {
+    a DfltSeqofLs DEFAULT { },
+    b DfltSeqofLs DEFAULT { 1, 2 },
+    c SEQUENCE (SIZE (0..3)) OF DfltSeqofPt DEFAULT { { x 1 }, { x 2 } },
+    d SET (SIZE (0..3)) OF BOOLEAN DEFAULT { TRUE },
+    z BOOLEAN }
+
+-- dflt-set
+DfltSetSt ::= SET { p INTEGER (0..9), q BOOLEAN, r IA5String DEFAULT "ab" }
+DfltSet ::= SEQUENCE {
+    a DfltSetSt DEFAULT { r "x", q TRUE, p 3 },
+    b SET { u INTEGER (0..3), v BOOLEAN } DEFAULT { v TRUE, u 1 },
+    z BOOLEAN }
+
+-- dflt-nested
+DfltNestedPt ::= SEQUENCE { x INTEGER (0..7), y INTEGER (0..7) DEFAULT 3 }
+DfltNestedLs ::= SEQUENCE OF INTEGER (0..9)
+DfltNested ::= SEQUENCE {
+    a SEQUENCE { n SEQUENCE { v DfltNestedLs, w INTEGER (0..9) } }
+        DEFAULT { n { v { 3, 4 }, w 9 } },
+    b SEQUENCE {
+        inner DfltNestedPt DEFAULT { x 3 },
+        k BOOLEAN } OPTIONAL,
+    c SEQUENCE { d SEQUENCE { e DfltNestedPt DEFAULT { x 1 }, f BOOLEAN } },
+    z BOOLEAN }
+
 END

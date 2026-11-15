@@ -133,6 +133,7 @@ int conv_is_scc(const void *t);
  * Malloc'd; caller frees. */
 char *conv_from_node(void *t, int scc);
 char *node_to_body_pub(void *t);
+char *conv_member_from_pub(void *t, void *m, const char *in_acc, const char *out_acc);
 
 /* Emit the whole conv/entry output for go_conv_emit (go_conv_to.c drives the
  * per-node to/from emission in dependency order and the package writing). */

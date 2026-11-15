@@ -1,7 +1,7 @@
 Defaults DEFINITIONS AUTOMATIC TAGS ::=
 BEGIN
 
-IMPORTS id-ext FROM DefaultsOidBase;
+IMPORTS id-ext, ImpPt, imp-pt FROM DefaultsOidBase;
 
 -- DEFAULT members: a plain value in Go, the C runtime decides omission.
 
@@ -105,10 +105,62 @@ OidRefDefaults ::= SEQUENCE {
     z   BOOLEAN
 }
 
+-- DEFAULT of a SEQUENCE, SET, SEQUENCE OF or SET OF member: a plain value in
+-- Go; the exported default is a func returning a new value.
+Pt ::= SEQUENCE { x INTEGER (0..255), y INTEGER (0..255) DEFAULT 7 }
+Ls ::= SEQUENCE (SIZE (0..4)) OF INTEGER (0..9)
+St ::= SET { p INTEGER (0..9), q BOOLEAN, r IA5String (SIZE (0..8)) DEFAULT "ab" }
+pt0 Pt ::= { x 1, y 2 }
+
+ConsT ::= SEQUENCE {
+    f SEQUENCE { m INTEGER (0..9) } DEFAULT { m 5 },
+    a Pt DEFAULT { x 1, y 2 },
+    b Pt DEFAULT pt0,
+    d Ls DEFAULT { },
+    e Ls DEFAULT { 1, 2 },
+    g Pt DEFAULT { x 4 },
+    z BOOLEAN
+}
+
+ConsU ::= SEQUENCE {
+    h St DEFAULT { r "x", q TRUE, p 3 },
+    i SEQUENCE (SIZE (0..3)) OF Pt DEFAULT { { x 1 }, { x 2, y 3 } },
+    l SEQUENCE {
+        n SEQUENCE { v Ls, w INTEGER (0..9) }
+    } DEFAULT { n { v { 3, 4 }, w 9 } },
+    m ImpPt DEFAULT imp-pt,
+    t SET (SIZE (0..3)) OF IA5String DEFAULT { "A", "B" },
+    z BOOLEAN
+}
+
+-- The shape of asn1c's golden test 81: an inline SEQUENCE member whose only
+-- member has a hyphen, the owner's only member.
+Golden81 ::= SEQUENCE {
+    other SEQUENCE { member-1 INTEGER (0..9) } DEFAULT { member-1 5 }
+}
+
+-- The owner of the DEFAULT member is an inline SEQUENCE.
+ConsNested ::= SEQUENCE {
+    outer SEQUENCE {
+        inner Pt DEFAULT { x 3 },
+        k BOOLEAN
+    },
+    z BOOLEAN
+}
+
+-- The owner is the element of an inline SEQUENCE OF, or an OPTIONAL inline
+-- SEQUENCE.
+ConsList ::= SEQUENCE {
+    lst SEQUENCE OF SEQUENCE { p Pt DEFAULT { x 1 }, k BOOLEAN },
+    opt SEQUENCE { q Pt DEFAULT { x 2 }, k BOOLEAN } OPTIONAL
+}
+
 END
 
 DefaultsOidBase DEFINITIONS AUTOMATIC TAGS ::=
 BEGIN
 EXPORTS ALL;
 id-ext OBJECT IDENTIFIER ::= { 2 5 29 }
+ImpPt ::= SEQUENCE { x INTEGER (0..255), y INTEGER (0..255) DEFAULT 7 }
+imp-pt ImpPt ::= { x 9, y 8 }
 END

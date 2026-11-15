@@ -208,7 +208,7 @@ with `rt.ErrDepth`.
 | OPTIONAL member | pointer (`*T`); `nil` = absent |
 | Extension addition | always a pointer, `OPTIONAL` or not; `nil` = absent |
 | `[[ ]]` group | one field `Ext<N> *<T>Ext<N>`, N counting the groups of that SEQUENCE from 1 |
-| DEFAULT member | plain value plus an exported `<Type><Field>Default` constant (or `var`) |
+| DEFAULT member | plain value plus an exported `<Type><Field>Default` constant (or `var`); for a SEQUENCE / SET / SEQUENCE OF / SET OF value a func `<Type><Field>Default()` returning a new value |
 
 Unnamed leaf elements of a SEQUENCE OF map as `[]int64`, `[]bool`, `[]float64`,
 `[][]byte`, `[]BitString`, `[]string`, `[][]uint64`, `[]struct{}`. ENUMERATED
@@ -302,12 +302,35 @@ a named-bit BIT STRING is accepted: see "DEFAULT members".
   compared exactly: NaN equals NaN, and `-0.0` is not the DEFAULT `0` (they are
   two REAL values with different encodings). Go has no constant for an
   infinity, NaN or minus zero, so for those the exported declaration is a
-  `var` computed at start-up.
+  `var` computed at start-up;
+- SEQUENCE, SET, SEQUENCE OF and SET OF with a braces value (`a Pt DEFAULT
+  { x 1, y 2 }`, `DEFAULT { }`, `DEFAULT { 1, 2 }`, nested values, members
+  that have a DEFAULT of their own left out), with a whole value reference
+  (`DEFAULT pt0`, also an imported value), on a named type or on an inline
+  construct. The field is a plain value (`A Pt`, `E Ls`). The exported
+  default is a func that returns a new value on each call (mutating one does
+  not change the next):
 
-Every other form (REAL as `{ mantissa M, base B, exponent E }`,
-SEQUENCE / CHOICE / SEQUENCE OF values, ...) is refused
-at generation with exit 70, because the C generator would silently treat the
-member as OPTIONAL.
+  ```go
+  // TADefault returns the ASN.1 DEFAULT of T.A (a new value on each call).
+  // The Go zero value is not the DEFAULT: set the field explicitly.
+  func TADefault() Pt
+  ```
+
+  The func builds the value with the C codec's own default callback and
+  panics if that fails (a generator bug; the message names the owner, member
+  and type). It is emitted into `glue.go`, so a module that has no PDU has none
+  of these funcs; a member whose owner is a CHOICE alternative, a DEFAULT
+  inline SEQUENCE or a type with parameters has the plain-value field but no
+  func (KNOWN-ISSUES #40).
+
+Every other form is refused at generation with exit 70, because the C
+generator would silently treat the member as OPTIONAL: REAL as `{ mantissa M,
+base B, exponent E }`, a CHOICE value (`{ c n : 3 }`; asn1c cannot parse
+`DEFAULT n : 3` at all), an open type, a SEQUENCE / SET value that names an
+unknown member, names one twice or leaves out a member that has no DEFAULT, a
+value of the wrong type, and a recursive default (`R ::= SEQUENCE { v INTEGER,
+r R DEFAULT { v 1 } }`). The message carries the reason.
 
 ```go
 type DefaultsPDU struct {
@@ -328,7 +351,8 @@ type DefaultsPDU struct {
   the field holds. Set DEFAULT fields explicitly, using the exported
   `<StructGoName><FieldGoName>Default` declaration next to the struct
   (`DefaultsPDUFlagDefault`; a typed `const`, or a `var` for OCTET STRING and
-  BIT STRING, which you must not modify).
+  BIT STRING, which you must not modify; a func for a SEQUENCE / SET /
+  SEQUENCE OF / SET OF member).
 
 **OBJECT IDENTIFIER and RELATIVE-OID.** `type T []uint64` when named,
 `*[]uint64` for an OPTIONAL member or CHOICE alternative. An arc is at most

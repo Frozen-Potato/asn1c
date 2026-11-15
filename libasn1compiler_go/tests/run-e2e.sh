@@ -183,8 +183,8 @@ run_oneway() {
     )
 }
 
-# A DEFAULT form the C generator gives no default callbacks for (a
-# SEQUENCE-valued DEFAULT) is rejected by the pre-flight: exit 70, the reason
+# A DEFAULT form the C generator gives no default callbacks for (a CHOICE
+# value inside a SEQUENCE value) is rejected by the pre-flight: exit 70, the reason
 # named, and neither the C tree nor the Go tree written.
 run_unsupported_default() {
     work="$tmp/unsupported-default"
@@ -202,7 +202,7 @@ run_unsupported_default() {
         echo "run-e2e: unsupported-DEFAULT case exited $rc, want 70" >&2
         return 1
     fi
-    if ! grep -q 'asn1cgo: DEFAULT member Holder.p is out of model' "$work/asn1c.log"; then
+    if ! grep -q 'asn1cgo: DEFAULT member Holder.p is out of model.*is a CHOICE value' "$work/asn1c.log"; then
         cat "$work/asn1c.log" >&2
         echo "run-e2e: unsupported-DEFAULT diagnostic missing" >&2
         return 1

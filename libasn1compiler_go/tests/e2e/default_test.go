@@ -20,6 +20,7 @@ import (
 
 	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	df "asn1cgo.test/go/defaults"
+	dfb "asn1cgo.test/go/defaultsoidbase"
 )
 
 // dflt returns a DefaultsPDU with every DEFAULT member set to its generated
@@ -1047,4 +1048,325 @@ func TestOidRefDefaultCConverter(t *testing.T) {
 			t.Errorf("XER of absent members lacks %s: %s", el, x)
 		}
 	}
+}
+
+// ---- DEFAULT of a SEQUENCE / SET / SEQUENCE OF / SET OF member ----
+//
+// The field is a plain value; the exported default is a func returning a new
+// value (the Go zero value is not the DEFAULT).
+
+func consT() *df.ConsT {
+	return &df.ConsT{
+		F: df.ConsTFDefault(), A: df.ConsTADefault(), B: df.ConsTBDefault(),
+		D: df.ConsTDDefault(), E: df.ConsTEDefault(), G: df.ConsTGDefault(),
+		Z: true,
+	}
+}
+
+func consU() *df.ConsU {
+	return &df.ConsU{
+		H: df.ConsUHDefault(), I: df.ConsUIDefault(), L: df.ConsULDefault(),
+		M: df.ConsUMDefault(), T: df.ConsUTDefault(), Z: true,
+	}
+}
+
+func TestConsDefaultValues(t *testing.T) {
+	if got, want := df.ConsTFDefault(), (df.ConsTF{M: 5}); got != want {
+		t.Errorf("ConsTFDefault = %+v, want %+v", got, want)
+	}
+	if got, want := df.ConsTADefault(), (df.Pt{X: 1, Y: 2}); got != want {
+		t.Errorf("ConsTADefault = %+v, want %+v", got, want)
+	}
+	if got, want := df.ConsTBDefault(), (df.Pt{X: 1, Y: 2}); got != want {
+		t.Errorf("ConsTBDefault (value reference) = %+v, want %+v", got, want)
+	}
+	// d = { } is the empty list; e = { 1, 2 }; g = { x 4 } with y filled from
+	// its own DEFAULT.
+	if got := df.ConsTDDefault(); len(got) != 0 {
+		t.Errorf("ConsTDDefault = %v, want empty", got)
+	}
+	if got, want := df.ConsTEDefault(), (df.Ls{1, 2}); !reflect.DeepEqual(got, want) {
+		t.Errorf("ConsTEDefault = %v, want %v", got, want)
+	}
+	if got, want := df.ConsTGDefault(), (df.Pt{X: 4, Y: 7}); got != want {
+		t.Errorf("ConsTGDefault = %+v, want %+v", got, want)
+	}
+	// SET, SEQUENCE OF Pt, nested SEQUENCE with a SEQUENCE OF, imported
+	// value, SET OF.
+	if got, want := df.ConsUHDefault(), (df.St{P: 3, Q: true, R: "x"}); got != want {
+		t.Errorf("ConsUHDefault = %+v, want %+v", got, want)
+	}
+	if got, want := df.ConsUIDefault(), (df.ConsUI{{X: 1, Y: 7}, {X: 2, Y: 3}}); !reflect.DeepEqual(got, want) {
+		t.Errorf("ConsUIDefault = %v, want %v", got, want)
+	}
+	if got, want := df.ConsULDefault(), (df.ConsUL{N: df.ConsULN{V: df.Ls{3, 4}, W: 9}}); !reflect.DeepEqual(got, want) {
+		t.Errorf("ConsULDefault = %+v, want %+v", got, want)
+	}
+	if got, want := df.ConsUMDefault(), (dfb.ImpPt{X: 9, Y: 8}); got != want {
+		t.Errorf("ConsUMDefault (imported value) = %+v, want %+v", got, want)
+	}
+	if got, want := df.ConsUTDefault(), (df.ConsUT{"A", "B"}); !reflect.DeepEqual(got, want) {
+		t.Errorf("ConsUTDefault = %v, want %v", got, want)
+	}
+	// An inline SEQUENCE member whose only member has a hyphen.
+	if got, want := df.Golden81OtherDefault(), (df.Golden81Other{Member1: 5}); got != want {
+		t.Errorf("Golden81OtherDefault = %+v, want %+v", got, want)
+	}
+	// The DEFAULT member of an inline SEQUENCE.
+	if got, want := df.ConsNestedOuterInnerDefault(), (df.Pt{X: 3, Y: 7}); got != want {
+		t.Errorf("ConsNestedOuterInnerDefault = %+v, want %+v", got, want)
+	}
+	// The zero value is not the default.
+	if reflect.DeepEqual(&df.ConsT{}, consT()) {
+		t.Fatal("zero value equals the default value")
+	}
+	balanced(t, "cons-values")
+}
+
+// Each call returns a new value: mutating one does not change the next.
+func TestConsDefaultIndependent(t *testing.T) {
+	a := df.ConsTEDefault()
+	a[0] = 9
+	a = append(a, 4)
+	if got := df.ConsTEDefault(); !reflect.DeepEqual(got, df.Ls{1, 2}) {
+		t.Errorf("ConsTEDefault after mutation = %v", got)
+	}
+	i := df.ConsUIDefault()
+	i[0].X = 99
+	i[1] = df.Pt{}
+	if got := df.ConsUIDefault(); got[0].X != 1 || got[1].X != 2 {
+		t.Errorf("ConsUIDefault after mutation = %v", got)
+	}
+	l := df.ConsULDefault()
+	l.N.V[0] = 0
+	if got := df.ConsULDefault(); got.N.V[0] != 3 {
+		t.Errorf("ConsULDefault after mutation = %+v", got)
+	}
+	tt := df.ConsUTDefault()
+	tt[0] = "zz"
+	if got := df.ConsUTDefault(); got[0] != "A" {
+		t.Errorf("ConsUTDefault after mutation = %v", got)
+	}
+	balanced(t, "cons-independent")
+}
+
+// Hand-computed APER (X.691), identical to the bytes of the C check of the
+// same shape: ConsT has 6 presence bits (f a b d e g) + z.
+//   all absent:  000000 1 -> 02
+//   a.y = 3:     presence a (010000), a = x(1 byte, 01) y-present 1 y(3): 42 01 03 80
+//   d = { 0 }:   presence d, size 1, the element (0 in 4 bits): 10 84
+var consTHand = []struct {
+	name string
+	mut  func(*df.ConsT)
+	want []byte
+}{
+	{"all-default", func(*df.ConsT) {}, []byte{0x02}},
+	{"a-y-3", func(p *df.ConsT) { p.A.Y = 3 }, []byte{0x42, 0x01, 0x03, 0x80}},
+	{"d-0", func(p *df.ConsT) { p.D = df.Ls{0} }, []byte{0x10, 0x84}},
+}
+
+func TestConsDefaultHandAPER(t *testing.T) {
+	for _, c := range consTHand {
+		p := consT()
+		c.mut(p)
+		got, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: Encode: %v", c.name, err)
+		}
+		if !bytes.Equal(got, c.want) {
+			t.Errorf("%s: APER = % x, want % x", c.name, got, c.want)
+		}
+		back, err := df.DecodeConsT(c.want)
+		if err != nil {
+			t.Fatalf("%s: Decode: %v", c.name, err)
+		}
+		if !reflect.DeepEqual(back, p) {
+			t.Errorf("%s: decoded %+v, want %+v", c.name, back, p)
+		}
+		balanced(t, c.name)
+	}
+}
+
+// Absent on the wire -> the decoded field equals XDefault(); a field set to
+// XDefault() encodes exactly like the all-absent value.
+func TestConsDefaultAbsentAndOmitted(t *testing.T) {
+	got, err := df.DecodeConsT([]byte{0x02})
+	if err != nil || !reflect.DeepEqual(got, consT()) {
+		t.Fatalf("decode 02: %+v, %v", got, err)
+	}
+	// g = { x 4 } with y absent in the value equals the default { x 4, y 7 }.
+	p := consT()
+	p.G = df.Pt{X: 4, Y: 7}
+	if b, err := p.Encode(); err != nil || !bytes.Equal(b, []byte{0x02}) {
+		t.Fatalf("g = default: % x, %v", b, err)
+	}
+	for name, mut := range map[string]func(*df.ConsT){
+		"f": func(p *df.ConsT) { p.F = df.ConsTFDefault() },
+		"d": func(p *df.ConsT) { p.D = df.ConsTDDefault() },
+		"e": func(p *df.ConsT) { p.E = df.ConsTEDefault() },
+	} {
+		q := &df.ConsT{Z: true}
+		q.A, q.B, q.G = df.ConsTADefault(), df.ConsTBDefault(), df.ConsTGDefault()
+		q.F, q.D, q.E = df.ConsTFDefault(), df.ConsTDDefault(), df.ConsTEDefault()
+		mut(q)
+		if b, err := q.Encode(); err != nil || !bytes.Equal(b, []byte{0x02}) {
+			t.Errorf("%s = default: % x, %v", name, b, err)
+		}
+	}
+
+	u := consU()
+	ub, err := u.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// five presence bits (h i l m t) + z
+	if !bytes.Equal(ub, []byte{0x04}) {
+		t.Fatalf("ConsU all-default = % x, want 04", ub)
+	}
+	back, err := df.DecodeConsU(ub)
+	if err != nil || !reflect.DeepEqual(back, consU()) {
+		t.Fatalf("decode ConsU 04: %+v, %v", back, err)
+	}
+
+	g := &df.Golden81{Other: df.Golden81OtherDefault()}
+	gb, err := g.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gback, err := df.DecodeGolden81(gb)
+	if err != nil || gback.Other != df.Golden81OtherDefault() {
+		t.Fatalf("Golden81 % x -> %+v, %v", gb, gback, err)
+	}
+	z, _ := (&df.Golden81{Other: df.Golden81Other{Member1: 2}}).Encode()
+	if bytes.Equal(z, gb) {
+		t.Fatalf("Golden81 non-default encodes like the default: % x", z)
+	}
+
+	n := &df.ConsNested{Outer: df.ConsNestedOuter{Inner: df.ConsNestedOuterInnerDefault()}, Z: true}
+	nb, err := n.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nback, err := df.DecodeConsNested(nb)
+	if err != nil || !reflect.DeepEqual(nback, n) {
+		t.Fatalf("ConsNested % x -> %+v, %v", nb, nback, err)
+	}
+	balanced(t, "cons-absent")
+}
+
+// A different value round-trips.
+func TestConsDefaultOtherValues(t *testing.T) {
+	for name, mut := range map[string]func(*df.ConsU){
+		"h":      func(p *df.ConsU) { p.H = df.St{P: 1, Q: false, R: "abc"} },
+		"i":      func(p *df.ConsU) { p.I = df.ConsUI{{X: 5, Y: 6}} },
+		"i-nil":  func(p *df.ConsU) { p.I = nil },
+		"l":      func(p *df.ConsU) { p.L.N.V = df.Ls{1}; p.L.N.W = 2 },
+		"m":      func(p *df.ConsU) { p.M = dfb.ImpPt{X: 1, Y: 1} },
+		"t":      func(p *df.ConsU) { p.T = df.ConsUT{"Z"} },
+	} {
+		p := consU()
+		mut(p)
+		b, err := p.Encode()
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if bytes.Equal(b, []byte{0x04}) && name != "i-nil" {
+			t.Errorf("%s: encodes like the default", name)
+		}
+		back, err := df.DecodeConsU(b)
+		if err != nil {
+			t.Fatalf("%s: decode: %v", name, err)
+		}
+		if name == "i-nil" {
+			// an empty list is not the default list
+			if len(back.I) != 0 {
+				t.Errorf("%s: I = %v", name, back.I)
+			}
+			continue
+		}
+		if !reflect.DeepEqual(back, p) {
+			t.Errorf("%s: %+v, want %+v", name, back, p)
+		}
+	}
+	balanced(t, "cons-other")
+}
+
+// The C converter (same C tree) agrees on every encoding, and an XER round
+// trip keeps it.
+func TestConsDefaultCConverter(t *testing.T) {
+	bin := converter(t)
+	check := func(pdu, name string, aper []byte) {
+		t.Helper()
+		if re := convPDU(t, bin, pdu, aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s %s: C APER re-encode % x != Go % x", pdu, name, re, aper)
+		}
+		xer := convPDU(t, bin, pdu, aper, "-iaper", "-oxer")
+		if re := convPDU(t, bin, pdu, xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
+			t.Errorf("%s %s: XER round trip % x != Go % x\n%s", pdu, name, re, aper, xer)
+		}
+	}
+	for _, c := range consTHand {
+		p := consT()
+		c.mut(p)
+		b, err := p.Encode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		check("ConsT", c.name, b)
+	}
+	// The absent members as XER of the C decoder: every default is written in.
+	x := strings.Join(strings.Fields(string(convPDU(t, bin, "ConsT", []byte{0x02}, "-iaper", "-oxer"))), "")
+	for _, el := range []string{"<f><m>5</m></f>", "<a><x>1</x><y>2</y></a>", "<d></d>",
+		"<e><INTEGER>1</INTEGER><INTEGER>2</INTEGER></e>", "<g><x>4</x><y>7</y></g>"} {
+		if !strings.Contains(x, el) {
+			t.Errorf("XER of absent members lacks %s: %s", el, x)
+		}
+	}
+	u := consU()
+	ub, _ := u.Encode()
+	check("ConsU", "all-default", ub)
+	u.L.N.W = 1
+	ub, _ = u.Encode()
+	check("ConsU", "l", ub)
+	g := &df.Golden81{Other: df.Golden81OtherDefault()}
+	gb, _ := g.Encode()
+	check("Golden81", "default", gb)
+	g.Other.Member1 = 1
+	gb, _ = g.Encode()
+	check("Golden81", "other", gb)
+	n := &df.ConsNested{Outer: df.ConsNestedOuter{Inner: df.ConsNestedOuterInnerDefault(), K: true}, Z: true}
+	nb, _ := n.Encode()
+	check("ConsNested", "default", nb)
+	n.Outer.Inner.X = 8
+	nb, _ = n.Encode()
+	check("ConsNested", "other", nb)
+}
+
+// The owner of the DEFAULT member is the element of an inline SEQUENCE OF, or
+// an OPTIONAL inline SEQUENCE.
+func TestConsDefaultInnerOwners(t *testing.T) {
+	if got, want := df.ConsListLstMemberPDefault(), (df.Pt{X: 1, Y: 7}); got != want {
+		t.Errorf("ConsListLstMemberPDefault = %+v, want %+v", got, want)
+	}
+	if got, want := df.ConsListOptQDefault(), (df.Pt{X: 2, Y: 7}); got != want {
+		t.Errorf("ConsListOptQDefault = %+v, want %+v", got, want)
+	}
+	p := &df.ConsList{
+		Lst: df.ConsListLst{{P: df.ConsListLstMemberPDefault(), K: true}, {P: df.Pt{X: 3, Y: 3}}},
+		Opt: &df.ConsListOpt{Q: df.ConsListOptQDefault()},
+	}
+	b, err := p.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := df.DecodeConsList(b)
+	if err != nil || !reflect.DeepEqual(back, p) {
+		t.Fatalf("% x -> %+v, %v", b, back, err)
+	}
+	if bin := os.Getenv("ASN1CGO_C_CONVERTER"); bin != "" {
+		if re := convPDU(t, bin, "ConsList", b, "-iaper", "-oaper"); !bytes.Equal(re, b) {
+			t.Errorf("C APER re-encode % x != Go % x", re, b)
+		}
+	}
+	balanced(t, "cons-inner")
 }

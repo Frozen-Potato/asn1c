@@ -1,17 +1,22 @@
 Default-Unsupported DEFINITIONS AUTOMATIC TAGS ::=
 BEGIN
 
--- A SEQUENCE-valued DEFAULT has no default callbacks in the C generator, so
--- the Go backend refuses it before the C pass runs.
+-- A DEFAULT the C generator gives no default callbacks for (a CHOICE value
+-- inside a SEQUENCE value) is refused by the Go backend before the C pass
+-- runs.
+
+Choice ::= CHOICE {
+    n   INTEGER (0..255),
+    b   BOOLEAN
+}
 
 Point ::= SEQUENCE {
-    x   INTEGER (0..255),
-    y   INTEGER (0..255)
+    c   Choice
 }
 
 Holder ::= SEQUENCE {
     n   INTEGER (0..7),
-    p   Point DEFAULT { x 1, y 2 }
+    p   Point DEFAULT { c n : 3 }
 }
 
 END

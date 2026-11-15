@@ -1170,6 +1170,146 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             free(base); free(fname); free(label); free(tobody); free(frombody);
         }
 
+        /* the Default helpers of this package's SEQUENCE / SET / SEQUENCE OF
+         * / SET OF DEFAULT members: start at the top-level descriptor, follow
+         * the member names, run the member's default_value_set and convert
+         * the tree to the owner's Flat (zero elsewhere); Go reads it with
+         * the owner's reader. */
+        {
+            int nd = go_names_dflt_n();
+            int any_d = 0;
+            for(int k = 0; k < nd; k++) {
+                const struct go_dflt_fn *df = go_names_dflt_at(k);
+                if(!df || !df->module || strcmp(df->module, mods[mi]) != 0)
+                    continue;
+                flat_type *root = go_conv_ir_ref_resolve(df->root_cid);
+                if(!root) continue;
+                flat_type *own = root;
+                for(int q = 0; q < df->ntok && own; q++) {
+                    flat_type *nx = NULL;
+                    int nm = go_flat_ir_members(own);
+                    for(int j = 0; j < nm; j++) {
+                        flat_member *mm = go_flat_ir_member(own, j);
+                        const char *tk = go_flat_ir_member_token(mm);
+                        int nix = go_flat_ir_member_nested_ix(mm);
+                        if(tk && strcmp(tk, df->toks[q]) == 0 && nix >= 0
+                           && nix < go_flat_ir_n_types()) {
+                            nx = go_flat_ir_type(nix);
+                            break;
+                        }
+                    }
+                    own = nx;
+                }
+                flat_member *mem = NULL;
+                if(own) {
+                    int nm = go_flat_ir_members(own);
+                    for(int j = 0; j < nm; j++) {
+                        flat_member *mm = go_flat_ir_member(own, j);
+                        const char *tk = go_flat_ir_member_token(mm);
+                        if(tk && strcmp(tk, df->member_tok) == 0) { mem = mm; break; }
+                    }
+                }
+                if(!mem) {
+                    fprintf(stderr, "asn1cgo: DEFAULT member %s: no Flat slot\n",
+                            df->label);
+                    rc = -1;
+                    break;
+                }
+                char *ctype = NULL;
+                if(df->tree_ctype) {
+                    ctype = cstrdup(df->tree_ctype);
+                } else {
+                    flat_type *rr = go_flat_ir_member_is_ref(mem)
+                        ? go_conv_ir_ref_resolve(go_flat_ir_member_ref(mem)) : NULL;
+                    char *rb = rr ? conv_tree_base(rr) : NULL;
+                    if(!rb || !*rb) {
+                        fprintf(stderr, "asn1cgo: DEFAULT member %s: no C type\n",
+                                df->label);
+                        free(rb); rc = -1; break;
+                    }
+                    ctype = cfmt("%s_t", rb);
+                    free(rb);
+                }
+                flat_type *start = go_conv_ir_ref_resolve(df->start_cid);
+                char *rootb = start ? conv_tree_base(start) : NULL;
+                if(!rootb) { free(ctype); rc = -1; break; }
+                char *rootf = conv_flat_name(root);
+                char *label = conv_type_label(root);
+                if(!any_d) {
+                    s = ca(s,
+                        "/* ---- DEFAULT values of SEQUENCE / SET / SEQUENCE OF / SET OF members ---- */\n"
+                        "static const asn_TYPE_member_t *\n"
+                        "asn1cgo_dflt_find(const asn_TYPE_descriptor_t *td, const char *name) {\n"
+                        "    if (!td) return NULL;\n"
+                        "    if (!name) return td->elements_count ? &td->elements[0] : NULL;\n"
+                        "    for (unsigned i = 0; i < td->elements_count; i++)\n"
+                        "        if (td->elements[i].name && !strcmp(td->elements[i].name, name))\n"
+                        "            return &td->elements[i];\n"
+                        "    return NULL;\n"
+                        "}\n\n");
+                    any_d = 1;
+                }
+                char *prefix_acc = cstrdup("out->");
+                for(int q = 0; q < df->ntok; q++) {
+                    char *np = cfmt("%s%s.", prefix_acc, df->toks[q]);
+                    free(prefix_acc); prefix_acc = np;
+                }
+                char *arm = conv_member_from_pub(own, mem, "dfin.", prefix_acc);
+                { char *_cf = cfmt(
+                    "static int\n"
+                    "asn1cgo_dflt_%s_conv(asn1cgo_arena *ar, void *p, %s *out, asn1cgo_err *err) {\n"
+                    "    struct { %s *%s; } dfin;\n"
+                    "    dfin.%s = (%s *)p;\n"
+                    "%s"
+                    "    return 0;\n"
+                    "}\n\n",
+                    df->cname, rootf, ctype, df->member_tok, df->member_tok,
+                    ctype, arm); s = ca(s, _cf); free(_cf); }
+                free(arm);
+                {
+                    char *steps = cstrdup("");
+                    for(int q = 0; q < df->ndesc; q++) {
+                        char *qn = *df->desc[q] ? cfmt("\"%s\"", df->desc[q])
+                                                : cstrdup("NULL");
+                        char *_cf = cfmt(
+                            "    mem = asn1cgo_dflt_find(td, %s);\n"
+                            "    if (!mem) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", NULL, \"DEFAULT: no member %s in the descriptor\");\n"
+                            "%s",
+                            qn, df->label, *df->desc[q] ? df->desc[q] : "(element)",
+                            q + 1 < df->ndesc ? "    td = mem->type;\n" : "");
+                        steps = ca(steps, _cf); free(_cf); free(qn);
+                    }
+                    char *_cf = cfmt(
+                        "int\n"
+                        "asn1cgo_dflt_%s(asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err) {\n"
+                        "    if (!arena_out || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n"
+                        "    *arena_out = NULL; *out = NULL;\n"
+                        "    const asn_TYPE_descriptor_t *td = &asn_DEF_%s;\n"
+                        "    const asn_TYPE_member_t *mem = NULL;\n"
+                        "%s"
+                        "    void *p = NULL;\n"
+                        "    if (!mem->default_value_set || mem->default_value_set(&p) != 0 || !p)\n"
+                        "        return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", NULL, \"DEFAULT: default_value_set failed\");\n"
+                        "    asn1cgo_arena *ar = asn1cgo_arena_new(0);\n"
+                        "    if (!ar) { ASN_STRUCT_FREE(*mem->type, p); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n"
+                        "    %s *flat = (%s *)asn1cgo_arena_alloc(ar, sizeof(*flat), _Alignof(%s));\n"
+                        "    if (!flat) { ASN_STRUCT_FREE(*mem->type, p); asn1cgo_arena_free(ar); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n"
+                        "    memset(flat, 0, sizeof(*flat));\n"
+                        "    int rc = asn1cgo_dflt_%s_conv(ar, p, flat, err);\n"
+                        "    ASN_STRUCT_FREE(*mem->type, p);\n"
+                        "    if (rc) { asn1cgo_arena_free(ar); return err->code; }\n"
+                        "    *arena_out = ar;\n"
+                        "    *out = flat;\n"
+                        "    return 0;\n"
+                        "}\n\n",
+                        df->cname, rootf, df->label, rootb, steps, df->label,
+                        df->label, rootf, rootf, rootf, df->label, df->cname);
+                    s = ca(s, _cf); free(_cf); free(steps);
+                }
+                free(ctype); free(rootb); free(rootf); free(label); free(prefix_acc);
+            }
+        }
+
         /* this package's PDU entry points */
         int any_pdu = 0;
         for(int pi = 0; pi < g_conv_n_pdus; pi++) {

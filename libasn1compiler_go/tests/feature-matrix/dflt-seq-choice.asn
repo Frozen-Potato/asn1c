@@ -1,0 +1,7 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+Ch ::= CHOICE { n INTEGER (0..3), b BOOLEAN }
+S ::= SEQUENCE { c Ch }
+T ::= SEQUENCE { a S DEFAULT { c n : 3 }, b BOOLEAN }
+
+END

@@ -4119,6 +4119,19 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 tb, flatn));
             free(tb); free(flatn);
         }
+        /* the Default helpers' externs (SEQUENCE / SET / SEQUENCE OF / SET OF
+         * DEFAULT members of this package) */
+        for(int k = 0, nd = go_names_dflt_n(); k < nd; k++) {
+            const struct go_dflt_fn *df = go_names_dflt_at(k);
+            flat_type *dr = df && df->module && strcmp(df->module, mod) == 0
+                                ? go_flat_ir_ref_resolve(df->root_cid) : NULL;
+            if(!dr) continue;
+            char *flatn = gown(go_flat_ir_name(dr));
+            pdu_ext = gam(pdu_ext, gfmt(
+                "extern int asn1cgo_dflt_%s(struct asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err);\n",
+                df->cname, flatn));
+            free(flatn);
+        }
         /* the package flat header (all fn signatures' Flat types) */
         char *flat_incs2 = gfmt("#include \"%s\"\n", flat_hdr);
         gsb sb = {0};
@@ -4136,9 +4149,51 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             if(strcmp(pdus[i].module, mod) != 0) continue;
             emit_pdu_api(pdus[i].root, &sb);
         }
+        /* the owners' readers the Default funcs call */
+        for(int k = 0, nd = go_names_dflt_n(); k < nd && !glue_failed; k++) {
+            const struct go_dflt_fn *df = go_names_dflt_at(k);
+            flat_type *dr = df && df->module && strcmp(df->module, mod) == 0
+                                ? go_flat_ir_ref_resolve(df->root_cid) : NULL;
+            if(dr) emit_type_fn(dr);
+        }
         /* the fns, reverse queue order (callees first) */
         for(int i = g_n_fns - 1; i >= 0 && !glue_failed; i--)
             emit_fn_text(g_fns[i], &sb);
+
+        /* the exported Default funcs */
+        for(int k = 0, nd = go_names_dflt_n(); k < nd && !glue_failed; k++) {
+            const struct go_dflt_fn *df = go_names_dflt_at(k);
+            flat_type *dr = df && df->module && strcmp(df->module, mod) == 0
+                                ? go_flat_ir_ref_resolve(df->root_cid) : NULL;
+            if(!dr) continue;
+            if(!df->field_type || !*df->field_type) { GFAIL("DEFAULT member without a Go type"); break; }
+            char *cam = gcamel_flat(go_flat_ir_name(dr));
+            char *flatn = gown(go_flat_ir_name(dr));
+            char *path = strdup("");
+            for(int q = 0; q < df->ngo; q++)
+                path = gam(path, gfmt(".%s", df->gopath[q]));
+            sb_am(&sb, gfmt(
+                "// %s returns the ASN.1 DEFAULT of %s (a new value on each call).\n"
+                "// The Go zero value is not the DEFAULT: set the field explicitly.\n"
+                "func %s() %s {\n"
+                "\tvar cerr C.asn1cgo_err\n"
+                "\tvar arena *C.asn1cgo_arena\n"
+                "\tvar flat *C.%s\n"
+                "\tif rc := C.asn1cgo_dflt_%s(&arena, &flat, &cerr); rc != 0 {\n"
+                "\t\tpanic(\"asn1c: DEFAULT of %s (%s): \" + goErr(&cerr).Error())\n"
+                "\t}\n"
+                "\tv, err := read%s(unsafe.Pointer(flat))\n"
+                "\tC.asn1cgo_arena_free(arena)\n"
+                "\tif err != nil {\n"
+                "\t\tpanic(\"asn1c: DEFAULT of %s (%s): \" + err.Error())\n"
+                "\t}\n"
+                "\treturn v%s\n"
+                "}\n\n",
+                df->goname, df->label, df->goname, df->field_type, flatn,
+                df->cname, df->label, df->field_type, cam, df->label,
+                df->field_type, path));
+            free(cam); free(flatn); free(path);
+        }
 
         /* the SEQ-OF item helper triples (first-reference order; the fns
          * they call are already emitted above) */

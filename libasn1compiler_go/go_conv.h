@@ -173,4 +173,29 @@ int go_conv_emit(const char *go_outdir, const char *go_rt_module);
 /* Record the driver's -S / -D (ASN1CGO_FORK_SKEL / ASN1C_DESTDIR override). */
 int go_entry_set_dirs(const char *skeletons_dir, const char *destdir);
 
+/* One exported Default func of a SEQUENCE / SET / SEQUENCE OF / SET OF
+ * DEFAULT member (go_names.c builds them, go_entry.c emits the C helper,
+ * go_glue.c the Go func). The member's owner is reached from the nearest
+ * top-level node: root_cid is that node's flat cid; toks are the flat
+ * tokens of the inline SEQUENCEs between the root and the owner; desc the
+ * descriptor member names from the root's descriptor down to the member;
+ * gopath the Go fields from the root's Go struct down to the member. */
+struct go_dflt_fn {
+    char *cname;          /* C helper suffix: asn1cgo_dflt_<cname>          */
+    char *root_cid;       /* flat cid of the node the Go reader starts at   */
+    char *start_cid;      /* flat cid of the top-level type (descriptor)    */
+    char *tree_ctype;     /* C tree type of the member (without the star);
+                           * NULL = resolve the member's ref                */
+    char *label;          /* "Owner.Field" for messages                     */
+    char *member_tok;     /* the member's flat/tree token                   */
+    char **toks; int ntok;
+    char **desc; int ndesc;
+    char **gopath; int ngo;
+    /* filled by the accessor from the name row */
+    const char *module, *goname, *field_type;
+};
+void dflt_fn_free(struct go_dflt_fn *f);
+int go_names_dflt_n(void);
+const struct go_dflt_fn *go_names_dflt_at(int k);
+
 #endif /* GO_CONV_H */
