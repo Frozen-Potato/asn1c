@@ -1,4 +1,4 @@
-0.9.29-go.9 (unreleased):
+0.9.29-go.9:
     NEW:
     * Go backend: a DEFAULT on a BMPString or UniversalString member is
       accepted (a plain string in Go). Before, it was refused (exit 70).
@@ -75,8 +75,7 @@
       (one arc) anywhere, and name(integer-value). Names are looked up in
       the module's namespace, so imported values resolve. An unknown name,
       a name of another type or a cycle stops generation with an error
-      naming the member and the name. (Since the previous bullet any value
-      reference stopped generation.)
+      naming the member and the name.
     * C generator (also for plain C users): a NULL DEFAULT member now gets
       default_value_cmp / default_value_set. A present NULL always equals the
       DEFAULT, so the encoder omits it and the decoder fills an absent one.
