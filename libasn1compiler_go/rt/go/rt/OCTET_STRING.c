@@ -66,7 +66,7 @@ asn_TYPE_descriptor_t asn_DEF_OCTET_STRING = {
 	asn_DEF_OCTET_STRING_tags,	/* Same as above */
 	sizeof(asn_DEF_OCTET_STRING_tags)
 	  / sizeof(asn_DEF_OCTET_STRING_tags[0]),
-	{ 0, 0, asn_generic_no_constraint },
+	{ 0, 0, asn_generic_no_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_OCTET_STRING_specs
 };

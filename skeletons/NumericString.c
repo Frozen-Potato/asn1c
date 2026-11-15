@@ -83,7 +83,7 @@ asn_TYPE_descriptor_t asn_DEF_NumericString = {
 	asn_DEF_NumericString_tags,
 	sizeof(asn_DEF_NumericString_tags)
 	  / sizeof(asn_DEF_NumericString_tags[0]),
-	{ 0, &asn_DEF_NumericString_per_constraints, NumericString_constraint },
+	{ 0, &asn_DEF_NumericString_per_constraints, NumericString_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

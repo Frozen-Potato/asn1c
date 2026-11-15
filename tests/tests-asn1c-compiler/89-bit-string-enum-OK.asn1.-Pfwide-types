@@ -39,7 +39,7 @@ static asn_TYPE_member_t asn_MBR_T_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_BIT_STRING,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "bs"
 		},
@@ -65,7 +65,7 @@ asn_TYPE_descriptor_t asn_DEF_T = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, CHOICE_constraint },
+	{ 0, 0, CHOICE_constraint, 0 },
 	asn_MBR_T_1,
 	1,	/* Elements count */
 	&asn_SPC_T_specs_1	/* Additional specs */

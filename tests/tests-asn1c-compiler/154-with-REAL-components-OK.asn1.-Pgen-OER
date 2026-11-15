@@ -42,7 +42,7 @@ asn_TYPE_descriptor_t asn_DEF_UnconstrainedREAL = {
 	asn_DEF_UnconstrainedREAL_tags_1,	/* Same as above */
 	sizeof(asn_DEF_UnconstrainedREAL_tags_1)
 		/sizeof(asn_DEF_UnconstrainedREAL_tags_1[0]), /* 1 */
-	{ 0, 0, NativeReal_constraint },
+	{ 0, 0, NativeReal_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -122,7 +122,7 @@ asn_TYPE_descriptor_t asn_DEF_WeirdlyConstrainedREAL = {
 	asn_DEF_WeirdlyConstrainedREAL_tags_1,	/* Same as above */
 	sizeof(asn_DEF_WeirdlyConstrainedREAL_tags_1)
 		/sizeof(asn_DEF_WeirdlyConstrainedREAL_tags_1[0]), /* 1 */
-	{ &asn_OER_type_WeirdlyConstrainedREAL_constr_1, 0, WeirdlyConstrainedREAL_constraint },
+	{ &asn_OER_type_WeirdlyConstrainedREAL_constr_1, 0, WeirdlyConstrainedREAL_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -200,7 +200,7 @@ asn_TYPE_descriptor_t asn_DEF_Indirect_IEEE_binary32 = {
 	asn_DEF_Indirect_IEEE_binary32_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Indirect_IEEE_binary32_tags_1)
 		/sizeof(asn_DEF_Indirect_IEEE_binary32_tags_1[0]), /* 1 */
-	{ &asn_OER_type_Indirect_IEEE_binary32_constr_1, 0, Indirect_IEEE_binary32_constraint },
+	{ &asn_OER_type_Indirect_IEEE_binary32_constr_1, 0, Indirect_IEEE_binary32_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_Indirect_IEEE_binary32_specs_1	/* Additional specs */
 };
@@ -278,7 +278,7 @@ asn_TYPE_descriptor_t asn_DEF_IEEE_binary32_w = {
 	asn_DEF_IEEE_binary32_w_tags_1,	/* Same as above */
 	sizeof(asn_DEF_IEEE_binary32_w_tags_1)
 		/sizeof(asn_DEF_IEEE_binary32_w_tags_1[0]), /* 1 */
-	{ &asn_OER_type_IEEE_binary32_w_constr_1, 0, IEEE_binary32_w_constraint },
+	{ &asn_OER_type_IEEE_binary32_w_constr_1, 0, IEEE_binary32_w_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_IEEE_binary32_w_specs_1	/* Additional specs */
 };
@@ -356,7 +356,7 @@ asn_TYPE_descriptor_t asn_DEF_IEEE_binary32_0w = {
 	asn_DEF_IEEE_binary32_0w_tags_1,	/* Same as above */
 	sizeof(asn_DEF_IEEE_binary32_0w_tags_1)
 		/sizeof(asn_DEF_IEEE_binary32_0w_tags_1[0]), /* 1 */
-	{ &asn_OER_type_IEEE_binary32_0w_constr_1, 0, IEEE_binary32_0w_constraint },
+	{ &asn_OER_type_IEEE_binary32_0w_constr_1, 0, IEEE_binary32_0w_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_IEEE_binary32_0w_specs_1	/* Additional specs */
 };
@@ -434,7 +434,7 @@ asn_TYPE_descriptor_t asn_DEF_IEEE_binary32_w0 = {
 	asn_DEF_IEEE_binary32_w0_tags_1,	/* Same as above */
 	sizeof(asn_DEF_IEEE_binary32_w0_tags_1)
 		/sizeof(asn_DEF_IEEE_binary32_w0_tags_1[0]), /* 1 */
-	{ &asn_OER_type_IEEE_binary32_w0_constr_1, 0, IEEE_binary32_w0_constraint },
+	{ &asn_OER_type_IEEE_binary32_w0_constr_1, 0, IEEE_binary32_w0_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_IEEE_binary32_w0_specs_1	/* Additional specs */
 };
@@ -508,7 +508,7 @@ asn_TYPE_descriptor_t asn_DEF_IEEE_binary64_w = {
 	asn_DEF_IEEE_binary64_w_tags_1,	/* Same as above */
 	sizeof(asn_DEF_IEEE_binary64_w_tags_1)
 		/sizeof(asn_DEF_IEEE_binary64_w_tags_1[0]), /* 1 */
-	{ &asn_OER_type_IEEE_binary64_w_constr_1, 0, IEEE_binary64_w_constraint },
+	{ &asn_OER_type_IEEE_binary64_w_constr_1, 0, IEEE_binary64_w_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -582,7 +582,7 @@ asn_TYPE_descriptor_t asn_DEF_IEEE_binary64_0w = {
 	asn_DEF_IEEE_binary64_0w_tags_1,	/* Same as above */
 	sizeof(asn_DEF_IEEE_binary64_0w_tags_1)
 		/sizeof(asn_DEF_IEEE_binary64_0w_tags_1[0]), /* 1 */
-	{ &asn_OER_type_IEEE_binary64_0w_constr_1, 0, IEEE_binary64_0w_constraint },
+	{ &asn_OER_type_IEEE_binary64_0w_constr_1, 0, IEEE_binary64_0w_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -656,7 +656,7 @@ asn_TYPE_descriptor_t asn_DEF_IEEE_binary64_w0 = {
 	asn_DEF_IEEE_binary64_w0_tags_1,	/* Same as above */
 	sizeof(asn_DEF_IEEE_binary64_w0_tags_1)
 		/sizeof(asn_DEF_IEEE_binary64_w0_tags_1[0]), /* 1 */
-	{ &asn_OER_type_IEEE_binary64_w0_constr_1, 0, IEEE_binary64_w0_constraint },
+	{ &asn_OER_type_IEEE_binary64_w0_constr_1, 0, IEEE_binary64_w0_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -825,7 +825,7 @@ asn_TYPE_descriptor_t asn_DEF_indirect_ieee_binary32_2 = {
 	asn_DEF_indirect_ieee_binary32_tags_2,	/* Same as above */
 	sizeof(asn_DEF_indirect_ieee_binary32_tags_2)
 		/sizeof(asn_DEF_indirect_ieee_binary32_tags_2[0]), /* 1 */
-	{ &asn_OER_type_indirect_ieee_binary32_constr_2, 0, indirect_ieee_binary32_2_constraint },
+	{ &asn_OER_type_indirect_ieee_binary32_constr_2, 0, indirect_ieee_binary32_2_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_indirect_ieee_binary32_specs_2	/* Additional specs */
 };
@@ -847,7 +847,7 @@ asn_TYPE_descriptor_t asn_DEF_ieee_binary32_w_3 = {
 	asn_DEF_ieee_binary32_w_tags_3,	/* Same as above */
 	sizeof(asn_DEF_ieee_binary32_w_tags_3)
 		/sizeof(asn_DEF_ieee_binary32_w_tags_3[0]), /* 1 */
-	{ &asn_OER_type_ieee_binary32_w_constr_3, 0, ieee_binary32_w_3_constraint },
+	{ &asn_OER_type_ieee_binary32_w_constr_3, 0, ieee_binary32_w_3_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_ieee_binary32_w_specs_3	/* Additional specs */
 };
@@ -869,7 +869,7 @@ asn_TYPE_descriptor_t asn_DEF_ieee_binary32_0w_4 = {
 	asn_DEF_ieee_binary32_0w_tags_4,	/* Same as above */
 	sizeof(asn_DEF_ieee_binary32_0w_tags_4)
 		/sizeof(asn_DEF_ieee_binary32_0w_tags_4[0]), /* 1 */
-	{ &asn_OER_type_ieee_binary32_0w_constr_4, 0, ieee_binary32_0w_4_constraint },
+	{ &asn_OER_type_ieee_binary32_0w_constr_4, 0, ieee_binary32_0w_4_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_ieee_binary32_0w_specs_4	/* Additional specs */
 };
@@ -891,7 +891,7 @@ asn_TYPE_descriptor_t asn_DEF_ieee_binary32_w0_5 = {
 	asn_DEF_ieee_binary32_w0_tags_5,	/* Same as above */
 	sizeof(asn_DEF_ieee_binary32_w0_tags_5)
 		/sizeof(asn_DEF_ieee_binary32_w0_tags_5[0]), /* 1 */
-	{ &asn_OER_type_ieee_binary32_w0_constr_5, 0, ieee_binary32_w0_5_constraint },
+	{ &asn_OER_type_ieee_binary32_w0_constr_5, 0, ieee_binary32_w0_5_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_ieee_binary32_w0_specs_5	/* Additional specs */
 };
@@ -902,7 +902,7 @@ static asn_TYPE_member_t asn_MBR_Test_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Indirect_IEEE_binary32,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "indirect-ieee-binary32"
 		},
@@ -911,7 +911,7 @@ static asn_TYPE_member_t asn_MBR_Test_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_IEEE_binary32_w,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ieee-binary32-w"
 		},
@@ -920,7 +920,7 @@ static asn_TYPE_member_t asn_MBR_Test_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_IEEE_binary32_0w,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ieee-binary32-0w"
 		},
@@ -929,7 +929,7 @@ static asn_TYPE_member_t asn_MBR_Test_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_IEEE_binary32_w0,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ieee-binary32-w0"
 		},
@@ -938,7 +938,7 @@ static asn_TYPE_member_t asn_MBR_Test_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_IEEE_binary64_w,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ieee-binary64-w"
 		},
@@ -947,7 +947,7 @@ static asn_TYPE_member_t asn_MBR_Test_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_IEEE_binary64_0w,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ieee-binary64-0w"
 		},
@@ -956,7 +956,7 @@ static asn_TYPE_member_t asn_MBR_Test_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_IEEE_binary64_w0,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ieee-binary64-w0"
 		},
@@ -991,7 +991,7 @@ asn_TYPE_descriptor_t asn_DEF_Test = {
 	asn_DEF_Test_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Test_tags_1)
 		/sizeof(asn_DEF_Test_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Test_1,
 	7,	/* Elements count */
 	&asn_SPC_Test_specs_1	/* Additional specs */

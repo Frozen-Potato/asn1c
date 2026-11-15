@@ -40,7 +40,7 @@ asn_TYPE_descriptor_t asn_DEF_PrimitiveType = {
 	asn_DEF_PrimitiveType_tags_1,	/* Same as above */
 	sizeof(asn_DEF_PrimitiveType_tags_1)
 		/sizeof(asn_DEF_PrimitiveType_tags_1[0]), /* 1 */
-	{ 0, 0, OCTET_STRING_constraint },
+	{ 0, 0, OCTET_STRING_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_OCTET_STRING_specs	/* Additional specs */
 };
@@ -74,7 +74,7 @@ asn_TYPE_member_t asn_MBR_ConstructedType_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_PrimitiveType,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "field"
 		},
@@ -103,7 +103,7 @@ asn_TYPE_descriptor_t asn_DEF_ConstructedType = {
 	asn_DEF_ConstructedType_tags_1,	/* Same as above */
 	sizeof(asn_DEF_ConstructedType_tags_1)
 		/sizeof(asn_DEF_ConstructedType_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_ConstructedType_1,
 	1,	/* Elements count */
 	&asn_SPC_ConstructedType_specs_1	/* Additional specs */
@@ -152,7 +152,7 @@ asn_TYPE_descriptor_t asn_DEF_T = {
 	asn_DEF_T_tags_1,	/* Same as above */
 	sizeof(asn_DEF_T_tags_1)
 		/sizeof(asn_DEF_T_tags_1[0]), /* 2 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_ConstructedType_1,
 	1,	/* Elements count */
 	&asn_SPC_ConstructedType_specs_1	/* Additional specs */

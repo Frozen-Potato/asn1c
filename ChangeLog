@@ -4,6 +4,8 @@
       types are done (BOOLEAN, NULL, INTEGER, ENUMERATED, REAL, OCTET STRING,
       BIT STRING, OBJECT IDENTIFIER, RELATIVE-OID, times, character strings,
       ANY); constructed types and JER constraints are not.
+      Generated C: every descriptor and member initializer gains a fourth
+      encoding-constraints value (0), the new JER constraints slot.
 
 0.9.29-go.10:
     FIXES:

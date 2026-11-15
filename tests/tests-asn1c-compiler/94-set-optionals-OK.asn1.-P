@@ -61,7 +61,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m0"
 		},
@@ -70,7 +70,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m1"
 		},
@@ -79,7 +79,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m2"
 		},
@@ -88,7 +88,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m3"
 		},
@@ -97,7 +97,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m4"
 		},
@@ -106,7 +106,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m5"
 		},
@@ -115,7 +115,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m6"
 		},
@@ -124,7 +124,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m7"
 		},
@@ -133,7 +133,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m8"
 		},
@@ -142,7 +142,7 @@ static asn_TYPE_member_t asn_MBR_TestSet_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m9"
 		},
@@ -190,7 +190,7 @@ asn_TYPE_descriptor_t asn_DEF_TestSet = {
 	asn_DEF_TestSet_tags_1,	/* Same as above */
 	sizeof(asn_DEF_TestSet_tags_1)
 		/sizeof(asn_DEF_TestSet_tags_1[0]), /* 1 */
-	{ 0, 0, SET_constraint },
+	{ 0, 0, SET_constraint, 0 },
 	asn_MBR_TestSet_1,
 	10,	/* Elements count */
 	&asn_SPC_TestSet_specs_1	/* Additional specs */

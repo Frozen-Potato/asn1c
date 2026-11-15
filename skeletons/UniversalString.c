@@ -69,7 +69,7 @@ asn_TYPE_descriptor_t asn_DEF_UniversalString = {
 	asn_DEF_UniversalString_tags,
 	sizeof(asn_DEF_UniversalString_tags)
 	  / sizeof(asn_DEF_UniversalString_tags[0]),
-	{ 0, &asn_DEF_UniversalString_per_constraints, UniversalString_constraint },
+	{ 0, &asn_DEF_UniversalString_per_constraints, UniversalString_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_UniversalString_specs
 };

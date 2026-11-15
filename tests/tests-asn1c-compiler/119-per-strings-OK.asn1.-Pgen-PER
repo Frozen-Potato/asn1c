@@ -1189,7 +1189,7 @@ static asn_TYPE_member_t asn_MBR_many_2[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_PDU,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -1214,7 +1214,7 @@ asn_TYPE_descriptor_t asn_DEF_many_2 = {
 	asn_DEF_many_tags_2,	/* Same as above */
 	sizeof(asn_DEF_many_tags_2)
 		/sizeof(asn_DEF_many_tags_2[0]), /* 2 */
-	{ 0, 0, SEQUENCE_OF_constraint },
+	{ 0, 0, SEQUENCE_OF_constraint, 0 },
 	asn_MBR_many_2,
 	1,	/* Single element */
 	&asn_SPC_many_specs_2	/* Additional specs */
@@ -1226,7 +1226,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_many_2,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "many"
 		},
@@ -1235,7 +1235,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ia5"
 		},
@@ -1244,7 +1244,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ia5_c_constr_5, .general_constraints =  memb_ia5_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ia5_c_constr_5, .general_constraints =  memb_ia5_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ia5-c"
 		},
@@ -1253,7 +1253,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ia5_ce_constr_6, .general_constraints =  memb_ia5_ce_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ia5_ce_constr_6, .general_constraints =  memb_ia5_ce_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ia5-ce"
 		},
@@ -1262,7 +1262,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ia5_ir_constr_7, .general_constraints =  memb_ia5_ir_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ia5_ir_constr_7, .general_constraints =  memb_ia5_ir_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ia5-ir"
 		},
@@ -1271,7 +1271,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "vs"
 		},
@@ -1280,7 +1280,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_vs_c_constr_9, .general_constraints =  memb_vs_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_vs_c_constr_9, .general_constraints =  memb_vs_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "vs-c"
 		},
@@ -1289,7 +1289,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_vs_ce_constr_10, .general_constraints =  memb_vs_ce_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_vs_ce_constr_10, .general_constraints =  memb_vs_ce_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "vs-ce"
 		},
@@ -1298,7 +1298,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_VisibleString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_vs_ir_constr_11, .general_constraints =  memb_vs_ir_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_vs_ir_constr_11, .general_constraints =  memb_vs_ir_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "vs-ir"
 		},
@@ -1307,7 +1307,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_PrintableString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "pr"
 		},
@@ -1316,7 +1316,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_PrintableString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_pr_c_constr_13, .general_constraints =  memb_pr_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_pr_c_constr_13, .general_constraints =  memb_pr_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "pr-c"
 		},
@@ -1325,7 +1325,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_PrintableString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_pr_ir_constr_14, .general_constraints =  memb_pr_ir_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_pr_ir_constr_14, .general_constraints =  memb_pr_ir_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "pr-ir"
 		},
@@ -1334,7 +1334,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NumericString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ns"
 		},
@@ -1343,7 +1343,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NumericString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ns_c_constr_16, .general_constraints =  memb_ns_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ns_c_constr_16, .general_constraints =  memb_ns_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ns-c"
 		},
@@ -1352,7 +1352,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NumericString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ns_ce_constr_17, .general_constraints =  memb_ns_ce_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ns_ce_constr_17, .general_constraints =  memb_ns_ce_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ns-ce"
 		},
@@ -1361,7 +1361,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NumericString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ns_ir_constr_18, .general_constraints =  memb_ns_ir_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ns_ir_constr_18, .general_constraints =  memb_ns_ir_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ns-ir"
 		},
@@ -1370,7 +1370,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UTF8String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ut_c_constr_19, .general_constraints =  memb_ut_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ut_c_constr_19, .general_constraints =  memb_ut_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ut-c"
 		},
@@ -1379,7 +1379,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UTF8String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ut_ce_constr_20, .general_constraints =  memb_ut_ce_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ut_ce_constr_20, .general_constraints =  memb_ut_ce_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ut-ce"
 		},
@@ -1388,7 +1388,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UTF8String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ut_ir_constr_21, .general_constraints =  memb_ut_ir_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_ut_ir_constr_21, .general_constraints =  memb_ut_ir_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ut-ir"
 		},
@@ -1397,7 +1397,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_BMPString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "bm"
 		},
@@ -1406,7 +1406,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_BMPString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_c_constr_23, .general_constraints =  memb_bm_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_c_constr_23, .general_constraints =  memb_bm_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "bm-c"
 		},
@@ -1415,7 +1415,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_BMPString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_cs_constr_24, .general_constraints =  memb_bm_cs_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_cs_constr_24, .general_constraints =  memb_bm_cs_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "bm-cs"
 		},
@@ -1424,7 +1424,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_BMPString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_ce_constr_25, .general_constraints =  memb_bm_ce_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_ce_constr_25, .general_constraints =  memb_bm_ce_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "bm-ce"
 		},
@@ -1433,7 +1433,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_BMPString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_ir_constr_26, .general_constraints =  memb_bm_ir_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_bm_ir_constr_26, .general_constraints =  memb_bm_ir_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "bm-ir"
 		},
@@ -1442,7 +1442,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UniversalString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "us"
 		},
@@ -1451,7 +1451,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UniversalString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_c_constr_28, .general_constraints =  memb_us_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_c_constr_28, .general_constraints =  memb_us_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "us-c"
 		},
@@ -1460,7 +1460,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UniversalString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_cs_constr_29, .general_constraints =  memb_us_cs_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_cs_constr_29, .general_constraints =  memb_us_cs_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "us-cs"
 		},
@@ -1469,7 +1469,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UniversalString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_ce_constr_30, .general_constraints =  memb_us_ce_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_ce_constr_30, .general_constraints =  memb_us_ce_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "us-ce"
 		},
@@ -1478,7 +1478,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UniversalString,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_ir_constr_31, .general_constraints =  memb_us_ir_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_us_ir_constr_31, .general_constraints =  memb_us_ir_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "us-ir"
 		},
@@ -1487,7 +1487,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeReal,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "real"
 		},
@@ -1496,7 +1496,7 @@ asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_OBJECT_IDENTIFIER,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "oid"
 		},
@@ -1557,7 +1557,7 @@ asn_TYPE_descriptor_t asn_DEF_PDU = {
 	asn_DEF_PDU_tags_1,	/* Same as above */
 	sizeof(asn_DEF_PDU_tags_1)
 		/sizeof(asn_DEF_PDU_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_PDU_1,
 	31,	/* Elements count */
 	&asn_SPC_PDU_specs_1	/* Additional specs */

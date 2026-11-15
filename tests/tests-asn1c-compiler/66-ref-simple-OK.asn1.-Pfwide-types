@@ -26,7 +26,7 @@ static asn_TYPE_member_t asn_MBR_T_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_SimpleType,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "named"
 		},
@@ -49,7 +49,7 @@ asn_TYPE_descriptor_t asn_DEF_T = {
 	asn_DEF_T_tags_1,	/* Same as above */
 	sizeof(asn_DEF_T_tags_1)
 		/sizeof(asn_DEF_T_tags_1[0]), /* 1 */
-	{ 0, 0, SET_OF_constraint },
+	{ 0, 0, SET_OF_constraint, 0 },
 	asn_MBR_T_1,
 	1,	/* Single element */
 	&asn_SPC_T_specs_1	/* Additional specs */
@@ -125,7 +125,7 @@ asn_TYPE_descriptor_t asn_DEF_SimpleType = {
 	asn_DEF_SimpleType_tags_1,	/* Same as above */
 	sizeof(asn_DEF_SimpleType_tags_1)
 		/sizeof(asn_DEF_SimpleType_tags_1[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_SimpleType_specs_1	/* Additional specs */
 };

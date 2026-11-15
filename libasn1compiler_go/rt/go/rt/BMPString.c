@@ -69,7 +69,7 @@ asn_TYPE_descriptor_t asn_DEF_BMPString = {
 	asn_DEF_BMPString_tags,
 	sizeof(asn_DEF_BMPString_tags)
 	  / sizeof(asn_DEF_BMPString_tags[0]),
-	{ 0, &asn_DEF_BMPString_per_constraints, BMPString_constraint },
+	{ 0, &asn_DEF_BMPString_per_constraints, BMPString_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_BMPString_specs
 };

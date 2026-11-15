@@ -59,7 +59,7 @@ asn_TYPE_descriptor_t asn_DEF_UTF8String = {
 	asn_DEF_UTF8String_tags,
 	sizeof(asn_DEF_UTF8String_tags)
 	  / sizeof(asn_DEF_UTF8String_tags[0]),
-	{ 0, 0, UTF8String_constraint },
+	{ 0, 0, UTF8String_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

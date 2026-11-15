@@ -42,7 +42,7 @@ asn_TYPE_descriptor_t asn_DEF_A_noc = {
 	asn_DEF_A_noc_tags_1,	/* Same as above */
 	sizeof(asn_DEF_A_noc_tags_1)
 		/sizeof(asn_DEF_A_noc_tags_1[0]), /* 1 */
-	{ 0, 0, NativeInteger_constraint },
+	{ 0, 0, NativeInteger_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -122,7 +122,7 @@ asn_TYPE_descriptor_t asn_DEF_B_0_0 = {
 	asn_DEF_B_0_0_tags_1,	/* Same as above */
 	sizeof(asn_DEF_B_0_0_tags_1)
 		/sizeof(asn_DEF_B_0_0_tags_1[0]), /* 1 */
-	{ &asn_OER_type_B_0_0_constr_1, 0, B_0_0_constraint },
+	{ &asn_OER_type_B_0_0_constr_1, 0, B_0_0_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -202,7 +202,7 @@ asn_TYPE_descriptor_t asn_DEF_C_1_2 = {
 	asn_DEF_C_1_2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_C_1_2_tags_1)
 		/sizeof(asn_DEF_C_1_2_tags_1[0]), /* 1 */
-	{ &asn_OER_type_C_1_2_constr_1, 0, C_1_2_constraint },
+	{ &asn_OER_type_C_1_2_constr_1, 0, C_1_2_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -282,7 +282,7 @@ asn_TYPE_descriptor_t asn_DEF_D_inv = {
 	asn_DEF_D_inv_tags_1,	/* Same as above */
 	sizeof(asn_DEF_D_inv_tags_1)
 		/sizeof(asn_DEF_D_inv_tags_1[0]), /* 1 */
-	{ &asn_OER_type_D_inv_constr_1, 0, D_inv_constraint },
+	{ &asn_OER_type_D_inv_constr_1, 0, D_inv_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -362,7 +362,7 @@ asn_TYPE_descriptor_t asn_DEF_E_2_5 = {
 	asn_DEF_E_2_5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_E_2_5_tags_1)
 		/sizeof(asn_DEF_E_2_5_tags_1[0]), /* 1 */
-	{ &asn_OER_type_E_2_5_constr_1, 0, E_2_5_constraint },
+	{ &asn_OER_type_E_2_5_constr_1, 0, E_2_5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -442,7 +442,7 @@ asn_TYPE_descriptor_t asn_DEF_F_inv = {
 	asn_DEF_F_inv_tags_1,	/* Same as above */
 	sizeof(asn_DEF_F_inv_tags_1)
 		/sizeof(asn_DEF_F_inv_tags_1[0]), /* 1 */
-	{ &asn_OER_type_F_inv_constr_1, 0, F_inv_constraint },
+	{ &asn_OER_type_F_inv_constr_1, 0, F_inv_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -522,7 +522,7 @@ asn_TYPE_descriptor_t asn_DEF_G_3_3 = {
 	asn_DEF_G_3_3_tags_1,	/* Same as above */
 	sizeof(asn_DEF_G_3_3_tags_1)
 		/sizeof(asn_DEF_G_3_3_tags_1[0]), /* 1 */
-	{ &asn_OER_type_G_3_3_constr_1, 0, G_3_3_constraint },
+	{ &asn_OER_type_G_3_3_constr_1, 0, G_3_3_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -602,7 +602,7 @@ asn_TYPE_descriptor_t asn_DEF_H_4_5 = {
 	asn_DEF_H_4_5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_H_4_5_tags_1)
 		/sizeof(asn_DEF_H_4_5_tags_1[0]), /* 1 */
-	{ &asn_OER_type_H_4_5_constr_1, 0, H_4_5_constraint },
+	{ &asn_OER_type_H_4_5_constr_1, 0, H_4_5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -682,7 +682,7 @@ asn_TYPE_descriptor_t asn_DEF_I_1_5 = {
 	asn_DEF_I_1_5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_I_1_5_tags_1)
 		/sizeof(asn_DEF_I_1_5_tags_1[0]), /* 1 */
-	{ &asn_OER_type_I_1_5_constr_1, 0, I_1_5_constraint },
+	{ &asn_OER_type_I_1_5_constr_1, 0, I_1_5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -762,7 +762,7 @@ asn_TYPE_descriptor_t asn_DEF_J_4_5 = {
 	asn_DEF_J_4_5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_J_4_5_tags_1)
 		/sizeof(asn_DEF_J_4_5_tags_1[0]), /* 1 */
-	{ &asn_OER_type_J_4_5_constr_1, 0, J_4_5_constraint },
+	{ &asn_OER_type_J_4_5_constr_1, 0, J_4_5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -842,7 +842,7 @@ asn_TYPE_descriptor_t asn_DEF_K_1_4 = {
 	asn_DEF_K_1_4_tags_1,	/* Same as above */
 	sizeof(asn_DEF_K_1_4_tags_1)
 		/sizeof(asn_DEF_K_1_4_tags_1[0]), /* 1 */
-	{ &asn_OER_type_K_1_4_constr_1, 0, K_1_4_constraint },
+	{ &asn_OER_type_K_1_4_constr_1, 0, K_1_4_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -922,7 +922,7 @@ asn_TYPE_descriptor_t asn_DEF_L_0_5 = {
 	asn_DEF_L_0_5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_L_0_5_tags_1)
 		/sizeof(asn_DEF_L_0_5_tags_1[0]), /* 1 */
-	{ &asn_OER_type_L_0_5_constr_1, 0, L_0_5_constraint },
+	{ &asn_OER_type_L_0_5_constr_1, 0, L_0_5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1002,7 +1002,7 @@ asn_TYPE_descriptor_t asn_DEF_M_inv = {
 	asn_DEF_M_inv_tags_1,	/* Same as above */
 	sizeof(asn_DEF_M_inv_tags_1)
 		/sizeof(asn_DEF_M_inv_tags_1[0]), /* 1 */
-	{ &asn_OER_type_M_inv_constr_1, 0, M_inv_constraint },
+	{ &asn_OER_type_M_inv_constr_1, 0, M_inv_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1082,7 +1082,7 @@ asn_TYPE_descriptor_t asn_DEF_N_0_5 = {
 	asn_DEF_N_0_5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_N_0_5_tags_1)
 		/sizeof(asn_DEF_N_0_5_tags_1[0]), /* 1 */
-	{ &asn_OER_type_N_0_5_constr_1, 0, N_0_5_constraint },
+	{ &asn_OER_type_N_0_5_constr_1, 0, N_0_5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1162,7 +1162,7 @@ asn_TYPE_descriptor_t asn_DEF_O_inv = {
 	asn_DEF_O_inv_tags_1,	/* Same as above */
 	sizeof(asn_DEF_O_inv_tags_1)
 		/sizeof(asn_DEF_O_inv_tags_1[0]), /* 1 */
-	{ &asn_OER_type_O_inv_constr_1, 0, O_inv_constraint },
+	{ &asn_OER_type_O_inv_constr_1, 0, O_inv_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1242,7 +1242,7 @@ asn_TYPE_descriptor_t asn_DEF_EConstr = {
 	asn_DEF_EConstr_tags_1,	/* Same as above */
 	sizeof(asn_DEF_EConstr_tags_1)
 		/sizeof(asn_DEF_EConstr_tags_1[0]), /* 1 */
-	{ &asn_OER_type_EConstr_constr_1, 0, EConstr_constraint },
+	{ &asn_OER_type_EConstr_constr_1, 0, EConstr_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1322,7 +1322,7 @@ asn_TYPE_descriptor_t asn_DEF_FConstr = {
 	asn_DEF_FConstr_tags_1,	/* Same as above */
 	sizeof(asn_DEF_FConstr_tags_1)
 		/sizeof(asn_DEF_FConstr_tags_1[0]), /* 1 */
-	{ &asn_OER_type_FConstr_constr_1, 0, FConstr_constraint },
+	{ &asn_OER_type_FConstr_constr_1, 0, FConstr_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

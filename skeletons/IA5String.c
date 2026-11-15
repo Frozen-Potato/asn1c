@@ -63,7 +63,7 @@ asn_TYPE_descriptor_t asn_DEF_IA5String = {
 	asn_DEF_IA5String_tags,
 	sizeof(asn_DEF_IA5String_tags)
 	  / sizeof(asn_DEF_IA5String_tags[0]),
-	{ 0, &asn_DEF_IA5String_per_constraints, IA5String_constraint },
+	{ 0, &asn_DEF_IA5String_per_constraints, IA5String_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

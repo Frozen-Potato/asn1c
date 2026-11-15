@@ -63,7 +63,7 @@ asn_TYPE_descriptor_t asn_DEF_VisibleString = {
 	asn_DEF_VisibleString_tags,
 	sizeof(asn_DEF_VisibleString_tags)
 	  / sizeof(asn_DEF_VisibleString_tags[0]),
-	{ 0, &asn_DEF_VisibleString_constraints, VisibleString_constraint },
+	{ 0, &asn_DEF_VisibleString_constraints, VisibleString_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

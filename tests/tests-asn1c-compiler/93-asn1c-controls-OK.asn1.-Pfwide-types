@@ -28,7 +28,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_INTEGER,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ainl"
 		},
@@ -37,7 +37,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_INTEGER,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "aptr"
 		},
@@ -67,7 +67,7 @@ asn_TYPE_descriptor_t asn_DEF_Sequence = {
 	asn_DEF_Sequence_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Sequence_tags_1)
 		/sizeof(asn_DEF_Sequence_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Sequence_1,
 	2,	/* Elements count */
 	&asn_SPC_Sequence_specs_1	/* Additional specs */
@@ -124,7 +124,7 @@ static asn_TYPE_member_t asn_MBR_Set_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Sequence,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ainl"
 		},
@@ -133,7 +133,7 @@ static asn_TYPE_member_t asn_MBR_Set_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Sequence,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "aptr"
 		},
@@ -172,7 +172,7 @@ asn_TYPE_descriptor_t asn_DEF_Set = {
 	asn_DEF_Set_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Set_tags_1)
 		/sizeof(asn_DEF_Set_tags_1[0]), /* 1 */
-	{ 0, 0, SET_constraint },
+	{ 0, 0, SET_constraint, 0 },
 	asn_MBR_Set_1,
 	2,	/* Elements count */
 	&asn_SPC_Set_specs_1	/* Additional specs */
@@ -235,7 +235,7 @@ static asn_TYPE_member_t asn_MBR_setof_2[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_INTEGER,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -260,7 +260,7 @@ asn_TYPE_descriptor_t asn_DEF_setof_2 = {
 	asn_DEF_setof_tags_2,	/* Same as above */
 	sizeof(asn_DEF_setof_tags_2)
 		/sizeof(asn_DEF_setof_tags_2[0]), /* 2 */
-	{ 0, 0, SET_OF_constraint },
+	{ 0, 0, SET_OF_constraint, 0 },
 	asn_MBR_setof_2,
 	1,	/* Single element */
 	&asn_SPC_setof_specs_2	/* Additional specs */
@@ -272,7 +272,7 @@ static asn_TYPE_member_t asn_MBR_Choice_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_setof_2,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "setof"
 		},
@@ -281,7 +281,7 @@ static asn_TYPE_member_t asn_MBR_Choice_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Sequence,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "aptr"
 		},
@@ -290,7 +290,7 @@ static asn_TYPE_member_t asn_MBR_Choice_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Sequence,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ainl"
 		},
@@ -318,7 +318,7 @@ asn_TYPE_descriptor_t asn_DEF_Choice = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, CHOICE_constraint },
+	{ 0, 0, CHOICE_constraint, 0 },
 	asn_MBR_Choice_1,
 	3,	/* Elements count */
 	&asn_SPC_Choice_specs_1	/* Additional specs */

@@ -55,7 +55,7 @@ asn_TYPE_member_t asn_MBR_Freq_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_f_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_f_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "f"
 		},
@@ -84,7 +84,7 @@ asn_TYPE_descriptor_t asn_DEF_Freq = {
 	asn_DEF_Freq_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Freq_tags_1)
 		/sizeof(asn_DEF_Freq_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Freq_1,
 	1,	/* Elements count */
 	&asn_SPC_Freq_specs_1	/* Additional specs */
@@ -132,7 +132,7 @@ asn_TYPE_descriptor_t asn_DEF_PFL = {
 	asn_DEF_PFL_tags_1,	/* Same as above */
 	sizeof(asn_DEF_PFL_tags_1)
 		/sizeof(asn_DEF_PFL_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Freq_1,
 	1,	/* Elements count */
 	&asn_SPC_Freq_specs_1	/* Additional specs */
@@ -202,7 +202,7 @@ static asn_TYPE_member_t asn_MBR_M_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "a"
 		},
@@ -211,7 +211,7 @@ static asn_TYPE_member_t asn_MBR_M_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_PFL,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "pf"
 		},
@@ -241,7 +241,7 @@ asn_TYPE_descriptor_t asn_DEF_M = {
 	asn_DEF_M_tags_1,	/* Same as above */
 	sizeof(asn_DEF_M_tags_1)
 		/sizeof(asn_DEF_M_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_M_1,
 	2,	/* Elements count */
 	&asn_SPC_M_specs_1	/* Additional specs */
@@ -322,7 +322,7 @@ static asn_TYPE_member_t asn_MBR_C_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "a"
 		},
@@ -331,7 +331,7 @@ static asn_TYPE_member_t asn_MBR_C_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_PFL,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "pf"
 		},
@@ -358,7 +358,7 @@ asn_TYPE_descriptor_t asn_DEF_C = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, CHOICE_constraint },
+	{ 0, 0, CHOICE_constraint, 0 },
 	asn_MBR_C_1,
 	2,	/* Elements count */
 	&asn_SPC_C_specs_1	/* Additional specs */

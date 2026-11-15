@@ -225,7 +225,7 @@ asn_TYPE_descriptor_t asn_DEF_GeneralizedTime = {
 	asn_DEF_GeneralizedTime_tags,
 	sizeof(asn_DEF_GeneralizedTime_tags)
 	  / sizeof(asn_DEF_GeneralizedTime_tags[0]),
-	{ 0, &asn_DEF_GeneralizedTime_per_constraints, GeneralizedTime_constraint },
+	{ 0, &asn_DEF_GeneralizedTime_per_constraints, GeneralizedTime_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

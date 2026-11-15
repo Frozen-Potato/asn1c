@@ -74,7 +74,7 @@ asn_TYPE_descriptor_t asn_DEF_UTCTime = {
 	asn_DEF_UTCTime_tags,
 	sizeof(asn_DEF_UTCTime_tags)
 	  / sizeof(asn_DEF_UTCTime_tags[0]),
-	{ 0, &asn_DEF_UTCTime_constraints, UTCTime_constraint },
+	{ 0, &asn_DEF_UTCTime_constraints, UTCTime_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

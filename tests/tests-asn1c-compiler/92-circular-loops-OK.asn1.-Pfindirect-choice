@@ -54,7 +54,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = +1,	/* EXPLICIT tag at current level */
 		.type = &asn_DEF_Choice1,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ch1"
 		},
@@ -63,7 +63,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = +1,	/* EXPLICIT tag at current level */
 		.type = &asn_DEF_Choice2,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ch2"
 		},
@@ -72,7 +72,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = +1,	/* EXPLICIT tag at current level */
 		.type = &asn_DEF_Choice3,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ch3"
 		},
@@ -81,7 +81,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Set,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "set"
 		},
@@ -90,7 +90,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Alpha,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "a"
 		},
@@ -99,7 +99,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Beta,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "b"
 		},
@@ -108,7 +108,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Gamma,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "g"
 		},
@@ -117,7 +117,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_OneTwo,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ot"
 		},
@@ -126,7 +126,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_TwoThree,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "tt"
 		},
@@ -135,7 +135,7 @@ asn_TYPE_member_t asn_MBR_Everything_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_ThreeOne,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "to"
 		},
@@ -173,7 +173,7 @@ asn_TYPE_descriptor_t asn_DEF_Everything = {
 	asn_DEF_Everything_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Everything_tags_1)
 		/sizeof(asn_DEF_Everything_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Everything_1,
 	10,	/* Elements count */
 	&asn_SPC_Everything_specs_1	/* Additional specs */
@@ -232,7 +232,7 @@ asn_TYPE_member_t asn_MBR_Choice1_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Everything,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "something"
 		},
@@ -241,7 +241,7 @@ asn_TYPE_member_t asn_MBR_Choice1_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Everything,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "some2"
 		},
@@ -268,7 +268,7 @@ asn_TYPE_descriptor_t asn_DEF_Choice1 = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, CHOICE_constraint },
+	{ 0, 0, CHOICE_constraint, 0 },
 	asn_MBR_Choice1_1,
 	2,	/* Elements count */
 	&asn_SPC_Choice1_specs_1	/* Additional specs */
@@ -329,7 +329,7 @@ asn_TYPE_member_t asn_MBR_Choice2_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_TypeRef,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "typeref"
 		},
@@ -338,7 +338,7 @@ asn_TYPE_member_t asn_MBR_Choice2_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Everything,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "some3"
 		},
@@ -365,7 +365,7 @@ asn_TYPE_descriptor_t asn_DEF_Choice2 = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, CHOICE_constraint },
+	{ 0, 0, CHOICE_constraint, 0 },
 	asn_MBR_Choice2_1,
 	2,	/* Elements count */
 	&asn_SPC_Choice2_specs_1	/* Additional specs */
@@ -436,7 +436,7 @@ static asn_TYPE_member_t asn_MBR_a_2[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Everything,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "aa"
 		},
@@ -467,7 +467,7 @@ asn_TYPE_descriptor_t asn_DEF_a_2 = {
 	asn_DEF_a_tags_2,	/* Same as above */
 	sizeof(asn_DEF_a_tags_2)
 		/sizeof(asn_DEF_a_tags_2[0]), /* 2 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_a_2,
 	1,	/* Elements count */
 	&asn_SPC_a_specs_2	/* Additional specs */
@@ -479,7 +479,7 @@ static asn_TYPE_member_t asn_MBR_c_5[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Choice3,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -504,7 +504,7 @@ asn_TYPE_descriptor_t asn_DEF_c_5 = {
 	asn_DEF_c_tags_5,	/* Same as above */
 	sizeof(asn_DEF_c_tags_5)
 		/sizeof(asn_DEF_c_tags_5[0]), /* 2 */
-	{ 0, 0, SEQUENCE_OF_constraint },
+	{ 0, 0, SEQUENCE_OF_constraint, 0 },
 	asn_MBR_c_5,
 	1,	/* Single element */
 	&asn_SPC_c_specs_5	/* Additional specs */
@@ -516,7 +516,7 @@ asn_TYPE_member_t asn_MBR_Choice3_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_a_2,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "a"
 		},
@@ -525,7 +525,7 @@ asn_TYPE_member_t asn_MBR_Choice3_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Everything,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "b"
 		},
@@ -534,7 +534,7 @@ asn_TYPE_member_t asn_MBR_Choice3_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_c_5,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "c"
 		},
@@ -562,7 +562,7 @@ asn_TYPE_descriptor_t asn_DEF_Choice3 = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, CHOICE_constraint },
+	{ 0, 0, CHOICE_constraint, 0 },
 	asn_MBR_Choice3_1,
 	3,	/* Elements count */
 	&asn_SPC_Choice3_specs_1	/* Additional specs */
@@ -626,7 +626,7 @@ static asn_TYPE_member_t asn_MBR_Member_2[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "int"
 		},
@@ -635,7 +635,7 @@ static asn_TYPE_member_t asn_MBR_Member_2[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Set,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "set"
 		},
@@ -644,7 +644,7 @@ static asn_TYPE_member_t asn_MBR_Member_2[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Sequence,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "seq"
 		},
@@ -653,7 +653,7 @@ static asn_TYPE_member_t asn_MBR_Member_2[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Set,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "set2"
 		},
@@ -662,7 +662,7 @@ static asn_TYPE_member_t asn_MBR_Member_2[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Set,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "set3"
 		},
@@ -696,7 +696,7 @@ asn_TYPE_descriptor_t asn_DEF_Member_2 = {
 	asn_DEF_Member_tags_2,	/* Same as above */
 	sizeof(asn_DEF_Member_tags_2)
 		/sizeof(asn_DEF_Member_tags_2[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Member_2,
 	5,	/* Elements count */
 	&asn_SPC_Member_specs_2	/* Additional specs */
@@ -708,7 +708,7 @@ asn_TYPE_member_t asn_MBR_Set_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Member_2,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -731,7 +731,7 @@ asn_TYPE_descriptor_t asn_DEF_Set = {
 	asn_DEF_Set_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Set_tags_1)
 		/sizeof(asn_DEF_Set_tags_1[0]), /* 1 */
-	{ 0, 0, SET_OF_constraint },
+	{ 0, 0, SET_OF_constraint, 0 },
 	asn_MBR_Set_1,
 	1,	/* Single element */
 	&asn_SPC_Set_specs_1	/* Additional specs */
@@ -783,7 +783,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "a"
 		},
@@ -792,7 +792,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Sequence,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "seq"
 		},
@@ -801,7 +801,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "b"
 		},
@@ -810,7 +810,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Set,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "set"
 		},
@@ -842,7 +842,7 @@ asn_TYPE_descriptor_t asn_DEF_Sequence = {
 	asn_DEF_Sequence_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Sequence_tags_1)
 		/sizeof(asn_DEF_Sequence_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Sequence_1,
 	4,	/* Elements count */
 	&asn_SPC_Sequence_specs_1	/* Additional specs */
@@ -890,7 +890,7 @@ asn_TYPE_descriptor_t asn_DEF_TypeRef = {
 	asn_DEF_TypeRef_tags_1,	/* Same as above */
 	sizeof(asn_DEF_TypeRef_tags_1)
 		/sizeof(asn_DEF_TypeRef_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Sequence_1,
 	4,	/* Elements count */
 	&asn_SPC_Sequence_specs_1	/* Additional specs */
@@ -938,7 +938,7 @@ static asn_TYPE_member_t asn_MBR_b_3[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Beta,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "b"
 		},
@@ -969,7 +969,7 @@ asn_TYPE_descriptor_t asn_DEF_b_3 = {
 	asn_DEF_b_tags_3,	/* Same as above */
 	sizeof(asn_DEF_b_tags_3)
 		/sizeof(asn_DEF_b_tags_3[0]), /* 2 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_b_3,
 	1,	/* Elements count */
 	&asn_SPC_b_specs_3	/* Additional specs */
@@ -981,7 +981,7 @@ asn_TYPE_member_t asn_MBR_Alpha_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Beta,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "a"
 		},
@@ -990,7 +990,7 @@ asn_TYPE_member_t asn_MBR_Alpha_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_b_3,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "b"
 		},
@@ -1020,7 +1020,7 @@ asn_TYPE_descriptor_t asn_DEF_Alpha = {
 	asn_DEF_Alpha_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Alpha_tags_1)
 		/sizeof(asn_DEF_Alpha_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Alpha_1,
 	2,	/* Elements count */
 	&asn_SPC_Alpha_specs_1	/* Additional specs */
@@ -1065,7 +1065,7 @@ asn_TYPE_member_t asn_MBR_Beta_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Alpha,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "b"
 		},
@@ -1074,7 +1074,7 @@ asn_TYPE_member_t asn_MBR_Beta_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Gamma,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "g"
 		},
@@ -1104,7 +1104,7 @@ asn_TYPE_descriptor_t asn_DEF_Beta = {
 	asn_DEF_Beta_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Beta_tags_1)
 		/sizeof(asn_DEF_Beta_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Beta_1,
 	2,	/* Elements count */
 	&asn_SPC_Beta_specs_1	/* Additional specs */
@@ -1152,7 +1152,7 @@ asn_TYPE_member_t asn_MBR_Gamma_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_TwoThree,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "o"
 		},
@@ -1161,7 +1161,7 @@ asn_TYPE_member_t asn_MBR_Gamma_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Alpha,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "a"
 		},
@@ -1170,7 +1170,7 @@ asn_TYPE_member_t asn_MBR_Gamma_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Beta,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "b"
 		},
@@ -1201,7 +1201,7 @@ asn_TYPE_descriptor_t asn_DEF_Gamma = {
 	asn_DEF_Gamma_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Gamma_tags_1)
 		/sizeof(asn_DEF_Gamma_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Gamma_1,
 	3,	/* Elements count */
 	&asn_SPC_Gamma_specs_1	/* Additional specs */
@@ -1257,7 +1257,7 @@ asn_TYPE_member_t asn_MBR_OneTwo_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_TwoThree,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m12"
 		},
@@ -1294,7 +1294,7 @@ asn_TYPE_descriptor_t asn_DEF_OneTwo = {
 	asn_DEF_OneTwo_tags_1,	/* Same as above */
 	sizeof(asn_DEF_OneTwo_tags_1)
 		/sizeof(asn_DEF_OneTwo_tags_1[0]), /* 1 */
-	{ 0, 0, SET_constraint },
+	{ 0, 0, SET_constraint, 0 },
 	asn_MBR_OneTwo_1,
 	1,	/* Elements count */
 	&asn_SPC_OneTwo_specs_1	/* Additional specs */
@@ -1350,7 +1350,7 @@ asn_TYPE_member_t asn_MBR_TwoThree_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_ThreeOne,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m23"
 		},
@@ -1387,7 +1387,7 @@ asn_TYPE_descriptor_t asn_DEF_TwoThree = {
 	asn_DEF_TwoThree_tags_1,	/* Same as above */
 	sizeof(asn_DEF_TwoThree_tags_1)
 		/sizeof(asn_DEF_TwoThree_tags_1[0]), /* 1 */
-	{ 0, 0, SET_constraint },
+	{ 0, 0, SET_constraint, 0 },
 	asn_MBR_TwoThree_1,
 	1,	/* Elements count */
 	&asn_SPC_TwoThree_specs_1	/* Additional specs */
@@ -1447,7 +1447,7 @@ asn_TYPE_member_t asn_MBR_ThreeOne_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_OneTwo,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "m31"
 		},
@@ -1456,7 +1456,7 @@ asn_TYPE_member_t asn_MBR_ThreeOne_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Gamma,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "g"
 		},
@@ -1494,7 +1494,7 @@ asn_TYPE_descriptor_t asn_DEF_ThreeOne = {
 	asn_DEF_ThreeOne_tags_1,	/* Same as above */
 	sizeof(asn_DEF_ThreeOne_tags_1)
 		/sizeof(asn_DEF_ThreeOne_tags_1[0]), /* 1 */
-	{ 0, 0, SET_constraint },
+	{ 0, 0, SET_constraint, 0 },
 	asn_MBR_ThreeOne_1,
 	2,	/* Elements count */
 	&asn_SPC_ThreeOne_specs_1	/* Additional specs */

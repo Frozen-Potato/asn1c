@@ -41,7 +41,7 @@ asn_TYPE_descriptor_t asn_DEF_Int1 = {
 	asn_DEF_Int1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Int1_tags_1)
 		/sizeof(asn_DEF_Int1_tags_1[0]), /* 1 */
-	{ 0, 0, INTEGER_constraint },
+	{ 0, 0, INTEGER_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -115,7 +115,7 @@ asn_TYPE_descriptor_t asn_DEF_Int2 = {
 	asn_DEF_Int2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Int2_tags_1)
 		/sizeof(asn_DEF_Int2_tags_1[0]), /* 1 */
-	{ 0, 0, Int2_constraint },
+	{ 0, 0, Int2_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -193,7 +193,7 @@ asn_TYPE_descriptor_t asn_DEF_Int3 = {
 	asn_DEF_Int3_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Int3_tags_1)
 		/sizeof(asn_DEF_Int3_tags_1[0]), /* 1 */
-	{ 0, 0, Int3_constraint },
+	{ 0, 0, Int3_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -271,7 +271,7 @@ asn_TYPE_descriptor_t asn_DEF_Int4 = {
 	asn_DEF_Int4_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Int4_tags_1)
 		/sizeof(asn_DEF_Int4_tags_1[0]), /* 1 */
-	{ 0, 0, Int4_constraint },
+	{ 0, 0, Int4_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -349,7 +349,7 @@ asn_TYPE_descriptor_t asn_DEF_Int5 = {
 	asn_DEF_Int5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Int5_tags_1)
 		/sizeof(asn_DEF_Int5_tags_1[0]), /* 1 */
-	{ 0, 0, Int5_constraint },
+	{ 0, 0, Int5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -427,7 +427,7 @@ asn_TYPE_descriptor_t asn_DEF_ExtensibleExtensions = {
 	asn_DEF_ExtensibleExtensions_tags_1,	/* Same as above */
 	sizeof(asn_DEF_ExtensibleExtensions_tags_1)
 		/sizeof(asn_DEF_ExtensibleExtensions_tags_1[0]), /* 1 */
-	{ 0, 0, ExtensibleExtensions_constraint },
+	{ 0, 0, ExtensibleExtensions_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -474,7 +474,7 @@ asn_TYPE_descriptor_t asn_DEF_Str1 = {
 	asn_DEF_Str1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Str1_tags_1)
 		/sizeof(asn_DEF_Str1_tags_1[0]), /* 1 */
-	{ 0, 0, IA5String_constraint },
+	{ 0, 0, IA5String_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -564,7 +564,7 @@ asn_TYPE_descriptor_t asn_DEF_Str2 = {
 	asn_DEF_Str2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Str2_tags_1)
 		/sizeof(asn_DEF_Str2_tags_1[0]), /* 1 */
-	{ 0, 0, Str2_constraint },
+	{ 0, 0, Str2_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -665,7 +665,7 @@ asn_TYPE_descriptor_t asn_DEF_Str3 = {
 	asn_DEF_Str3_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Str3_tags_1)
 		/sizeof(asn_DEF_Str3_tags_1[0]), /* 1 */
-	{ 0, 0, Str3_constraint },
+	{ 0, 0, Str3_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -752,7 +752,7 @@ asn_TYPE_descriptor_t asn_DEF_Str4 = {
 	asn_DEF_Str4_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Str4_tags_1)
 		/sizeof(asn_DEF_Str4_tags_1[0]), /* 1 */
-	{ 0, 0, Str4_constraint },
+	{ 0, 0, Str4_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -839,7 +839,7 @@ asn_TYPE_descriptor_t asn_DEF_PER_Visible = {
 	asn_DEF_PER_Visible_tags_1,	/* Same as above */
 	sizeof(asn_DEF_PER_Visible_tags_1)
 		/sizeof(asn_DEF_PER_Visible_tags_1[0]), /* 1 */
-	{ 0, 0, PER_Visible_constraint },
+	{ 0, 0, PER_Visible_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -926,7 +926,7 @@ asn_TYPE_descriptor_t asn_DEF_PER_Visible_2 = {
 	asn_DEF_PER_Visible_2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_PER_Visible_2_tags_1)
 		/sizeof(asn_DEF_PER_Visible_2_tags_1[0]), /* 1 */
-	{ 0, 0, PER_Visible_2_constraint },
+	{ 0, 0, PER_Visible_2_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1013,7 +1013,7 @@ asn_TYPE_descriptor_t asn_DEF_Not_PER_Visible_1 = {
 	asn_DEF_Not_PER_Visible_1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Not_PER_Visible_1_tags_1)
 		/sizeof(asn_DEF_Not_PER_Visible_1_tags_1[0]), /* 1 */
-	{ 0, 0, Not_PER_Visible_1_constraint },
+	{ 0, 0, Not_PER_Visible_1_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1100,7 +1100,7 @@ asn_TYPE_descriptor_t asn_DEF_Not_PER_Visible_2 = {
 	asn_DEF_Not_PER_Visible_2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Not_PER_Visible_2_tags_1)
 		/sizeof(asn_DEF_Not_PER_Visible_2_tags_1[0]), /* 1 */
-	{ 0, 0, Not_PER_Visible_2_constraint },
+	{ 0, 0, Not_PER_Visible_2_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1187,7 +1187,7 @@ asn_TYPE_descriptor_t asn_DEF_Not_PER_Visible_3 = {
 	asn_DEF_Not_PER_Visible_3_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Not_PER_Visible_3_tags_1)
 		/sizeof(asn_DEF_Not_PER_Visible_3_tags_1[0]), /* 1 */
-	{ 0, 0, Not_PER_Visible_3_constraint },
+	{ 0, 0, Not_PER_Visible_3_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1277,7 +1277,7 @@ asn_TYPE_descriptor_t asn_DEF_SIZE_but_not_FROM = {
 	asn_DEF_SIZE_but_not_FROM_tags_1,	/* Same as above */
 	sizeof(asn_DEF_SIZE_but_not_FROM_tags_1)
 		/sizeof(asn_DEF_SIZE_but_not_FROM_tags_1[0]), /* 1 */
-	{ 0, 0, SIZE_but_not_FROM_constraint },
+	{ 0, 0, SIZE_but_not_FROM_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1367,7 +1367,7 @@ asn_TYPE_descriptor_t asn_DEF_SIZE_and_FROM = {
 	asn_DEF_SIZE_and_FROM_tags_1,	/* Same as above */
 	sizeof(asn_DEF_SIZE_and_FROM_tags_1)
 		/sizeof(asn_DEF_SIZE_and_FROM_tags_1[0]), /* 1 */
-	{ 0, 0, SIZE_and_FROM_constraint },
+	{ 0, 0, SIZE_and_FROM_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1454,7 +1454,7 @@ asn_TYPE_descriptor_t asn_DEF_Neither_SIZE_nor_FROM = {
 	asn_DEF_Neither_SIZE_nor_FROM_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Neither_SIZE_nor_FROM_tags_1)
 		/sizeof(asn_DEF_Neither_SIZE_nor_FROM_tags_1[0]), /* 1 */
-	{ 0, 0, Neither_SIZE_nor_FROM_constraint },
+	{ 0, 0, Neither_SIZE_nor_FROM_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1535,7 +1535,7 @@ asn_TYPE_descriptor_t asn_DEF_Utf8_4 = {
 	asn_DEF_Utf8_4_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Utf8_4_tags_1)
 		/sizeof(asn_DEF_Utf8_4_tags_1[0]), /* 1 */
-	{ 0, 0, Utf8_4_constraint },
+	{ 0, 0, Utf8_4_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1644,7 +1644,7 @@ asn_TYPE_descriptor_t asn_DEF_Utf8_3 = {
 	asn_DEF_Utf8_3_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Utf8_3_tags_1)
 		/sizeof(asn_DEF_Utf8_3_tags_1[0]), /* 1 */
-	{ 0, 0, Utf8_3_constraint },
+	{ 0, 0, Utf8_3_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1723,7 +1723,7 @@ asn_TYPE_descriptor_t asn_DEF_Utf8_2 = {
 	asn_DEF_Utf8_2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Utf8_2_tags_1)
 		/sizeof(asn_DEF_Utf8_2_tags_1[0]), /* 1 */
-	{ 0, 0, Utf8_2_constraint },
+	{ 0, 0, Utf8_2_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1770,7 +1770,7 @@ asn_TYPE_descriptor_t asn_DEF_Utf8_1 = {
 	asn_DEF_Utf8_1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Utf8_1_tags_1)
 		/sizeof(asn_DEF_Utf8_1_tags_1[0]), /* 1 */
-	{ 0, 0, UTF8String_constraint },
+	{ 0, 0, UTF8String_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1872,7 +1872,7 @@ asn_TYPE_descriptor_t asn_DEF_VisibleIdentifier = {
 	asn_DEF_VisibleIdentifier_tags_1,	/* Same as above */
 	sizeof(asn_DEF_VisibleIdentifier_tags_1)
 		/sizeof(asn_DEF_VisibleIdentifier_tags_1[0]), /* 1 */
-	{ 0, 0, VisibleIdentifier_constraint },
+	{ 0, 0, VisibleIdentifier_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -2108,7 +2108,7 @@ asn_TYPE_descriptor_t asn_DEF_enum_c_6 = {
 	asn_DEF_enum_c_tags_6,	/* Same as above */
 	sizeof(asn_DEF_enum_c_tags_6)
 		/sizeof(asn_DEF_enum_c_tags_6[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_enum_c_specs_6	/* Additional specs */
 };
@@ -2119,7 +2119,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Int1,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_int1_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_int1_c_constraint_1, .jer_constraints = 0 },
 		.default_value_cmp = &asn_DFL_2_cmp_3,	/* Compare DEFAULT 3 */
 		.default_value_set = &asn_DFL_2_set_3,	/* Set DEFAULT 3 */
 		.name = "int1-c"
@@ -2129,7 +2129,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = +1,	/* EXPLICIT tag at current level */
 		.type = &asn_DEF_Int4,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "int4"
 		},
@@ -2138,7 +2138,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Int4,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_int4_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_int4_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "int4-c"
 		},
@@ -2147,7 +2147,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_BOOLEAN,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		.default_value_cmp = &asn_DFL_5_cmp_1,	/* Compare DEFAULT 1 */
 		.default_value_set = &asn_DFL_5_set_1,	/* Set DEFAULT 1 */
 		.name = "bool"
@@ -2157,7 +2157,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_enum_c_6,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "enum-c"
 		},
@@ -2166,7 +2166,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_NULL,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "null"
 		},
@@ -2175,7 +2175,7 @@ asn_TYPE_member_t asn_MBR_Sequence_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Int5,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_int5_c_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_int5_c_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "int5-c"
 		},
@@ -2210,7 +2210,7 @@ asn_TYPE_descriptor_t asn_DEF_Sequence = {
 	asn_DEF_Sequence_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Sequence_tags_1)
 		/sizeof(asn_DEF_Sequence_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Sequence_1,
 	7,	/* Elements count */
 	&asn_SPC_Sequence_specs_1	/* Additional specs */
@@ -2251,7 +2251,7 @@ static asn_TYPE_member_t asn_MBR_SequenceOf_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Sequence,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -2274,7 +2274,7 @@ asn_TYPE_descriptor_t asn_DEF_SequenceOf = {
 	asn_DEF_SequenceOf_tags_1,	/* Same as above */
 	sizeof(asn_DEF_SequenceOf_tags_1)
 		/sizeof(asn_DEF_SequenceOf_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_OF_constraint },
+	{ 0, 0, SEQUENCE_OF_constraint, 0 },
 	asn_MBR_SequenceOf_1,
 	1,	/* Single element */
 	&asn_SPC_SequenceOf_specs_1	/* Additional specs */
@@ -2346,7 +2346,7 @@ asn_TYPE_descriptor_t asn_DEF_Enum0 = {
 	asn_DEF_Enum0_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Enum0_tags_1)
 		/sizeof(asn_DEF_Enum0_tags_1[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Enum0_specs_1	/* Additional specs */
 };
@@ -2442,7 +2442,7 @@ asn_TYPE_descriptor_t asn_DEF_Enum1 = {
 	asn_DEF_Enum1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Enum1_tags_1)
 		/sizeof(asn_DEF_Enum1_tags_1[0]), /* 1 */
-	{ 0, 0, Enum1_constraint },
+	{ 0, 0, Enum1_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Enum1_specs_1	/* Additional specs */
 };
@@ -2544,7 +2544,7 @@ asn_TYPE_descriptor_t asn_DEF_Identifier = {
 	asn_DEF_Identifier_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Identifier_tags_1)
 		/sizeof(asn_DEF_Identifier_tags_1[0]), /* 1 */
-	{ 0, 0, Identifier_constraint },
+	{ 0, 0, Identifier_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

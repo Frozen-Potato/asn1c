@@ -54,7 +54,7 @@ static asn_TYPE_member_t asn_MBR_Member_7[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UTF8String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "nested-string"
 		},
@@ -84,7 +84,7 @@ asn_TYPE_descriptor_t asn_DEF_Member_7 = {
 	asn_DEF_Member_tags_7,	/* Same as above */
 	sizeof(asn_DEF_Member_tags_7)
 		/sizeof(asn_DEF_Member_tags_7[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Member_7,
 	1,	/* Elements count */
 	&asn_SPC_Member_specs_7	/* Additional specs */
@@ -96,7 +96,7 @@ static asn_TYPE_member_t asn_MBR_nested_sos_6[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Member_7,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -121,7 +121,7 @@ asn_TYPE_descriptor_t asn_DEF_nested_sos_6 = {
 	asn_DEF_nested_sos_tags_6,	/* Same as above */
 	sizeof(asn_DEF_nested_sos_tags_6)
 		/sizeof(asn_DEF_nested_sos_tags_6[0]), /* 2 */
-	{ 0, 0, SEQUENCE_OF_constraint },
+	{ 0, 0, SEQUENCE_OF_constraint, 0 },
 	asn_MBR_nested_sos_6,
 	1,	/* Single element */
 	&asn_SPC_nested_sos_specs_6	/* Additional specs */
@@ -133,7 +133,7 @@ static asn_TYPE_member_t asn_MBR_Member_4[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UTF8String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "anotherString"
 		},
@@ -142,7 +142,7 @@ static asn_TYPE_member_t asn_MBR_Member_4[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_nested_sos_6,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "nested-sos"
 		},
@@ -173,7 +173,7 @@ asn_TYPE_descriptor_t asn_DEF_Member_4 = {
 	asn_DEF_Member_tags_4,	/* Same as above */
 	sizeof(asn_DEF_Member_tags_4)
 		/sizeof(asn_DEF_Member_tags_4[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Member_4,
 	2,	/* Elements count */
 	&asn_SPC_Member_specs_4	/* Additional specs */
@@ -185,7 +185,7 @@ static asn_TYPE_member_t asn_MBR_sos_3[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Member_4,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -210,7 +210,7 @@ asn_TYPE_descriptor_t asn_DEF_sos_3 = {
 	asn_DEF_sos_tags_3,	/* Same as above */
 	sizeof(asn_DEF_sos_tags_3)
 		/sizeof(asn_DEF_sos_tags_3[0]), /* 2 */
-	{ 0, 0, SEQUENCE_OF_constraint },
+	{ 0, 0, SEQUENCE_OF_constraint, 0 },
 	asn_MBR_sos_3,
 	1,	/* Single element */
 	&asn_SPC_sos_specs_3	/* Additional specs */
@@ -222,7 +222,7 @@ static asn_TYPE_member_t asn_MBR_SeqWithNestedSOS_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_UTF8String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "someString"
 		},
@@ -231,7 +231,7 @@ static asn_TYPE_member_t asn_MBR_SeqWithNestedSOS_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_sos_3,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "sos"
 		},
@@ -261,7 +261,7 @@ asn_TYPE_descriptor_t asn_DEF_SeqWithNestedSOS = {
 	asn_DEF_SeqWithNestedSOS_tags_1,	/* Same as above */
 	sizeof(asn_DEF_SeqWithNestedSOS_tags_1)
 		/sizeof(asn_DEF_SeqWithNestedSOS_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_SeqWithNestedSOS_1,
 	2,	/* Elements count */
 	&asn_SPC_SeqWithNestedSOS_specs_1	/* Additional specs */

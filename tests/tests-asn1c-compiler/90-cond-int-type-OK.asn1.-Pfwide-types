@@ -40,7 +40,7 @@ asn_TYPE_descriptor_t asn_DEF_CN_IntegerUnlimited = {
 	asn_DEF_CN_IntegerUnlimited_tags_1,	/* Same as above */
 	sizeof(asn_DEF_CN_IntegerUnlimited_tags_1)
 		/sizeof(asn_DEF_CN_IntegerUnlimited_tags_1[0]), /* 1 */
-	{ 0, 0, INTEGER_constraint },
+	{ 0, 0, INTEGER_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -108,7 +108,7 @@ asn_TYPE_descriptor_t asn_DEF_CN_IntegerMinMax = {
 	asn_DEF_CN_IntegerMinMax_tags_1,	/* Same as above */
 	sizeof(asn_DEF_CN_IntegerMinMax_tags_1)
 		/sizeof(asn_DEF_CN_IntegerMinMax_tags_1[0]), /* 1 */
-	{ 0, 0, CN_IntegerMinMax_constraint },
+	{ 0, 0, CN_IntegerMinMax_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -186,7 +186,7 @@ asn_TYPE_descriptor_t asn_DEF_CN_IntegerMinLow = {
 	asn_DEF_CN_IntegerMinLow_tags_1,	/* Same as above */
 	sizeof(asn_DEF_CN_IntegerMinLow_tags_1)
 		/sizeof(asn_DEF_CN_IntegerMinLow_tags_1[0]), /* 1 */
-	{ 0, 0, CN_IntegerMinLow_constraint },
+	{ 0, 0, CN_IntegerMinLow_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -264,7 +264,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerMinHigh = {
 	asn_DEF_NO_IntegerMinHigh_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerMinHigh_tags_1)
 		/sizeof(asn_DEF_NO_IntegerMinHigh_tags_1[0]), /* 1 */
-	{ 0, 0, NO_IntegerMinHigh_constraint },
+	{ 0, 0, NO_IntegerMinHigh_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -341,7 +341,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerLowHigh = {
 	asn_DEF_NO_IntegerLowHigh_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerLowHigh_tags_1)
 		/sizeof(asn_DEF_NO_IntegerLowHigh_tags_1[0]), /* 1 */
-	{ 0, 0, NO_IntegerLowHigh_constraint },
+	{ 0, 0, NO_IntegerLowHigh_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_NO_IntegerLowHigh_specs_1	/* Additional specs */
 };
@@ -419,7 +419,7 @@ asn_TYPE_descriptor_t asn_DEF_CN_IntegerLowMax = {
 	asn_DEF_CN_IntegerLowMax_tags_1,	/* Same as above */
 	sizeof(asn_DEF_CN_IntegerLowMax_tags_1)
 		/sizeof(asn_DEF_CN_IntegerLowMax_tags_1[0]), /* 1 */
-	{ 0, 0, CN_IntegerLowMax_constraint },
+	{ 0, 0, CN_IntegerLowMax_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -497,7 +497,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerHighMax = {
 	asn_DEF_NO_IntegerHighMax_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerHighMax_tags_1)
 		/sizeof(asn_DEF_NO_IntegerHighMax_tags_1[0]), /* 1 */
-	{ 0, 0, NO_IntegerHighMax_constraint },
+	{ 0, 0, NO_IntegerHighMax_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -575,7 +575,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerLowestMax = {
 	asn_DEF_NO_IntegerLowestMax_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerLowestMax_tags_1)
 		/sizeof(asn_DEF_NO_IntegerLowestMax_tags_1[0]), /* 1 */
-	{ 0, 0, NO_IntegerLowestMax_constraint },
+	{ 0, 0, NO_IntegerLowestMax_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -652,7 +652,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerOutRange = {
 	asn_DEF_NO_IntegerOutRange_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerOutRange_tags_1)
 		/sizeof(asn_DEF_NO_IntegerOutRange_tags_1[0]), /* 1 */
-	{ 0, 0, NO_IntegerOutRange_constraint },
+	{ 0, 0, NO_IntegerOutRange_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_NO_IntegerOutRange_specs_1	/* Additional specs */
 };
@@ -729,7 +729,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerOutValue = {
 	asn_DEF_NO_IntegerOutValue_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerOutValue_tags_1)
 		/sizeof(asn_DEF_NO_IntegerOutValue_tags_1[0]), /* 1 */
-	{ 0, 0, NO_IntegerOutValue_constraint },
+	{ 0, 0, NO_IntegerOutValue_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_NO_IntegerOutValue_specs_1	/* Additional specs */
 };
@@ -801,7 +801,7 @@ asn_TYPE_descriptor_t asn_DEF_OK_IntegerInRange1 = {
 	asn_DEF_OK_IntegerInRange1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_OK_IntegerInRange1_tags_1)
 		/sizeof(asn_DEF_OK_IntegerInRange1_tags_1[0]), /* 1 */
-	{ 0, 0, OK_IntegerInRange1_constraint },
+	{ 0, 0, OK_IntegerInRange1_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -873,7 +873,7 @@ asn_TYPE_descriptor_t asn_DEF_OK_IntegerInRange2 = {
 	asn_DEF_OK_IntegerInRange2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_OK_IntegerInRange2_tags_1)
 		/sizeof(asn_DEF_OK_IntegerInRange2_tags_1[0]), /* 1 */
-	{ 0, 0, OK_IntegerInRange2_constraint },
+	{ 0, 0, OK_IntegerInRange2_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -945,7 +945,7 @@ asn_TYPE_descriptor_t asn_DEF_OK_IntegerInRange3 = {
 	asn_DEF_OK_IntegerInRange3_tags_1,	/* Same as above */
 	sizeof(asn_DEF_OK_IntegerInRange3_tags_1)
 		/sizeof(asn_DEF_OK_IntegerInRange3_tags_1[0]), /* 1 */
-	{ 0, 0, OK_IntegerInRange3_constraint },
+	{ 0, 0, OK_IntegerInRange3_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1017,7 +1017,7 @@ asn_TYPE_descriptor_t asn_DEF_OK_IntegerInRange4 = {
 	asn_DEF_OK_IntegerInRange4_tags_1,	/* Same as above */
 	sizeof(asn_DEF_OK_IntegerInRange4_tags_1)
 		/sizeof(asn_DEF_OK_IntegerInRange4_tags_1[0]), /* 1 */
-	{ 0, 0, OK_IntegerInRange4_constraint },
+	{ 0, 0, OK_IntegerInRange4_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1095,7 +1095,7 @@ asn_TYPE_descriptor_t asn_DEF_OK_IntegerInRange5 = {
 	asn_DEF_OK_IntegerInRange5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_OK_IntegerInRange5_tags_1)
 		/sizeof(asn_DEF_OK_IntegerInRange5_tags_1[0]), /* 1 */
-	{ 0, 0, OK_IntegerInRange5_constraint },
+	{ 0, 0, OK_IntegerInRange5_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -1163,7 +1163,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerInRange6 = {
 	asn_DEF_NO_IntegerInRange6_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerInRange6_tags_1)
 		/sizeof(asn_DEF_NO_IntegerInRange6_tags_1[0]), /* 1 */
-	{ 0, 0, NO_IntegerInRange6_constraint },
+	{ 0, 0, NO_IntegerInRange6_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_NO_IntegerInRange6_specs_1	/* Additional specs */
 };
@@ -1217,7 +1217,7 @@ asn_TYPE_descriptor_t asn_DEF_CN_IntegerEnumerated1 = {
 	asn_DEF_CN_IntegerEnumerated1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_CN_IntegerEnumerated1_tags_1)
 		/sizeof(asn_DEF_CN_IntegerEnumerated1_tags_1[0]), /* 1 */
-	{ 0, 0, INTEGER_constraint },
+	{ 0, 0, INTEGER_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	0	/* No specifics */
 };
@@ -1271,7 +1271,7 @@ asn_TYPE_descriptor_t asn_DEF_NO_IntegerEnumerated2 = {
 	asn_DEF_NO_IntegerEnumerated2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_NO_IntegerEnumerated2_tags_1)
 		/sizeof(asn_DEF_NO_IntegerEnumerated2_tags_1[0]), /* 1 */
-	{ 0, 0, INTEGER_constraint },
+	{ 0, 0, INTEGER_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	0	/* No specifics */
 };

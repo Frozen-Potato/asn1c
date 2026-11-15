@@ -62,7 +62,7 @@ static asn_TYPE_member_t asn_MBR_Attribute_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_RELATIVE_OID,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_identifier_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_identifier_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "identifier"
 		},
@@ -71,7 +71,7 @@ static asn_TYPE_member_t asn_MBR_Attribute_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "siAttributeValue"
 		},
@@ -101,7 +101,7 @@ asn_TYPE_descriptor_t asn_DEF_Attribute = {
 	asn_DEF_Attribute_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Attribute_tags_1)
 		/sizeof(asn_DEF_Attribute_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Attribute_1,
 	2,	/* Elements count */
 	&asn_SPC_Attribute_specs_1	/* Additional specs */

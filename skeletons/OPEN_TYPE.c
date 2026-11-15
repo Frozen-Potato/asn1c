@@ -31,7 +31,9 @@ asn_TYPE_operation_t asn_OP_OPEN_TYPE = {
 	OPEN_TYPE_encode_aper,
 #endif
 	0,  /* Random fill is not supported for open type */
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+	0,	/* No JER decoder yet */
+	0	/* No JER encoder yet */
 };
 
 #undef  ADVANCE

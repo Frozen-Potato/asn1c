@@ -93,7 +93,7 @@ asn_TYPE_descriptor_t asn_DEF_PrintableString = {
 	asn_DEF_PrintableString_tags,
 	sizeof(asn_DEF_PrintableString_tags)
 	  / sizeof(asn_DEF_PrintableString_tags[0]),
-	{ 0, &asn_DEF_PrintableString_per_constraints, PrintableString_constraint },
+	{ 0, &asn_DEF_PrintableString_per_constraints, PrintableString_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

@@ -63,7 +63,7 @@ asn_TYPE_descriptor_t asn_DEF_BIT_STRING = {
 	asn_DEF_BIT_STRING_tags,	/* Same as above */
 	sizeof(asn_DEF_BIT_STRING_tags)
 	  / sizeof(asn_DEF_BIT_STRING_tags[0]),
-	{ 0, 0, BIT_STRING_constraint },
+	{ 0, 0, BIT_STRING_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_BIT_STRING_specs
 };

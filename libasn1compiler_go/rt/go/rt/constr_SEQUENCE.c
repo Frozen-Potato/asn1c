@@ -2014,7 +2014,9 @@ asn_TYPE_operation_t asn_OP_SEQUENCE = {
 	SEQUENCE_encode_aper,
 #endif /* ASN_DISABLE_PER_SUPPORT */
 	SEQUENCE_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+	0,	/* No JER decoder yet */
+	0	/* No JER encoder yet */
 };
 
 

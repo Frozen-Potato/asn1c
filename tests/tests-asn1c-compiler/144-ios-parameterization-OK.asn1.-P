@@ -25,7 +25,7 @@ static asn_TYPE_member_t asn_MBR_Message_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_RegionalExtension,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "content"
 		},
@@ -54,7 +54,7 @@ asn_TYPE_descriptor_t asn_DEF_Message = {
 	asn_DEF_Message_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Message_tags_1)
 		/sizeof(asn_DEF_Message_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Message_1,
 	1,	/* Elements count */
 	&asn_SPC_Message_specs_1	/* Additional specs */
@@ -194,7 +194,7 @@ static asn_TYPE_member_t asn_MBR_value_3[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "INTEGER"
 		},
@@ -203,7 +203,7 @@ static asn_TYPE_member_t asn_MBR_value_3[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_BOOLEAN,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "BOOLEAN"
 		},
@@ -231,7 +231,7 @@ asn_TYPE_descriptor_t asn_DEF_value_3 = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, OPEN_TYPE_constraint },
+	{ 0, 0, OPEN_TYPE_constraint, 0 },
 	asn_MBR_value_3,
 	2,	/* Elements count */
 	&asn_SPC_value_specs_3	/* Additional specs */
@@ -243,7 +243,7 @@ asn_TYPE_member_t asn_MBR_RegionalExtension_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_id_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_id_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "id"
 		},
@@ -252,7 +252,7 @@ asn_TYPE_member_t asn_MBR_RegionalExtension_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_value_3,
 		.type_selector = select_RegionalExtension_value_type,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_value_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_value_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "value"
 		},
@@ -281,7 +281,7 @@ asn_TYPE_descriptor_t asn_DEF_RegionalExtension = {
 	asn_DEF_RegionalExtension_tags_1,	/* Same as above */
 	sizeof(asn_DEF_RegionalExtension_tags_1)
 		/sizeof(asn_DEF_RegionalExtension_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_RegionalExtension_1,
 	2,	/* Elements count */
 	&asn_SPC_RegionalExtension_specs_1	/* Additional specs */

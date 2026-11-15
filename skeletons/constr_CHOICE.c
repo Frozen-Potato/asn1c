@@ -1527,5 +1527,7 @@ asn_TYPE_operation_t asn_OP_CHOICE = {
 	CHOICE_encode_aper,
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	CHOICE_random_fill,
-	CHOICE_outmost_tag
+	CHOICE_outmost_tag,
+	0,	/* No JER decoder yet */
+	0	/* No JER encoder yet */
 };

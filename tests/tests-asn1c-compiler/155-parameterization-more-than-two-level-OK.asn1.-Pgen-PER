@@ -79,7 +79,7 @@ asn_TYPE_descriptor_t asn_DEF_PacketId = {
 	asn_DEF_PacketId_tags_1,	/* Same as above */
 	sizeof(asn_DEF_PacketId_tags_1)
 		/sizeof(asn_DEF_PacketId_tags_1[0]), /* 1 */
-	{ 0, &asn_PER_type_PacketId_constr_1, PacketId_constraint },
+	{ 0, &asn_PER_type_PacketId_constr_1, PacketId_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
@@ -167,7 +167,7 @@ asn_TYPE_descriptor_t asn_DEF_Color = {
 	asn_DEF_Color_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Color_tags_1)
 		/sizeof(asn_DEF_Color_tags_1[0]), /* 1 */
-	{ 0, &asn_PER_type_Color_constr_1, NativeEnumerated_constraint },
+	{ 0, &asn_PER_type_Color_constr_1, NativeEnumerated_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Color_specs_1	/* Additional specs */
 };
@@ -252,7 +252,7 @@ asn_TYPE_descriptor_t asn_DEF_Valid = {
 	asn_DEF_Valid_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Valid_tags_1)
 		/sizeof(asn_DEF_Valid_tags_1[0]), /* 1 */
-	{ 0, &asn_PER_type_Valid_constr_1, NativeEnumerated_constraint },
+	{ 0, &asn_PER_type_Valid_constr_1, NativeEnumerated_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Valid_specs_1	/* Additional specs */
 };
@@ -337,7 +337,7 @@ asn_TYPE_descriptor_t asn_DEF_Packet_List = {
 	asn_DEF_Packet_List_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Packet_List_tags_1)
 		/sizeof(asn_DEF_Packet_List_tags_1[0]), /* 1 */
-	{ 0, &asn_PER_type_Packet_List_constr_1, Packet_List_constraint },
+	{ 0, &asn_PER_type_Packet_List_constr_1, Packet_List_constraint, 0 },
 	asn_MBR_LowerLayer_List_45P0_1,
 	1,	/* Single element */
 	&asn_SPC_LowerLayer_List_45P0_specs_1	/* Additional specs */
@@ -424,7 +424,7 @@ asn_TYPE_descriptor_t asn_DEF_UpperLayer_List_41P0 = {
 	asn_DEF_UpperLayer_List_41P0_tags_1,	/* Same as above */
 	sizeof(asn_DEF_UpperLayer_List_41P0_tags_1)
 		/sizeof(asn_DEF_UpperLayer_List_41P0_tags_1[0]), /* 1 */
-	{ 0, &asn_PER_type_UpperLayer_List_41P0_constr_1, UpperLayer_List_41P0_constraint },
+	{ 0, &asn_PER_type_UpperLayer_List_41P0_constr_1, UpperLayer_List_41P0_constraint, 0 },
 	asn_MBR_LowerLayer_List_45P0_1,
 	1,	/* Single element */
 	&asn_SPC_LowerLayer_List_45P0_specs_1	/* Additional specs */
@@ -476,7 +476,7 @@ asn_TYPE_member_t asn_MBR_LowerLayer_List_45P0_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_SinglePacket_48P0,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = ""
 		},
@@ -499,7 +499,7 @@ asn_TYPE_descriptor_t asn_DEF_LowerLayer_List_45P0 = {
 	asn_DEF_LowerLayer_List_45P0_tags_1,	/* Same as above */
 	sizeof(asn_DEF_LowerLayer_List_45P0_tags_1)
 		/sizeof(asn_DEF_LowerLayer_List_45P0_tags_1[0]), /* 1 */
-	{ 0, &asn_PER_type_LowerLayer_List_45P0_constr_1, SEQUENCE_OF_constraint },
+	{ 0, &asn_PER_type_LowerLayer_List_45P0_constr_1, SEQUENCE_OF_constraint, 0 },
 	asn_MBR_LowerLayer_List_45P0_1,
 	1,	/* Single element */
 	&asn_SPC_LowerLayer_List_45P0_specs_1	/* Additional specs */
@@ -551,7 +551,7 @@ asn_TYPE_descriptor_t asn_DEF_SinglePacket_48P0 = {
 	asn_DEF_SinglePacket_48P0_tags_1,	/* Same as above */
 	sizeof(asn_DEF_SinglePacket_48P0_tags_1)
 		/sizeof(asn_DEF_SinglePacket_48P0_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_ClassItem_1,
 	3,	/* Elements count */
 	&asn_SPC_ClassItem_specs_1	/* Additional specs */
@@ -763,7 +763,7 @@ static asn_TYPE_member_t asn_MBR_value_4[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_OCTET_STRING,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "OCTET STRING"
 		},
@@ -790,7 +790,7 @@ asn_TYPE_descriptor_t asn_DEF_value_4 = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, 0, OPEN_TYPE_constraint },
+	{ 0, 0, OPEN_TYPE_constraint, 0 },
 	asn_MBR_value_4,
 	1,	/* Elements count */
 	&asn_SPC_value_specs_4	/* Additional specs */
@@ -802,7 +802,7 @@ asn_TYPE_member_t asn_MBR_ClassItem_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_PacketId,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_id_constr_2, .general_constraints =  memb_id_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_id_constr_2, .general_constraints =  memb_id_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "id"
 		},
@@ -811,7 +811,7 @@ asn_TYPE_member_t asn_MBR_ClassItem_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_Color,
 		.type_selector = select_ClassItem_color_type,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_color_constr_3, .general_constraints =  memb_color_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_color_constr_3, .general_constraints =  memb_color_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "color"
 		},
@@ -820,7 +820,7 @@ asn_TYPE_member_t asn_MBR_ClassItem_1[] = {
 		.tag_mode = 0,
 		.type = &asn_DEF_value_4,
 		.type_selector = select_ClassItem_value_type,
-		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_value_constr_4, .general_constraints =  memb_value_constraint_1 },
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_value_constr_4, .general_constraints =  memb_value_constraint_1, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "value"
 		},
@@ -850,7 +850,7 @@ asn_TYPE_descriptor_t asn_DEF_ClassItem = {
 	asn_DEF_ClassItem_tags_1,	/* Same as above */
 	sizeof(asn_DEF_ClassItem_tags_1)
 		/sizeof(asn_DEF_ClassItem_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_ClassItem_1,
 	3,	/* Elements count */
 	&asn_SPC_ClassItem_specs_1	/* Additional specs */

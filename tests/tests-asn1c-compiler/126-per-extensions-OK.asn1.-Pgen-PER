@@ -42,7 +42,7 @@ static asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "str-o"
 		},
@@ -51,7 +51,7 @@ static asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "str-m"
 		},
@@ -60,7 +60,7 @@ static asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_Singleton,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "singl"
 		},
@@ -69,7 +69,7 @@ static asn_TYPE_member_t asn_MBR_PDU_1[] = {
 		.tag_mode = +1,	/* EXPLICIT tag at current level */
 		.type = &asn_DEF_PDU_2,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "pdu-2"
 		},
@@ -103,7 +103,7 @@ asn_TYPE_descriptor_t asn_DEF_PDU = {
 	asn_DEF_PDU_tags_1,	/* Same as above */
 	sizeof(asn_DEF_PDU_tags_1)
 		/sizeof(asn_DEF_PDU_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_PDU_1,
 	4,	/* Elements count */
 	&asn_SPC_PDU_specs_1	/* Additional specs */
@@ -170,7 +170,7 @@ asn_TYPE_member_t asn_MBR_Singleton_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_IA5String,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		.default_value_cmp = &asn_DFL_2_cmp,	/* Compare DEFAULT "z" */
 		.default_value_set = &asn_DFL_2_set,	/* Set DEFAULT "z" */
 		.name = "opt-z"
@@ -202,7 +202,7 @@ asn_TYPE_descriptor_t asn_DEF_Singleton = {
 	asn_DEF_Singleton_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Singleton_tags_1)
 		/sizeof(asn_DEF_Singleton_tags_1[0]), /* 1 */
-	{ 0, 0, SEQUENCE_constraint },
+	{ 0, 0, SEQUENCE_constraint, 0 },
 	asn_MBR_Singleton_1,
 	1,	/* Elements count */
 	&asn_SPC_Singleton_specs_1	/* Additional specs */
@@ -265,7 +265,7 @@ asn_TYPE_member_t asn_MBR_PDU_2_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "main"
 		},
@@ -274,7 +274,7 @@ asn_TYPE_member_t asn_MBR_PDU_2_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ext1"
 		},
@@ -283,7 +283,7 @@ asn_TYPE_member_t asn_MBR_PDU_2_1[] = {
 		.tag_mode = -1,	/* IMPLICIT tag at current level */
 		.type = &asn_DEF_NativeInteger,
 		.type_selector = 0,
-		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0 },
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
 		.name = "ext0"
 		},
@@ -314,7 +314,7 @@ asn_TYPE_descriptor_t asn_DEF_PDU_2 = {
 	0,	/* No effective tags (count) */
 	0,	/* No tags (pointer) */
 	0,	/* No tags (count) */
-	{ 0, &asn_PER_type_PDU_2_constr_1, CHOICE_constraint },
+	{ 0, &asn_PER_type_PDU_2_constr_1, CHOICE_constraint, 0 },
 	asn_MBR_PDU_2_1,
 	3,	/* Elements count */
 	&asn_SPC_PDU_2_specs_1	/* Additional specs */

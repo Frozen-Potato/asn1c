@@ -75,7 +75,7 @@ asn_TYPE_descriptor_t asn_DEF_Enum1 = {
 	asn_DEF_Enum1_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Enum1_tags_1)
 		/sizeof(asn_DEF_Enum1_tags_1[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Enum1_specs_1	/* Additional specs */
 };
@@ -166,7 +166,7 @@ asn_TYPE_descriptor_t asn_DEF_Enum2 = {
 	asn_DEF_Enum2_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Enum2_tags_1)
 		/sizeof(asn_DEF_Enum2_tags_1[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Enum2_specs_1	/* Additional specs */
 };
@@ -245,7 +245,7 @@ asn_TYPE_descriptor_t asn_DEF_Enum3 = {
 	asn_DEF_Enum3_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Enum3_tags_1)
 		/sizeof(asn_DEF_Enum3_tags_1[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Enum3_specs_1	/* Additional specs */
 };
@@ -327,7 +327,7 @@ asn_TYPE_descriptor_t asn_DEF_Enum4 = {
 	asn_DEF_Enum4_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Enum4_tags_1)
 		/sizeof(asn_DEF_Enum4_tags_1[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Enum4_specs_1	/* Additional specs */
 };
@@ -406,7 +406,7 @@ asn_TYPE_descriptor_t asn_DEF_Enum5 = {
 	asn_DEF_Enum5_tags_1,	/* Same as above */
 	sizeof(asn_DEF_Enum5_tags_1)
 		/sizeof(asn_DEF_Enum5_tags_1[0]), /* 1 */
-	{ 0, 0, ENUMERATED_constraint },
+	{ 0, 0, ENUMERATED_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
 	&asn_SPC_Enum5_specs_1	/* Additional specs */
 };

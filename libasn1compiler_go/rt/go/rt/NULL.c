@@ -57,7 +57,7 @@ asn_TYPE_descriptor_t asn_DEF_NULL = {
 	sizeof(asn_DEF_NULL_tags) / sizeof(asn_DEF_NULL_tags[0]),
 	asn_DEF_NULL_tags,	/* Same as above */
 	sizeof(asn_DEF_NULL_tags) / sizeof(asn_DEF_NULL_tags[0]),
-	{ 0, 0, asn_generic_no_constraint },
+	{ 0, 0, asn_generic_no_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

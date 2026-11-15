@@ -58,7 +58,7 @@ asn_TYPE_descriptor_t asn_DEF_VideotexString = {
 	asn_DEF_VideotexString_tags,
 	sizeof(asn_DEF_VideotexString_tags)
 	  / sizeof(asn_DEF_VideotexString_tags[0]),
-	{ 0, 0, asn_generic_unknown_constraint },
+	{ 0, 0, asn_generic_unknown_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };

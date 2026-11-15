@@ -61,7 +61,7 @@ asn_TYPE_descriptor_t asn_DEF_OBJECT_IDENTIFIER = {
 	asn_DEF_OBJECT_IDENTIFIER_tags,	/* Same as above */
 	sizeof(asn_DEF_OBJECT_IDENTIFIER_tags)
 	    / sizeof(asn_DEF_OBJECT_IDENTIFIER_tags[0]),
-	{ 0, 0, OBJECT_IDENTIFIER_constraint },
+	{ 0, 0, OBJECT_IDENTIFIER_constraint, 0 },
 	0, 0,	/* No members */
 	0	/* No specifics */
 };
