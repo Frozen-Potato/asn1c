@@ -7,21 +7,13 @@
 #define	_JER_SUPPORT_H_
 
 #include <asn_system.h>		/* Platform-specific types */
+#include <constr_TYPE.h>	/* asn_jer_constraints_t */
 
 #if !defined(ASN_DISABLE_JER_SUPPORT)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/*
- * Pre-computed JER constraints
- */
-typedef struct asn_jer_constraints_s {
-    ssize_t size;    /* -1 (no constraint) or >= 0 */
-    const char *wire_name; /* Optional JER NAME override for members */
-    unsigned int flags;    /* Reserved for instruction-specific flags */
-} asn_jer_constraints_t;
 
 /*
  * Types of data transferred to the application.

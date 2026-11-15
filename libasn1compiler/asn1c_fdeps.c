@@ -60,7 +60,8 @@ asn1c_activate_dependency(asn1c_dep_chainset *deps, const char *data,
 
     for(size_t i = 0; i < deps->chains_count; i++) {
         asn1c_tagged_dep_chain *ch = deps->chains[i];
-        if(!ch->activated.active && ch->chain->deps_count > 0
+        if(!ch->activated.active && ch->section != FDEP_IGNORE_JER
+           && ch->chain->deps_count > 0
            && strcmp(ch->chain->deps[0]->filename, fname) == 0) {
             ch->activated.by = strdup(by);
             ch->activated.active = 1;
@@ -124,6 +125,14 @@ asn1c_read_file_dependencies(arg_t *arg, const char *datadir) {
 					  && strcmp(p, "CODEC-PER:") == 0) {
                     activate = 0;
 					section = FDEP_CODEC_PER;
+				} else if((arg->flags & A1C_GEN_JER)
+					  && strcmp(p, "CODEC-JER:") == 0) {
+                    activate = 0;
+					section = FDEP_CODEC_JER;
+				} else if(strcmp(p, "CODEC-JER:") == 0) {
+					/* Without -gen-JER nothing here may activate anything */
+                    activate = 0;
+					section = FDEP_IGNORE_JER;
 				} else {
 					section = FDEP_IGNORE;
                     activate = 0;

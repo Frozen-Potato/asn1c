@@ -210,6 +210,7 @@ typedef struct asn1p_expr_s {
 		  EM_OPTIONAL	= 0x07,	/* 00111 Optional member */
 		  EM_DEFAULT	= 0x0F,	/* 01111 default_value */
 		  EM_UNRECURSE	= 0x10,	/* 10000 Use safe naming */
+		  EM_EXTENSION_GROUP = 0x20, /* [[ ]] group (named ext<N>) */
 		} flags;
 		asn1p_value_t *default_value;	/* For EM_DEFAULT case */
 	} marker;

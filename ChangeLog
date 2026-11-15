@@ -1,9 +1,14 @@
 0.9.29-go.11 (unreleased):
-    * C runtime: JER (X.697) support in progress; compiled out unless
-      ASN_ENABLE_JER_SUPPORT is defined (no -gen-JER yet). The primitive
-      types are done (BOOLEAN, NULL, INTEGER, ENUMERATED, REAL, OCTET STRING,
+    * C runtime and generator: JER (X.697) support in progress; compiled out
+      unless ASN_ENABLE_JER_SUPPORT is defined. asn1c has a -gen-JER option
+      (off by default; refused together with -Fgo) that copies the JER
+      runtime, defines ASN_ENABLE_JER_SUPPORT in the generated makefiles and
+      adds "-ijer" / "-ojer" to converter-example. The primitive types are
+      done (BOOLEAN, NULL, INTEGER, ENUMERATED, REAL, OCTET STRING,
       BIT STRING, OBJECT IDENTIFIER, RELATIVE-OID, times, character strings,
-      ANY); constructed types and JER constraints are not.
+      ANY), with the fixed-size BIT STRING constraint; the constructed types
+      (SEQUENCE, SET, CHOICE, SEQUENCE OF, SET OF, open types) are not done
+      yet.
       Generated C: every descriptor and member initializer gains a fourth
       encoding-constraints value (0), the new JER constraints slot.
 

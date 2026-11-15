@@ -52,6 +52,8 @@ static int emit_single_member_OER_constraint_size(arg_t *arg, asn1cnst_range_t *
 static int emit_single_member_PER_constraint(arg_t *arg, asn1cnst_range_t *range, int juscountvalues, const char *type);
 static int emit_member_OER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx);
 static int emit_member_PER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx);
+static int emit_member_JER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx);
+static int jer_fixed_bit_string_size(arg_t *arg, asn1p_expr_t *expr, long long *size);
 static int emit_member_table(arg_t *arg, asn1p_expr_t *expr,
                              asn1c_ioc_table_and_objset_t *);
 static int emit_tag2member_map(arg_t *arg, tag2el_t *tag2el, int tag2el_count, const char *opt_modifier);
@@ -437,6 +439,7 @@ asn1c_lang_C_type_SEQUENCE(arg_t *arg) {
                (v->Identifier == NULL)) {
 	      sprintf(ext_name, "ext%d", ext_num++);
 	      v->Identifier = strdup(ext_name);
+	      v->marker.flags |= EM_EXTENSION_GROUP;
             }
 
             EMBED_WITH_IOCT(v, ioc_tao);
@@ -686,6 +689,7 @@ asn1c_lang_C_type_SET(arg_t *arg) {
 		   (v->Identifier == NULL)) {
 			sprintf(ext_name, "ext%d", ext_num++);
 			v->Identifier = strdup(ext_name);
+		v->marker.flags |= EM_EXTENSION_GROUP;
 		}
 		EMBED(v);
 	}
@@ -2277,6 +2281,75 @@ emit_member_OER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx) {
     REDIR(save_target);
 
     return 0;
+}
+
+/*
+ * X.697: a BIT STRING with a fixed size is encoded as a plain hex string.
+ * The visibility rule is the one of OER: SIZE(12) is fixed; SIZE(1..16),
+ * SIZE(8,...) and the absence of a constraint are not.
+ * Returns 1 and sets (*size) if (expr) is a fixed-size BIT STRING under
+ * -gen-JER, else 0. This is the single place deciding whether a JER
+ * constraints table is emitted and referred to.
+ */
+static int
+jer_fixed_bit_string_size(arg_t *arg, asn1p_expr_t *expr, long long *size) {
+	asn1p_expr_type_e etype;
+	asn1cnst_range_t *range;
+	int fixed;
+
+	if(!(arg->flags & A1C_GEN_JER) || !expr->combined_constraints)
+		return 0;
+
+	etype = expr_get_type(arg, expr);
+	if(etype != ASN_BASIC_BIT_STRING)
+		return 0;
+
+	range = asn1constraint_compute_OER_range(expr->Identifier, etype,
+			expr->combined_constraints, ACT_CT_SIZE, 0, 0, 0);
+	if(!range)
+		return 0;
+	fixed = !range->incompatible && !range->not_OER_visible
+		&& !range->extensible
+		&& range->left.type == ARE_VALUE && range->right.type == ARE_VALUE
+		&& range->left.value == range->right.value
+		&& range->left.value >= 0;
+	if(fixed && size)
+		*size = range->left.value;
+	asn1constraint_range_free(range);
+	return fixed;
+}
+
+static int
+emit_member_JER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx) {
+	int save_target = arg->target->target;
+	long long size = 0;
+
+	if(!jer_fixed_bit_string_size(arg, expr, &size))
+		return 0;
+
+	if(expr->_type_referenced) {
+		REDIR(OT_FUNC_DECLS);
+		OUT("extern asn_jer_constraints_t "
+			"asn_JER_%s_%s_constr_%d;\n",
+			pfx, MKID(expr), expr->_type_unique_index);
+	}
+
+	REDIR(OT_CTDEFS);
+
+	if(!(expr->_type_referenced)) OUT("static ");
+	OUT("asn_jer_constraints_t "
+		"asn_JER_%s_%s_constr_%d CC_NOTUSED = {\n",
+		pfx, MKID(expr), expr->_type_unique_index);
+	INDENT(+1);
+	OUT("%lld,\t/* Fixed size in bits */\n", size);
+	OUT("0,\t/* No NAME override */\n");
+	OUT("0\t/* No flags */\n");
+	INDENT(-1);
+	OUT("};\n");
+
+	REDIR(save_target);
+
+	return 0;
 }
 
 static int
@@ -5351,6 +5424,10 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 
 	OUT("{ ");
 
+    if((arg->flags & A1C_GEN_JER)
+       && (expr->marker.flags & EM_EXTENSION_GROUP)) {
+        OUT("ATF_EXTENSION_GROUP | ");
+    }
     if(is_open_type(arg, expr, opt_ioc)) {
         OUT("ATF_OPEN_TYPE | ");
     } else if(outmost_tag && outmost_tag->tag_value == -1) {
@@ -5485,7 +5562,12 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 	}
     OUT(", ");
 	if(C99_MODE) OUT(".jer_constraints = ");
-	OUT("0");
+	if(expr->constraints && jer_fixed_bit_string_size(arg, expr, 0)) {
+		OUT("&asn_JER_memb_%s_constr_%d",
+			MKID(expr), expr->_type_unique_index);
+	} else {
+		OUT("0");
+	}
     OUT(" },\n");
 
 	if(try_inline_default(arg, expr, 0)) {
@@ -5532,6 +5614,9 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 	if(emit_member_PER_constraints(arg, expr, "memb"))
 		return -1;
 
+	if(expr->constraints && emit_member_JER_constraints(arg, expr, "memb"))
+		return -1;
+
 	REDIR(save_target);
 
 	return 0;
@@ -5554,6 +5639,9 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
 		return -1;
 
 	if(emit_member_PER_constraints(arg, expr, "type"))
+		return -1;
+
+	if(emit_member_JER_constraints(arg, expr, "type"))
 		return -1;
 
 	if(HIDE_INNER_DEFS)
@@ -5677,7 +5765,13 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
 			else
 				FUNCREF(constraint);
 		}
-        OUT(", 0");
+        OUT(", ");
+        if(jer_fixed_bit_string_size(arg, expr, 0)) {
+            OUT("&asn_JER_type_%s_constr_%d",
+                expr_id, expr->_type_unique_index);
+        } else {
+            OUT("0");
+        }
         OUT(" },\n");
 
         free(p);

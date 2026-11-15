@@ -97,6 +97,12 @@ enum asn1c_flags {
 	 * -debug-output-origin-lines
 	 */
 	A1C_DEBUG_OUTPUT_ORIGIN_LINES = 0x400000,
+
+	/*
+	 * Generate JSON Encoding Rules (X.697) support code.
+	 * -gen-JER
+	 */
+	A1C_GEN_JER = 0x800000,
 };
 
 /*

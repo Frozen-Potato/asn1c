@@ -59,7 +59,16 @@ typedef void asn_oer_constraints_t;
  * Hence no JER header is included here: jer_encoder.h and jer_decoder.h are
  * only present in builds that were generated with JER support.
  */
-struct asn_jer_constraints_s;	/* Forward declaration (jer_support.h) */
+
+/*
+ * Pre-computed JER constraints. Unconditional, so that generated tables
+ * compile whether or not JER is enabled.
+ */
+typedef struct asn_jer_constraints_s {
+    ssize_t size;    /* -1 (no constraint) or >= 0 */
+    const char *wire_name; /* Optional JER NAME override for members */
+    unsigned int flags;    /* Reserved for instruction-specific flags */
+} asn_jer_constraints_t;
 
 /* Flags used by the jer_encode() and (*jer_type_encoder_f) */
 enum jer_encoder_flags_e {
@@ -257,7 +266,8 @@ typedef struct asn_TYPE_descriptor_s {
     ATF_NOFLAGS,
     ATF_POINTER = 0x01,   /* Represented by the pointer */
     ATF_OPEN_TYPE = 0x02, /* Open Type */
-    ATF_ANY_TYPE = 0x04   /* ANY type (deprecated!) */
+    ATF_ANY_TYPE = 0x04,  /* ANY type (deprecated!) */
+    ATF_EXTENSION_GROUP = 0x08 /* Members of this [[ ]] group are flattened by JER */
   };
 typedef struct asn_TYPE_member_s {
     enum asn_TYPE_flags_e flags; /* Element's presentation flags */

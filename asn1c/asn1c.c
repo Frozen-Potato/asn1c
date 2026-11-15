@@ -170,6 +170,8 @@ main(int ac, char **av) {
             }
             if(strcmp(optarg, "en-PER") == 0) {
                 asn1_compiler_flags |= A1C_GEN_PER;
+            } else if(strcmp(optarg, "en-JER") == 0) {
+                asn1_compiler_flags |= A1C_GEN_JER;
             } else if(strcmp(optarg, "en-OER") == 0) {
                 asn1_compiler_flags |= A1C_GEN_OER;
             } else if(strcmp(optarg, "en-example") == 0) {
@@ -186,6 +188,8 @@ main(int ac, char **av) {
         case 'n':
             if(strcmp(optarg, "o-gen-PER") == 0) {
                 asn1_compiler_flags &= ~A1C_GEN_PER;
+            } else if(strcmp(optarg, "o-gen-JER") == 0) {
+                asn1_compiler_flags &= ~A1C_GEN_JER;
             } else if(strcmp(optarg, "o-gen-OER") == 0) {
                 asn1_compiler_flags &= ~A1C_GEN_OER;
             } else if(strcmp(optarg, "o-gen-example") == 0) {
@@ -279,6 +283,10 @@ main(int ac, char **av) {
         }
         /* Drop the stray 'F' the -Fgo bundle set (don't trip "-F requires -E"). */
         print_arg__fix_n_print = 0;
+    }
+    if(go_requested && (asn1_compiler_flags & A1C_GEN_JER)) {
+        fprintf(stderr, "asn1c: -gen-JER is not supported with -Fgo yet\n");
+        exit(EX_USAGE);
     }
     if(print_arg__print_out) {
         if((asn1_printer_flags & APF_PRINT_CONSTRAINTS)
@@ -623,6 +631,8 @@ usage(const char *av0) {
 
 "  -no-gen-OER           Do not generate the OER (X.696) support code\n"
 "  -no-gen-PER           Do not generate the PER (X.691) support code\n"
+"  -gen-JER              Generate the JER (X.697) support code\n"
+"  -no-gen-JER           Do not generate the JER support code (default)\n"
 "  -no-gen-example       Do not generate the ASN.1 format converter example\n"
 "  -gen-autotools        Generate example top-level configure.ac and Makefile.am\n"
 "  -pdu={all|auto|Type}  Generate PDU table (discover PDUs automatically)\n"

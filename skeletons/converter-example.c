@@ -155,6 +155,10 @@ static syntax_selector input_encodings[] = {
      "Input is in Aligned PER (Packed Encoding Rules)"},
     {"xer", ATS_BASIC_XER, CODEC_OFFSET(xer_decoder),
      "Input is in XER (XML Encoding Rules)"},
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+    {"jer", ATS_JER, CODEC_OFFSET(jer_decoder),
+     "Input is in JER (JSON Encoding Rules)"},
+#endif
     {0, ATS_INVALID, 0, 0}};
 
 static syntax_selector output_encodings[] = {
@@ -168,6 +172,10 @@ static syntax_selector output_encodings[] = {
      "Output as Aligned PER (Packed Encoding Rules)"},
     {"xer", ATS_BASIC_XER, CODEC_OFFSET(xer_encoder),
      "Output as XER (XML Encoding Rules)"},
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+    {"jer", ATS_JER, CODEC_OFFSET(jer_encoder),
+     "Output as JER (JSON Encoding Rules)"},
+#endif
     {"text", ATS_NONSTANDARD_PLAINTEXT, CODEC_OFFSET(print_struct),
      "Output as plain semi-structured text"},
     {"null", ATS_INVALID, CODEC_OFFSET(print_struct),
@@ -425,7 +433,9 @@ main(int ac, char *av[]) {
     if(isatty(1)) {
         const int is_text_output = osyntax == ATS_NONSTANDARD_PLAINTEXT
                                    || osyntax == ATS_BASIC_XER
-                                   || osyntax == ATS_CANONICAL_XER;
+                                   || osyntax == ATS_CANONICAL_XER
+                                   || osyntax == ATS_JER
+                                   || osyntax == ATS_JER_MINIFIED;
         if(is_text_output) {
             binary_out = stdout;
         } else {
@@ -811,6 +821,24 @@ data_decode_from_file(enum asn_transfer_syntax isyntax, asn_TYPE_descriptor_t *p
         DynamicBuffer.allocated = 0;
         DynamicBuffer.bytes_shifted = 0;
         DynamicBuffer.nreallocs = 0;
+    }
+
+    if(isyntax == ATS_JER) {
+        /*
+         * JER values are small: read all the input into the buffer, so that
+         * the decoder is called once and no token is split across chunks.
+         */
+        while((rd = fread(fbuf, 1, fbuf_size, file)) > 0)
+            add_bytes_to_buffer(fbuf, rd);
+        /* Skip the white space between the values. */
+        while(DynamicBuffer.length
+              && (DynamicBuffer.data[DynamicBuffer.offset] == ' '
+                  || DynamicBuffer.data[DynamicBuffer.offset] == '\t'
+                  || DynamicBuffer.data[DynamicBuffer.offset] == '\r'
+                  || DynamicBuffer.data[DynamicBuffer.offset] == '\n')) {
+            DynamicBuffer.offset++;
+            DynamicBuffer.length--;
+        }
     }
 
     old_offset = DynamicBuffer.bytes_shifted + DynamicBuffer.offset;

@@ -555,6 +555,8 @@ may produce a shorter executable.}\\
 \midrule
 {\ttfamily -no-gen-OER} & {\small Do not generate the Octet Encoding Rules (OER, X.696) support code.}\\
 {\ttfamily -no-gen-PER} & {\small Do not generate the Packed Encoding Rules (PER, X.691) support code.}\\
+{\ttfamily -gen-JER} & {\small Generate the JSON Encoding Rules (JER, X.697) support code.}\\
+{\ttfamily -no-gen-JER} & {\small Do not generate the JER support code (default).}\\
 {\ttfamily -no-gen-example} & {\small Do not generate the ASN.1 format converter example.}\\
 {\ttfamily -pdu=\{\textbf{all}|\textbf{auto}|\emph{Type}\}} & {\small Create a PDU table for specified types, or discover the Protocol Data Units automatically.
 In case of \texttt{-pdu=\textbf{all}}, all ASN.1 types defined in all modules wil form a PDU table. In case of \texttt{-pdu=\textbf{auto}}, all types not referenced by any other type will form a PDU table. If \texttt{\emph{Type}} is an ASN.1 type identifier, it is added to a PDU table. The last form may be specified multiple times.}\\ \\

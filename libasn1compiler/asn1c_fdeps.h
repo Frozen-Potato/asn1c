@@ -29,6 +29,8 @@ typedef struct {
         FDEP_COMMON_FILES = (1 << 4), /* Section for mandatory dependencies */
         FDEP_CODEC_OER = (1 << 5),    /* Use contents only if -gen-OER */
         FDEP_CODEC_PER = (1 << 6),    /* Use contents only if -gen-PER */
+        FDEP_CODEC_JER = (1 << 7),    /* Use contents only if -gen-JER */
+        FDEP_IGNORE_JER = (1 << 8),   /* CODEC-JER without -gen-JER: inert */
     } section;                        /* Some file refers to it */
 
     /* Whether this chain is alive and has to be present in the output */
