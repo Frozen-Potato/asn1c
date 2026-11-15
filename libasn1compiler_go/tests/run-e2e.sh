@@ -180,6 +180,41 @@ run_cycle() {
     fi
 }
 
+# A PDU whose DecodeJER<T> name equals another PDU's Decode<T>: fine without
+# -gen-JER, refused (exit 70) with it.
+run_jer_clash() {
+    work="$tmp/jerclash"
+    mkdir -p "$work/c" "$work/c2"
+    echo "== run-e2e: DecodeJER name clash =="
+    cat >"$work/jc.asn" <<'EOS'
+JC DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+X ::= SEQUENCE { a INTEGER }
+JERX ::= SEQUENCE { b BOOLEAN }
+END
+EOS
+    (
+        cd "$work"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" jc.asn
+    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: plain run failed" >&2; return 1; }
+    ( cd "$work/go" && export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types" && go build ./... ) || return 1
+    rc=0
+    (
+        cd "$work"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER -gen-JER \
+            -pdu=auto -D "$work/c2" -Fgo="$work/go2" jc.asn
+    ) >"$work/asn1c2.log" 2>&1 || rc=$?
+    if [ "$rc" != 70 ] || ! grep -q 'collision in module.*DecodeJERX' "$work/asn1c2.log"; then
+        cat "$work/asn1c2.log" >&2
+        echo "run-e2e: -gen-JER clash: exit $rc, want 70 naming DecodeJERX" >&2
+        return 1
+    fi
+}
+
 # A one-way import between two modules still generates and builds.
 run_oneway() {
     work="$tmp/oneway"
@@ -351,6 +386,7 @@ run_rt_skeleton_sync() {
 }
 
 run_cycle
+run_jer_clash
 run_oneway
 run_unsupported_default
 run_stdlib_collision

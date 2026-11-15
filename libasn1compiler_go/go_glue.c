@@ -4036,6 +4036,80 @@ static int glue_foreign_modules(const char *mod, const char ***out) {
     return n_fm;
 }
 
+typedef struct { const char *module; const char *pkg; flat_type *root; } pdu_ent;
+
+extern int go_names_rows_n(void);
+extern const char *go_names_row_module(int i);
+extern const char *go_names_row_goname(int i);
+extern const char *go_names_row_kind(int i);
+extern const char *go_names_row_sf_owner(int i);
+
+/* kinds whose Go name lives at package level (go_names.c kind_is_package_scoped) */
+static int row_kind_package_scoped(const char *k) {
+    static const char *const ks[] = { "type", "inline", "choice-pr",
+        "choice-const", "enum-const", "value-const", "spec-key", "spec-value",
+        "spec-pr", "helper", "default-value" };
+    for(size_t i = 0; k && i < sizeof ks / sizeof *ks; i++)
+        if(strcmp(k, ks[i]) == 0) return 1;
+    return 0;
+}
+
+/* pdu_api_clashes — every PDU's Decode<T> / DecodeJER<T> func must differ from
+ * the other package-level names and the other PDUs' API names, and its
+ * Encode / EncodeJER method from the fields of T's struct. Reports every
+ * clash; returns the count. */
+static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
+    int bad = 0, jer = go_jer_enabled();
+    int nrows = go_names_rows_n();
+    char **go = calloc((size_t)(n_pdu ? n_pdu : 1), sizeof *go);
+    if(!go) return 0;
+    for(int i = 0; i < n_pdu; i++) go[i] = gcamel_flat(go_flat_ir_name(pdus[i].root));
+    for(int i = 0; i < n_pdu; i++) {
+        const char *mod = pdus[i].module;
+        for(int v = 0; v < (jer ? 2 : 1); v++) {
+            char *fn = gfmt(v ? "DecodeJER%s" : "Decode%s", go[i]);
+            for(int r = 0; r < nrows; r++) {
+                const char *rm = go_names_row_module(r), *rn = go_names_row_goname(r);
+                const char *rk = go_names_row_kind(r);
+                if(!rm || !rn || strcmp(rm, mod) != 0 || strcmp(rn, fn) != 0
+                   || !row_kind_package_scoped(rk)) continue;
+                fprintf(stderr, "asn1cgo: collision in module %s: %s <- %s (pdu-func) and %s (%s)\n",
+                        mod, fn, go[i], rn, rk);
+                bad++;
+            }
+            for(int j = i + 1; j < n_pdu; j++) {
+                if(strcmp(pdus[j].module, mod) != 0) continue;
+                for(int w = 0; w < (jer ? 2 : 1); w++) {
+                    char *f2 = gfmt(w ? "DecodeJER%s" : "Decode%s", go[j]);
+                    if(strcmp(fn, f2) == 0) {
+                        fprintf(stderr, "asn1cgo: collision in module %s: %s <- %s (pdu-func) and %s (pdu-func)\n",
+                                mod, fn, go[i], go[j]);
+                        bad++;
+                    }
+                    free(f2);
+                }
+            }
+            free(fn);
+        }
+        for(int v = 0; v < (jer ? 2 : 1); v++) {
+            const char *m = v ? "EncodeJER" : "Encode";
+            for(int r = 0; r < nrows; r++) {
+                const char *rm = go_names_row_module(r), *rn = go_names_row_goname(r);
+                const char *rk = go_names_row_kind(r), *ro = go_names_row_sf_owner(r);
+                if(!rm || !rn || !rk || !ro || strcmp(rk, "field") != 0
+                   || strcmp(rm, mod) != 0 || strcmp(ro, go[i]) != 0
+                   || strcmp(rn, m) != 0) continue;
+                fprintf(stderr, "asn1cgo: collision in module %s: %s.%s <- method and field %s\n",
+                        mod, go[i], m, rn);
+                bad++;
+            }
+        }
+    }
+    for(int i = 0; i < n_pdu; i++) free(go[i]);
+    free(go);
+    return bad;
+}
+
 int go_glue_emit(const char *go_outdir, const char *go_module_basename,
                  const char *go_rt_module);
 int
@@ -4059,7 +4133,6 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
     for(int p = 0; p < /* g_conv_n_pdus */ 0 + g_conv_n_pdus; p++) n_pdus++;
     /* (n_pdus via the table below) */
 
-    typedef struct { const char *module; const char *pkg; flat_type *root; } pdu_ent;
     pdu_ent *pdus = NULL;
     int n_pdu_e = 0, cap_pdu_e = 0;
     for(int p = 0; p < g_conv_n_pdus; p++) {
@@ -4078,6 +4151,13 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         n_pdu_e++;
     }
     (void)n; (void)n_pdus;
+
+    /* PDU API name clashes (not in the dry run: it would print twice) */
+    if(!g_dry_cb && pdu_api_clashes(pdus, n_pdu_e)) {
+        free(pdus);
+        glue_failed = 1;
+        return -1;
+    }
 
     /* distinct owning modules, first-seen order */
     const char **mods = NULL;

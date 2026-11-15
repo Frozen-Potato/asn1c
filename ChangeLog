@@ -18,6 +18,10 @@
       and constraint checks as Encode / Decode<T>. Without -gen-JER the
       generated code is unchanged. The runtime module now always contains
       the JER codec.
+    * Go backend: a PDU whose Decode<T> / DecodeJER<T> function name equals
+      another name of its package, or whose Encode / EncodeJER method name
+      equals one of its fields, made Go that did not compile; asn1c now stops
+      with a collision error (exit 70).
 
 0.9.29-go.10:
     FIXES:

@@ -59,7 +59,7 @@ run_case() {
         return
     fi
     if [ "$rc" != 0 ]; then
-        d=$(grep -E '^asn1cgo: ' "$w/asn1c.log" | head -1)
+        d=$(grep -E '^asn1cgo: ' "$w/asn1c.log" | grep -v '^asn1cgo: census:' | head -1)
         if [ -z "$d" ]; then
             d="exit $rc without an asn1cgo refusal: $(tail -1 "$w/asn1c.log")"
             printf 'BROKEN\t%s\n' "$d" >"$tmp/$n.res"
