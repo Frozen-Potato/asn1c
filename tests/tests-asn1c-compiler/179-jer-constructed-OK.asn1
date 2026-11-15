@@ -1,0 +1,16 @@
+ModuleJERConstructed
+    { iso org(3) dod(6) internet(1) private(4) enterprise(1)
+        spelio(9363) software(1) asn1c(5) test(1) 179 }
+DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+S ::= SEQUENCE { a INTEGER, b BOOLEAN OPTIONAL, ..., [[ c INTEGER, d BOOLEAN OPTIONAL ]], e INTEGER OPTIONAL }
+N ::= SEQUENCE { a INTEGER, b BOOLEAN }
+T ::= SET { x INTEGER, y BOOLEAN DEFAULT TRUE }
+G ::= SET { p INTEGER, ..., [[ q BOOLEAN ]] }
+C ::= CHOICE { i INTEGER, s SEQUENCE { z NULL }, ... }
+L ::= SEQUENCE OF INTEGER
+SL ::= SET OF BOOLEAN
+Deep ::= SEQUENCE { l SEQUENCE OF C, t T OPTIONAL, f BIT STRING (SIZE(12)) }
+CLS ::= CLASS { &id INTEGER UNIQUE, &Type } WITH SYNTAX { &Type IDENTIFIED BY &id }
+Objs CLS ::= { { INTEGER IDENTIFIED BY 1 } | { BOOLEAN IDENTIFIED BY 2 } }
+O ::= SEQUENCE { id CLS.&id ({Objs}), value CLS.&Type ({Objs}{@id}) }
+END

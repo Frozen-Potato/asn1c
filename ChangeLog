@@ -6,9 +6,9 @@
       adds "-ijer" / "-ojer" to converter-example. The primitive types are
       done (BOOLEAN, NULL, INTEGER, ENUMERATED, REAL, OCTET STRING,
       BIT STRING, OBJECT IDENTIFIER, RELATIVE-OID, times, character strings,
-      ANY), with the fixed-size BIT STRING constraint; the constructed types
-      (SEQUENCE, SET, CHOICE, SEQUENCE OF, SET OF, open types) are not done
-      yet.
+      ANY), with the fixed-size BIT STRING constraint, and the constructed
+      types (SEQUENCE with [[ ]] groups, SET, CHOICE, SEQUENCE OF, SET OF,
+      open types). JER remains C-only (refused with -Fgo).
       Generated C: every descriptor and member initializer gains a fourth
       encoding-constraints value (0), the new JER constraints slot.
 

@@ -354,7 +354,12 @@ asn_TYPE_operation_t asn_OP_SEQUENCE_OF = {
 #endif /* ASN_DISABLE_PER_SUPPORT */
 	SEQUENCE_OF_random_fill,
 	0,	/* Use generic outmost tag fetcher */
-	0,	/* No JER decoder yet */
-	0	/* No JER encoder yet */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	SEQUENCE_OF_decode_jer,
+	SEQUENCE_OF_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 

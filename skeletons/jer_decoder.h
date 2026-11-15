@@ -127,6 +127,58 @@ int jer_unescape(const char *content, size_t content_size,
                  size_t *out_size);
 
 /*
+ * Helpers of the constructed types (SEQUENCE, SET, CHOICE, SEQUENCE OF,
+ * SET OF). They work on a buffer that holds one COMPLETE JSON value, so the
+ * constructed decoders never see a partial value; like the primitives they
+ * answer RC_WMORE (nothing consumed) when the value is not complete yet.
+ * Not for applications: the API is subject to changes.
+ *
+ * The decoders recurse once per level of JSON nesting, so the nesting depth
+ * is limited (JER_MAX_NESTING) instead of measuring the stack: the stack
+ * check of the other decoders (ASN__STACK_OVERFLOW_CHECK) relies on the
+ * codec context living on the machine stack.
+ *
+ * Locate the JSON value at the start of the buffer (JSON whitespace before
+ * it is skipped). A scalar (number, true, false, null) is complete only when
+ * a delimiter or whitespace follows it inside the buffer.
+ * RETURN VALUES:
+ *  1: *vstart is the first byte of the value, *vend one past its last byte.
+ *  0: The value is not complete, more data is needed.
+ * -1: Not JSON, or nested deeper than JER_MAX_NESTING.
+ */
+#define JER_MAX_NESTING 256
+int jer_value_span(const void *buf, size_t size, size_t *vstart,
+                   size_t *vend);
+
+/* Cursor over the members of one JSON object or the items of one array. */
+typedef struct jer_cursor_s {
+    const char *p;
+    const char *end;
+    int first;
+} jer_cursor_t;
+
+/* Start iterating the object / array that is the whole buffer. */
+int jer_object_open(jer_cursor_t *c, const void *buf, size_t size);
+int jer_array_open(jer_cursor_t *c, const void *buf, size_t size);
+
+/*
+ * Fetch the next member of the object: the (not unescaped) key text between
+ * the quotes and the value, which is delimited exactly (no whitespace).
+ * RETURN VALUES:
+ *  1: A member is returned.
+ *  0: End of the object.
+ * -1: Malformed JSON.
+ */
+int jer_object_next(jer_cursor_t *c, const char **key, size_t *key_size,
+                    const char **val, size_t *val_size);
+
+/* The same for the items of an array (1: item, 0: end, -1: malformed). */
+int jer_array_next(jer_cursor_t *c, const char **val, size_t *val_size);
+
+/* Whether the key text (see above) is the given name: 1 or 0. */
+int jer_key_equals(const char *key, size_t key_size, const char *name);
+
+/*
  * Skip the series of anticipated extensions.
  */
 int jer_skip_unknown(jer_check_sym_e scv, ber_tlv_len_t *depth);

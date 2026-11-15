@@ -69,6 +69,7 @@ libasn1cskeletons_la_SOURCES =                  \
     OCTET_STRING_oer.c                          \
     OCTET_STRING_jer.c                          \
     OPEN_TYPE.c OPEN_TYPE.h OPEN_TYPE_oer.c     \
+    OPEN_TYPE_jer.c                             \
     ObjectDescriptor.c ObjectDescriptor.h       \
     PrintableString.c PrintableString.h         \
     REAL.c REAL.h                               \
@@ -97,12 +98,17 @@ libasn1cskeletons_la_SOURCES =                  \
     ber_tlv_length.c ber_tlv_length.h           \
     ber_tlv_tag.c ber_tlv_tag.h                 \
     constr_CHOICE.c constr_CHOICE.h             \
+    constr_CHOICE_jer.c                         \
     constr_CHOICE_oer.c                         \
     constr_SEQUENCE.c constr_SEQUENCE.h         \
+    constr_SEQUENCE_jer.c                       \
     constr_SEQUENCE_oer.c                       \
     constr_SEQUENCE_OF.c constr_SEQUENCE_OF.h   \
+    constr_SEQUENCE_OF_jer.c                    \
     constr_SET.c constr_SET.h                   \
+    constr_SET_jer.c                            \
     constr_SET_OF.c constr_SET_OF.h             \
+    constr_SET_OF_jer.c                         \
     constr_SET_OF_oer.c                         \
     constr_TYPE.c constr_TYPE.h                 \
     constraints.c constraints.h                 \

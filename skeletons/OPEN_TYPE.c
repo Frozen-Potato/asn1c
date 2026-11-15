@@ -32,8 +32,13 @@ asn_TYPE_operation_t asn_OP_OPEN_TYPE = {
 #endif
 	0,  /* Random fill is not supported for open type */
 	0,	/* Use generic outmost tag fetcher */
-	0,	/* No JER decoder yet */
-	0	/* No JER encoder yet */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	OPEN_TYPE_decode_jer,
+	OPEN_TYPE_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 
 #undef  ADVANCE

@@ -74,6 +74,7 @@ TESTS += check-src/check-176.-gen-PER.c
 TESTS += check-src/check-177.-fcompound-names.-gen-PER.c
 TESTS += check-src/check-177.-fcompound-names.-fwide-types.-gen-PER.c
 TESTS += check-src/check-178.-gen-JER.c
+TESTS += check-src/check-179.-fcompound-names.-gen-JER.c
 
 if TEST_64BIT
 TESTS += check-src/check64-134.-gen-PER.c

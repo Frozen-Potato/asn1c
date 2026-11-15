@@ -19,6 +19,9 @@ extern "C" {
 asn_struct_compare_f SEQUENCE_OF_compare;
 der_type_encoder_f SEQUENCE_OF_encode_der;
 xer_type_encoder_f SEQUENCE_OF_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_encoder_f SEQUENCE_OF_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 per_type_encoder_f SEQUENCE_OF_encode_uper;
 per_type_encoder_f SEQUENCE_OF_encode_aper;
 extern asn_TYPE_operation_t asn_OP_SEQUENCE_OF;
@@ -28,6 +31,9 @@ extern asn_TYPE_operation_t asn_OP_SEQUENCE_OF;
 #define	SEQUENCE_OF_constraint	SET_OF_constraint
 #define	SEQUENCE_OF_decode_ber	SET_OF_decode_ber
 #define	SEQUENCE_OF_decode_xer	SET_OF_decode_xer
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+#define	SEQUENCE_OF_decode_jer	SET_OF_decode_jer
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 #define	SEQUENCE_OF_decode_oer  SET_OF_decode_oer
 #define	SEQUENCE_OF_encode_oer  SET_OF_encode_oer
 #define	SEQUENCE_OF_decode_uper	SET_OF_decode_uper

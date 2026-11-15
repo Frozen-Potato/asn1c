@@ -42,6 +42,27 @@ asn_dec_rval_t OPEN_TYPE_xer_get(const asn_codec_ctx_t *opt_codec_ctx,
                                  const asn_TYPE_member_t *element,
                                  const void *ptr, size_t size);
 
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+/*
+ * JER: the value of an open type is the JER of the selected type, unwrapped.
+ * The selector needs the identifier member to be decoded before it.
+ */
+#define OPEN_TYPE_decode_jer NULL
+jer_type_encoder_f OPEN_TYPE_encode_jer;
+
+asn_dec_rval_t OPEN_TYPE_jer_get(const asn_codec_ctx_t *opt_codec_ctx,
+                                 const asn_TYPE_descriptor_t *parent_type,
+                                 void *parent_structure,
+                                 const asn_TYPE_member_t *element,
+                                 const void *ptr, size_t size);
+
+asn_enc_rval_t OPEN_TYPE_jer_put(const asn_TYPE_descriptor_t *parent_type,
+                                 const void *parent_structure,
+                                 const asn_TYPE_member_t *element, int ilevel,
+                                 enum jer_encoder_flags_e flags,
+                                 asn_app_consume_bytes_f *cb, void *app_key);
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
+
 asn_dec_rval_t OPEN_TYPE_oer_get(const asn_codec_ctx_t *opt_codec_ctx,
                                  const asn_TYPE_descriptor_t *parent_type,
                                  void *parent_structure,

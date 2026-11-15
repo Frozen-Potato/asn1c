@@ -113,3 +113,9 @@ RELATIVE-OID.h RELATIVE-OID_jer.c OBJECT_IDENTIFIER.h OCTET_STRING.h
 UTCTime.h UTCTime_jer.c GeneralizedTime.h OCTET_STRING.h
 UniversalString.h UniversalString_jer.c UTF8String.h OCTET_STRING.h
 asn_codecs_prim.h asn_codecs_prim_jer.c
+OPEN_TYPE.h OPEN_TYPE_jer.c constr_CHOICE.h
+constr_CHOICE.h constr_CHOICE_jer.c
+constr_SEQUENCE.h constr_SEQUENCE_jer.c OPEN_TYPE.h OPEN_TYPE_jer.c
+constr_SET.h constr_SET_jer.c constr_SEQUENCE.h OPEN_TYPE.h OPEN_TYPE_jer.c
+constr_SET_OF.h constr_SET_OF_jer.c asn_SET_OF.h
+constr_SEQUENCE_OF.h constr_SEQUENCE_OF_jer.c constr_SET_OF.h constr_SET_OF_jer.c

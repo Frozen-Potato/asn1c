@@ -452,6 +452,183 @@ fail:
 	return -1;
 }
 
+#define JER__SCALAR_CHAR(c)                                              \
+    (((c) >= '0' && (c) <= '9') || ((c) >= 'a' && (c) <= 'z')          \
+     || ((c) >= 'A' && (c) <= 'Z') || (c) == '-' || (c) == '+'         \
+     || (c) == '.')
+
+int
+jer_value_span(const void *buf, size_t size, size_t *vstart, size_t *vend) {
+	const char *base = (const char *)buf;
+	const char *p, *end = base + size;
+	const char *start;
+
+	if(!buf) return 0;
+	p = base + jer_whitespace_span(base, size);
+	if(p >= end) return 0;
+	start = p;
+
+	if(*p == '"') {
+		for(p++; p < end; p++) {
+			int ch = *(const unsigned char *)p;
+			if(ch == '\\') {
+				if(++p >= end) return 0;
+			} else if(ch == '"') {
+				break;
+			} else if(ch < 0x20) {
+				return -1;
+			}
+		}
+		if(p >= end) return 0;
+		p++;
+	} else if(*p == '{' || *p == '[') {
+		size_t depth = 0;
+		int in_string = 0;
+		for(; p < end; p++) {
+			int ch = *(const unsigned char *)p;
+			if(in_string) {
+				if(ch == '\\') {
+					if(++p >= end) return 0;
+				} else if(ch == '"') {
+					in_string = 0;
+				} else if(ch < 0x20) {
+					return -1;
+				}
+				continue;
+			}
+			if(ch == '"') in_string = 1;
+			else if(ch == '{' || ch == '[') {
+				if(++depth > JER_MAX_NESTING) return -1;
+			}
+			else if(ch == '}' || ch == ']') {
+				if(--depth == 0) break;
+			}
+		}
+		if(p >= end) return 0;
+		p++;
+	} else {
+		for(; p < end && JER__SCALAR_CHAR(*(const unsigned char *)p); p++)
+			;
+		if(p == start) return -1;
+		if(p >= end) return 0;	/* May continue in the next chunk */
+	}
+
+	*vstart = (size_t)(start - base);
+	*vend = (size_t)(p - base);
+	return 1;
+}
+
+static int
+jer__open(jer_cursor_t *c, const void *buf, size_t size, char open) {
+	size_t vs, ve;
+
+	if(jer_value_span(buf, size, &vs, &ve) != 1) return -1;
+	if(((const char *)buf)[vs] != open) return -1;
+	c->p = (const char *)buf + vs + 1;
+	c->end = (const char *)buf + ve;
+	c->first = 1;
+	return 0;
+}
+
+int
+jer_object_open(jer_cursor_t *c, const void *buf, size_t size) {
+	return jer__open(c, buf, size, '{');
+}
+
+int
+jer_array_open(jer_cursor_t *c, const void *buf, size_t size) {
+	return jer__open(c, buf, size, '[');
+}
+
+/* The value at the cursor, exactly delimited. */
+static int
+jer__cursor_value(jer_cursor_t *c, const char **val, size_t *val_size) {
+	size_t vs, ve;
+
+	if(jer_value_span(c->p, (size_t)(c->end - c->p), &vs, &ve) != 1)
+		return -1;
+	*val = c->p + vs;
+	*val_size = ve - vs;
+	c->p += ve;
+	return 0;
+}
+
+/* Skip whitespace; then the closing bracket, a comma or neither. */
+static int
+jer__cursor_sep(jer_cursor_t *c, char close) {
+	c->p += jer_whitespace_span(c->p, (size_t)(c->end - c->p));
+	if(c->p >= c->end) return -1;
+	if(*c->p == close) {
+		c->p++;
+		return 0;	/* The end of the container */
+	}
+	if(!c->first) {
+		if(*c->p != ',') return -1;
+		c->p++;
+	}
+	return 1;
+}
+
+int
+jer_object_next(jer_cursor_t *c, const char **key, size_t *key_size,
+                const char **val, size_t *val_size) {
+	int sep = jer__cursor_sep(c, '}');
+	if(sep != 1) return sep;
+	c->first = 0;
+
+	c->p += jer_whitespace_span(c->p, (size_t)(c->end - c->p));
+	if(c->p >= c->end || *c->p != '"') return -1;
+	{
+		const char *k = ++c->p;
+		for(; c->p < c->end; c->p++) {
+			int ch = *(const unsigned char *)c->p;
+			if(ch == '\\') {
+				if(++c->p >= c->end) return -1;
+			} else if(ch == '"') {
+				break;
+			} else if(ch < 0x20) {
+				return -1;
+			}
+		}
+		if(c->p >= c->end) return -1;
+		*key = k;
+		*key_size = (size_t)(c->p - k);
+		c->p++;
+	}
+	c->p += jer_whitespace_span(c->p, (size_t)(c->end - c->p));
+	if(c->p >= c->end || *c->p != ':') return -1;
+	c->p++;
+	if(jer__cursor_value(c, val, val_size)) return -1;
+	return 1;
+}
+
+int
+jer_array_next(jer_cursor_t *c, const char **val, size_t *val_size) {
+	int sep = jer__cursor_sep(c, ']');
+	if(sep != 1) return sep;
+	c->first = 0;
+	if(jer__cursor_value(c, val, val_size)) return -1;
+	return 1;
+}
+
+int
+jer_key_equals(const char *key, size_t key_size, const char *name) {
+	size_t nlen = strlen(name);
+
+	if(!memchr(key, '\\', key_size))
+		return key_size == nlen && memcmp(key, name, nlen) == 0;
+	{
+		uint8_t *un = 0;
+		size_t un_size = 0;
+		int equal;
+		if(jer_unescape(key, key_size, JER_UNESC_UTF8, &un, &un_size))
+			return 0;
+		equal = (un_size == nlen && memcmp(un, name, nlen) == 0);
+		FREEMEM(un);
+		return equal;
+	}
+}
+
 /*
  * This is a vastly simplified, non-validating JSON tree skipper. [TODO]
  */
