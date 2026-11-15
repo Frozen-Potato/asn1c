@@ -11,7 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	asz "asn1cgo.test/go/aliassize"
 	oa "asn1cgo.test/go/optalias"
 	si "asn1cgo.test/go/seqofinl"
 	sn "asn1cgo.test/go/sofnull"
@@ -556,6 +558,71 @@ func TestOptAliasRoundTrip(t *testing.T) {
 		}
 		if back.Present != oa.CPrA || back.A == nil || *back.A != 3 {
 			t.Errorf("C decoded %+v", *back)
+		}
+	}
+}
+
+// An alias of a named SEQUENCE OF with a SIZE constraint, as an OPTIONAL
+// member and as a plain member (AliasSize in tests/e2e/seqof.asn): the
+// alias's own constraint function used to call itself, so Encode (which runs
+// the constraint check) never returned. Round trip with the OPTIONAL member
+// present and absent, APER cross-checked with the C converter, and Encode
+// must fail (not hang) for an out-of-range element and for a list longer than
+// the SIZE bound.
+func TestAliasSizeRoundTrip(t *testing.T) {
+	bin := converter(t)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-done:
+		case <-time.After(60 * time.Second):
+			panic("TestAliasSizeRoundTrip: Encode did not return")
+		}
+	}()
+	defer close(done)
+
+	b := asz.AsLi{1, 2, 3}
+	for _, c := range []struct {
+		xer string
+		v   asz.AsT
+	}{
+		{"<AsT><a><true/></a><b><AsIt>1</AsIt><AsIt>2</AsIt><AsIt>3</AsIt></b><c><AsIt>9</AsIt></c></AsT>",
+			asz.AsT{A: true, B: &b, C: asz.AsLi{9}}},
+		{"<AsT><a><false/></a><c><AsIt>0</AsIt><AsIt>255</AsIt><AsIt>7</AsIt><AsIt>8</AsIt></c></AsT>",
+			asz.AsT{C: asz.AsLi{0, 255, 7, 8}}},
+	} {
+		aper, err := c.v.Encode()
+		if err != nil {
+			t.Errorf("%s: encode: %v", c.xer, err)
+			continue
+		}
+		if ref := convPDU(t, bin, "AsT", []byte(c.xer), "-ixer", "-oaper"); !bytes.Equal(ref, aper) {
+			t.Errorf("%s: Go APER % x != C APER % x", c.xer, aper, ref)
+		}
+		if got := normXML(convPDU(t, bin, "AsT", aper, "-iaper", "-oxer")); got != normXML([]byte(c.xer)) {
+			t.Errorf("C XER of the Go APER = %s, want %s", got, c.xer)
+		}
+		back, err := asz.DecodeAsT(aper)
+		if err != nil {
+			t.Errorf("%s: decode: %v", c.xer, err)
+		} else if !reflect.DeepEqual(back, &c.v) {
+			t.Errorf("decoded %+v, want %+v", *back, c.v)
+		}
+	}
+
+	bad := []struct {
+		name string
+		v    asz.AsT
+	}{
+		{"element 300", asz.AsT{C: asz.AsLi{1, 300}}},
+		{"element 300 in the OPTIONAL member", asz.AsT{B: &asz.AsLi{300}, C: asz.AsLi{1}}},
+		{"5 elements", asz.AsT{C: asz.AsLi{1, 2, 3, 4, 5}}},
+		{"5 elements in the OPTIONAL member", asz.AsT{B: &asz.AsLi{1, 2, 3, 4, 5}, C: asz.AsLi{1}}},
+		{"empty list", asz.AsT{C: asz.AsLi{}}},
+	}
+	for _, c := range bad {
+		if _, err := c.v.Encode(); err == nil {
+			t.Errorf("%s: Encode succeeded, want a constraint error", c.name)
 		}
 	}
 }

@@ -108,3 +108,16 @@ M ::= SEQUENCE { a INTEGER (0..3), pf PFL OPTIONAL }
 C ::= CHOICE { a INTEGER (0..3), pf PFL }
 
 END
+
+AliasSize DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- An alias of a named SEQUENCE OF with a SIZE constraint, as an OPTIONAL
+-- member and as a plain member: the alias's own constraint function must
+-- check the list and its elements, not call itself.
+
+AsIt ::= INTEGER (0..255)
+AsLi ::= SEQUENCE (SIZE(1..4)) OF AsIt
+AsBLi ::= AsLi
+AsT ::= SEQUENCE { a BOOLEAN, b AsBLi OPTIONAL, c AsBLi }
+
+END

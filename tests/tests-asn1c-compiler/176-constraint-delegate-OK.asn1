@@ -1,0 +1,21 @@
+-- OK: a type-level constraint function delegates to the checker of the type
+-- it is implemented with, never to its own descriptor (which would call
+-- itself for ever): constrained aliases of BOOLEAN / INTEGER / REAL / SET OF /
+-- SEQUENCE OF, an alias of an alias, and an alias used as an OPTIONAL member.
+
+K176 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+B1 ::= BOOLEAN (TRUE | FALSE)
+I1 ::= INTEGER (MIN..MAX)
+It ::= INTEGER (0..255)
+Li ::= SEQUENCE OF INTEGER
+L3 ::= Li (SIZE(1..3))
+L4 ::= L3 (SIZE(1..2))
+St ::= SET (SIZE(1..3)) OF INTEGER
+St2 ::= St
+Fl ::= REAL (WITH COMPONENTS { mantissa (-16777215..16777215), base (2), exponent (-100..100) })
+Lt ::= SEQUENCE (SIZE(1..4)) OF It
+BLi ::= Lt
+T ::= SEQUENCE { a BOOLEAN, b BLi OPTIONAL }
+
+END

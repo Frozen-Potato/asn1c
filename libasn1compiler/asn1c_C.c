@@ -1487,9 +1487,10 @@ asn1c_lang_C_type_SIMPLE_TYPE(arg_t *arg) {
 		OUT("\t\tasn_app_constraint_failed_f *ctfailcb, void *app_key) {");
 		OUT("\n");
 		DEBUG("expr constraint checking code for %s", p);
-		if(asn1c_emit_constraint_checking_code(arg) == 1) {
-			OUT("return td->encoding_constraints.general_constraints"
-				"(td, sptr, ctfailcb, app_key);\n");
+		if(asn1c_emit_constraint_checking_code(arg, 1) == 1) {
+			OUT("return asn_DEF_%s.encoding_constraints."
+				"general_constraints(td, sptr, ctfailcb, app_key);\n",
+				c_name(arg).type.base_name);
 		}
 		INDENT(-1);
 		OUT("}\n");
@@ -5509,7 +5510,7 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 	tmp_arg = *arg;
 	tmp_arg.expr = expr;
 	DEBUG("member constraint checking code for %s", p);
-	if(asn1c_emit_constraint_checking_code(&tmp_arg) == 1) {
+	if(asn1c_emit_constraint_checking_code(&tmp_arg, 0) == 1) {
 		OUT("return td->encoding_constraints.general_constraints"
 			"(td, sptr, ctfailcb, app_key);\n");
 	}

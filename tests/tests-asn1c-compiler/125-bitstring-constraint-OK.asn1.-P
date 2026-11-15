@@ -46,7 +46,7 @@ T_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_BIT_STRING.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*

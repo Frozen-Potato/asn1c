@@ -177,7 +177,7 @@ Indirect_IEEE_binary32_constraint(const asn_TYPE_descriptor_t *td, const void *s
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_UnconstrainedREAL.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -260,7 +260,7 @@ IEEE_binary32_w_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_NativeReal.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -343,7 +343,7 @@ IEEE_binary32_0w_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_NativeReal.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -426,7 +426,7 @@ IEEE_binary32_w0_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_NativeReal.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -508,7 +508,7 @@ IEEE_binary64_w_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_NativeReal.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -587,7 +587,7 @@ IEEE_binary64_0w_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_NativeReal.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -666,7 +666,7 @@ IEEE_binary64_w0_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_NativeReal.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -755,7 +755,7 @@ indirect_ieee_binary32_2_constraint(const asn_TYPE_descriptor_t *td, const void 
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_Indirect_IEEE_binary32.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -778,7 +778,7 @@ ieee_binary32_w_3_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_IEEE_binary32_w.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -801,7 +801,7 @@ ieee_binary32_0w_4_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_IEEE_binary32_0w.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*
@@ -824,7 +824,7 @@ ieee_binary32_w0_5_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
 		/* Nothing is here. See below */
 	}
 	
-	return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
+	return asn_DEF_IEEE_binary32_w0.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);
 }
 
 /*

@@ -1,3 +1,14 @@
+0.9.29-go.10 (unreleased):
+    FIXES:
+    * C generator (also for plain C users): a type's own constraint function
+      no longer calls itself. The function of a constrained alias of a
+      SEQUENCE OF / SET OF, and of a constrained BOOLEAN, INTEGER or REAL
+      alias, ended with a call through its own descriptor, so
+      asn_check_constraints (and any encode that runs it) never returned. It
+      now delegates to the checker of the type it is implemented with, which
+      still checks the size and the elements. Member constraint functions are
+      unchanged.
+
 0.9.29-go.9:
     NEW:
     * Go backend: a DEFAULT on a BMPString or UniversalString member is

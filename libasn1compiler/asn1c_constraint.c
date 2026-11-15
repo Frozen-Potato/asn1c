@@ -29,7 +29,7 @@ ulong_optimization(arg_t *arg, asn1p_expr_type_e etype, asn1cnst_range_t *r_size
 }
 
 int
-asn1c_emit_constraint_checking_code(arg_t *arg) {
+asn1c_emit_constraint_checking_code(arg_t *arg, int type_level) {
 	asn1cnst_range_t *r_size;
 	asn1cnst_range_t *r_value;
 	asn1p_expr_t *expr = arg->expr;
@@ -230,7 +230,11 @@ asn1c_emit_constraint_checking_code(arg_t *arg) {
 		case ASN_CONSTR_SEQUENCE_OF:
 		case ASN_CONSTR_SET_OF:
 			OUT("/* Perform validation of the inner elements */\n");
-			OUT("return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);\n");
+			if(type_level)
+				OUT("return asn_DEF_%s.encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);\n",
+					c_name(arg).type.base_name);
+			else
+				OUT("return td->encoding_constraints.general_constraints(td, sptr, ctfailcb, app_key);\n");
 			break;
 		default:
 			OUT("/* Constraint check succeeded */\n");
