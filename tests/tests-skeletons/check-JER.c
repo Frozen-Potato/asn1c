@@ -809,11 +809,17 @@ check_encode_failures(void) {
     os.size = 3;
     assert(encode(&asn_DEF_OCTET_STRING, &os, ATS_JER) == 0);
 
-    /* BIT STRING with bits set in the unused part; fixed size mismatch */
-    bs.buf = (uint8_t *)"\xa1";
+    /* BIT STRING with bits set in the unused part: written as 0 bits;
+     * then a fixed size mismatch */
+    bs.buf = (uint8_t *)"\xbf";
     bs.size = 1;
     bs.bits_unused = 3;
-    assert(encode(&asn_DEF_BIT_STRING, &bs, ATS_JER) == 0);
+    {
+        char *t = encode(&asn_DEF_BIT_STRING, &bs, ATS_JER);
+        assert(t);
+        assert(strstr(t, "\"B8\""));
+        free(t);
+    }
     bs.buf = (uint8_t *)"\xa0";
     {
         char *t = encode(&asn_DEF_BIT_STRING, &bs, ATS_JER);

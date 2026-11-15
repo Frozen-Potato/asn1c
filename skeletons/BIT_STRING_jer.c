@@ -140,12 +140,12 @@ BIT_STRING_encode_jer(const asn_TYPE_descriptor_t *td,
     if(!cts && td) cts = td->encoding_constraints.jer_constraints;
     if(cts) fixed_bits = cts->size;
 
-    /* Validate the storage and the padding bits. */
+    /* Validate the storage. The padding bits of the last octet are not
+     * part of the value: they are written as 0 (as the PER and XER
+     * encoders ignore them), whatever the buffer holds. */
     if(!cb || !st || (st->size && !st->buf) || st->bits_unused < 0
        || st->bits_unused > 7 || st->size > SIZE_MAX / 8
-       || (st->size == 0 && st->bits_unused != 0)
-       || (st->size && st->bits_unused
-           && (st->buf[st->size - 1] & ((1u << st->bits_unused) - 1u))))
+       || (st->size == 0 && st->bits_unused != 0))
         ASN__ENCODE_FAILED;
     bit_count = st->size * 8 - (size_t)st->bits_unused;
     if(fixed_bits >= 0
@@ -161,12 +161,15 @@ BIT_STRING_encode_jer(const asn_TYPE_descriptor_t *td,
     }
     ASN__CALLBACK("\"", 1);
     for(i = 0; i < st->size; i++) {
+        unsigned int b = st->buf[i];
+        if(i + 1 == st->size)
+            b &= 0xffu << st->bits_unused; /* Zero the padding bits */
         if(n + 2 > sizeof(scratch)) {
             ASN__CALLBACK(scratch, n);
             n = 0;
         }
-        scratch[n++] = hex[st->buf[i] >> 4];
-        scratch[n++] = hex[st->buf[i] & 0x0f];
+        scratch[n++] = hex[(b >> 4) & 0x0f];
+        scratch[n++] = hex[b & 0x0f];
     }
     if(n) {
         ASN__CALLBACK(scratch, n);
@@ -209,7 +212,7 @@ BIT_STRING_decode_jer(const asn_codec_ctx_t *opt_codec_ctx,
     static const char empty_input[] = "";
     BIT_STRING_t *st;
     const asn_jer_constraints_t *cts = constraints;
-    const char *input, *p, *end;
+    const char *input = 0, *p = 0, *end;
     asn_dec_rval_t rval = {RC_FAIL, 0};
     uint8_t *new_buf = 0;
     size_t byte_count = 0, bit_count = 0;
