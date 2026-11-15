@@ -7,7 +7,7 @@
 #define	_JER_SUPPORT_H_
 
 #include <asn_system.h>		/* Platform-specific types */
-#include <constr_TYPE.h>	/* asn_jer_constraints_t */
+#include <asn_application.h>	/* asn_codec_ctx_t; asn_jer_constraints_t (constr_TYPE.h) */
 
 #if !defined(ASN_DISABLE_JER_SUPPORT)
 
