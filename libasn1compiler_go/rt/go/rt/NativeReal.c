@@ -67,7 +67,14 @@ asn_TYPE_operation_t asn_OP_NativeReal = {
 	NativeReal_encode_aper,
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	NativeReal_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	NativeReal_decode_jer,
+	NativeReal_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_NativeReal = {
 	"REAL",			/* The ASN.1 type is still REAL */
@@ -82,10 +89,10 @@ asn_TYPE_descriptor_t asn_DEF_NativeReal = {
 	0	/* No specifics */
 };
 
-static size_t NativeReal__float_size(const asn_TYPE_descriptor_t *td);
-static double NativeReal__get_double(const asn_TYPE_descriptor_t *td,
+size_t NativeReal__float_size(const asn_TYPE_descriptor_t *td);
+double NativeReal__get_double(const asn_TYPE_descriptor_t *td,
                                      const void *ptr);
-static ssize_t NativeReal__set(const asn_TYPE_descriptor_t *td, void **sptr,
+ssize_t NativeReal__set(const asn_TYPE_descriptor_t *td, void **sptr,
                                double d);
 
 /*
@@ -732,14 +739,14 @@ NativeReal_random_fill(const asn_TYPE_descriptor_t *td, void **sptr,
  * Local helper functions.
  */
 
-static size_t
+size_t
 NativeReal__float_size(const asn_TYPE_descriptor_t *td) {
     const asn_NativeReal_specifics_t *specs =
         (const asn_NativeReal_specifics_t *)td->specifics;
     return specs ? specs->float_size : sizeof(double);
 }
 
-static double
+double
 NativeReal__get_double(const asn_TYPE_descriptor_t *td, const void *ptr) {
     size_t float_size = NativeReal__float_size(td);
     if(float_size == sizeof(float)) {
@@ -749,7 +756,7 @@ NativeReal__get_double(const asn_TYPE_descriptor_t *td, const void *ptr) {
     }
 }
 
-static ssize_t  /* Returns -1 or float size. */
+ssize_t  /* Returns -1 or float size. */
 NativeReal__set(const asn_TYPE_descriptor_t *td, void **sptr, double d) {
     size_t float_size = NativeReal__float_size(td);
     void *native;

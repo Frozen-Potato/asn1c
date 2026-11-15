@@ -29,6 +29,10 @@ ber_type_decoder_f NativeInteger_decode_ber;
 der_type_encoder_f NativeInteger_encode_der;
 xer_type_decoder_f NativeInteger_decode_xer;
 xer_type_encoder_f NativeInteger_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f NativeInteger_decode_jer;
+jer_type_encoder_f NativeInteger_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 oer_type_decoder_f NativeInteger_decode_oer;
 oer_type_encoder_f NativeInteger_encode_oer;
 per_type_decoder_f NativeInteger_decode_uper;

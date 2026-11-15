@@ -12,6 +12,7 @@ check_PROGRAMS =            \
     check-INTEGER           \
     check-REAL              \
     check-XER               \
+    check-JER               \
     check-JER-support       \
     check-JER-disabled      \
     check-OER-support       \
@@ -34,6 +35,7 @@ check_PROGRAMS +=                   \
     check-32-INTEGER                \
     check-32-REAL                   \
     check-32-XER                    \
+    check-32-JER                    \
     check-32-JER-support            \
     check-32-OER-support            \
     check-32-OER-INTEGER            \
@@ -75,6 +77,9 @@ check_32_REAL_SOURCES=check-REAL.c
 check_32_XER_CFLAGS=$(CFLAGS_M32)
 check_32_XER_LDADD=$(LDADD_32)
 check_32_XER_SOURCES=check-XER.c
+check_32_JER_CFLAGS=$(CFLAGS_M32) -DASN_ENABLE_JER_SUPPORT
+check_32_JER_LDADD=$(LDADD_32)
+check_32_JER_SOURCES=check-JER.c
 check_32_JER_support_CFLAGS=$(CFLAGS_M32) -DASN_ENABLE_JER_SUPPORT
 check_32_JER_support_LDADD=$(LDADD_32)
 check_32_JER_support_SOURCES=check-JER-support.c
@@ -104,6 +109,7 @@ endif
 #  check-JER-support, check-32-JER-support: JER ON, linked with the libraries
 #      libasn1cskeletons.la / libasn1cskeletons_c89_32.la that are built ON;
 #  check-JER-disabled: JER OFF, linked with libasn1cskeletons_c89.la (OFF).
+check_JER_CFLAGS = -DASN_ENABLE_JER_SUPPORT
 check_JER_support_CFLAGS = -DASN_ENABLE_JER_SUPPORT
 check_JER_disabled_LDADD = -lm $(top_builddir)/skeletons/libasn1cskeletons_c89.la
 

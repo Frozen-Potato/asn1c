@@ -32,6 +32,15 @@ xer_type_decoder_f OCTET_STRING_decode_xer_binary;	/* 01010111010 */
 xer_type_decoder_f OCTET_STRING_decode_xer_utf8;	/* ASCII/UTF-8 */
 xer_type_encoder_f OCTET_STRING_encode_xer;
 xer_type_encoder_f OCTET_STRING_encode_xer_utf8;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f OCTET_STRING_decode_jer_hex;     /* Hexadecimal */
+jer_type_decoder_f OCTET_STRING_decode_jer_utf8;    /* ASCII/UTF-8 text */
+jer_type_decoder_f OCTET_STRING_decode_jer_latin1;  /* One character per octet */
+jer_type_encoder_f OCTET_STRING_encode_jer;
+jer_type_encoder_f OCTET_STRING_encode_jer_utf8;
+jer_type_encoder_f OCTET_STRING_encode_jer_latin1;
+#define OCTET_STRING_decode_jer  OCTET_STRING_decode_jer_hex
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 oer_type_decoder_f OCTET_STRING_decode_oer;
 oer_type_encoder_f OCTET_STRING_encode_oer;
 per_type_decoder_f OCTET_STRING_decode_uper;

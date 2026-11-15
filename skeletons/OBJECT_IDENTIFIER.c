@@ -42,7 +42,14 @@ asn_TYPE_operation_t asn_OP_OBJECT_IDENTIFIER = {
 	OCTET_STRING_encode_aper,
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	OBJECT_IDENTIFIER_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	OBJECT_IDENTIFIER_decode_jer,
+	OBJECT_IDENTIFIER_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_OBJECT_IDENTIFIER = {
 	"OBJECT IDENTIFIER",
@@ -143,7 +150,7 @@ OBJECT_IDENTIFIER_get_single_arc(const uint8_t *arcbuf, size_t arcbuf_len,
 
 }
 
-static ssize_t
+ssize_t
 OBJECT_IDENTIFIER__dump_body(const OBJECT_IDENTIFIER_t *st,
                              asn_app_consume_bytes_f *cb, void *app_key) {
     char scratch[32];

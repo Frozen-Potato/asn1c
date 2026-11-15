@@ -37,9 +37,21 @@ oer_type_decoder_f NativeReal_decode_oer;
 oer_type_encoder_f NativeReal_encode_oer;
 xer_type_decoder_f NativeReal_decode_xer;
 xer_type_encoder_f NativeReal_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f NativeReal_decode_jer;
+jer_type_encoder_f NativeReal_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 asn_random_fill_f  NativeReal_random_fill;
 
 #define NativeReal_constraint  asn_generic_no_constraint
+
+/*
+ * Accessors of the native value (used by the other codecs of this type).
+ * NativeReal__set() returns -1 or the size of the native type.
+ */
+size_t NativeReal__float_size(const asn_TYPE_descriptor_t *td);
+double NativeReal__get_double(const asn_TYPE_descriptor_t *td, const void *ptr);
+ssize_t NativeReal__set(const asn_TYPE_descriptor_t *td, void **sptr, double d);
 
 #ifdef __cplusplus
 }

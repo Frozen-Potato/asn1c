@@ -24,6 +24,10 @@ extern asn_TYPE_operation_t asn_OP_GeneralString;
 #define GeneralString_encode_der    OCTET_STRING_encode_der
 #define GeneralString_decode_xer    OCTET_STRING_decode_xer_hex
 #define GeneralString_encode_xer    OCTET_STRING_encode_xer
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+#define GeneralString_decode_jer   OCTET_STRING_decode_jer_latin1
+#define GeneralString_encode_jer   OCTET_STRING_encode_jer_latin1
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 #define GeneralString_decode_uper   OCTET_STRING_decode_uper
 #define GeneralString_encode_uper   OCTET_STRING_encode_uper
 #define GeneralString_decode_aper   OCTET_STRING_decode_aper

@@ -27,6 +27,10 @@ per_type_decoder_f REAL_decode_aper;
 per_type_encoder_f REAL_encode_aper;
 xer_type_decoder_f REAL_decode_xer;
 xer_type_encoder_f REAL_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f REAL_decode_jer;
+jer_type_encoder_f REAL_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 asn_random_fill_f  REAL_random_fill;
 
 #define REAL_free          ASN__PRIMITIVE_TYPE_free,
@@ -39,6 +43,15 @@ asn_random_fill_f  REAL_random_fill;
  ***********************************/
 
 ssize_t REAL__dump(double d, int canonical, asn_app_consume_bytes_f *cb, void *app_key);
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+/*
+ * Write a double as a JER (JSON) value: the shortest number that reads back
+ * as the same double (as the same float, if is_float), or one of the
+ * strings "INF", "-INF", "NaN", "-0". Returns the bytes written or -1.
+ */
+ssize_t REAL__jer_dump(double d, int is_float, asn_app_consume_bytes_f *cb,
+                       void *app_key);
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 
 /*
  * Convert between native double type and REAL representation (DER).

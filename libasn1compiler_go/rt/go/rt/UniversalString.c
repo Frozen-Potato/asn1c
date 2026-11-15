@@ -50,7 +50,14 @@ asn_TYPE_operation_t asn_OP_UniversalString = {
 	OCTET_STRING_encode_aper,
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	OCTET_STRING_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	UniversalString_decode_jer,
+	UniversalString_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_UniversalString = {
 	"UniversalString",

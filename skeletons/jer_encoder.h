@@ -67,6 +67,16 @@ enum jer_equivalence_e jer_equivalent(
     const struct asn_TYPE_descriptor_s *type_descriptor, const void *struct1,
     const void *struct2, FILE *opt_debug_stream);
 
+
+/*
+ * Emit one Unicode scalar value as a fragment of a JSON string: the
+ * mandatory escapes (\" \\ and control characters, \uXXXX in lower case),
+ * everything else as UTF-8. Surrogates and values above U+10FFFF fail.
+ * RETURN VALUE: the number of bytes emitted, or -1.
+ */
+ssize_t jer_write_escaped_codepoint(uint32_t codepoint,
+                                    asn_app_consume_bytes_f *cb, void *key);
+
 #ifdef __cplusplus
 }
 #endif

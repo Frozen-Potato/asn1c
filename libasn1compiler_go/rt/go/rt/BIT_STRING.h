@@ -28,6 +28,10 @@ asn_struct_print_f BIT_STRING_print;	/* Human-readable output */
 asn_struct_compare_f BIT_STRING_compare;
 asn_constr_check_f BIT_STRING_constraint;
 xer_type_encoder_f BIT_STRING_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f BIT_STRING_decode_jer;
+jer_type_encoder_f BIT_STRING_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 oer_type_decoder_f BIT_STRING_decode_oer;
 oer_type_encoder_f BIT_STRING_encode_oer;
 per_type_decoder_f BIT_STRING_decode_uper;

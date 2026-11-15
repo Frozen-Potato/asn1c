@@ -33,38 +33,55 @@ libasn1cskeletons_c89_la_SOURCES = $(libasn1cskeletons_la_SOURCES)
 libasn1cskeletons_la_CFLAGS = $(TESTSUITE_CFLAGS) -DASN_ENABLE_JER_SUPPORT
 libasn1cskeletons_la_SOURCES =                  \
     ANY.c ANY.h                                 \
+    ANY_jer.c                                   \
     BIT_STRING.c BIT_STRING.h                   \
     BIT_STRING_oer.c                            \
+    BIT_STRING_jer.c                            \
     BMPString.c BMPString.h                     \
+    BMPString_jer.c                             \
     BOOLEAN.c BOOLEAN.h                         \
+    BOOLEAN_jer.c                               \
     ENUMERATED.c ENUMERATED.h                   \
+    ENUMERATED_jer.c                            \
     GeneralString.c GeneralString.h             \
     GeneralizedTime.c GeneralizedTime.h         \
+    GeneralizedTime_jer.c                       \
     GraphicString.c GraphicString.h             \
     IA5String.c IA5String.h                     \
     INTEGER.c INTEGER.h                         \
     INTEGER_oer.c                               \
+    INTEGER_jer.c                               \
     ISO646String.c ISO646String.h               \
     NULL.c NULL.h                               \
+    NULL_jer.c                                  \
     NativeEnumerated.c NativeEnumerated.h       \
     NativeEnumerated_oer.c                      \
+    NativeEnumerated_jer.c                      \
     NativeInteger.c NativeInteger.h             \
     NativeInteger_oer.c                         \
+    NativeInteger_jer.c                         \
     NativeReal.c NativeReal.h                   \
+    NativeReal_jer.c                            \
     NumericString.c NumericString.h             \
     OBJECT_IDENTIFIER.c OBJECT_IDENTIFIER.h     \
+    OBJECT_IDENTIFIER_jer.c                     \
     OCTET_STRING.c OCTET_STRING.h               \
     OCTET_STRING_oer.c                          \
+    OCTET_STRING_jer.c                          \
     OPEN_TYPE.c OPEN_TYPE.h OPEN_TYPE_oer.c     \
     ObjectDescriptor.c ObjectDescriptor.h       \
     PrintableString.c PrintableString.h         \
     REAL.c REAL.h                               \
+    REAL_jer.c                                  \
     RELATIVE-OID.c RELATIVE-OID.h               \
+    RELATIVE-OID_jer.c                          \
     T61String.c T61String.h                     \
     TeletexString.c TeletexString.h             \
     UTCTime.c UTCTime.h                         \
+    UTCTime_jer.c                               \
     UTF8String.c UTF8String.h                   \
     UniversalString.c UniversalString.h         \
+    UniversalString_jer.c                       \
     VideotexString.c VideotexString.h           \
     VisibleString.c VisibleString.h             \
     asn_SEQUENCE_OF.c asn_SEQUENCE_OF.h         \
@@ -72,6 +89,7 @@ libasn1cskeletons_la_SOURCES =                  \
     asn_application.c asn_application.h         \
     asn_system.h asn_codecs.h                   \
     asn_codecs_prim.c asn_codecs_prim.h         \
+    asn_codecs_prim_jer.c                       \
     asn_internal.h asn_internal.c               \
     asn_bit_data.c asn_bit_data.h               \
     asn_random_fill.c asn_random_fill.h         \

@@ -95,3 +95,21 @@ jer_support.h
 jer_decoder.h jer_decoder.c jer_support.h
 jer_encoder.h jer_encoder.c jer_support.h
 jer_support.h jer_support.c
+ANY.h ANY_jer.c OCTET_STRING.h
+BIT_STRING.h BIT_STRING_jer.c OCTET_STRING.h
+BMPString.h BMPString_jer.c UTF8String.h OCTET_STRING.h
+BOOLEAN.h BOOLEAN_jer.c
+ENUMERATED.h ENUMERATED_jer.c INTEGER.h NativeEnumerated.h
+GeneralizedTime.h GeneralizedTime_jer.c OCTET_STRING.h
+INTEGER.h INTEGER_jer.c
+NULL.h NULL_jer.c BOOLEAN.h
+NativeEnumerated.h NativeEnumerated_jer.c NativeInteger.h
+NativeInteger.h NativeInteger_jer.c INTEGER.h
+NativeReal.h NativeReal_jer.c REAL.h
+OBJECT_IDENTIFIER.h OBJECT_IDENTIFIER_jer.c INTEGER.h OCTET_STRING.h
+OCTET_STRING.h OCTET_STRING_jer.c
+REAL.h REAL_jer.c INTEGER.h OCTET_STRING.h
+RELATIVE-OID.h RELATIVE-OID_jer.c OBJECT_IDENTIFIER.h OCTET_STRING.h
+UTCTime.h UTCTime_jer.c GeneralizedTime.h OCTET_STRING.h
+UniversalString.h UniversalString_jer.c UTF8String.h OCTET_STRING.h
+asn_codecs_prim.h asn_codecs_prim_jer.c

@@ -44,7 +44,14 @@ asn_TYPE_operation_t asn_OP_BIT_STRING = {
 	OCTET_STRING_encode_aper,	/* Aligned PER encoder */
 #endif  /* ASN_DISABLE_PER_SUPPORT */
 	BIT_STRING_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	BIT_STRING_decode_jer,
+	BIT_STRING_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_BIT_STRING = {
 	"BIT STRING",

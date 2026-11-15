@@ -24,6 +24,10 @@ extern asn_TYPE_operation_t asn_OP_VideotexString;
 #define VideotexString_encode_der   OCTET_STRING_encode_der
 #define VideotexString_decode_xer   OCTET_STRING_decode_xer_hex
 #define VideotexString_encode_xer   OCTET_STRING_encode_xer
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+#define VideotexString_decode_jer   OCTET_STRING_decode_jer_latin1
+#define VideotexString_encode_jer   OCTET_STRING_encode_jer_latin1
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 #define VideotexString_decode_uper  OCTET_STRING_decode_uper
 #define VideotexString_encode_uper  OCTET_STRING_encode_uper
 #define VideotexString_decode_aper  OCTET_STRING_decode_aper

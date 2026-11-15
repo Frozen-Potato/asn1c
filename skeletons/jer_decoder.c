@@ -307,6 +307,151 @@ jer_whitespace_span(const void *chunk_buf, size_t chunk_size) {
 	return (p - (const char *)chunk_buf);
 }
 
+
+int
+jer_string_span(const void *buf, size_t size, const char **content,
+                size_t *content_size) {
+	const char *p = (const char *)buf;
+	const char *end = p + size;
+	const char *start;
+
+	if(!buf) return -1;
+	p += jer_whitespace_span(p, size);
+	if(p >= end || *p != '"') return -1;
+	start = ++p;
+	for(; p < end; p++) {
+		int ch = *(const unsigned char *)p;
+		if(ch == '\\') {
+			if(++p >= end) return -1;	/* Dangling backslash */
+		} else if(ch == '"') {
+			break;
+		} else if(ch < 0x20) {
+			return -1;	/* Raw control character */
+		}
+	}
+	if(p >= end) return -1;	/* Unterminated */
+	*content = start;
+	*content_size = (size_t)(p - start);
+	p++;
+	if(jer_whitespace_span(p, (size_t)(end - p)) != (size_t)(end - p))
+		return -1;	/* Garbage after the string */
+	return 0;
+}
+
+static int
+jer__hex4(const char *p, uint32_t *val) {
+	uint32_t v = 0;
+	int i;
+	for(i = 0; i < 4; i++) {
+		int ch = *(const unsigned char *)(p + i);
+		if(ch >= '0' && ch <= '9') v = v * 16 + (ch - '0');
+		else if(ch >= 'a' && ch <= 'f') v = v * 16 + (ch - 'a' + 10);
+		else if(ch >= 'A' && ch <= 'F') v = v * 16 + (ch - 'A' + 10);
+		else return -1;
+	}
+	*val = v;
+	return 0;
+}
+
+static uint8_t *
+jer__put_utf8(uint8_t *d, uint32_t v) {
+	if(v < 0x80) {
+		*d++ = (uint8_t)v;
+	} else if(v < 0x800) {
+		*d++ = (uint8_t)(0xc0 | (v >> 6));
+		*d++ = (uint8_t)(0x80 | (v & 0x3f));
+	} else if(v < 0x10000) {
+		*d++ = (uint8_t)(0xe0 | (v >> 12));
+		*d++ = (uint8_t)(0x80 | ((v >> 6) & 0x3f));
+		*d++ = (uint8_t)(0x80 | (v & 0x3f));
+	} else {
+		*d++ = (uint8_t)(0xf0 | (v >> 18));
+		*d++ = (uint8_t)(0x80 | ((v >> 12) & 0x3f));
+		*d++ = (uint8_t)(0x80 | ((v >> 6) & 0x3f));
+		*d++ = (uint8_t)(0x80 | (v & 0x3f));
+	}
+	return d;
+}
+
+int
+jer_unescape(const char *content, size_t n, enum jer_unescape_mode_e mode,
+             uint8_t **out, size_t *out_size) {
+	const char *p = content;
+	const char *end = content + n;
+	uint8_t *buf, *d;
+
+	/* No escape or UTF-8 sequence is longer than its source text. */
+	buf = (uint8_t *)MALLOC(n + 1);
+	if(!buf) return -1;
+	d = buf;
+
+	while(p < end) {
+		int ch = *(const unsigned char *)p;
+		if(ch != '\\') {
+			*d++ = (uint8_t)ch;
+			p++;
+			continue;
+		}
+		if(end - p < 2) goto fail;
+		switch(p[1]) {
+		case '"': *d++ = '"'; p += 2; break;
+		case '\\': *d++ = '\\'; p += 2; break;
+		case '/': *d++ = '/'; p += 2; break;
+		case 'b': *d++ = 0x08; p += 2; break;
+		case 'f': *d++ = 0x0c; p += 2; break;
+		case 'n': *d++ = 0x0a; p += 2; break;
+		case 'r': *d++ = 0x0d; p += 2; break;
+		case 't': *d++ = 0x09; p += 2; break;
+		case 'u': {
+			uint32_t v, lo;
+			if(end - p < 6 || jer__hex4(p + 2, &v)) goto fail;
+			p += 6;
+			if(v >= 0xd800 && v <= 0xdbff) {
+				if(end - p < 6 || p[0] != '\\' || p[1] != 'u'
+				   || jer__hex4(p + 2, &lo)
+				   || lo < 0xdc00 || lo > 0xdfff)
+					goto fail;
+				v = 0x10000 + ((v - 0xd800) << 10) + (lo - 0xdc00);
+				p += 6;
+			} else if(v >= 0xdc00 && v <= 0xdfff) {
+				goto fail;	/* Lone low surrogate */
+			}
+			d = jer__put_utf8(d, v);
+			break;
+		}
+		default:
+			goto fail;	/* Not a JSON escape */
+		}
+	}
+	*d = 0;
+
+	if(mode == JER_UNESC_LATIN1) {
+		/* Narrow the UTF-8 text in place: each character <= U+00FF. */
+		const uint8_t *s = buf;
+		uint8_t *t = buf;
+		while(s < d) {
+			if(*s < 0x80) {
+				*t++ = *s++;
+			} else if((*s & 0xfe) == 0xc2 && s + 1 < d
+			          && (s[1] & 0xc0) == 0x80) {
+				*t++ = (uint8_t)(((s[0] & 0x03) << 6) | (s[1] & 0x3f));
+				s += 2;
+			} else {
+				goto fail;	/* Beyond U+00FF or malformed */
+			}
+		}
+		*t = 0;
+		d = t;
+	}
+
+	*out = buf;
+	*out_size = (size_t)(d - buf);
+	return 0;
+fail:
+	FREEMEM(buf);
+	return -1;
+}
+
 /*
  * This is a vastly simplified, non-validating JSON tree skipper. [TODO]
  */

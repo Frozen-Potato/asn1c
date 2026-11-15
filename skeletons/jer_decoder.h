@@ -95,6 +95,37 @@ jer_check_sym_e jer_check_sym(const void *buf_ptr, int size,
  */
 size_t jer_whitespace_span(const void *chunk_buf, size_t chunk_size);
 
+
+/*
+ * Locate the content of a JSON string value that occupies the whole buffer
+ * (JSON whitespace around it is allowed). Anything else after the closing
+ * quote, an unterminated string, a raw control character or a dangling
+ * backslash fail.
+ * RETURN VALUES:
+ *  0: Success; *content / *content_size delimit the text between the quotes
+ *     (escape sequences are NOT interpreted).
+ * -1: Not a complete, well-formed JSON string.
+ */
+int jer_string_span(const void *buf, size_t size, const char **content,
+                    size_t *content_size);
+
+/*
+ * Interpret the JSON escape sequences of a string content (see above) and
+ * produce UTF-8 (JER_UNESC_UTF8), or one byte per character where each
+ * character must be U+0000..U+00FF (JER_UNESC_LATIN1).
+ * \uXXXX surrogate pairs are combined; a lone surrogate is an error.
+ * The result is allocated with MALLOC() and has a courtesy NUL after the
+ * *out_size bytes.
+ * RETURN VALUES:
+ *  0: Success.
+ * -1: Malformed content (bad escape, lone surrogate, not Latin-1 where
+ *     required) or memory shortage.
+ */
+enum jer_unescape_mode_e { JER_UNESC_UTF8, JER_UNESC_LATIN1 };
+int jer_unescape(const char *content, size_t content_size,
+                 enum jer_unescape_mode_e mode, uint8_t **out,
+                 size_t *out_size);
+
 /*
  * Skip the series of anticipated extensions.
  */

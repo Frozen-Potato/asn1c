@@ -1,6 +1,9 @@
 0.9.29-go.11 (unreleased):
     * C runtime: JER (X.697) support in progress; compiled out unless
-      ASN_ENABLE_JER_SUPPORT is defined (no -gen-JER yet).
+      ASN_ENABLE_JER_SUPPORT is defined (no -gen-JER yet). The primitive
+      types are done (BOOLEAN, NULL, INTEGER, ENUMERATED, REAL, OCTET STRING,
+      BIT STRING, OBJECT IDENTIFIER, RELATIVE-OID, times, character strings,
+      ANY); constructed types and JER constraints are not.
 
 0.9.29-go.10:
     FIXES:

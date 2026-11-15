@@ -41,7 +41,14 @@ asn_TYPE_operation_t asn_OP_INTEGER = {
 	INTEGER_encode_aper,	/* Aligned PER encoder */
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	INTEGER_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	INTEGER_decode_jer,
+	INTEGER_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_INTEGER = {
 	"INTEGER",
@@ -246,15 +253,35 @@ INTEGER__compar_enum2value(const void *kp, const void *am) {
 	return name[0] ? -1 : 0;
 }
 
-static const asn_INTEGER_enum_map_t *
-INTEGER_map_enum2value(const asn_INTEGER_specifics_t *specs, const char *lstart,
-                       const char *lstop) {
+const asn_INTEGER_enum_map_t *
+INTEGER_map_name2enum(const asn_INTEGER_specifics_t *specs, const char *name,
+                      const char *name_end) {
     const asn_INTEGER_enum_map_t *el_found;
 	int count = specs ? specs->map_count : 0;
 	struct e2v_key key;
-	const char *lp;
 
 	if(!count) return NULL;
+
+	key.start = name;
+	key.stop = name_end;
+	key.vemap = specs->value2enum;
+	key.evmap = specs->enum2value;
+	el_found = (asn_INTEGER_enum_map_t *)bsearch(&key,
+		specs->value2enum, count, sizeof(specs->value2enum[0]),
+		INTEGER__compar_enum2value);
+	if(el_found) {
+		/* Remap enum2value into value2enum */
+		el_found = key.vemap + key.evmap[el_found - key.vemap];
+	}
+	return el_found;
+}
+
+static const asn_INTEGER_enum_map_t *
+INTEGER_map_enum2value(const asn_INTEGER_specifics_t *specs, const char *lstart,
+                       const char *lstop) {
+	const char *lp;
+
+	if(!(specs ? specs->map_count : 0)) return NULL;
 
 	/* Guaranteed: assert(lstart < lstop); */
 	/* Figure out the tag name */
@@ -269,20 +296,8 @@ INTEGER_map_enum2value(const asn_INTEGER_specifics_t *specs, const char *lstart,
 		break;
 	}
 	if(lp == lstop) return NULL;	/* No tag found */
-	lstop = lp;
 
-	key.start = lstart;
-	key.stop = lstop;
-	key.vemap = specs->value2enum;
-	key.evmap = specs->enum2value;
-	el_found = (asn_INTEGER_enum_map_t *)bsearch(&key,
-		specs->value2enum, count, sizeof(specs->value2enum[0]),
-		INTEGER__compar_enum2value);
-	if(el_found) {
-		/* Remap enum2value into value2enum */
-		el_found = key.vemap + key.evmap[el_found - key.vemap];
-	}
-	return el_found;
+	return INTEGER_map_name2enum(specs, lstart, lp);
 }
 
 static int

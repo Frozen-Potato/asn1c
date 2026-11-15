@@ -46,7 +46,14 @@ asn_TYPE_operation_t asn_OP_NativeInteger = {
 	NativeInteger_encode_aper,	/* Aligned PER encoder */
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	NativeInteger_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	NativeInteger_decode_jer,
+	NativeInteger_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_NativeInteger = {
 	"INTEGER",			/* The ASN.1 type is still INTEGER */

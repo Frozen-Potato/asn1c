@@ -43,6 +43,10 @@ asn_struct_compare_f INTEGER_compare;
 der_type_encoder_f INTEGER_encode_der;
 xer_type_decoder_f INTEGER_decode_xer;
 xer_type_encoder_f INTEGER_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f INTEGER_decode_jer;
+jer_type_encoder_f INTEGER_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 oer_type_decoder_f INTEGER_decode_oer;
 oer_type_encoder_f INTEGER_encode_oer;
 per_type_decoder_f INTEGER_decode_uper;
@@ -100,6 +104,14 @@ enum asn_strtox_result_e asn_strtoumax_lim(const char *str, const char **end,
  */
 const asn_INTEGER_enum_map_t *INTEGER_map_value2enum(
     const asn_INTEGER_specifics_t *specs, long value);
+
+/*
+ * Find the enumeration element by its identifier [name, name_end).
+ * Returns NULL if there is none.
+ */
+const asn_INTEGER_enum_map_t *INTEGER_map_name2enum(
+    const asn_INTEGER_specifics_t *specs, const char *name,
+    const char *name_end);
 
 #ifdef __cplusplus
 }

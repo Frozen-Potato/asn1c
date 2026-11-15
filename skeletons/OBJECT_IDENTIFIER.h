@@ -26,6 +26,10 @@ asn_constr_check_f OBJECT_IDENTIFIER_constraint;
 der_type_encoder_f OBJECT_IDENTIFIER_encode_der;
 xer_type_decoder_f OBJECT_IDENTIFIER_decode_xer;
 xer_type_encoder_f OBJECT_IDENTIFIER_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f OBJECT_IDENTIFIER_decode_jer;
+jer_type_encoder_f OBJECT_IDENTIFIER_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 asn_random_fill_f  OBJECT_IDENTIFIER_random_fill;
 
 #define OBJECT_IDENTIFIER_free           ASN__PRIMITIVE_TYPE_free
@@ -81,6 +85,10 @@ asn_random_fill_f  OBJECT_IDENTIFIER_random_fill;
  * WARNING: The function always returns the actual number of arcs,
  * even if there is no sufficient (arc_slots) provided.
  */
+/* Write the dotted arcs ("1.2.3") with cb(); returns the size or -1. */
+ssize_t OBJECT_IDENTIFIER__dump_body(const OBJECT_IDENTIFIER_t *st,
+                                     asn_app_consume_bytes_f *cb, void *app_key);
+
 ssize_t OBJECT_IDENTIFIER_get_arcs(const OBJECT_IDENTIFIER_t *oid,
                                    asn_oid_arc_t *arcs, size_t arc_slots);
 

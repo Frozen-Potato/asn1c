@@ -27,6 +27,10 @@ asn_struct_print_f ANY_print;
 ber_type_decoder_f ANY_decode_ber;
 der_type_encoder_f ANY_encode_der;
 xer_type_encoder_f ANY_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f ANY_decode_jer;
+jer_type_encoder_f ANY_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 per_type_decoder_f ANY_decode_uper;
 per_type_encoder_f ANY_encode_uper;
 per_type_decoder_f ANY_decode_aper;

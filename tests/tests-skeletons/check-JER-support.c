@@ -164,11 +164,14 @@ check_skip_unknown(void) {
 }
 
 /*
- * No type implements JER at this point, so the generic entry points must
- * fail cleanly (and not crash) for a type with empty JER slots.
+ * The generic entry points must fail cleanly (and not crash) for a type with
+ * empty JER slots. The primitive types implement JER now (see check-JER.c),
+ * so this is a BOOLEAN descriptor with its JER slots cleared.
  */
 static void
-check_no_type_implements_jer(void) {
+check_type_without_jer(void) {
+    static asn_TYPE_operation_t op_nojer;
+    static asn_TYPE_descriptor_t td_nojer;
     BOOLEAN_t b = 1;
     BOOLEAN_t *decoded = NULL;
     char buf[64];
@@ -176,38 +179,43 @@ check_no_type_implements_jer(void) {
     asn_dec_rval_t dr;
     asn_encode_to_new_buffer_result_t nb;
 
-    assert(asn_DEF_BOOLEAN.op->jer_encoder == NULL);
-    assert(asn_DEF_BOOLEAN.op->jer_decoder == NULL);
+    assert(asn_DEF_BOOLEAN.op->jer_encoder != NULL);
+    assert(asn_DEF_BOOLEAN.op->jer_decoder != NULL);
     assert(asn_DEF_BOOLEAN.encoding_constraints.jer_constraints == NULL);
+    op_nojer = asn_OP_BOOLEAN;
+    op_nojer.jer_encoder = NULL;
+    op_nojer.jer_decoder = NULL;
+    td_nojer = asn_DEF_BOOLEAN;
+    td_nojer.op = &op_nojer;
 
     errno = 0;
-    er = asn_encode_to_buffer(0, ATS_JER, &asn_DEF_BOOLEAN, &b, buf,
+    er = asn_encode_to_buffer(0, ATS_JER, &td_nojer, &b, buf,
                               sizeof(buf));
     assert(er.encoded == -1 && errno == ENOENT);
     errno = 0;
-    er = asn_encode_to_buffer(0, ATS_JER_MINIFIED, &asn_DEF_BOOLEAN, &b, buf,
+    er = asn_encode_to_buffer(0, ATS_JER_MINIFIED, &td_nojer, &b, buf,
                               sizeof(buf));
     assert(er.encoded == -1 && errno == ENOENT);
     errno = 0;
-    nb = asn_encode_to_new_buffer(0, ATS_JER, &asn_DEF_BOOLEAN, &b);
+    nb = asn_encode_to_new_buffer(0, ATS_JER, &td_nojer, &b);
     assert(nb.result.encoded == -1 && errno == ENOENT);
     free(nb.buffer); /* may be non-NULL on failure; free(NULL) is fine */
 
     errno = 0;
-    dr = asn_decode(0, ATS_JER, &asn_DEF_BOOLEAN, (void **)&decoded, "true",
+    dr = asn_decode(0, ATS_JER, &td_nojer, (void **)&decoded, "true",
                     4);
     assert(dr.code == RC_FAIL && dr.consumed == 0 && errno == ENOENT);
     assert(decoded == NULL);
     errno = 0;
-    dr = asn_decode(0, ATS_JER_MINIFIED, &asn_DEF_BOOLEAN,
+    dr = asn_decode(0, ATS_JER_MINIFIED, &td_nojer,
                     (void **)&decoded, "true", 4);
     assert(dr.code == RC_FAIL && errno == ENOENT);
     assert(decoded == NULL);
 
     /* The direct entry points have the same contract. */
-    dr = jer_decode(0, &asn_DEF_BOOLEAN, (void **)&decoded, "true", 4);
+    dr = jer_decode(0, &td_nojer, (void **)&decoded, "true", 4);
     assert(dr.code == RC_FAIL && decoded == NULL);
-    er = jer_encode(&asn_DEF_BOOLEAN, &b, JER_F, 0, 0);
+    er = jer_encode(&td_nojer, &b, JER_F, 0, 0);
     assert(er.encoded == -1);
 }
 
@@ -283,7 +291,7 @@ main(void) {
     assert(jer_whitespace_span(NULL, 0) == 0);
 
     check_skip_unknown();
-    check_no_type_implements_jer();
+    check_type_without_jer();
 
     printf("check-JER-support: OK\n");
     return 0;

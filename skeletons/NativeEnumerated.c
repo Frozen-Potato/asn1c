@@ -45,7 +45,14 @@ asn_TYPE_operation_t asn_OP_NativeEnumerated = {
 	NativeEnumerated_encode_aper,
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	NativeEnumerated_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	NativeEnumerated_decode_jer,
+	NativeEnumerated_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_NativeEnumerated = {
 	"ENUMERATED",			/* The ASN.1 type is still ENUMERATED */

@@ -34,6 +34,10 @@ per_type_decoder_f BOOLEAN_decode_aper;
 per_type_encoder_f BOOLEAN_encode_aper;
 xer_type_decoder_f BOOLEAN_decode_xer;
 xer_type_encoder_f BOOLEAN_encode_xer;
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+jer_type_decoder_f BOOLEAN_decode_jer;
+jer_type_encoder_f BOOLEAN_encode_jer;
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 asn_random_fill_f  BOOLEAN_random_fill;
 
 #define BOOLEAN_constraint     asn_generic_no_constraint

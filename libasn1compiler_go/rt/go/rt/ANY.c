@@ -35,7 +35,14 @@ asn_TYPE_operation_t asn_OP_ANY = {
 	ANY_encode_aper,
 #endif  /* ASN_DISABLE_PER_SUPPORT */
 	0,	/* Random fill is not defined for ANY type */
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	ANY_decode_jer,
+	ANY_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_ANY = {
 	"ANY",

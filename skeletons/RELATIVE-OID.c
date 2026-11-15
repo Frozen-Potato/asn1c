@@ -43,7 +43,14 @@ asn_TYPE_operation_t asn_OP_RELATIVE_OID = {
 	OCTET_STRING_encode_aper,
 #endif	/* ASN_DISABLE_PER_SUPPORT */
 	RELATIVE_OID_random_fill,
-	0	/* Use generic outmost tag fetcher */
+	0,	/* Use generic outmost tag fetcher */
+#if !defined(ASN_DISABLE_JER_SUPPORT)
+	RELATIVE_OID_decode_jer,
+	RELATIVE_OID_encode_jer
+#else
+	0,
+	0
+#endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 asn_TYPE_descriptor_t asn_DEF_RELATIVE_OID = {
 	"RELATIVE-OID",
@@ -60,7 +67,7 @@ asn_TYPE_descriptor_t asn_DEF_RELATIVE_OID = {
 	0	/* No specifics */
 };
 
-static ssize_t
+ssize_t
 RELATIVE_OID__dump_body(const RELATIVE_OID_t *st, asn_app_consume_bytes_f *cb, void *app_key) {
     char scratch[32];
     size_t produced = 0;
