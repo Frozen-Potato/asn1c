@@ -1,0 +1,10 @@
+-- OK: a recursive type for the decoders' stack guard (ASN__STACK_OVERFLOW_CHECK):
+-- valid shallow input decodes, input nested far beyond the stack budget is
+-- refused with RC_FAIL instead of overflowing the stack, also under
+-- AddressSanitizer's fake stack (detect_stack_use_after_return=1).
+
+K182 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+R ::= SEQUENCE { v INTEGER (0..7), r R OPTIONAL }
+
+END

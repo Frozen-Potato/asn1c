@@ -1,3 +1,12 @@
+0.9.29-go.13 (unreleased):
+    * C runtime: the decoders' stack guard (ASN__STACK_OVERFLOW_CHECK)
+      works under AddressSanitizer. With detect_stack_use_after_return=1,
+      the default since GCC 13 and Clang 15, most decodes failed with
+      RC_FAIL in a -fsanitize=address build (C programs and
+      `go test -asan` alike). The guard now measures the real stack
+      and still refuses input nested deeper than the stack budget. This
+      also fixes the inherited `make check` failures.
+
 0.9.29-go.12:
     * C runtime: aligned PER encodes known-multiplier character strings with
       the number of bits per character given by their alphabet (X.691

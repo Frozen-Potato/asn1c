@@ -133,13 +133,54 @@ asn__format_to_callback(
 /*
  * Check stack against overflow, if limit is set.
  */
+/*
+ * AddressSanitizer with detect_stack_use_after_return=1 (the default since
+ * GCC 13 and Clang 15) moves stack locals to a heap-allocated "fake stack",
+ * so the distance between two locals no longer measures the stack in use.
+ * ASN__REAL_STACK_ADDR() maps such an address back to the real stack frame
+ * that owns it; without AddressSanitizer it returns the address unchanged.
+ */
+#if defined(__SANITIZE_ADDRESS__)
+#define ASN__ASAN_ENABLED 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define ASN__ASAN_ENABLED 1
+#endif
+#endif
+#ifdef ASN__ASAN_ENABLED
+#if defined(__has_include)
+#if __has_include(<sanitizer/asan_interface.h>)
+#include <sanitizer/asan_interface.h>
+#define ASN__HAVE_ASAN_INTERFACE_H 1
+#endif
+#endif
+#ifndef ASN__HAVE_ASAN_INTERFACE_H
+void *__asan_get_current_fake_stack(void);
+void *__asan_addr_is_in_fake_stack(void *fake_stack, void *addr, void **beg,
+                                   void **end);
+#endif
+static const void *CC_NOTUSED
+ASN__REAL_STACK_ADDR(const void *addr) {
+	void *fake_stack = __asan_get_current_fake_stack();
+	if(fake_stack) {
+		void *real = __asan_addr_is_in_fake_stack(
+			fake_stack, (void *)(uintptr_t)addr, NULL, NULL);
+		if(real) return real;
+	}
+	return addr;
+}
+#else
+#define ASN__REAL_STACK_ADDR(addr) ((const void *)(addr))
+#endif
+
 #define	ASN__DEFAULT_STACK_MAX	(30000)
 static int CC_NOTUSED
 ASN__STACK_OVERFLOW_CHECK(const asn_codec_ctx_t *ctx) {
 	if(ctx && ctx->max_stack_size) {
 
 		/* ctx MUST be allocated on the stack */
-		ptrdiff_t usedstack = ((const char *)ctx - (const char *)&ctx);
+		ptrdiff_t usedstack = ((const char *)ASN__REAL_STACK_ADDR(ctx)
+				       - (const char *)ASN__REAL_STACK_ADDR(&ctx));
 		if(usedstack > 0) usedstack = -usedstack; /* grows up! */
 
 		/* double negative required to avoid int wrap-around */
