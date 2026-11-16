@@ -6,6 +6,11 @@
       `go test -asan` alike). The guard now measures the real stack
       and still refuses input nested deeper than the stack budget. This
       also fixes the inherited `make check` failures.
+    * Go backend: a type that is an alias of BOOLEAN (Flag ::= BOOLEAN)
+      was converted as a `long`: Encode wrote 8 bytes into the 4-byte
+      BOOLEAN_t of the C tree and Decode read 8 bytes from it (heap
+      out-of-bounds access; AddressSanitizer: heap-buffer-overflow). It
+      now uses BOOLEAN_t.
 
 0.9.29-go.12:
     * C runtime: aligned PER encodes known-multiplier character strings with

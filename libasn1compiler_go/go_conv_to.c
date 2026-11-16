@@ -579,6 +579,10 @@ leaf_to_body(void *t, const char *label) {
         return cstrdup("    *(double *)out = (double)*in;\n");
     if(prim && strcmp(prim, "float") == 0)
         return cstrdup("    *out = *in;\n");
+    /* BOOLEAN_t is an int: never write it as a long (8 bytes into a 4-byte
+     * slot) */
+    if(prim && strcmp(prim, "_bool32") == 0)
+        return cstrdup("    *(BOOLEAN_t *)out = (BOOLEAN_t)*in;\n");
     return cstrdup("    *(long *)out = (long)*in;\n");
 }
 

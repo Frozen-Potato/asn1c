@@ -35,6 +35,18 @@ mkdir "$tmp/bin" && ln -s "$asn1c" "$tmp/bin/asn1c"
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# AddressSanitizer pass of the Go tests (go test -asan) when the C compiler
+# cgo uses can link -fsanitize=address; ASN1CGO_E2E_ASAN=0 skips it.
+asan=0
+if [ "${ASN1CGO_E2E_ASAN:-1}" != 0 ]; then
+    printf 'int main(void) { return 0; }\n' >"$tmp/asanprobe.c"
+    if $(go env CC) -fsanitize=address -o "$tmp/asanprobe" "$tmp/asanprobe.c" >/dev/null 2>&1; then
+        asan=1
+    else
+        echo "run-e2e: $(go env CC) cannot link -fsanitize=address; skipping the go test -asan runs"
+    fi
+fi
+
 run_one() {
     label=$1; shift   # remaining args: extra asn1c flags
     oerdef=
@@ -134,6 +146,11 @@ run_one() {
         export ASN1CGO_C_CONVERTER="$work/converter"
         export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
         go test -count=1 ./...
+        # The same under AddressSanitizer (default ASAN_OPTIONS): out-of-bounds
+        # accesses in the generated C conversion code or the runtime abort.
+        if [ "$asan" = 1 ]; then
+            go test -asan -count=1 ./...
+        fi
         # The SEQUENCE OF inline-element, inline SEQUENCE/CHOICE and
         # extension-addition / wide-INTEGER / `present`-alt / restricted string
         # cases under the race detector.

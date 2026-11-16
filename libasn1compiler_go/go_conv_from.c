@@ -817,6 +817,9 @@ node_from_body(void *t) {
             s = ca(s, "    *out = (double)(*(const double *)in);\n");
         } else if(prim && strcmp(prim, "float") == 0) {
             s = ca(s, "    *out = *in;\n");
+        } else if(prim && strcmp(prim, "_bool32") == 0) {
+            /* BOOLEAN_t is an int: read 4 bytes, not a long */
+            s = ca(s, "    *out = (int32_t)(*(const BOOLEAN_t *)in);\n");
         } else if(prim && strcmp(prim, "uint64_t") == 0) {
             s = ca(s, "    *out = (uint64_t)(*(const unsigned long *)in);\n");
         } else {
