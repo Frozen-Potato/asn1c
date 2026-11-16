@@ -1232,7 +1232,7 @@ OCTET_STRING_per_get_characters(asn_per_data_t *po, uint8_t *buf,
 		(int)units, lb, ub, unit_bits);
 
 	/* X.691: 27.5.4 */
-	if((unsigned long)ub <= ((unsigned long)2 << (unit_bits - 1))) {
+    if((unsigned long)ub <= ((unsigned long)2 << (unit_bits - 1)) - 1) {
 		/* Decode without translation */
 		lb = 0;
 	} else if(pc && pc->code2value) {
@@ -1296,7 +1296,7 @@ OCTET_STRING_per_put_characters(asn_per_outp_t *po, const uint8_t *buf,
 		(int)units, lb, ub, unit_bits, bpc);
 
 	/* X.691: 27.5.4 */
-	if((unsigned long)ub <= ((unsigned long)2 << (unit_bits - 1))) {
+    if((unsigned long)ub <= ((unsigned long)2 << (unit_bits - 1)) - 1) {
 		/* Encode as is */
 		lb = 0;
 	} else if(pc && pc->value2code) {
@@ -1383,7 +1383,6 @@ OCTET_STRING_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
 		OS__BPC_U32	= 4
 	} bpc;	/* Bytes per character */
 	unsigned int unit_bits;
-	unsigned int canonical_unit_bits;
 
 	(void)opt_codec_ctx;
 
@@ -1403,19 +1402,19 @@ OCTET_STRING_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
 		RETURN(RC_FAIL);
 		break;
 	case ASN_OSUBV_STR:
-		canonical_unit_bits = unit_bits = 8;
+        unit_bits = 8;
 		if(cval->flags & APC_CONSTRAINED)
 			unit_bits = cval->range_bits;
 		bpc = OS__BPC_CHAR;
 		break;
 	case ASN_OSUBV_U16:
-		canonical_unit_bits = unit_bits = 16;
+        unit_bits = 16;
 		if(cval->flags & APC_CONSTRAINED)
 			unit_bits = cval->range_bits;
 		bpc = OS__BPC_U16;
 		break;
 	case ASN_OSUBV_U32:
-		canonical_unit_bits = unit_bits = 32;
+        unit_bits = 32;
 		if(cval->flags & APC_CONSTRAINED)
 			unit_bits = cval->range_bits;
 		bpc = OS__BPC_U32;
@@ -1439,7 +1438,6 @@ OCTET_STRING_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
 		if(inext < 0) RETURN(RC_WMORE);
 		if(inext) {
 			csiz = &asn_DEF_OCTET_STRING_constraints.size;
-			unit_bits = canonical_unit_bits;
 		}
 	}
 
@@ -1526,7 +1524,6 @@ OCTET_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
 	asn_enc_rval_t er = { 0, 0, 0 };
 	int inext = 0;		/* Lies not within extension root */
 	unsigned int unit_bits;
-	unsigned int canonical_unit_bits;
 	size_t size_in_units;
 	const uint8_t *buf;
 	int ret;
@@ -1555,14 +1552,14 @@ OCTET_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
 	case ASN_OSUBV_BIT:
 		ASN__ENCODE_FAILED;
 	case ASN_OSUBV_STR:
-		canonical_unit_bits = unit_bits = 8;
+        unit_bits = 8;
 		if(cval->flags & APC_CONSTRAINED)
 			unit_bits = cval->range_bits;
 		bpc = OS__BPC_CHAR;
 		size_in_units = st->size;
 		break;
 	case ASN_OSUBV_U16:
-		canonical_unit_bits = unit_bits = 16;
+        unit_bits = 16;
 		if(cval->flags & APC_CONSTRAINED)
 			unit_bits = cval->range_bits;
 		bpc = OS__BPC_U16;
@@ -1573,7 +1570,7 @@ OCTET_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
 		}
 		break;
 	case ASN_OSUBV_U32:
-		canonical_unit_bits = unit_bits = 32;
+        unit_bits = 32;
 		if(cval->flags & APC_CONSTRAINED)
 			unit_bits = cval->range_bits;
 		bpc = OS__BPC_U32;
@@ -1598,7 +1595,6 @@ OCTET_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
            || (ssize_t)size_in_units > csiz->upper_bound) {
             if(ct_extensible) {
                 csiz = &asn_DEF_OCTET_STRING_constraints.size;
-                unit_bits = canonical_unit_bits;
                 inext = 1;
             } else {
                 ASN__ENCODE_FAILED;
@@ -1654,6 +1650,20 @@ OCTET_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
     ASN__ENCODED_OK(er);
 }
 
+/*
+ * X.691 #30.5.2 (27.5.2 in 07/2002): in the ALIGNED variant the number of
+ * bits per character is rounded up to the next power of 2.
+ */
+static unsigned int
+OCTET_STRING_aper_unit_bits(int range_bits) {
+    if(range_bits <= 1) return 1;
+    if(range_bits <= 2) return 2;
+    if(range_bits <= 4) return 4;
+    if(range_bits <= 8) return 8;
+    if(range_bits <= 16) return 16;
+    return 32;
+}
+
 asn_dec_rval_t
 OCTET_STRING_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
                          const asn_TYPE_descriptor_t *td,
@@ -1678,7 +1688,6 @@ OCTET_STRING_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 		OS__BPC_U32	= 4
 	} bpc;	/* Bytes per character */
 	unsigned int unit_bits;
-	unsigned int canonical_unit_bits;
 
 	(void)opt_codec_ctx;
 
@@ -1697,27 +1706,26 @@ OCTET_STRING_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 		RETURN(RC_FAIL);
 */
 	case ASN_OSUBV_BIT:
-		canonical_unit_bits = unit_bits = 1;
+        unit_bits = 1;
 		bpc = OS__BPC_BIT;
 		break;
 	case ASN_OSUBV_ANY:
 	case ASN_OSUBV_STR:
-		canonical_unit_bits = unit_bits = 8;
-/* 		if(cval->flags & APC_CONSTRAINED)
-			unit_bits = cval->range_bits;
-*/
+        unit_bits = 8;
+        if(cval->flags & APC_CONSTRAINED)
+            unit_bits = OCTET_STRING_aper_unit_bits(cval->range_bits);
 		bpc = OS__BPC_CHAR;
 		break;
 	case ASN_OSUBV_U16:
-		canonical_unit_bits = unit_bits = 16;
+        unit_bits = 16;
 		if(cval->flags & APC_CONSTRAINED)
-			unit_bits = cval->range_bits;
+            unit_bits = OCTET_STRING_aper_unit_bits(cval->range_bits);
 		bpc = OS__BPC_U16;
 		break;
 	case ASN_OSUBV_U32:
-		canonical_unit_bits = unit_bits = 32;
+        unit_bits = 32;
 		if(cval->flags & APC_CONSTRAINED)
-			unit_bits = cval->range_bits;
+            unit_bits = OCTET_STRING_aper_unit_bits(cval->range_bits);
 		bpc = OS__BPC_U32;
 		break;
 	}
@@ -1739,8 +1747,6 @@ OCTET_STRING_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 		if(inext < 0) RETURN(RC_WMORE);
 		if(inext) {
 			csiz = &asn_DEF_OCTET_STRING_constraints.size;
-			cval = &asn_DEF_OCTET_STRING_constraints.value;
-			unit_bits = canonical_unit_bits;
 		}
 	}
 
@@ -1760,7 +1766,8 @@ OCTET_STRING_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 	/* X.691, #16.7: long fixed length encoding (up to 64K octets) */
 	if(csiz->effective_bits == 0) {
 		int ret;
-		if (st->size > 2) { /* X.691 #16 NOTE 1 */
+        /* X.691 #16.9, #30.5.6: not aligned if fixed and <= 16 bits */
+        if (unit_bits * csiz->upper_bound > 16) {
 			if (aper_get_align(pd) < 0)
 				RETURN(RC_FAIL);
 		}
@@ -1808,7 +1815,10 @@ OCTET_STRING_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 			(long)csiz->effective_bits, (long)raw_len,
 			repeat ? "repeat" : "once", td->name);
 
-		if ((st->size > 2) || (csiz->lower_bound != csiz->upper_bound)) { /* X.691 #16.11 */
+        /* X.691 #16.11: a variable-size BIT STRING is aligned; #30.5.7:
+         * a character string with "aub" * b < 16 is not */
+        if (!bpc || csiz->effective_bits < 0
+        || unit_bits * csiz->upper_bound >= 16) {
 			if (aper_get_align(pd) < 0)
 				RETURN(RC_FAIL);
 		}
@@ -1860,7 +1870,6 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 	asn_enc_rval_t er = { 0, 0, 0 };
 	int inext = 0;          /* Lies not within extension root */
 	unsigned int unit_bits;
-	unsigned int canonical_unit_bits;
 	unsigned int sizeinunits;
 	const uint8_t *buf;
 	int ret;
@@ -1890,7 +1899,7 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 			                 ASN__ENCODE_FAILED;
 			*/
 		case ASN_OSUBV_BIT:
-			canonical_unit_bits = unit_bits = 1;
+            unit_bits = 1;
 			bpc = OS__BPC_BIT;
 			sizeinunits = st->size * 8 - (st->bits_unused & 0x07);
 			ASN_DEBUG("BIT STRING of %d bytes",
@@ -1898,24 +1907,23 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 		break;
         case ASN_OSUBV_ANY:
 	case ASN_OSUBV_STR:
-		canonical_unit_bits = unit_bits = 8;
-/* 		if(cval->flags & APC_CONSTRAINED)
-			unit_bits = 8;
-*/
+        unit_bits = 8;
+        if(cval->flags & APC_CONSTRAINED)
+            unit_bits = OCTET_STRING_aper_unit_bits(cval->range_bits);
 		bpc = OS__BPC_CHAR;
 		sizeinunits = st->size;
 		break;
 	case ASN_OSUBV_U16:
-		canonical_unit_bits = unit_bits = 16;
+        unit_bits = 16;
 		if(cval->flags & APC_CONSTRAINED)
-			unit_bits = cval->range_bits;
+            unit_bits = OCTET_STRING_aper_unit_bits(cval->range_bits);
 		bpc = OS__BPC_U16;
 		sizeinunits = st->size / 2;
 		break;
 	case ASN_OSUBV_U32:
-		canonical_unit_bits = unit_bits = 32;
+        unit_bits = 32;
 		if(cval->flags & APC_CONSTRAINED)
-			unit_bits = cval->range_bits;
+            unit_bits = OCTET_STRING_aper_unit_bits(cval->range_bits);
 		bpc = OS__BPC_U32;
 		sizeinunits = st->size / 4;
 		break;
@@ -1933,9 +1941,7 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 		if((int)sizeinunits < csiz->lower_bound
 		|| (int)sizeinunits > csiz->upper_bound) {
 			if(ct_extensible) {
-				cval = &asn_DEF_OCTET_STRING_constraints.value;
 				csiz = &asn_DEF_OCTET_STRING_constraints.size;
-				unit_bits = canonical_unit_bits;
 				inext = 1;
 			} else
 				ASN__ENCODE_FAILED;
@@ -1962,9 +1968,13 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 		        ret = aper_put_length(po, csiz->upper_bound - csiz->lower_bound + 1, sizeinunits - csiz->lower_bound);
 		        if(ret) ASN__ENCODE_FAILED;
 		}
-		/* EB MOD
-                   AFAIU if lb != ub it is aligned whatever the number of bits */
-		if ((st->size > 2) || (csiz->lower_bound != csiz->upper_bound)) { /* X.691 #16.11 */
+        /* X.691 #16.9, #16.10, #30.5.6: a fixed size is aligned if it is
+         * more than 16 bits; #16.11: a variable-size BIT STRING is
+         * aligned; #30.5.7: a variable-size character string is aligned
+         * if "aub" * b >= 16 */
+        if ((csiz->lower_bound == csiz->upper_bound)
+            ? (unit_bits * sizeinunits > 16)
+            : (!bpc || unit_bits * csiz->upper_bound >= 16)) {
 			if (aper_put_align(po) < 0)
 				ASN__ENCODE_FAILED;
 		}

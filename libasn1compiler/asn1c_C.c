@@ -2498,6 +2498,35 @@ emit_member_PER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx) {
 			MKID(expr), expr->_type_unique_index);
 		OUT("asn_PER_MAP_%s_%d_c2v\t/* PER code to value map */\n",
 			MKID(expr), expr->_type_unique_index);
+	} else if(etype == ASN_STRING_NumericString) {
+		/*
+		 * No FROM() tables were emitted: the alphabet is the whole
+		 * NumericString one (space, '0'..'9'), 4 bits per character,
+		 * sent as its index (X.691 #30.5.4), as in NumericString.c.
+		 */
+		int old_target = arg->target->target;
+		REDIR(OT_CODE);
+
+		OUT("static int asn_PER_MAP_%s_%d_v2c(unsigned int value) {\n",
+			MKID(expr), expr->_type_unique_index);
+		OUT("\tif(value == 0x20) return 0;\n");
+		OUT("\tif(value >= 0x30 && value <= 0x39) return value - 0x2f;\n");
+		OUT("\treturn -1;\n");
+		OUT("}\n");
+
+		OUT("static int asn_PER_MAP_%s_%d_c2v(unsigned int code) {\n",
+			MKID(expr), expr->_type_unique_index);
+		OUT("\tif(code == 0) return 0x20;\n");
+		OUT("\tif(code <= 10) return code + 0x2f;\n");
+		OUT("\treturn -1;\n");
+		OUT("}\n");
+
+		REDIR(old_target);
+
+		OUT("asn_PER_MAP_%s_%d_v2c,\t/* NumericString value to PER code */\n",
+			MKID(expr), expr->_type_unique_index);
+		OUT("asn_PER_MAP_%s_%d_c2v\t/* PER code to NumericString value */\n",
+			MKID(expr), expr->_type_unique_index);
 	} else if(etype & ASN_STRING_KM_MASK) {
 		DEBUG("No PER value map necessary for %s", MKID(expr));
 		OUT("0, 0\t/* No PER character map necessary */\n");
@@ -5733,7 +5762,7 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
             if(expr->combined_constraints
                || expr->expr_type == ASN_BASIC_ENUMERATED
                || expr->expr_type == ASN_CONSTR_CHOICE
-               || (expr->expr_type & ASN_STRING_KM_MASK)) {
+			   || (expr_get_type(arg, expr) & ASN_STRING_KM_MASK)) {
                 OUT("&asn_PER_type_%s_constr_%d",
 					expr_id, expr->_type_unique_index);
 			} else {

@@ -1,3 +1,28 @@
+0.9.29-go.12 (unreleased):
+    * C runtime: aligned PER encodes known-multiplier character strings with
+      the number of bits per character given by their alphabet (X.691
+      30.5.2): NumericString with 4 bits, alphabet-constrained IA5String /
+      PrintableString / VisibleString / BMPString / UniversalString with 1,
+      2, 4, 8 or 16. Octet alignment follows X.691 30.5.6 / 30.5.7: a
+      string is not aligned when it is fixed-size and at most 16 bits, or
+      variable-size with a maximum below 16 bits (e.g.
+      IA5String (SIZE(0..1)), which was aligned before). Aligned and unaligned PER keep the permitted alphabet
+      for a size outside an extensible SIZE root, and send a character as
+      its index when its value does not fit the bits per character.
+    * C runtime: a member typed plainly PrintableString used NumericString's
+      PER alphabet; unaligned PER wrote a value that decoded to a different
+      string. It now uses the PrintableString alphabet (7 bits).
+    * C generator: a NumericString type without a constraint of its own
+      (N ::= NumericString) gets the NumericString PER character map, and
+      an alias of an alias of a string type (P2 ::= P) keeps its PER
+      alphabet; both were encoded with wrong character codes / widths.
+    * UPGRADING: the aligned PER bytes of the string types above change,
+      and the unaligned bytes in the cases above. Peers built with an older
+      asn1c-go encode those values differently; the new form follows
+      X.691 (02/2021) clause 30. Regenerate the C code (generated files
+      change for NumericString types and string aliases). Other types are
+      unchanged.
+
 0.9.29-go.11:
     * C runtime and generator: JER (X.697) support. asn1c has a -gen-JER
       option (off by default) that copies the JER runtime, defines

@@ -696,6 +696,16 @@ memb_ns_c_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
 	}
 }
 
+static int asn_PER_MAP_ns_c_16_v2c(unsigned int value) {
+	if(value == 0x20) return 0;
+	if(value >= 0x30 && value <= 0x39) return value - 0x2f;
+	return -1;
+}
+static int asn_PER_MAP_ns_c_16_c2v(unsigned int code) {
+	if(code == 0) return 0x20;
+	if(code <= 10) return code + 0x2f;
+	return -1;
+}
 static int
 memb_ns_ce_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
 			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
@@ -720,6 +730,16 @@ memb_ns_ce_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
 	}
 }
 
+static int asn_PER_MAP_ns_ce_17_v2c(unsigned int value) {
+	if(value == 0x20) return 0;
+	if(value >= 0x30 && value <= 0x39) return value - 0x2f;
+	return -1;
+}
+static int asn_PER_MAP_ns_ce_17_c2v(unsigned int code) {
+	if(code == 0) return 0x20;
+	if(code <= 10) return code + 0x2f;
+	return -1;
+}
 static int
 memb_ns_ir_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
 			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
@@ -1109,12 +1129,14 @@ static asn_per_constraints_t asn_PER_memb_pr_ir_constr_14 CC_NOTUSED = {
 static asn_per_constraints_t asn_PER_memb_ns_c_constr_16 CC_NOTUSED = {
 	{ APC_CONSTRAINED,	 3,  3,  53,  57 }	/* (53..57) */,
 	{ APC_SEMI_CONSTRAINED,	-1, -1,  0,  0 }	/* (SIZE(0..MAX)) */,
-	0, 0	/* No PER character map necessary */
+	asn_PER_MAP_ns_c_16_v2c,	/* NumericString value to PER code */
+	asn_PER_MAP_ns_c_16_c2v	/* PER code to NumericString value */
 };
 static asn_per_constraints_t asn_PER_memb_ns_ce_constr_17 CC_NOTUSED = {
 	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
 	{ APC_SEMI_CONSTRAINED,	-1, -1,  0,  0 }	/* (SIZE(0..MAX)) */,
-	0, 0	/* No PER character map necessary */
+	asn_PER_MAP_ns_ce_17_v2c,	/* NumericString value to PER code */
+	asn_PER_MAP_ns_ce_17_c2v	/* PER code to NumericString value */
 };
 static asn_per_constraints_t asn_PER_memb_ns_ir_constr_18 CC_NOTUSED = {
 	{ APC_CONSTRAINED,	 1,  1,  49,  57 }	/* (49..57) */,
