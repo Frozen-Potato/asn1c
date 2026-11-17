@@ -1,6 +1,10 @@
 # Go backend tests
 
 Each `run-*.sh` exits 0 on pass and 77 when skipped (no `go`, no cgo, ...).
+GitHub Actions (`.github/workflows/ci.yml`) runs all seven on every push to
+`asn1cgo`, every tag and every pull request, with the minimum Go (1.21) and the
+current stable Go (with the `go test -asan` pass), next to `make check` with gcc
+and clang.
 
 | script | checks |
 | --- | --- |

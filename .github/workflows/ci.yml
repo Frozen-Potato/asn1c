@@ -1,0 +1,132 @@
+# Build, make check and the Go backend test scripts
+# (libasn1compiler_go/tests/run-*.sh) on every push to asn1cgo, every tag,
+# every pull request, and on demand.
+name: CI
+
+on:
+  push:
+    branches: [asn1cgo]
+    tags: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  c:
+    name: C build and make check (${{ matrix.cc }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # gcc: the tests run under AddressSanitizer + UBSan.
+          - cc: gcc
+            configure: ''
+            packages: ''
+          # clang: AddressSanitizer only. clang's UBSan adds checks gcc does
+          # not have (unsigned-integer-overflow, zero offset applied to a null
+          # pointer) that the inherited skeletons do not pass yet.
+          - cc: clang
+            configure: --disable-test-ubsan
+            packages: libclang-rt-18-dev
+    env:
+      CC: ${{ matrix.cc }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool bison flex ${{ matrix.packages }}
+      - name: Configure
+        run: |
+          autoreconf -i
+          ./configure ${{ matrix.configure }}
+      - name: Build
+        run: make -j"$(nproc)" 2>&1 | tee build.log
+      - name: No new compiler warnings
+        if: matrix.cc == 'gcc'
+        run: sh .github/ci/check-warnings.sh build.log .github/ci/gcc-warnings.txt
+      - name: make check
+        run: make -j"$(nproc)" -k check
+      - name: Show failed test logs
+        if: failure()
+        run: |
+          find tests -name test-suite.log | while read -r f; do
+            echo "::group::$f"; cat "$f"; echo "::endgroup::"
+          done
+
+  go:
+    name: Go backend tests (Go ${{ matrix.go }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The minimum Go of the generated modules (go.mod: go 1.21.0).
+          - go: '1.21.x'
+            asan: '0'
+          # Current Go, plus the go test -asan pass of run-e2e.
+          - go: stable
+            asan: '1'
+    env:
+      GOTOOLCHAIN: local
+      ASN1CGO_E2E_ASAN: ${{ matrix.asan }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool bison flex
+      - name: Build asn1c
+        id: build
+        run: |
+          autoreconf -i
+          ./configure
+          make -j"$(nproc)"
+      # Each script exits 0 on pass and 77 when skipped; here a skip is a
+      # failure (Go and cgo are installed). Once asn1c is built, every script
+      # runs even after an earlier one failed, so one run reports them all.
+      - name: run-e2e
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        working-directory: libasn1compiler_go/tests
+        run: sh ./run-e2e.sh
+      - name: run-c-invariance
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        working-directory: libasn1compiler_go/tests
+        run: sh ./run-c-invariance.sh
+      - name: run-gowork-race
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        working-directory: libasn1compiler_go/tests
+        run: sh ./run-gowork-race.sh
+      - name: run-rt-fetch
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        working-directory: libasn1compiler_go/tests
+        run: sh ./run-rt-fetch.sh
+      - name: run-stdlib-names
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        working-directory: libasn1compiler_go/tests
+        run: sh ./run-stdlib-names.sh
+      - name: run-rt-skeleton-sync
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        working-directory: libasn1compiler_go/tests
+        run: sh ./run-rt-skeleton-sync.sh
+      - name: run-feature-matrix
+        if: (success() || failure()) && steps.build.outcome == 'success'
+        working-directory: libasn1compiler_go/tests
+        run: sh ./run-feature-matrix.sh

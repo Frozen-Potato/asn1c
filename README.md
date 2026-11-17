@@ -92,7 +92,7 @@ supported constructs.
 If you haven't installed the asn1c yet, read the [INSTALL.md](INSTALL.md) file
 for a short installation guide.
 
-[![Build Status](https://travis-ci.org/vlm/asn1c.svg?branch=master)](https://travis-ci.org/vlm/asn1c)
+[![CI](https://github.com/Frozen-Potato/asn1c/actions/workflows/ci.yml/badge.svg?branch=asn1cgo)](https://github.com/Frozen-Potato/asn1c/actions/workflows/ci.yml)
 
 # Documentation
 
