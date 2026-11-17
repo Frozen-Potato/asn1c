@@ -181,6 +181,15 @@ conv_is_wide(const char *cid) {
     return 0;
 }
 
+/* A wide INTEGER leaf (INTEGER_t in C) converts through the unsigned
+ * asn_umax2INTEGER / asn_INTEGER2umax verbs only when its Go type is uint64;
+ * an int64 one (negative lower bound) needs the signed imax verbs. */
+int
+conv_wide_unsigned(void *t) {
+    const char *prim = go_flat_ir_prim(t);
+    return !(prim && strcmp(prim, "int64_t") == 0);
+}
+
 int
 conv_is_pdu(const char *cid) {
     if(!cid) return 0;

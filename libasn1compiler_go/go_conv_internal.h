@@ -108,6 +108,7 @@ int conv_cid_eq(const char *a, const char *b);
 
 /* Is node cid a recorded wide-INTEGER leaf (the native-width INTEGER Flat rule)? */
 int conv_is_wide(const char *cid);
+int conv_wide_unsigned(void *t);
 
 /* Is node cid a recorded PDU root? */
 int conv_is_pdu(const char *cid);

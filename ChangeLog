@@ -11,6 +11,11 @@
       BOOLEAN_t of the C tree and Decode read 8 bytes from it (heap
       out-of-bounds access; AddressSanitizer: heap-buffer-overflow). It
       now uses BOOLEAN_t.
+    * Go backend: a named INTEGER type wider than 32 bits with a negative
+      lower bound (T ::= INTEGER (-1099511627776..1099511627775), int64
+      in Go) was converted as unsigned wherever it was referenced: Encode
+      and Decode of a negative value failed. It now uses the signed
+      conversions.
 
 0.9.29-go.12:
     * C runtime: aligned PER encodes known-multiplier character strings with

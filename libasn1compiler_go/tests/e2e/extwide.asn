@@ -82,4 +82,28 @@ BEGIN
 		present	SEQUENCE { q INTEGER (0..3) }
 	}
 
+	-- AC4: NAMED wide INTEGER types (INTEGER_t in C), referenced as a member,
+	-- an OPTIONAL member, a SEQUENCE OF element and a CHOICE alternative. A
+	-- negative lower bound makes the Go type int64: its conversions must use
+	-- the signed asn_imax2INTEGER / asn_INTEGER2imax verbs (the unsigned ones
+	-- turned -1 into 2^64-1). The inline member c is the reference encoding.
+	SWide ::= INTEGER (-1099511627776..1099511627775)
+	UWide ::= INTEGER (0..1099511627775)
+
+	SWideMem ::= SEQUENCE {
+		a	SWide,
+		b	SWide OPTIONAL,
+		c	INTEGER (-1099511627776..1099511627775),
+		u	UWide,
+		v	UWide OPTIONAL
+	}
+
+	SWideList ::= SEQUENCE (SIZE(1..3)) OF SWide
+
+	SWideAlt ::= CHOICE {
+		a	SWide,
+		u	UWide,
+		b	BOOLEAN
+	}
+
 END

@@ -262,3 +262,62 @@ func TestU64RangeMatchesC(t *testing.T) {
 		}
 	}
 }
+
+// TestExtWideNamedSigned: a NAMED wide INTEGER type with a negative lower
+// bound (int64 in Go, INTEGER_t in C) round-trips negative values wherever it
+// is referenced, and encodes like the same range written inline; a named
+// unsigned wide type still round-trips its full range.
+func TestExtWideNamedSigned(t *testing.T) {
+	const lo, hi = -1099511627776, 1099511627775
+	for _, v := range []int64{0, 1, -1, -5, lo, hi, lo + 1, hi - 1} {
+		s := ew.SWide(v)
+		u := ew.UWide(uint64(v) & 0xFFFFFFFFFF)
+		m := &ew.SWideMem{A: s, B: &s, C: v, U: u, V: &u}
+		b, err := m.Encode()
+		if err != nil {
+			t.Errorf("SWideMem %d: encode: %v", v, err)
+			continue
+		}
+		d, err := ew.DecodeSWideMem(b)
+		if err != nil {
+			t.Errorf("SWideMem %d: decode % x: %v", v, b, err)
+			continue
+		}
+		if d.A != s || d.B == nil || *d.B != s || d.C != v || d.U != u || d.V == nil || *d.V != u {
+			t.Errorf("SWideMem %d: got %+v (b=%v v=%v)", v, d, d.B, d.V)
+		}
+		// a and c share the range: their APER bytes must be identical, so
+		// re-encoding with a and c swapped gives the same message.
+		m2 := &ew.SWideMem{A: ew.SWide(m.C), B: m.B, C: int64(m.A), U: u, V: &u}
+		if b2, err := m2.Encode(); err != nil || !bytes.Equal(b, b2) {
+			t.Errorf("SWideMem %d: named vs inline encoding differ: % x / % x (%v)", v, b, b2, err)
+		}
+
+		l := ew.SWideList{s, ew.SWide(-v), s}
+		if lo == v {
+			l[1] = ew.SWide(hi)
+		}
+		lb, err := l.Encode()
+		if err != nil {
+			t.Errorf("SWideList %d: encode: %v", v, err)
+		} else if ld, err := ew.DecodeSWideList(lb); err != nil || len(*ld) != 3 || (*ld)[0] != l[0] || (*ld)[1] != l[1] {
+			t.Errorf("SWideList %d: decode % x: %v %v", v, lb, ld, err)
+		}
+
+		for _, a := range []*ew.SWideAlt{
+			{Present: ew.SWideAltPrA, A: &s},
+			{Present: ew.SWideAltPrU, U: &u},
+		} {
+			ab, err := a.Encode()
+			if err != nil {
+				t.Errorf("SWideAlt %d/%d: encode: %v", v, a.Present, err)
+				continue
+			}
+			ad, err := ew.DecodeSWideAlt(ab)
+			if err != nil || ad.Present != a.Present ||
+				(a.A != nil && *ad.A != *a.A) || (a.U != nil && *ad.U != *a.U) {
+				t.Errorf("SWideAlt %d/%d: decode % x: %+v %v", v, a.Present, ab, ad, err)
+			}
+		}
+	}
+}

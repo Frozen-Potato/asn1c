@@ -227,20 +227,26 @@ arm_ref_from(void *t, void *m, const char *in_acc, const char *out_acc) {
     if(go_flat_ir_is_leaf(r)) {
         const char *prim = go_flat_ir_prim(r);
         if(conv_is_wide(go_flat_ir_cid(r))) {
-            /* wide INTEGER ref (native Flat width) */
+            /* wide INTEGER ref (native Flat width); the verb, the temporary
+             * and the flat slot type follow the referenced type's sign */
+            int u = conv_wide_unsigned(r);
+            const char *fn = u ? "asn_INTEGER2umax" : "asn_INTEGER2imax";
+            const char *vt = u ? "uintmax_t" : "intmax_t";
+            const char *ft = u ? "uint64_t" : "int64_t";
             if(stars) {
                 { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        uint64_t *v = (uint64_t *)asn1cgo_arena_alloc(ar, sizeof(*v), _Alignof(uint64_t));\n"); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (!v) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (asn_INTEGER2umax((const INTEGER_t *)%s, (uintmax_t *)v) != 0)\n", in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"asn_INTEGER2umax failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        %s = v;\n    } else {\n        %s = NULL;\n    }\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s v;\n        %s *p;\n", vt, ft); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s((const INTEGER_t *)%s, &v) != 0)\n", fn, in_acc); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        p = (%s *)asn1cgo_arena_alloc(ar, sizeof(*p), _Alignof(%s));\n", ft, ft); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (!p) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        *p = (%s)v;\n        %s = p;\n    } else {\n        %s = NULL;\n    }\n", ft, out_acc, out_acc); s = ca(s, _cf); free(_cf); }
             } else {
                 { char *_cf = cfmt("    {\n"); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        uintmax_t v = 0;\n"); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (asn_INTEGER2umax((const INTEGER_t *)&%s, &v) != 0)\n", in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"asn_INTEGER2umax failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        %s = (uint64_t)v;\n    }\n", out_acc); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s v = 0;\n", vt); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s((const INTEGER_t *)&%s, &v) != 0)\n", fn, in_acc); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        %s = (%s)v;\n    }\n", out_acc, ft); s = ca(s, _cf); free(_cf); }
             }
         } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
             if(stars) {
@@ -474,10 +480,13 @@ choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
             free(oslot);
         } else {
             if(conv_is_wide(go_flat_ir_cid(r))) {
-                { char *_cf = cfmt("        {\n            uintmax_t v = 0;\n"); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            if (asn_INTEGER2umax((const INTEGER_t *)&in%schoice.%s, &v) != 0)\n", deref, utok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("                return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"asn_INTEGER2umax failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            %s%s%s = (uint64_t)v;\n        }\n", out_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                /* the verb follows the signedness of the referenced type */
+                int u = conv_wide_unsigned(r);
+                const char *fn = u ? "asn_INTEGER2umax" : "asn_INTEGER2imax";
+                { char *_cf = cfmt("        {\n            %s v = 0;\n", u ? "uintmax_t" : "intmax_t"); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            if (%s((const INTEGER_t *)&in%schoice.%s, &v) != 0)\n", fn, deref, utok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("                return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            %s%s%s = (%s)v;\n        }\n", out_sel, deref, tok, u ? "uint64_t" : "int64_t"); s = ca(s, _cf); free(_cf); }
             } else if(go_flat_ir_is_leaf(r)) {
                 const char *prim = go_flat_ir_prim(r);
                 if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_strz(r))) {
@@ -765,13 +774,17 @@ node_from_body(void *t) {
     if(go_flat_ir_is_leaf(t)) {
         const char *prim = go_flat_ir_prim(t);
         if(conv_is_wide(go_flat_ir_cid(t))) {
+            /* the verb follows the signedness of the type */
+            int u = conv_wide_unsigned(t);
+            const char *fn = u ? "asn_INTEGER2umax" : "asn_INTEGER2imax";
             { char *_cf = cfmt(
                 "    {\n"
-                "        uintmax_t v = 0;\n"
-                "        if (asn_INTEGER2umax((const INTEGER_t *)in, &v) != 0)\n"
-                "            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", NULL, \"asn_INTEGER2umax failed\");\n"
-                "        *out = (uint64_t)v;\n"
-                "    }\n", label); s = ca(s, _cf); free(_cf); }
+                "        %s v = 0;\n"
+                "        if (%s((const INTEGER_t *)in, &v) != 0)\n"
+                "            return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", NULL, \"%s failed\");\n"
+                "        *out = (%s)v;\n"
+                "    }\n", u ? "uintmax_t" : "intmax_t", fn, label, fn,
+                u ? "uint64_t" : "int64_t"); s = ca(s, _cf); free(_cf); }
         } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_strz(t))) {
             { char *_cf = cfmt(
                 "    {\n"

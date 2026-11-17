@@ -419,9 +419,13 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
             }
         } else {
             if(r && conv_is_wide(go_flat_ir_cid(r))) {
-                /* wide-INTEGER inline alt (native Flat width) */
-                { char *_cf = cfmt("        if (asn_umax2INTEGER((INTEGER_t *)&%s%schoice.%s, (uintmax_t)%s%s%s) != 0)\n", out_sel, deref, utok, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"asn_umax2INTEGER failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
+                /* wide-INTEGER inline alt (native Flat width); the verb
+                 * follows the signedness of the referenced type */
+                int u = conv_wide_unsigned(r);
+                const char *fn = u ? "asn_umax2INTEGER" : "asn_imax2INTEGER";
+                const char *ct = u ? "uintmax_t" : "intmax_t";
+                { char *_cf = cfmt("        if (%s((INTEGER_t *)&%s%schoice.%s, (%s)%s%s%s) != 0)\n", fn, out_sel, deref, utok, ct, in_sel, deref, tok); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
             } else if(r && go_flat_ir_is_leaf(r)) {
                 /* an inline leaf alt reference (scalar leaf): by value */
                 const char *prim = go_flat_ir_prim(r);
@@ -514,10 +518,14 @@ static char *
 leaf_to_body(void *t, const char *label) {
     const char *prim = go_flat_ir_prim(t);
     if(conv_is_wide(go_flat_ir_cid(t))) {
-        /* wide INTEGER: bare INTEGER_t leaf (uint64/int64 native). */
+        /* wide INTEGER: bare INTEGER_t leaf (uint64/int64 native); the
+         * verb follows its signedness */
+        int u = conv_wide_unsigned(t);
+        const char *fn = u ? "asn_umax2INTEGER" : "asn_imax2INTEGER";
         char *s = cfmt(
-            "    if (asn_umax2INTEGER((INTEGER_t *)out, (uintmax_t)*in) != 0)\n"
-            "        return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, \"asn_umax2INTEGER failed\");\n", label);
+            "    if (%s((INTEGER_t *)out, (%s)*in) != 0)\n"
+            "        return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, \"%s failed\");\n",
+            fn, u ? "uintmax_t" : "intmax_t", label, fn);
         return s;
     }
     if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
@@ -746,17 +754,21 @@ arm_ref_to(void *t, void *m, const char *in_acc, const char *out_acc) {
     if(go_flat_ir_is_leaf(r)) {
         const char *prim = go_flat_ir_prim(r);
         if(conv_is_wide(go_flat_ir_cid(r))) {
-            /* wide INTEGER ref (leaf INTEGER_t; OPTIONAL = ptr star) */
+            /* wide INTEGER ref (leaf INTEGER_t; OPTIONAL = ptr star); the
+             * verb follows the signedness of the referenced type */
+            int u = conv_wide_unsigned(r);
+            const char *fn = u ? "asn_umax2INTEGER" : "asn_imax2INTEGER";
+            const char *ct = u ? "uintmax_t" : "intmax_t";
             if(stars) {
                 { char *_cf = cfmt("    if (%s) {\n", in_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        %s = asn1cgo_calloc(1, sizeof(*%s));\n", out_acc, out_acc); s = ca(s, _cf); free(_cf); }
                 { char *_cf = cfmt("        if (!%s) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        if (asn_umax2INTEGER((INTEGER_t *)%s, (uintmax_t)*%s) != 0)\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"asn_umax2INTEGER failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        if (%s((INTEGER_t *)%s, (%s)*%s) != 0)\n", fn, out_acc, ct, in_acc); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("            return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
                 s = ca(s, "    }\n");
             } else {
-                { char *_cf = cfmt("    if (asn_umax2INTEGER((INTEGER_t *)&%s, (uintmax_t)%s) != 0)\n", out_acc, in_acc); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"asn_umax2INTEGER failed\");\n", label, mlab); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("    if (%s((INTEGER_t *)&%s, (%s)%s) != 0)\n", fn, out_acc, ct, in_acc); s = ca(s, _cf); free(_cf); }
+                { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", \"%s failed\");\n", label, mlab, fn); s = ca(s, _cf); free(_cf); }
             }
         } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
             /* inline bytes leaf reference: the tree member IS an
