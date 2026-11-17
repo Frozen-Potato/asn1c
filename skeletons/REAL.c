@@ -831,7 +831,7 @@ asn_double2REAL(REAL_t *st, double dbl_value) {
 	if(!ptr) return -1;
 
 	memcpy(ptr, buf, buflen);
-	buf[buflen] = 0;	/* JIC */
+	ptr[buflen] = 0;	/* JIC */
 
 	if(st->buf) FREEMEM(st->buf);
 	st->buf = ptr;

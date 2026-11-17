@@ -16,6 +16,11 @@
       in Go) was converted as unsigned wherever it was referenced: Encode
       and Decode of a negative value failed. It now uses the signed
       conversions.
+    * C runtime: small fixes found by static analysis: the REAL encoder
+      nul-terminated its local buffer instead of the result, the
+      UniversalString XER decoder could leak a buffer on a failed
+      conversion, and the GeneralizedTime / UTCTime random-value
+      generators tested the wrong pointer after an allocation.
 
 0.9.29-go.12:
     * C runtime: aligned PER encodes known-multiplier character strings with

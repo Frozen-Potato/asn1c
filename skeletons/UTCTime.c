@@ -225,11 +225,11 @@ UTCTime_random_fill(const asn_TYPE_descriptor_t *td, void **sptr,
 
     if(*sptr) {
         if(OCTET_STRING_fromBuf(*sptr, values[rnd], -1) != 0) {
-            if(!sptr) return result_failed;
+            return result_failed;
         }
     } else {
         *sptr = OCTET_STRING_new_fromBuf(td, values[rnd], -1);
-        if(!sptr) return result_failed;
+        if(!*sptr) return result_failed;
     }
 
     return result_ok;

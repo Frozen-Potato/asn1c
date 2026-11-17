@@ -183,6 +183,7 @@ UniversalString_decode_xer(const asn_codec_ctx_t *opt_codec_ctx,
 
 		wcs = (uint32_t *)MALLOC(4 * (wcs_len + 1));
 		if(wcs == 0 || UTF8String_to_wcs(st, wcs, wcs_len) != wcs_len) {
+			FREEMEM(wcs);
 			rc.code = RC_FAIL;
 			rc.consumed = 0;
 			return rc;
