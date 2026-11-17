@@ -258,6 +258,7 @@ int go_outdir_publish(const char *go_outdir, const char *tmp, char **old_out);
 void go_outdir_rollback(const char *go_outdir, const char *tmp, char *old);
 int go_outdir_commit(char *old);
 void go_outdir_discard(const char *tmp);
+int go_outdir_probe(const char *go_outdir);
 
 static int
 rm_cb(const char *p, const struct stat *sb, int flag, struct FTW *ftw) {
@@ -444,4 +445,18 @@ go_outdir_commit(char *old) {
 void
 go_outdir_discard(const char *tmp) {
     if(tmp) rm_tree(tmp);
+}
+
+/* Pre-flight (before the C pass): run the staging step for real, so a -Fgo
+ * target that cannot be staged (not a directory, a parent that cannot be
+ * created or written) is refused while -D is still untouched. The missing
+ * parents of go_outdir stay created, as after a generation; the empty
+ * staging dir is removed again. */
+int
+go_outdir_probe(const char *go_outdir) {
+    char *tmp = NULL;
+    if(go_outdir_stage(go_outdir, &tmp) != 0) return -1;
+    go_outdir_discard(tmp);
+    free(tmp);
+    return 0;
 }

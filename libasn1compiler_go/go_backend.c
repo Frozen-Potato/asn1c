@@ -43,6 +43,7 @@ extern int asn1cgo_generate(asn1p_t *asn, const char *go_outdir,
 extern int go_entry_set_dirs(const char *skeletons_dir, const char *destdir);
 
 extern int go_check_outdir(const char *go_outdir);
+extern int go_outdir_probe(const char *go_outdir);
 extern int asn1cgo_preflight(asn1p_t *asn, const char *go_outdir);
 
 /* Set once the construct walk has passed in asn1cgo_preflight, so
@@ -63,6 +64,7 @@ int
 asn1cgo_preflight(asn1p_t *asn, const char *go_outdir) {
     if(go_check_outdir(go_outdir) != 0) return -1;
     if(go_walk_asts(asn)) return -1;
+    if(go_outdir && *go_outdir && go_outdir_probe(go_outdir) != 0) return -1;
     g_walk_done = 1;
     return 0;
 }

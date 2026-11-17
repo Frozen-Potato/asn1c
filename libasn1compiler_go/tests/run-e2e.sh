@@ -381,6 +381,47 @@ run_stdlib_collision() {
     [ -f "$work/mymod/go.mod" ] || { echo "run-e2e: -Fgo=mymod wrote no go.mod" >&2; return 1; }
 }
 
+# A -Fgo target that cannot be staged (a regular file, or a path through a
+# regular file) is rejected by the pre-flight: exit 70, -D untouched.
+run_outdir_unusable() {
+    echo "== run-e2e: unusable -Fgo target (expect exit 70, before the C pass) =="
+    work="$tmp/outdir-unusable"
+    mkdir -p "$work/c"
+    printf 'sentinel\n' >"$work/c/keep.c"
+    touch -d '2001-01-01 00:00:00' "$work/c/keep.c"
+    m0=$(stat -c %Y "$work/c/keep.c")
+    printf 'file\n' >"$work/afile"
+    while IFS='|' read -r target want; do
+        rc=0
+        (
+            cd "$here/e2e"
+            ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test "$tmp/bin/asn1c" \
+                -S "$repo/skeletons" -fincludes-quoted -fcompound-names \
+                -findirect-choice -fno-include-deps -gen-PER -pdu=auto \
+                -D "$work/c" -Fgo="$work/$target" ex.asn
+        ) >"$work/asn1c.log" 2>&1 || rc=$?
+        if [ "$rc" != 70 ] || ! grep -qF "$want" "$work/asn1c.log" \
+           || ! grep -qF 'no C output was written' "$work/asn1c.log"; then
+            cat "$work/asn1c.log" >&2
+            echo "run-e2e: -Fgo=$target (rc $rc) lacks: $want" >&2
+            return 1
+        fi
+        if [ "$(ls -A "$work/c" | tr '\n' ' ')" != "keep.c " ] \
+           || [ "$(cat "$work/c/keep.c")" != sentinel ] \
+           || [ "$(stat -c %Y "$work/c/keep.c")" != "$m0" ]; then
+            echo "run-e2e: -Fgo=$target: -D was modified" >&2
+            return 1
+        fi
+    done <<'EOT'
+afile|asn1cgo: -Fgo target exists and is not a directory
+afile/go|asn1cgo: cannot stat -Fgo target
+EOT
+    if [ -n "$(ls -A "$work" | grep -v -x -e c -e afile -e asn1c.log)" ]; then
+        echo "run-e2e: unusable -Fgo target left files behind" >&2
+        return 1
+    fi
+}
+
 # The hard-coded stdlib name table must match the local toolchain.
 run_stdlib_names_drift() {
     rc=0
@@ -407,6 +448,7 @@ run_jer_clash
 run_oneway
 run_unsupported_default
 run_stdlib_collision
+run_outdir_unusable
 run_stdlib_names_drift
 run_rt_fetch
 run_rt_skeleton_sync

@@ -444,11 +444,12 @@ main(int ac, char **av) {
 
     /*
      * Go backend pre-flight: rejects that do not depend on the C pass run
-     * before asn1_compile, so a rejected spec leaves -D untouched.
+     * before asn1_compile (the specification, the -Fgo target), so a reject
+     * leaves -D untouched.
      */
     if(go_outdir && asn1cgo_preflight(asn, go_outdir) != 0) {
-        fprintf(stderr, "asn1c: Go backend rejected the specification; "
-                        "no C output was written\n");
+        fprintf(stderr, "asn1c: Go backend rejected the specification or the "
+                        "-Fgo target; no C output was written\n");
         exit_code = EX_SOFTWARE;
         goto cleanup;
     }

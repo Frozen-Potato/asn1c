@@ -69,10 +69,11 @@ separate module that imports the generated one. A hidden
 **The C and Go outputs are not updated atomically.** asn1c writes the C code
 into `-D` before the Go pass runs. Refusals that do not depend on the C pass
 (unsupported constructs, unsupported DEFAULT forms, an invalid module prefix or
-basename, a standard-library basename) are detected first and leave `-D`
-untouched (`no C output was written`). Name collisions, by-value type cycles
-and I/O errors are detected after the C pass: then `-D` holds the new C code
-while `<dir>` is still the previous generation. Fix the error and regenerate
+basename, a standard-library basename, a `<dir>` that cannot be staged: a file,
+or a parent that cannot be created or written) are detected first and leave
+`-D` untouched (`no C output was written`). Name collisions, by-value type
+cycles and I/O errors while writing `<dir>` are detected after the C pass:
+then `-D` holds the new C code while `<dir>` is still the previous generation. Fix the error and regenerate
 both; never build the old Go tree against the new C output.
 
 ## Using the generated code

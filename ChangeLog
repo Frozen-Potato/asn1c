@@ -25,6 +25,10 @@
       identifier member ({"value":42,"id":1}); it failed unless the
       identifier came first. Open-type members are now decoded after the
       other members of the SEQUENCE.
+    * Go backend: a -Fgo target that cannot be created (a regular file,
+      or a path through a regular file) is refused before the C pass, so
+      -D is left untouched; it was refused after the C code had been
+      written.
 
 0.9.29-go.12:
     * C runtime: aligned PER encodes known-multiplier character strings with
