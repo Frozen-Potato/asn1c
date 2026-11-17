@@ -53,11 +53,14 @@ jobs:
           autoreconf -i
           ./configure ${{ matrix.configure }}
       - name: Build
+        id: build
         run: make -j"$(nproc)" 2>&1 | tee build.log
       - name: No new compiler warnings
         if: matrix.cc == 'gcc'
         run: sh .github/ci/check-warnings.sh build.log .github/ci/gcc-warnings.txt
+      # Runs even when the warning check failed, as long as the build passed.
       - name: make check
+        if: (success() || failure()) && steps.build.outcome == 'success'
         run: make -j"$(nproc)" -k check
       - name: Show failed test logs
         if: failure()
