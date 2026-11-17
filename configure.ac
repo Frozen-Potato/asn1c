@@ -1,4 +1,4 @@
-AC_INIT([asn1c],[0.9.29-go.12],[https://github.com/Frozen-Potato/asn1c/issues])
+AC_INIT([asn1c],[0.9.29-go.13],[https://github.com/Frozen-Potato/asn1c/issues])
 
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_HEADER([config.h])
