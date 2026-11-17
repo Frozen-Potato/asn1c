@@ -158,9 +158,17 @@ int main(void) {
 	must_fail(&asn_DEF_L, "[1,]");
 	must_fail(&asn_DEF_L, "[1,true]");
 	must_fail(&asn_DEF_L, "{}");
-	must_fail(&asn_DEF_O, "{\"value\":42,\"id\":1}");	/* id comes first */
 	must_fail(&asn_DEF_O, "{\"id\":3,\"value\":1}");	/* unknown id */
 	must_fail(&asn_DEF_O, "{\"id\":1,\"value\":true}");
+	must_fail(&asn_DEF_O, "{\"value\":true,\"id\":1}");
+	must_fail(&asn_DEF_O, "{\"value\":42}");	/* id is missing */
+	must_fail(&asn_DEF_O, "{\"value\":42,\"id\":1,\"value\":42}");
+
+	/* The open type may come before its identifier. */
+	o = decode(&asn_DEF_O, "{\"value\":42,\"id\":1}");
+	assert(o->id == 1 && o->value.present == O__value_PR_INTEGER);
+	expect(&asn_DEF_O, o, ATS_JER_MINIFIED, "{\"id\":1,\"value\":42}");
+	ASN_STRUCT_FREE(asn_DEF_O, o);
 
 	o = decode(&asn_DEF_O, "{\"id\":2,\"value\":true}");
 	assert(o->id == 2 && o->value.present == O__value_PR_BOOLEAN

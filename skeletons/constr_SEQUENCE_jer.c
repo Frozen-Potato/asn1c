@@ -220,17 +220,18 @@ SEQUENCE__jer_member(const asn_codec_ctx_t *opt_codec_ctx,
     return rv.code == RC_OK ? 0 : -1;
 }
 
-/* An open type needs its identifier, decoded before it. */
-static int
-SEQUENCE__jer_prior_seen(const asn_TYPE_member_t *elements, size_t upto,
-                         const uint8_t *seen) {
-    size_t i;
-    for(i = 0; i < upto; i++) {
-        if(JER_IS_GROUP(&elements[i])) continue;
-        if(SEQUENCE__jer_is_mandatory(&elements[i]) && !seen[i]) return 0;
-    }
-    return 1;
-}
+/*
+ * An open-type member, decoded after all the other members: the type of its
+ * value is selected by its identifier member, which may come later in the
+ * object (JSON member order is free) or be an absent DEFAULT.
+ */
+typedef struct {
+    const asn_TYPE_descriptor_t *td;
+    void *sptr;
+    const asn_TYPE_member_t *elm;
+    const char *val;
+    size_t val_size;
+} SEQUENCE__jer_deferred_t;
 
 asn_dec_rval_t
 SEQUENCE_decode_jer(const asn_codec_ctx_t *opt_codec_ctx,
@@ -242,6 +243,8 @@ SEQUENCE_decode_jer(const asn_codec_ctx_t *opt_codec_ctx,
     asn_dec_rval_t rval = {RC_FAIL, 0};
     jer_cursor_t cur;
     uint8_t *seen = 0;
+    SEQUENCE__jer_deferred_t *deferred = 0;
+    size_t ndeferred = 0;
     void *st;
     size_t vs, ve, edx, gdx;
     const char *key, *val;
@@ -261,6 +264,12 @@ SEQUENCE_decode_jer(const asn_codec_ctx_t *opt_codec_ctx,
 
     seen = (uint8_t *)CALLOC(SEQUENCE__jer_slots(td) + 1, 1);
     if(!seen) ASN__DECODE_FAILED;
+    deferred = (SEQUENCE__jer_deferred_t *)CALLOC(
+        SEQUENCE__jer_slots(td) + 1, sizeof(*deferred));
+    if(!deferred) {
+        FREEMEM(seen);
+        ASN__DECODE_FAILED;
+    }
 
     while((ret = jer_object_next(&cur, &key, &key_size, &val, &val_size))
           == 1) {
@@ -299,11 +308,17 @@ SEQUENCE_decode_jer(const asn_codec_ctx_t *opt_codec_ctx,
         elm = &melements[midx];
 
         if(mseen[midx]) goto fail;	/* A duplicate key */
-        if((elm->flags & ATF_OPEN_TYPE)
-           && !SEQUENCE__jer_prior_seen(melements, midx, mseen))
-            goto fail;	/* The identifier must come first */
-        if(SEQUENCE__jer_member(opt_codec_ctx, mtd, mst, elm, val, val_size))
+        if(elm->flags & ATF_OPEN_TYPE) {
+            deferred[ndeferred].td = mtd;
+            deferred[ndeferred].sptr = mst;
+            deferred[ndeferred].elm = elm;
+            deferred[ndeferred].val = val;
+            deferred[ndeferred].val_size = val_size;
+            ndeferred++;
+        } else if(SEQUENCE__jer_member(opt_codec_ctx, mtd, mst, elm, val,
+                                       val_size)) {
             goto fail;
+        }
         mseen[midx] = 1;
     }
     if(ret < 0) goto fail;
@@ -327,12 +342,22 @@ SEQUENCE_decode_jer(const asn_codec_ctx_t *opt_codec_ctx,
         }
     }
 
+    /* The open types, now that their identifiers are known. */
+    for(edx = 0; edx < ndeferred; edx++) {
+        const SEQUENCE__jer_deferred_t *dt = &deferred[edx];
+        if(SEQUENCE__jer_member(opt_codec_ctx, dt->td, dt->sptr, dt->elm,
+                                dt->val, dt->val_size))
+            goto fail;
+    }
+
+    FREEMEM(deferred);
     FREEMEM(seen);
     rval.code = RC_OK;
     rval.consumed = ve + jer_whitespace_span((const char *)buf_ptr + ve,
                                              size - ve);
     return rval;
 fail:
+    FREEMEM(deferred);
     FREEMEM(seen);
     rval.code = RC_FAIL;
     rval.consumed = 0;

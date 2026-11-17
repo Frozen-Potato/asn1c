@@ -94,8 +94,7 @@ func DecodeJER<PDU>(b []byte) (*<PDU>, error)  // JER -> value
 JER is the X.697 JSON encoding. `EncodeJER` writes it minified. `DecodeJER`
 accepts any member order and white space, but nothing except white space
 after the value (`ErrTrailing`). Constraints are checked on both sides as for
-APER, and errors are the same `*rt.Error` codes. An open-type member must come
-after its identifier member in `DecodeJER` input (known issue #42).
+APER, and errors are the same `*rt.Error` codes.
 
 Example specification (a SEQUENCE, a nested CHOICE, an OPTIONAL member):
 

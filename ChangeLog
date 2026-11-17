@@ -21,6 +21,10 @@
       UniversalString XER decoder could leak a buffer on a failed
       conversion, and the GeneralizedTime / UTCTime random-value
       generators tested the wrong pointer after an allocation.
+    * C runtime: the JER decoder accepts an open-type member before its
+      identifier member ({"value":42,"id":1}); it failed unless the
+      identifier came first. Open-type members are now decoded after the
+      other members of the SEQUENCE.
 
 0.9.29-go.12:
     * C runtime: aligned PER encodes known-multiplier character strings with

@@ -15,6 +15,7 @@ import (
     "testing"
 
     rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
+    deep "asn1cgo.test/go/deep"
     ex "asn1cgo.test/go/synth_example"
 )
 
@@ -82,6 +83,50 @@ func TestJERErrors(t *testing.T) {
     wantErr(t, "EncodeJER(out of range)", err, rt.ErrConstraint)
     _, err = (&ex.ExamplePDU{}).EncodeJER()
     wantErr(t, "EncodeJER(Present=0)", err, rt.ErrChoiceNothing)
+}
+
+// TestJERIOCMemberOrder: an open-type member decodes whatever the position of
+// its identifier member in the object (known issue #42: the identifier had to
+// come first). An identifier outside the object set still fails.
+func TestJERIOCMemberOrder(t *testing.T) {
+    in := &deep.IOCMsg{Ies: deep.IOCMsgIes{deep.NewFieldIdA(5), deep.NewFieldIdB(1)}}
+    const want = `{"ies":[{"id":1,"criticality":"reject","value":5},{"id":2,"criticality":"ignore","value":1}]}`
+    got, err := in.EncodeJER()
+    if err != nil {
+        t.Fatalf("EncodeJER: %v", err)
+    }
+    if string(got) != want {
+        t.Fatalf("EncodeJER = %s, want %s", got, want)
+    }
+    aper, err := in.Encode()
+    if err != nil {
+        t.Fatalf("Encode: %v", err)
+    }
+    for _, s := range []string{
+        want,
+        `{"ies":[{"value":5,"id":1,"criticality":"reject"},{"criticality":"ignore","value":1,"id":2}]}`,
+        `{"ies":[{"value":5,"criticality":"reject","id":1},{"value":1,"criticality":"ignore","id":2}]}`,
+    } {
+        out, err := deep.DecodeJERIOCMsg([]byte(s))
+        if err != nil {
+            t.Fatalf("DecodeJER(%s): %v", s, err)
+        }
+        b, err := out.Encode()
+        if err != nil {
+            t.Fatalf("Encode of DecodeJER(%s): %v", s, err)
+        }
+        if !bytes.Equal(b, aper) {
+            t.Fatalf("APER of DecodeJER(%s) = % x, want % x", s, b, aper)
+        }
+    }
+    for _, s := range []string{
+        `{"ies":[{"value":5,"id":99,"criticality":"reject"}]}`,
+        `{"ies":[{"value":5,"criticality":"reject"}]}`,
+        `{"ies":[{"value":5,"id":1,"criticality":"reject","value":5}]}`,
+    } {
+        _, err := deep.DecodeJERIOCMsg([]byte(s))
+        wantErr(t, "DecodeJER("+s+")", err, rt.ErrDecode)
+    }
 }
 
 func decodeJERErr(b []byte) error {
