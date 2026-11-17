@@ -6,6 +6,11 @@ GitHub Actions (`.github/workflows/ci.yml`) runs all seven on every push to
 current stable Go (with the `go test -asan` pass), next to `make check` with gcc
 and clang.
 
+`run-e2e.sh` also runs the Go tests under `go test -asan` when the C compiler
+can link `-fsanitize=address`. `ASN1CGO_E2E_ASAN=0` turns that pass off;
+`ASN1CGO_E2E_ASAN=1` makes it required (the script fails when AddressSanitizer
+cannot link; CI sets it on the stable-Go job). The log says which applied.
+
 | script | checks |
 | --- | --- |
 | `run-e2e.sh` | Generates Go and C from `e2e/*.asn`, builds with cgo, runs `go test` (APER/UPER/XER round-trips against the C converter, every reachable error code, race runs, an allocation-fault sweep), twice: with and without OER. Also runs the `cycle/`, `oneway/`, unsupported-DEFAULT and stdlib-collision cases, and calls `run-stdlib-names.sh`, `run-rt-fetch.sh` and `run-rt-skeleton-sync.sh`. |

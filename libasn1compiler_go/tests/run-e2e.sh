@@ -35,13 +35,20 @@ mkdir "$tmp/bin" && ln -s "$asn1c" "$tmp/bin/asn1c"
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# AddressSanitizer pass of the Go tests (go test -asan) when the C compiler
-# cgo uses can link -fsanitize=address; ASN1CGO_E2E_ASAN=0 skips it.
+# AddressSanitizer pass of the Go tests (go test -asan). ASN1CGO_E2E_ASAN
+# unset: run it when the C compiler cgo uses can link -fsanitize=address,
+# else skip it with a note; =1: required, fail when it cannot link; =0: skip.
 asan=0
-if [ "${ASN1CGO_E2E_ASAN:-1}" != 0 ]; then
+if [ "${ASN1CGO_E2E_ASAN:-}" = 0 ]; then
+    echo "run-e2e: go test -asan pass off (ASN1CGO_E2E_ASAN=0)"
+else
     printf 'int main(void) { return 0; }\n' >"$tmp/asanprobe.c"
     if $(go env CC) -fsanitize=address -o "$tmp/asanprobe" "$tmp/asanprobe.c" >/dev/null 2>&1; then
         asan=1
+        echo "run-e2e: go test -asan pass on ($(go env CC))"
+    elif [ "${ASN1CGO_E2E_ASAN:-}" = 1 ]; then
+        echo "run-e2e: ASN1CGO_E2E_ASAN=1 but $(go env CC) cannot link -fsanitize=address" >&2
+        exit 1
     else
         echo "run-e2e: $(go env CC) cannot link -fsanitize=address; skipping the go test -asan runs"
     fi
