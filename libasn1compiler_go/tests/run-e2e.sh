@@ -73,7 +73,8 @@ run_one() {
             -pdu=auto -D "$work/c" -Fgo="$work/go" \
             ex.asn ioc.asn default.asn nsmall.asn bits.asn seqof.asn \
             inlconstr.asn padalloc.asn extwide.asn strings.asn oids.asn \
-            extgroup.asn names.asn xmod.asn choice.asn set.asn real32.asn
+            extgroup.asn names.asn xmod.asn choice.asn set.asn real32.asn \
+            iocforms.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
 
@@ -100,6 +101,7 @@ run_one() {
        "$here/e2e/xmod_test.go" \
        "$here/e2e/choice_test.go" \
        "$here/e2e/real32_test.go" \
+       "$here/e2e/iocforms_test.go" \
        "$here/e2e/randenc_test.go" \
        "$work/go/"
     # The BMPString / UniversalString helpers are unexported: their test lives

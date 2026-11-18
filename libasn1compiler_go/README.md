@@ -195,7 +195,21 @@ reference (Go-cased), e.g. `NewExampleIEsIdExampleID(v ExampleType) ExampleIEs`.
 It fills the record's dispatch fields (id, the value union's `Present`, other
 row-governed fields) from the spec row. `Encode` writes whatever the fields
 hold and `Decode` returns them as received; neither checks them against the
-row. A spec without object sets gets no constructors.
+row. A spec without object sets gets no constructors. A class field declared
+with a type written inline (`&id INTEGER (0..255) UNIQUE`, no named type) is a
+plain `int64` (or `uint64`) field, and its constructors are named after the id
+number (`New<Record>Id<n>`), also when the object names a value reference. A
+SEQUENCE with an open-type member is a PDU like any other SEQUENCE (`Encode`,
+`Decode<T>`, ...) when `-pdu` selects it.
+
+**Built-in types in objects.** An object may name a built-in type directly
+(`{ ID 2 TYPE BOOLEAN }`): the value union field then has the Go type of that
+built-in type and the name of the C union member: `BOOLEAN *bool`,
+`INTEGER *int64`, `OCTETSTRING *[]byte`, `BITSTRING *BitString`,
+`UTF8String *string`. This works for BOOLEAN, INTEGER, BIT STRING, OCTET STRING
+and the character string types without constraints. NULL, ENUMERATED and
+constrained or constructed types written there are refused; define a named
+type (`Flag ::= BOOLEAN`) and use `TYPE Flag`.
 
 **Recursion depth.** Encode and decode charge a budget of 64 depth units per
 call (one per entry into a recursive type), so a recursive ASN.1 level nested
@@ -399,8 +413,10 @@ FROM, NumericString and time-syntax checks are the C runtime's and surface from
 ## Not supported
 
 ANY, EXTERNAL, EMBEDDED PDV, CHARACTER STRING, an open-type (information
-object class `&Value`) member of a SET (KNOWN-ISSUES #25), the DEFAULT forms
-listed above, and an INTEGER range that fits neither `int64` nor `uint64` are
+object class `&Value`) member of a SET (KNOWN-ISSUES #25), a NULL,
+ENUMERATED, constrained or constructed type written directly in an
+information object (KNOWN-ISSUES #52), the DEFAULT forms listed above, and an
+INTEGER range that fits neither `int64` nor `uint64` are
 refused at generation with an `asn1cgo: ...` message and exit 70. A bare
 `TYPE-IDENTIFIER.&Type` outside an object-set-governed field is not refused but
 generates an empty union; do not use it. For bugs and open limitations see

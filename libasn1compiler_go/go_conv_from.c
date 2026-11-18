@@ -984,6 +984,16 @@ ioc_node_from_body(void *t) {
         const char *amsg = (r->alt_msg && *r->alt_msg) ? r->alt_msg
                                                        : r->alt_token;
         { char *_cf = cfmt("        case (int32_t)%s_PR_%s:\n", prbase, r->alt_token); s = ca(s, _cf); free(_cf); }
+        void *un = NULL;
+        void *pm = conv_ioc_alt_prim(t, r->alt_token, &un);
+        if(pm) {
+            /* built-in leaf alt: the prim arm, as for a CHOICE alt */
+            char *ia = cfmt("in->value.choice.%s", r->alt_token);
+            char *oa = cfmt("out->value.%s", r->alt_token);
+            char *body = arm_prim_from(un, pm, ia, oa);
+            s = ca(s, body);
+            free(body); free(ia); free(oa);
+        } else
         { char *_cf = cfmt("            if (%s%s_from_tree(ar, &in->value.choice.%s, &out->value.%s, err)) return err->code;\n",
                        pfx ? pfx : "", amsg, r->alt_token, r->alt_token); s = ca(s, _cf); free(_cf); }
         { char *_cf = cfmt("            break;\n"); s = ca(s, _cf); free(_cf); }

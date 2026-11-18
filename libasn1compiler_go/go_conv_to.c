@@ -1204,6 +1204,30 @@ node_to_body(void *t) {
  * share an alt present slot) => id-authoritative (id-dispatch form, the IOC
  * dispatch rule).
  * ------------------------------------------------------------------------- */
+void *
+conv_ioc_alt_prim(void *spec, const char *alt_token, void **union_node) {
+    for(int i = 0; i < go_flat_ir_members(spec); i++) {
+        void *m = go_flat_ir_member(spec, i);
+        if(!go_flat_ir_member_is_nested(m)
+           || strcmp(go_flat_ir_member_token(m), "value") != 0)
+            continue;
+        int nix = go_flat_ir_member_nested_ix(m);
+        void *n = (nix >= 0 && nix < go_flat_ir_n_types())
+                      ? go_flat_ir_type(nix) : NULL;
+        if(!n) return NULL;
+        for(int j = 0; j < go_flat_ir_members(n); j++) {
+            void *a = go_flat_ir_member(n, j);
+            if(go_flat_ir_member_is_prim(a)
+               && strcmp(go_flat_ir_member_token(a), alt_token) == 0) {
+                if(union_node) *union_node = n;
+                return a;
+            }
+        }
+        return NULL;
+    }
+    return NULL;
+}
+
 static char *
 ioc_node_to_body(void *t) {
     const char *cid = go_flat_ir_cid(t);
@@ -1296,6 +1320,16 @@ ioc_node_to_body(void *t) {
             const char *amsg = (r->alt_msg && *r->alt_msg) ? r->alt_msg
                                                            : r->alt_token;
             { char *_cf = cfmt("        case (int32_t)%s_PR_%s:\n", prbase, r->alt_token); s = ca(s, _cf); free(_cf); }
+            void *un = NULL;
+            void *pm = conv_ioc_alt_prim(t, r->alt_token, &un);
+            if(pm) {
+                /* built-in leaf alt: the prim arm, as for a CHOICE alt */
+                char *ia = cfmt("in->value.%s", r->alt_token);
+                char *oa = cfmt("out->value.choice.%s", r->alt_token);
+                char *body = arm_prim_to(un, pm, ia, oa);
+                s = ca(s, body);
+                free(body); free(ia); free(oa);
+            } else
             { char *_cf = cfmt("            if (%s%s_to_tree(&in->value.%s, &out->value.choice.%s, err)) return err->code;\n",
                            pfx ? pfx : "", amsg, r->alt_token, r->alt_token); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("            break;\n"); s = ca(s, _cf); free(_cf); }
@@ -1342,6 +1376,16 @@ ioc_node_to_body(void *t) {
             const char *amsg = (r->alt_msg && *r->alt_msg) ? r->alt_msg
                                                            : r->alt_token;
             { char *_cf = cfmt("        case (int32_t)%s_PR_%s:\n", prbase, r->alt_token); s = ca(s, _cf); free(_cf); }
+            void *un = NULL;
+            void *pm = conv_ioc_alt_prim(t, r->alt_token, &un);
+            if(pm) {
+                /* built-in leaf alt: the prim arm, as for a CHOICE alt */
+                char *ia = cfmt("in->value.%s", r->alt_token);
+                char *oa = cfmt("out->value.choice.%s", r->alt_token);
+                char *body = arm_prim_to(un, pm, ia, oa);
+                s = ca(s, body);
+                free(body); free(ia); free(oa);
+            } else
             { char *_cf = cfmt("            if (%s%s_to_tree(&in->value.%s, &out->value.choice.%s, err)) return err->code;\n",
                            pfx ? pfx : "", amsg, r->alt_token, r->alt_token); s = ca(s, _cf); free(_cf); }
             { char *_cf = cfmt("            break;\n"); s = ca(s, _cf); free(_cf); }

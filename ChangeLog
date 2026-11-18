@@ -2,6 +2,14 @@
     * Go backend: in a module with BIT STRING members, generated names
       containing BITSTR (a type BITSTRING-Count) were mangled and the
       package did not compile.
+    * Go backend: information object classes: a SEQUENCE with an
+      open-type member gets Encode / Decode like any other PDU (it got
+      none, although the C code lists it as a PDU); a class field with a
+      type written inline (&id INTEGER (0..255)) and a built-in type
+      written directly in an object (TYPE BOOLEAN) are supported (both
+      failed after the C pass with "flat: unresolved ref"). NULL,
+      ENUMERATED, constrained and constructed types written directly in
+      an object are refused with a readable message.
 
 0.9.29-go.13:
     * C runtime: the decoders' stack guard (ASN__STACK_OVERFLOW_CHECK)

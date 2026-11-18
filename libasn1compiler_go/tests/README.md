@@ -33,7 +33,8 @@ into one generated package instead (they test unexported helpers).
 Topics: `xmod` (imports across modules), `set` (SET, SET OF), `choice`,
 `names` (hyphen / shadowed names), `seqof` (SEQUENCE OF shapes), `bits`
 (BIT STRING), `real32` (float-narrowed REAL, `float32`); the rest are single-purpose (`default`, `nsmall`, `strings`,
-`oids`, `extgroup`, `extwide`, `inlconstr`, `padalloc`, `ex`, `ioc`).
+`oids`, `extgroup`, `extwide`, `inlconstr`, `padalloc`, `ex`, `ioc`,
+`iocforms`).
 
 ## feature matrix layout
 

@@ -1,0 +1,11 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A NULL written directly in an object: refused, define a named type
+-- instead (the C union asn1c generates for it does not compile).
+Id ::= INTEGER (0..255)
+CLS ::= CLASS { &id Id UNIQUE, &Value } WITH SYNTAX { ID &id TYPE &Value }
+IntVal ::= INTEGER (0..255)
+Objs CLS ::= { { ID 1 TYPE IntVal } | { ID 2 TYPE NULL }, ... }
+IE ::= SEQUENCE { id CLS.&id ({Objs}), value CLS.&Value ({Objs}{@id}) }
+
+END

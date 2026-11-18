@@ -1,0 +1,36 @@
+IocForms DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- An open-type SEQUENCE that nothing references is a PDU of its own
+-- (InlineIE, BuiltinIE: Encode/Decode generated with -pdu=auto).
+-- Generated in the same run as the other e2e specs (tests/run-e2e.sh).
+
+-- A class field whose type is written inline (no named type): the Go field
+-- is int64, every id is converted like a literal.
+    ICLS ::= CLASS { &id INTEGER (0..255) UNIQUE, &Value }
+        WITH SYNTAX { ID &id TYPE &Value }
+    id-flag INTEGER (0..255) ::= 7
+    Small ::= INTEGER (0..255)
+    OnOff ::= BOOLEAN
+    InlineObjs ICLS ::= { { ID 1 TYPE Small } | { ID id-flag TYPE OnOff }, ... }
+    InlineIE ::= SEQUENCE {
+        id    ICLS.&id ({InlineObjs}),
+        value    ICLS.&Value ({InlineObjs}{@id})
+    }
+
+-- Built-in types written directly in the objects (ids 1 and 7 share one
+-- BOOLEAN alternative), next to a named one.
+    BId ::= INTEGER (0..255)
+    BCLS ::= CLASS { &id BId UNIQUE, &Value }
+        WITH SYNTAX { ID &id TYPE &Value }
+    BuiltinObjs BCLS ::= {
+        { ID 1 TYPE BOOLEAN } | { ID 2 TYPE INTEGER } |
+        { ID 3 TYPE OCTET STRING } | { ID 4 TYPE PrintableString } |
+        { ID 5 TYPE UTF8String } | { ID 6 TYPE BIT STRING } |
+        { ID 7 TYPE BOOLEAN } | { ID 8 TYPE Small }, ... }
+    BuiltinIE ::= SEQUENCE {
+        id    BCLS.&id ({BuiltinObjs}),
+        value    BCLS.&Value ({BuiltinObjs}{@id})
+    }
+
+END

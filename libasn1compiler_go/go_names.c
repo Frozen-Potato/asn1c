@@ -3050,6 +3050,7 @@ qualify_field_types(struct name_bag *b);
  * consts owned by it) instead of any name-shape assumption. Malloc'd;
  * NULL when the declared type does not resolve. */
 static char *column_governing_go(struct walk_ctx *ctx, asn1p_expr_t *field);
+static int column_is_inline(asn1p_expr_t *field);
 static int cell_id_is_literal(asn1p_expr_t *cv);
 
 /* Forward decls: emit_spec_value_alts + emit_value_pr_nothing are defined
@@ -3162,7 +3163,20 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
             char *env_cid = NULL;
             if(go_construct_is_classfield_ref(mem)) {
                 asn1p_expr_t *decl = classfield_declared_type(ctx, mem);
-                if(decl) env_cid = own(GO_MKID(decl));
+                if(decl && !decl->Identifier) {
+                    /* an inline class-field type (`&id INTEGER (0..255)`):
+                     * no named type behind it; the C member is the bare
+                     * leaf (long id), so the Flat row is the leaf prim. */
+                    int lk = classify_leaf(ctx, decl, parent_path);
+                    const char *fprim = go_leaf_flat_prim(lk);
+                    if(fprim) {
+                        char *tok = go_mk_member(mem);
+                        go_flat_member_prim(fprim, tok, 0);
+                        go_flat_last_member_gleaf(lk);
+                        go_flat_label_last_member(mem->Identifier);
+                        free(tok);
+                    }
+                } else if(decl) env_cid = own(GO_MKID(decl));
             }
             if(env_cid) {
                 char *tok = go_mk_member(mem);
@@ -3181,7 +3195,11 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
             char *ft = NULL;
             if(go_construct_is_classfield_ref(mem)) {
                 asn1p_expr_t *decl = classfield_declared_type(ctx, mem);
-                if(decl) {
+                if(decl && !decl->Identifier) {
+                    int lk = classify_leaf(ctx, decl, parent_path);
+                    const char *under = go_types_leaf_underlying(lk);
+                    if(under) ft = own(under);
+                } else if(decl) {
                     char *tgo = go_type_go(decl);
                     ft = str_append(strdup(""), tgo);
                     free(tgo);
@@ -3567,12 +3585,14 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                     if(v) row_id = (long)v->value.v_integer;
                     free(id_gov);
                     id_gov = column_governing_go(ctx, ocell->field);
-                    id_literal = cell_id_is_literal(cv);
+                    id_literal = cell_id_is_literal(cv)
+                                 || column_is_inline(ocell->field);
                 } else if(strcmp(fid, "&id") == 0) {
                     if(v) row_id = (long)v->value.v_integer;
                     free(id_gov);
                     id_gov = column_governing_go(ctx, ocell->field);
-                    id_literal = cell_id_is_literal(cv);
+                    id_literal = cell_id_is_literal(cv)
+                                 || column_is_inline(ocell->field);
                 } else if(strcmp(fid, "&criticality") == 0) {
                     if(v) row_crit = (long)v->value.v_integer;
                     free(crit_gov);
@@ -3649,6 +3669,41 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         /* the __value_PR enumerant suffix and the union member decl
          * token are unprefixed member tokens (c_presence_name suffix +
          * MKID_safe; asn1c_naming.c:304, asn1c_C.c:1353). */
+        /* A built-in type written directly in the object (`TYPE BOOLEAN`,
+         * not a reference to a type assignment): asn1c makes the union
+         * member the bare leaf. Only unconstrained leaf types reach a
+         * compilable C union (asn1c fails on NULL, ENUMERATED, constrained
+         * and constructed cells), so anything else is refused here. */
+        int alt_lk = -1, alt_wide = 0;
+        if(cell->value->expr_type != A1TC_REFERENCE
+           && cell->value->meta_type != AMT_TYPEREF) {
+            asn1p_expr_t *bv = cell->value;
+            if(go_is_struct_kind(bv->expr_type)
+               || bv->expr_type == ASN_CONSTR_CHOICE
+               || go_is_list_kind(bv->expr_type)
+               || bv->expr_type == ASN_BASIC_ENUMERATED
+               || bv->expr_type == ASN_BASIC_NULL || bv->constraints) {
+                fprintf(stderr,
+                        "asn1cgo: object set of %s (module %s): a %s type "
+                        "written directly in an object is not supported; "
+                        "define it as a named type (T ::= ...) and use "
+                        "TYPE T\n",
+                        x_go, ctx->module ? ctx->module : "?",
+                        bv->constraints ? "constrained"
+                                        : ASN_EXPR_TYPE2STR(bv->expr_type));
+                ctx->bag->failed = 1;
+                continue;
+            }
+            ctx->wide_nr = 1; ctx->wide_hit = 0;
+            alt_lk = classify_leaf(ctx, bv, parent_path);
+            alt_wide = ctx->wide_hit;
+            ctx->wide_nr = 0; ctx->wide_hit = 0;
+            if(!go_leaf_flat_prim(alt_lk)) alt_lk = -1;
+            /* the BitString helper type lives in the module that uses it */
+            if(alt_lk >= 0
+               && go_construct_classify(bv) == GO_CONSTR_BIT_STRING)
+                mark_bitstring_module(ctx->bag, ctx->module);
+        }
         const char *altcid = go_mk_suffix(cell->value);
         char *altgo = go_r2(altcid);
         /* choice-const <X>ValuePr<Alt>; rawCid = <X_cid>__value_PR_<AltCid> (the
@@ -3684,7 +3739,13 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
             emit_name(ctx->bag, ctx->module, path, GK_FIELD,
                       own(altcid), strdup(altgo));
             char *ft = str_append(strdup(""), "*");
-            ft = str_append(ft, altgo);
+            if(alt_lk >= 0) {
+                /* a built-in leaf cell (`TYPE BOOLEAN`): no named Go type
+                 * exists; the field is the leaf's mapping-table type. */
+                const char *under = go_types_leaf_underlying(alt_lk);
+                ft = str_append(ft, under ? under : altgo);
+            } else
+                ft = str_append(ft, altgo);
             row_set_field_type(ctx->bag, ft);
             free(ft);
         }
@@ -3695,7 +3756,15 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         {
             char *flat_alt = own(altcid);   /* GO_MKID buffer owner */
             char *flat_slot = own(altcid);  /* the member token */
-            go_flat_member_ref_on(-1, flat_alt, flat_slot, 0);
+            if(alt_lk >= 0) {
+                /* built-in leaf cell: the union member is the bare leaf
+                 * (`BOOLEAN_t BOOLEAN;`, `long INTEGER;`) — a prim slot */
+                go_flat_member_prim_on(-1, go_leaf_flat_prim(alt_lk),
+                                       flat_slot, 0);
+                if(alt_wide) go_flat_last_member_wide();
+                go_flat_last_member_gleaf(alt_lk);
+            } else
+                go_flat_member_ref_on(-1, flat_alt, flat_slot, 0);
             /* alt slot label = the alt's ASN.1 Identifier (the td
              * union-member name string). */
             go_flat_label_last_member(cell->value->Identifier);
@@ -3868,8 +3937,25 @@ column_governing_go(struct walk_ctx *ctx, asn1p_expr_t *field) {
         asn1p_expr_t *r = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, ch);
         if(r) t = r;
     }
-    if(!t->Identifier) return NULL;
+    if(!t->Identifier) {
+        /* an inline column type (`&id INTEGER (0..255)`): the Go field is
+         * the leaf's mapping-table type itself (int64, ...). */
+        int lk = classify_leaf(ctx, t, "");
+        const char *under = go_types_leaf_underlying(lk);
+        return under ? strdup(under) : NULL;
+    }
     return go_type_go(t);
+}
+
+/* Is an IOC column's declared type an inline (unnamed) type, e.g.
+ * `&id INTEGER (0..255)`? Its Go type is a bare leaf (int64) and a value
+ * assignment governed by it emits no Go const, so every id of such a
+ * column is rendered like a literal (<leaf>(<n>), constructor New<X>Id<n>). */
+static int
+column_is_inline(asn1p_expr_t *field) {
+    asn1p_expr_t *ch = TQ_FIRST(&field->members);
+    return ch && ch->expr_type != A1TC_REFERENCE
+           && ch->meta_type != AMT_TYPEREF && !ch->Identifier;
 }
 
 /* Is an id cell's chased value a NUMBER LITERAL (no value assignment
@@ -5845,6 +5931,14 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
             return 0;
         }
         emit_spec(ctx, type_go, type_cid, ident, terminal);
+        /* Conv (the entry-point rule, as below): a hand-written field-shaped
+         * SEQUENCE (not a parameterized clone) is a PDU root like any other
+         * SEQUENCE; asn1c lists it in pdu_collection.c too. */
+        if(expr->spec_index < 0 && !expr->lhs_params
+           && (go_compiler_flags & A1C_PDU_ALL
+               || ((go_compiler_flags & A1C_PDU_AUTO)
+                   && !expr->_type_referenced)))
+            go_conv_record_pdu(GO_MKID(terminal));
         free(type_cid);
         free(type_path);
         free(type_go);
