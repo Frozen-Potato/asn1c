@@ -66,15 +66,20 @@ and **anything you keep in `<dir>` is deleted**: put hand-written code in a
 separate module that imports the generated one. A hidden
 `.<basename>.asn1cgo-tmp-*` directory left by a killed run is safe to delete.
 
-**The C and Go outputs are not updated atomically.** asn1c writes the C code
-into `-D` before the Go pass runs. Refusals that do not depend on the C pass
-(unsupported constructs, unsupported DEFAULT forms, an invalid module prefix or
-basename, a standard-library basename, a `<dir>` that cannot be staged: a file,
-or a parent that cannot be created or written) are detected first and leave
-`-D` untouched (`no C output was written`). Name collisions, by-value type
-cycles and I/O errors while writing `<dir>` are detected after the C pass:
-then `-D` holds the new C code while `<dir>` is still the previous generation. Fix the error and regenerate
-both; never build the old Go tree against the new C output.
+**The C output follows the same rule.** With `-Fgo`, a run that fails leaves
+`-D` as it was, whether the C pass or the Go pass failed: every file the run
+replaced is restored and every file it created is removed (asn1c prints
+`the C output in <-D> was restored`). Refusals that do not depend on the C
+pass (unsupported constructs, unsupported DEFAULT forms, an invalid module
+prefix or basename, a standard-library basename, a `<dir>` that cannot be
+staged) are detected before any C is written (`no C output was written`).
+Unlike `<dir>`, `-D` is not replaced as a whole: files the run does not
+produce are kept, and files whose contents did not change are not rewritten.
+While a run is in progress, each file it replaces is kept as a hidden
+`.<name>.asn1c-bak.*` file next to it. These are removed when the run ends,
+so if one is left behind, a run was killed: rename it back to `<name>` to
+undo that run's change to the file, or delete it. Without `-Fgo`, asn1c
+writes `-D` as upstream asn1c does.
 
 ## Using the generated code
 

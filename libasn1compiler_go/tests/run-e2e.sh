@@ -242,6 +242,73 @@ EOS
     fi
 }
 
+# With -Fgo a failed run leaves -D as it was: a Go refusal after the C pass
+# (the -gen-JER name clash) and a C-pass failure (a directory where a .c file
+# goes) restore every replaced file and remove every created one; a
+# successful run leaves no backup files behind.
+run_post_c_restore() {
+    work="$tmp/restore"
+    mkdir -p "$work/c"
+    echo "== run-e2e: failed run restores -D =="
+    cat >"$work/jc.asn" <<'EOS'
+JC DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+X ::= SEQUENCE { a INTEGER }
+JERX ::= SEQUENCE { b BOOLEAN }
+END
+EOS
+    gen() {
+        (
+            cd "$work"
+            ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+            "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+                -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+                -pdu=auto -D "$work/c" -Fgo="$work/go" "$@" jc.asn
+        ) >"$work/asn1c.log" 2>&1
+    }
+    snap() {
+        ( cd "$1" && find . ! -path . -printf '%p %y %s %T@ %l\n' | sort \
+          && find . -type f -exec cksum {} + | sort -k3 )
+    }
+    printf 'keep\n' >"$work/c/user-file.txt"
+    gen || { cat "$work/asn1c.log" >&2; echo "run-e2e: restore: first run failed" >&2; return 1; }
+    printf '/* local edit */\n' >>"$work/c/X.c"
+    find "$work/c" "$work/go" -exec touch -h -d '2001-01-01 00:00:00' {} +
+    snap "$work/c" >"$work/c.0"
+    snap "$work/go" >"$work/go.0"
+    for case in jer dir; do
+        rc=0
+        if [ $case = jer ]; then
+            gen -gen-JER || rc=$?
+        else
+            rm "$work/c/JERX.c"
+            mkdir "$work/c/JERX.c"
+            snap "$work/c" >"$work/c.0"
+            gen || rc=$?
+        fi
+        if [ "$rc" != 70 ] || ! grep -qF 'was restored' "$work/asn1c.log"; then
+            cat "$work/asn1c.log" >&2
+            echo "run-e2e: restore ($case): exit $rc, want 70 and 'was restored'" >&2
+            return 1
+        fi
+        snap "$work/c" >"$work/c.1"
+        snap "$work/go" >"$work/go.1"
+        if ! cmp -s "$work/c.0" "$work/c.1" || ! cmp -s "$work/go.0" "$work/go.1"; then
+            diff "$work/c.0" "$work/c.1" >&2 || :
+            diff "$work/go.0" "$work/go.1" >&2 || :
+            echo "run-e2e: restore ($case): -D or the Go tree changed" >&2
+            return 1
+        fi
+    done
+    rmdir "$work/c/JERX.c"
+    gen || { cat "$work/asn1c.log" >&2; echo "run-e2e: restore: last run failed" >&2; return 1; }
+    if [ -n "$(ls -A "$work/c" | grep -F '.asn1c-bak.')" ] \
+       || [ "$(cat "$work/c/user-file.txt")" != keep ]; then
+        ls -A "$work/c" >&2
+        echo "run-e2e: restore: backups left behind or a user file changed" >&2
+        return 1
+    fi
+}
+
 # A one-way import between two modules still generates and builds.
 run_oneway() {
     work="$tmp/oneway"
@@ -455,6 +522,7 @@ run_rt_skeleton_sync() {
 
 run_cycle
 run_jer_clash
+run_post_c_restore
 run_oneway
 run_unsupported_default
 run_stdlib_collision

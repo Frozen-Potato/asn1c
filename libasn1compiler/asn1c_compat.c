@@ -69,6 +69,8 @@ asn1c_open_file(const char *destdir, const char *name, const char *ext,
 		/*
 		 * Create specified file, or open the old one.
 		 */
+		if(asn1c_txn_before_write(fname))
+			return NULL;
 		fd = open(fname, O_CREAT | O_EXCL | O_WRONLY, DEFFILEMODE);
 		if(fd == -1 && errno == EEXIST) {
 			fd = open(fname, O_WRONLY, DEFFILEMODE);
@@ -130,6 +132,164 @@ asn1c_open_file(const char *destdir, const char *name, const char *ext,
 	}
 
 	return fp;
+}
+
+/*
+ * Undo journal (see asn1c_compat.h).
+ */
+#ifdef	_WIN32
+#define	lstat	stat
+#endif
+
+struct txn_ent {
+	char *path;
+	char *backup;	/* NULL: the file did not exist before this run */
+};
+static struct txn_ent *txn_ents;
+static size_t txn_count;
+static size_t txn_size;
+static int txn_active;
+
+void
+asn1c_txn_begin(void) {
+	txn_active = 1;
+}
+
+static int
+txn_known(const char *path) {
+	size_t i;
+	for(i = 0; i < txn_count; i++)
+		if(strcmp(txn_ents[i].path, path) == 0) return 1;
+	return 0;
+}
+
+static int
+txn_add(const char *path, char *backup) {
+	if(txn_count == txn_size) {
+		size_t nsize = txn_size ? 2 * txn_size : 64;
+		struct txn_ent *n = realloc(txn_ents, nsize * sizeof(*n));
+		if(!n) return -1;
+		txn_ents = n;
+		txn_size = nsize;
+	}
+	txn_ents[txn_count].path = strdup(path);
+	if(!txn_ents[txn_count].path) return -1;
+	txn_ents[txn_count].backup = backup;
+	txn_count++;
+	return 0;
+}
+
+/* ".<name>.asn1c-bak.<pid>.<n>" next to path (never ends in .c/.h). */
+static char *
+txn_backup_name(const char *path) {
+	static unsigned long serial;
+	const char *base = strrchr(path, '/');
+	size_t dlen = base ? (size_t)(base - path) + 1 : 0;
+	size_t len = strlen(path) + 64;
+	char *b = malloc(len);
+	if(!b) return NULL;
+	snprintf(b, len, "%.*s.%s.asn1c-bak.%ld.%lu", (int)dlen, path,
+			 path + dlen, (long)getpid(), serial++);
+	return b;
+}
+
+int
+asn1c_txn_before_write(const char *path) {
+	struct stat sb;
+	char *backup;
+
+	if(!txn_active || txn_known(path))
+		return 0;
+	if(lstat(path, &sb) != 0) {
+		if(errno != ENOENT) {
+			perror(path);
+			return -1;
+		}
+		if(txn_add(path, NULL) == 0) return 0;
+		fprintf(stderr, "%s: out of memory\n", path);
+		return -1;
+	}
+	if(!S_ISREG(sb.st_mode)
+#ifndef	_WIN32
+	&& !S_ISLNK(sb.st_mode)
+#endif
+	)
+		return 0;	/* not ours to move: the write itself fails */
+	backup = txn_backup_name(path);
+	if(!backup) {
+		fprintf(stderr, "%s: out of memory\n", path);
+		return -1;
+	}
+	if(rename(path, backup) != 0) {
+		fprintf(stderr, "%s: cannot move aside to %s: %s\n", path, backup,
+				strerror(errno));
+		free(backup);
+		return -1;
+	}
+	if(txn_add(path, backup) != 0) {
+		(void)rename(backup, path);
+		free(backup);
+		fprintf(stderr, "%s: out of memory\n", path);
+		return -1;
+	}
+	return 0;
+}
+
+void
+asn1c_txn_created(const char *path) {
+	if(txn_active && !txn_known(path) && txn_add(path, NULL) != 0)
+		fprintf(stderr, "%s: out of memory (not recorded for undo)\n", path);
+}
+
+static void
+txn_end(void) {
+	size_t i;
+	for(i = 0; i < txn_count; i++) {
+		free(txn_ents[i].path);
+		free(txn_ents[i].backup);
+	}
+	free(txn_ents);
+	txn_ents = NULL;
+	txn_count = txn_size = 0;
+	txn_active = 0;
+}
+
+int
+asn1c_txn_rollback(void) {
+	int rc = 0;
+	size_t i;
+	for(i = txn_count; i-- > 0;) {
+		struct txn_ent *e = &txn_ents[i];
+		if(e->backup) {
+			if(rename(e->backup, e->path) != 0) {
+				fprintf(stderr, "%s: cannot restore from %s: %s\n", e->path,
+						e->backup, strerror(errno));
+				rc = -1;
+			}
+		} else if(unlink(e->path) != 0 && errno != ENOENT) {
+			fprintf(stderr, "%s: cannot remove: %s\n", e->path,
+					strerror(errno));
+			rc = -1;
+		}
+	}
+	txn_end();
+	return rc;
+}
+
+int
+asn1c_txn_commit(void) {
+	int rc = 0;
+	size_t i;
+	for(i = 0; i < txn_count; i++) {
+		struct txn_ent *e = &txn_ents[i];
+		if(e->backup && unlink(e->backup) != 0) {
+			fprintf(stderr, "%s: cannot remove: %s\n", e->backup,
+					strerror(errno));
+			rc = -1;
+		}
+	}
+	txn_end();
+	return rc;
 }
 
 const char *

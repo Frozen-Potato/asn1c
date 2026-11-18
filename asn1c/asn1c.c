@@ -455,6 +455,12 @@ main(int ac, char **av) {
     }
 
     /*
+     * With -Fgo the C output is journaled (asn1c_compat.h): if the C pass
+     * or the Go pass fails, -D is restored to what it was before this run.
+     */
+    if(go_outdir) asn1c_txn_begin();
+
+    /*
      * Compile the ASN.1 tree into a set of source files
      * of another language.
      */
@@ -468,13 +474,26 @@ main(int ac, char **av) {
     if(go_outdir && !exit_code) {
         if(asn1cgo_generate(asn, go_outdir, asn1_compiler_flags,
                            skeletons_dir, destdir) != 0) {
-            fprintf(stderr,
-                "asn1c: Go generation failed AFTER the C pass: the C output "
-                "in %s was updated, but the Go tree %s was left at its "
-                "previous generation. Fix the error and regenerate both "
-                "together (C and Go must come from the same run).\n",
-                destdir && *destdir ? destdir : ".", go_outdir);
             exit_code = EX_SOFTWARE;
+        }
+    }
+
+    if(go_outdir) {
+        const char *cdir = destdir && *destdir ? destdir : ".";
+        if(!exit_code) {
+            if(asn1c_txn_commit() != 0)
+                fprintf(stderr, "asn1c: warning: could not remove every "
+                        "backup file (.*.asn1c-bak.*) in %s\n", cdir);
+        } else if(asn1c_txn_rollback() == 0) {
+            fprintf(stderr, "asn1c: generation failed; the C output in %s "
+                    "was restored and the Go tree %s was left unchanged\n",
+                    cdir, go_outdir);
+        } else {
+            fprintf(stderr, "asn1c: generation failed and the C output in "
+                    "%s could not be fully restored (see above); the Go "
+                    "tree %s was left unchanged. Regenerate both together "
+                    "(C and Go must come from the same run).\n",
+                    cdir, go_outdir);
         }
     }
 

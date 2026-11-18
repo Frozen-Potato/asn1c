@@ -582,8 +582,10 @@ asn1c_save_streams(arg_t *arg, asn1c_dep_chainset *deps, const char *destdir,
 		c_retained = " (contents unchanged)";
 		unlink(tmpname_c);
 	} else {
-		if(rename(tmpname_c, name_buf)) {
+		if(asn1c_txn_before_write(name_buf)
+		|| rename(tmpname_c, name_buf)) {
 			unlink(tmpname_c);
+			unlink(tmpname_h);
 			perror(tmpname_c);
 			free(tmpname_c);
 			free(tmpname_h);
@@ -596,7 +598,8 @@ asn1c_save_streams(arg_t *arg, asn1c_dep_chainset *deps, const char *destdir,
 		h_retained = " (contents unchanged)";
 		unlink(tmpname_h);
 	} else {
-		if(rename(tmpname_h, name_buf)) {
+		if(asn1c_txn_before_write(name_buf)
+		|| rename(tmpname_h, name_buf)) {
 			unlink(tmpname_h);
 			perror(tmpname_h);
 			free(tmpname_c);
@@ -706,13 +709,22 @@ real_copy(const char *src, const char *dst) {
 	/* Check if copied correctly, and rename into a permanent name */
 	if(retval) {
 		unlink(tmpname);
-	} else if(rename(tmpname, dst)) {
+	} else if(asn1c_txn_before_write(dst) || rename(tmpname, dst)) {
 		unlink(tmpname);
 		perror(tmpname);
 		retval = -1;
 	}
 	free(tmpname);
 	return retval;
+}
+
+/* symlink(2), recorded in the undo journal when it created the link. */
+static int
+txn_symlink(const char *target, const char *linkpath) {
+	if(symlink(target, linkpath) != 0)
+		return -1;
+	asn1c_txn_created(linkpath);
+	return 0;
 }
 
 static int
@@ -726,7 +738,7 @@ asn1c_copy_over(arg_t *arg, const char *destdir, const char *path,
 
 	const char *fname = a1c_basename(path, destdir);
 	if(!fname
-	|| (use_real_copy ? real_copy(path, fname) : symlink(path, fname))
+	|| (use_real_copy ? real_copy(path, fname) : txn_symlink(path, fname))
 	) {
 		if(errno == EEXIST) {
 			struct stat sb1, sb2;

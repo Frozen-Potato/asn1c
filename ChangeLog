@@ -27,6 +27,14 @@
       OCTET_STRING, the XER decoder and the PER open type reader;
       unsigned wrap in the JER INTEGER code). The clang CI job now runs
       make check under UBSan too.
+    * asn1c -Fgo: a failed run leaves the C output directory (-D) as it
+      was. When the Go pass refused the specification after the C pass
+      (a name collision, a by-value type cycle) or the C pass itself
+      failed, -D kept the new C code next to the previous Go tree; now
+      every replaced file is restored and every created file removed.
+      Runs without -Fgo are unchanged.
+    * asn1c: when writing a generated .c file failed, its .h was left
+      behind as a temporary file.
 
 0.9.29-go.13:
     * C runtime: the decoders' stack guard (ASN__STACK_OVERFLOW_CHECK)
