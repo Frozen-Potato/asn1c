@@ -1,3 +1,8 @@
+0.9.29-go.14 (unreleased):
+    * Go backend: in a module with BIT STRING members, generated names
+      containing BITSTR (a type BITSTRING-Count) were mangled and the
+      package did not compile.
+
 0.9.29-go.13:
     * C runtime: the decoders' stack guard (ASN__STACK_OVERFLOW_CHECK)
       works under AddressSanitizer. With detect_stack_use_after_return=1,

@@ -27,5 +27,6 @@ set-ioc	REFUSED	asn1cgo: open-type member
 sof-name-clash	REFUSED	asn1cgo: collision in module Probe
 sof-name-clash2	REFUSED	asn1cgo: collision in module Probe
 str-iso646string	KNOWN-BROKEN	upstream-asn1fix
+type-bitstr-name	OK
 type-hyphen	OK
 value-hyphen	OK

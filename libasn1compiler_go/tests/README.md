@@ -49,7 +49,7 @@ file: `OK`, `REFUSED <message substring>` or `KNOWN-BROKEN <note>`):
 - **Single-case files** (`<case>.asn`, module `Probe`): every `REFUSED` and
   `KNOWN-BROKEN` case (a refusal stops the whole module, so it cannot share a
   file), and the `OK` cases whose point is how names interact across the
-  module (`type-hyphen`, `value-hyphen`, `ioc-hyphen`).
+  module (`type-hyphen`, `value-hyphen`, `ioc-hyphen`, `type-bitstr-name`).
 
 A family row is as strong as its weakest case: if any case in the family stops
 generating or vetting, the whole row fails, and the failing construct is in the

@@ -1120,6 +1120,13 @@ errlit(flat_type *t, const char *mfield, const char *code, const char *msg) {
 }
 
 /* Is `ft` (a field's Go type text) a bare primitive view? */
+/* a Go identifier character (the BITSTR placeholder match boundary) */
+static int
+glue_ident_char(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+           || (c >= '0' && c <= '9') || c == '_';
+}
+
 /* this package's BitString spelling: the local type when THIS package
  * declares one, else the OWNER's qualified name (used by the static bits
  * helpers' parameterization + every literal BitString bridge the glue
@@ -4385,14 +4392,20 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 const char *r = out, *q2;
                 size_t nl = strlen(needle);
                 while((q2 = strstr(r, needle)) != NULL) {
-                    char *seg = malloc((size_t)(q2 - r) + 1);
+                    /* whole identifiers only: a generated name that merely
+                     * contains the text (a type BITSTRING-Count, a value
+                     * union alt BIT_STRING -> BITSTRING) stays intact */
+                    int whole = !glue_ident_char(q2[nl])
+                                && (q2 == out || !glue_ident_char(q2[-1]));
+                    size_t keep = (size_t)(q2 - r) + (whole ? 0 : nl);
+                    char *seg = malloc(keep + 1);
                     if(seg) {
-                        memcpy(seg, r, (size_t)(q2 - r));
-                        seg[q2 - r] = 0;
+                        memcpy(seg, r, keep);
+                        seg[keep] = 0;
                         sub = ga(sub, seg);
                         free(seg);
                     }
-                    sub = ga(sub, bsname);
+                    if(whole) sub = ga(sub, bsname);
                     r = q2 + nl;
                 }
                 sub = ga(sub, r);

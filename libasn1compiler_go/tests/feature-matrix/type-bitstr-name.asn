@@ -1,0 +1,9 @@
+Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- A type whose name contains BITSTR in a module with BIT STRING members: the
+-- generated names are kept as they are (the BitString helper's placeholder
+-- is replaced only where it is a whole identifier).
+BITSTRING-Count ::= INTEGER (0..9)
+BitstrHolder ::= SEQUENCE { n BITSTRING-Count, b BIT STRING }
+
+END
