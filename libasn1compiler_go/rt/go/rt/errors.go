@@ -22,7 +22,7 @@
 // -DASN_DISABLE_OER_SUPPORT; this module defines it by default too. Trees
 // generated with OER enabled also work for APER without any tag (the OER
 // codec pointers are just NULL). `-tags asn1cgo_oer` only compiles the
-// runtime's OER codec in; the generated Go API is APER-only, so it matters
+// runtime's OER codec in; the generated Go API has no OER entry points, so it matters
 // only if you call the C OER functions yourself.
 //
 // JER: this module defines ASN_ENABLE_JER_SUPPORT, so the JER (X.697)

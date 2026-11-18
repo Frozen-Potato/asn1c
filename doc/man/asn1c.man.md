@@ -50,7 +50,8 @@ and other encoding rules.
 
 -Fgo=*dir*
 :   Also generate Go code into the specified directory.
-    The Go packages call the generated C aligned PER (APER) codec through cgo.
+    The Go packages call the generated C aligned PER (APER) and unaligned PER
+    (UPER) codecs through cgo.
     Incompatible with **-E**.
 
 ## Warning Options

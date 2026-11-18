@@ -4,7 +4,7 @@
  * the cspec package writer, the conv driver).
  *
  * Per recorded PDU root (go_conv_record_pdu — the walk mirrors asn1c's
- * -pdu=auto rule) three entry points are emitted into the spec's
+ * -pdu=auto rule) five entry points are emitted into the spec's
  * <pkg>_entry.c, in this fixed shape:
  *
  *   int asn1cgo_encode_<PDU>(const <P>_PDU>_flat *in, asn1cgo_buf *out,
@@ -23,6 +23,11 @@
  *   int asn1cgo_xer_<PDU>(const <PDU>_flat *in, asn1cgo_buf *xer_out,
  *                         asn1cgo_err *err)
  *       _to_tree -> asn_encode_to_new_buffer(ATS_CANONICAL_XER) -> free
+ *
+ * and the APER pair's unaligned twins (BASIC-UPER, X.691 unaligned):
+ *
+ *   int asn1cgo_uperenc_<PDU>(...)  as _encode_, ATS_UNALIGNED_BASIC_PER
+ *   int asn1cgo_uperdec_<PDU>(...)  as _decode_, ATS_UNALIGNED_BASIC_PER
  *
  * With -gen-JER (go_jer_enabled) two more per PDU, the APER pair's twins:
  *
@@ -63,11 +68,14 @@
 extern char *node_to_body_pub(void *t);
 extern char *conv_from_node(void *t, int scc);
 
-/* The codec word of a message ("aper"/"jer") in capitals, for the comments. */
+/* The codec word of a message ("aper"/"uper"/"jer") in capitals, for the
+ * comments. */
 static const char *
-word_up(const char *w) { return strcmp(w, "aper") == 0 ? "APER" : "JER"; }
+word_up(const char *w) {
+    return strcmp(w, "aper") == 0 ? "APER" : strcmp(w, "uper") == 0 ? "UPER" : "JER";
+}
 
-/* One PDU's entry points (encode/decode/xer, plus jerenc/jerdec with
+/* One PDU's entry points (encode/decode/xer/uperenc/uperdec, plus jerenc/jerdec with
  * -gen-JER), emitted text. entry_encode / entry_decode take the entry-point
  * name part, the ATS_* constant and the codec word of the messages. */
 static char *
@@ -1345,6 +1353,9 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             { char *eb = entry_encode(rt, fb, tb, "encode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, eb); free(eb); }
             { char *db = entry_decode(rt, fb, tb, "decode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, db); free(db); }
             { char *xb = entry_xer(rt, fb, tb); s = ca(s, xb); free(xb); }
+            s = ca(s, "\n");
+            { char *eb = entry_encode(rt, fb, tb, "uperenc", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, eb); free(eb); }
+            { char *db = entry_decode(rt, fb, tb, "uperdec", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, db); free(db); }
             if(go_jer_enabled()) {
                 s = ca(s, "\n");
                 { char *eb = entry_encode(rt, fb, tb, "jerenc", "ATS_JER_MINIFIED", "jer"); s = ca(s, eb); free(eb); }

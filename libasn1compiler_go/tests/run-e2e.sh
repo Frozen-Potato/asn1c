@@ -1,7 +1,7 @@
 #!/bin/sh
 # End-to-end test of the Go backend: generate Go from tests/e2e/ex.asn and
 # tests/e2e/ioc.asn, build it with cgo (CGO_CFLAGS with -Werror=incompatible-pointer-types), check an APER
-# round-trip, every reachable error code, and an allocation-fault sweep.
+# and a UPER round-trip, every reachable error code, and an allocation-fault sweep.
 # Runs three times: with -no-gen-OER, with OER enabled, and with -no-gen-OER
 # -gen-JER (which adds EncodeJER / DecodeJER<T> and their tests).
 # Exit codes: 0 pass, 77 skipped (automake SKIP), anything else failure.
@@ -104,6 +104,8 @@ run_one() {
        "$here/e2e/iocforms_test.go" \
        "$here/e2e/iocinline_test.go" \
        "$here/e2e/randenc_test.go" \
+       "$here/e2e/uper_test.go" \
+       "$here/e2e/uper_faults_test.go" \
        "$work/go/"
     # The BMPString / UniversalString helpers are unexported: their test lives
     # in the generated strs package.
@@ -136,6 +138,11 @@ run_one() {
             [ -f "$d/glue.go" ] || continue
             for ty in $(sed -n 's/^func (p \*\([A-Za-z0-9_]*\)) Encode().*/\1/p' "$d/glue.go"); do
                 echo "	randPDUs = append(randPDUs, randPDU{\"$n.$ty\", reflect.TypeOf((*p_$n.$ty)(nil)).Elem()})"
+                echo "	uperDec[\"$n.$ty\"] = func(b []byte) (any, error) { return p_$n.DecodeUPER$ty(b) }"
+                # the ASN.1 type name (the C converter's -p), from the nil
+                # receiver error of Encode
+                lb=$(sed -n "/^func (p \*$ty) Encode() /{n;n;s/.*TypeName: \"\([^\"]*\)\".*/\1/p;q;}" "$d/glue.go")
+                echo "	uperLabel[\"$n.$ty\"] = \"$lb\""
                 if [ "$jer" = 1 ]; then
                     echo "	jerDec[\"$n.$ty\"] = func(b []byte) (any, error) { return p_$n.DecodeJER$ty(b) }"
                 fi
@@ -166,6 +173,7 @@ run_one() {
         # cases under the race detector.
         go test -race -count=1 -run 'SeqofInline|Set|InlConstr|ExtWide|ExtNil|ExtOld|ExtGroup|Strings|Oids' .
         go test -race -count=1 ./strs/ ./oids/
+        go test -race -count=1 -run UPER .
         if [ "$jer" = 1 ]; then
             go test -race -count=1 -run JER .
         fi
@@ -238,6 +246,37 @@ EOS
     if [ "$rc" != 70 ] || ! grep -q 'collision in module.*DecodeJERX' "$work/asn1c2.log"; then
         cat "$work/asn1c2.log" >&2
         echo "run-e2e: -gen-JER clash: exit $rc, want 70 naming DecodeJERX" >&2
+        return 1
+    fi
+}
+
+# A PDU whose DecodeUPER<T> name equals another PDU's Decode<T> (X and
+# UPERX: DecodeUPERX twice) is refused (exit 70) before any Go is written.
+run_uper_clash() {
+    work="$tmp/uperclash"
+    mkdir -p "$work/c"
+    echo "== run-e2e: DecodeUPER name clash =="
+    cat >"$work/uc.asn" <<'EOS'
+UC DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+X ::= SEQUENCE { a INTEGER }
+UPERX ::= SEQUENCE { b BOOLEAN }
+END
+EOS
+    rc=0
+    (
+        cd "$work"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" uc.asn
+    ) >"$work/asn1c.log" 2>&1 || rc=$?
+    if [ "$rc" != 70 ] || ! grep -q 'collision in module UC: DecodeUPERX' "$work/asn1c.log"; then
+        cat "$work/asn1c.log" >&2
+        echo "run-e2e: DecodeUPER clash: exit $rc, want 70 naming DecodeUPERX" >&2
+        return 1
+    fi
+    if [ -e "$work/go" ]; then
+        echo "run-e2e: DecodeUPER clash wrote Go output" >&2
         return 1
     fi
 }
@@ -620,6 +659,7 @@ run_rt_skeleton_sync() {
 
 run_cycle
 run_jer_clash
+run_uper_clash
 run_post_c_restore
 run_outdir_safety
 run_oneway

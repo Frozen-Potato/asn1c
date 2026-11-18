@@ -189,20 +189,20 @@ asn1c_make_identifier(enum ami_flags_e flags, asn1p_expr_t *expr, ...) {
 
 int
 asn1c_bit_string_has_named_bits(const asn1p_expr_t *expr) {
-    const asn1p_expr_t *v;
-    if(!expr || expr->expr_type != ASN_BASIC_BIT_STRING) return 0;
-    TQ_FOR(v, &(expr->members), next) {
-        if(v->expr_type == A1TC_UNIVERVAL) return 1;
-    }
-    return 0;
+	const asn1p_expr_t *v;
+	if(!expr || expr->expr_type != ASN_BASIC_BIT_STRING) return 0;
+	TQ_FOR(v, &(expr->members), next) {
+		if(v->expr_type == A1TC_UNIVERVAL) return 1;
+	}
+	return 0;
 }
 
 const char *
 asn1c_type_name_def(arg_t *arg, asn1p_expr_t *expr) {
-    const char *n = asn1c_type_name(arg, expr, TNF_SAFE);
-    if(asn1c_bit_string_has_named_bits(expr) && strcmp(n, "BIT_STRING") == 0)
-        return "BIT_STRING_named";
-    return n;
+	const char *n = asn1c_type_name(arg, expr, TNF_SAFE);
+	if(asn1c_bit_string_has_named_bits(expr) && strcmp(n, "BIT_STRING") == 0)
+		return "BIT_STRING_named";
+	return n;
 }
 
 const char *

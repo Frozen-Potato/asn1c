@@ -28,6 +28,12 @@
       bit types are then encoded as plain BIT STRING). Aligned PER
       bytes of named bit values with trailing 0 bits change; every
       decoder reads both forms.
+    * Go backend: every PDU type also gets EncodeUPER() and
+      DecodeUPER<T>(), the unaligned PER (BASIC-UPER) twins of Encode /
+      Decode<T>, with the same constraint checks and error codes. A spec
+      where these names clash with other names (a PDU type UPERX next to
+      a PDU type X, a member encodeUPER) is refused like the other API
+      name clashes.
 
 0.9.29-go.14:
     * Go backend: in a module with BIT STRING members, generated names

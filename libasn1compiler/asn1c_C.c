@@ -4782,7 +4782,7 @@ try_inline_constructed_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 				expr->_type_unique_index);
 	} else {
 		snprintf(dsc, sizeof(dsc), "asn_DEF_%s",
-            asn1c_type_name_def(arg, expr));
+			asn1c_type_name_def(arg, expr));
 	}
 
 	REDIR(OT_STAT_DEFS);

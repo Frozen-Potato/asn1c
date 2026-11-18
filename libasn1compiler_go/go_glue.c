@@ -16,6 +16,8 @@
  *     func (p *<T>) Encode() ([]byte, error)          (method)
  *     func Decode<T>(b []byte) (*<T>, error)          (free fn)
  *     func xer(p *<T>) ([]byte, error)                (unexported)
+ *     func (p *<T>) EncodeUPER() ([]byte, error)      (method, BASIC-UPER)
+ *     func DecodeUPER<T>(b []byte) (*<T>, error)      (free fn)
  * and, with -gen-JER only:
  *     func (p *<T>) EncodeJER() ([]byte, error)       (method, minified JER)
  *     func DecodeJER<T>(b []byte) (*<T>, error)       (free fn)
@@ -3428,6 +3430,8 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
     char *s;
     if(strcmp(kind, "encode") == 0)
         s = cfmt("func (p *%s) Encode() ([]byte, error) {\n", go);
+    else if(strcmp(kind, "uperenc") == 0)
+        s = cfmt("func (p *%s) EncodeUPER() ([]byte, error) {\n", go);
     else if(strcmp(kind, "jerenc") == 0)
         s = cfmt("func (p *%s) EncodeJER() ([]byte, error) {\n", go);
     else
@@ -3459,7 +3463,8 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
 extern int go_jer_enabled(void);
 
 /* One PDU root's Decode-style function: `fn` the Go name prefix ("Decode" /
- * "DecodeJER"), `ent` the C entry part ("decode" / "jerdec"). */
+ * "DecodeUPER" / "DecodeJER"), `ent` the C entry part ("decode" / "uperdec" /
+ * "jerdec"). */
 static char *
 pdu_decode_fn(const char *fn, const char *ent, const char *go,
               const char *label, const char *fna, const char *tb) {
@@ -3499,8 +3504,8 @@ emit_pdu_api(flat_type *rt_, gsb *src) {
     const char *d0 = conv_is_scc(rt_) ? ", 0" : "";   /* the root call's depth arg */
 
     sb_am(src, gfmt(go_jer_enabled()
-        ? "// %s — the public API (Encode/Decode/EncodeJER/DecodeJER entry points; xer unexported).\n"
-        : "// %s — the public API (Encode/Decode entry points; xer unexported).\n", go));
+        ? "// %s — the public API (Encode/Decode/EncodeUPER/DecodeUPER/EncodeJER/DecodeJER entry points; xer unexported).\n"
+        : "// %s — the public API (Encode/Decode/EncodeUPER/DecodeUPER entry points; xer unexported).\n", go));
     /* the ROOT's own struct: the size fns count only CHILD allocations
      * (every nested caller allocs the child slot via allocStruct and so
      * counts it), but the PDU root's Flat sits at the block base for
@@ -3518,6 +3523,11 @@ emit_pdu_api(flat_type *rt_, gsb *src) {
     {
         char *wb = entry_go_wrapper("xer", go, label, tb, fna, root_sz, d0);
         sb_am(src, wb);   /* gam frees wb */
+    }
+    {
+        char *wb = entry_go_wrapper("uperenc", go, label, tb, fna, root_sz, d0);
+        sb_am(src, wb);   /* gam frees wb */
+        sb_am(src, pdu_decode_fn("DecodeUPER", "uperdec", go, label, fna, tb));
     }
     if(go_jer_enabled()) {
         char *wb = entry_go_wrapper("jerenc", go, label, tb, fna, root_sz, d0);
@@ -4061,20 +4071,24 @@ static int row_kind_package_scoped(const char *k) {
     return 0;
 }
 
-/* pdu_api_clashes — every PDU's Decode<T> / DecodeJER<T> func must differ from
- * the other package-level names and the other PDUs' API names, and its
- * Encode / EncodeJER method from the fields of T's struct. Reports every
- * clash; returns the count. */
+/* pdu_api_clashes — every PDU's Decode<T> / DecodeUPER<T> (and, with
+ * -gen-JER, DecodeJER<T>) func must differ from the other package-level names
+ * and the other PDUs' API names, and its Encode / EncodeUPER / EncodeJER
+ * method from the fields of T's struct. Reports every clash; returns the
+ * count. */
 static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
-    int bad = 0, jer = go_jer_enabled();
+    /* the codec infixes of the API names, in emission order: "" (APER),
+     * "UPER", "JER" (the last only with -gen-JER) */
+    static const char *const codec[] = { "", "UPER", "JER" };
+    int bad = 0, ncodec = go_jer_enabled() ? 3 : 2;
     int nrows = go_names_rows_n();
     char **go = calloc((size_t)(n_pdu ? n_pdu : 1), sizeof *go);
     if(!go) return 0;
     for(int i = 0; i < n_pdu; i++) go[i] = gcamel_flat(go_flat_ir_name(pdus[i].root));
     for(int i = 0; i < n_pdu; i++) {
         const char *mod = pdus[i].module;
-        for(int v = 0; v < (jer ? 2 : 1); v++) {
-            char *fn = gfmt(v ? "DecodeJER%s" : "Decode%s", go[i]);
+        for(int v = 0; v < ncodec; v++) {
+            char *fn = gfmt("Decode%s%s", codec[v], go[i]);
             for(int r = 0; r < nrows; r++) {
                 const char *rm = go_names_row_module(r), *rn = go_names_row_goname(r);
                 const char *rk = go_names_row_kind(r);
@@ -4086,8 +4100,8 @@ static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
             }
             for(int j = i + 1; j < n_pdu; j++) {
                 if(strcmp(pdus[j].module, mod) != 0) continue;
-                for(int w = 0; w < (jer ? 2 : 1); w++) {
-                    char *f2 = gfmt(w ? "DecodeJER%s" : "Decode%s", go[j]);
+                for(int w = 0; w < ncodec; w++) {
+                    char *f2 = gfmt("Decode%s%s", codec[w], go[j]);
                     if(strcmp(fn, f2) == 0) {
                         fprintf(stderr, "asn1cgo: collision in module %s: %s <- %s (pdu-func) and %s (pdu-func)\n",
                                 mod, fn, go[i], go[j]);
@@ -4098,8 +4112,8 @@ static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
             }
             free(fn);
         }
-        for(int v = 0; v < (jer ? 2 : 1); v++) {
-            const char *m = v ? "EncodeJER" : "Encode";
+        for(int v = 0; v < ncodec; v++) {
+            char *m = gfmt("Encode%s", codec[v]);
             for(int r = 0; r < nrows; r++) {
                 const char *rm = go_names_row_module(r), *rn = go_names_row_goname(r);
                 const char *rk = go_names_row_kind(r), *ro = go_names_row_sf_owner(r);
@@ -4110,6 +4124,7 @@ static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
                         mod, go[i], m, rn);
                 bad++;
             }
+            free(m);
         }
     }
     for(int i = 0; i < n_pdu; i++) free(go[i]);
@@ -4244,6 +4259,12 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 tb, flatn));
             pdu_ext = gam(pdu_ext, gfmt(
                 "extern int asn1cgo_xer_%s(const %s *in, asn1cgo_buf *xer_out, asn1cgo_err *err);\n",
+                tb, flatn));
+            pdu_ext = gam(pdu_ext, gfmt(
+                "extern int asn1cgo_uperenc_%s(const %s *in, asn1cgo_buf *out, asn1cgo_err *err);\n",
+                tb, flatn));
+            pdu_ext = gam(pdu_ext, gfmt(
+                "extern int asn1cgo_uperdec_%s(const uint8_t *buf, size_t len, struct asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err);\n",
                 tb, flatn));
             if(go_jer_enabled()) {
                 pdu_ext = gam(pdu_ext, gfmt(

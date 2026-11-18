@@ -1,10 +1,10 @@
 # libasn1compiler_go — the asn1c Go backend
 
-`asn1c -Fgo=<dir>` generates Go types and APER `Encode` / `Decode` functions
-for your ASN.1 specification. The Go code calls the C codec that the same
-`asn1c` run writes, through cgo, so the output always matches the C backend's
-view of the specification. Requirements: Linux amd64, Go 1.21 or newer, cgo
-enabled and a C compiler. Known bugs and open limitations are in
+`asn1c -Fgo=<dir>` generates Go types and APER and UPER `Encode` / `Decode`
+functions for your ASN.1 specification. The Go code calls the C codec that the
+same `asn1c` run writes, through cgo, so the output always matches the C
+backend's view of the specification. Requirements: Linux amd64, Go 1.21 or
+newer, cgo enabled and a C compiler. Known bugs and open limitations are in
 [KNOWN-ISSUES.md](KNOWN-ISSUES.md). The generated code's error model is
 described in the runtime module's README (`rt/go/README.md`).
 
@@ -32,7 +32,7 @@ reproducible.
 `DecodeJER<PDU>` (see Using the generated code).
 
 `-no-gen-OER` is the supported configuration. Trees generated with OER on also
-build and work for APER; the generated Go API is APER-only.
+build and work; the generated Go API has no OER functions.
 
 **Module path.** The Go module path is
 `<ASN1CGO_GO_MODULE_PREFIX>/<basename of the -Fgo dir>`, or just the basename
@@ -103,9 +103,18 @@ Without `-Fgo`, asn1c writes `-D` as upstream asn1c does.
 For each PDU type the generated package exports exactly:
 
 ```go
-func (p *<PDU>) Encode() ([]byte, error)   // APER bytes
-func Decode<PDU>(b []byte) (*<PDU>, error) // APER bytes -> value
+func (p *<PDU>) Encode() ([]byte, error)       // APER bytes
+func Decode<PDU>(b []byte) (*<PDU>, error)     // APER bytes -> value
+func (p *<PDU>) EncodeUPER() ([]byte, error)   // UPER bytes
+func DecodeUPER<PDU>(b []byte) (*<PDU>, error) // UPER bytes -> value
 ```
+
+UPER is X.691 unaligned PER (BASIC-UPER), the form used by 3GPP RRC; APER is
+aligned PER, the form used by S1AP, NGAP and other 3GPP application
+protocols. Both pairs check constraints the same way and return the same
+`*rt.Error` codes. A PDU type `UPERX` next to a PDU type `X` (two
+`DecodeUPERX`), a type named `DecodeUPER<PDU>`, or a member `encodeUPER` of a
+PDU type is refused with `asn1cgo: collision in module ...` (exit 70).
 
 and, with `-gen-JER`, also:
 
@@ -201,7 +210,7 @@ free.
 | `ErrArg` | nil receiver | **nil or empty input** |
 | `ErrAlloc` | yes | yes |
 | `ErrConstraint` | value outside a declared range/size/alphabet | decoded value violates a constraint |
-| `ErrEncode` | the APER encoder failed (including its own out-of-memory) | never |
+| `ErrEncode` | the APER, UPER or JER encoder failed (including its own out-of-memory) | never |
 | `ErrDecode` | never | malformed bytes, including an IE id the spec's object set does not list; also a C stack guard trip (see Platform and limits) |
 | `ErrTrailing` | never | bytes left after the PDU |
 | `ErrChoiceNothing`, `ErrChoiceBad` | a CHOICE with no / an invalid `Present` | defensive only |
