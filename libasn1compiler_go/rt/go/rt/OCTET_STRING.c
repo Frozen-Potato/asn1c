@@ -884,7 +884,7 @@ static ssize_t OCTET_STRING__convert_hexadecimal(void *sptr, const void *chunk_b
 static ssize_t OCTET_STRING__convert_binary(void *sptr, const void *chunk_buf, size_t chunk_size, int have_more) {
 	BIT_STRING_t *st = (BIT_STRING_t *)sptr;
 	const char *p = (const char *)chunk_buf;
-	const char *pend = p + chunk_size;
+	const char *pend = p ? p + chunk_size : p;    /* no NULL + 0 */
 	int bits_unused = st->bits_unused & 0x7;
 	uint8_t *buf;
 
@@ -2057,7 +2057,7 @@ OCTET_STRING_print(const asn_TYPE_descriptor_t *td, const void *sptr,
 	 * Dump the contents of the buffer in hexadecimal.
 	 */
 	buf = st->buf;
-	end = buf + st->size;
+	end = buf ? buf + st->size : buf;    /* empty value: no NULL + 0 */
 	for(i = 0; buf < end; buf++, i++) {
 		if(!(i % 16) && (i || st->size > 16)) {
 			if(cb(scratch, p - scratch, app_key) < 0)

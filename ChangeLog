@@ -22,6 +22,11 @@
       OER constraints, and OER encodes an open type as a length-prefixed
       value (X.696 #30); it wrote a CHOICE tag the decoder could not
       read.
+    * C runtime: fixes for clang's UndefinedBehaviorSanitizer (zero
+      offset applied to a NULL pointer for empty values in UTF8String,
+      OCTET_STRING, the XER decoder and the PER open type reader;
+      unsigned wrap in the JER INTEGER code). The clang CI job now runs
+      make check under UBSan too.
 
 0.9.29-go.13:
     * C runtime: the decoders' stack guard (ASN__STACK_OVERFLOW_CHECK)

@@ -30,15 +30,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # gcc: the tests run under AddressSanitizer + UBSan.
+          # Both run the tests under AddressSanitizer + UBSan; clang's UBSan
+          # also checks unsigned-integer-overflow and nullability.
           - cc: gcc
             configure: ''
             packages: ''
-          # clang: AddressSanitizer only. clang's UBSan adds checks gcc does
-          # not have (unsigned-integer-overflow, zero offset applied to a null
-          # pointer) that the inherited skeletons do not pass yet.
           - cc: clang
-            configure: --disable-test-ubsan
+            configure: ''
             packages: libclang-rt-18-dev
     env:
       CC: ${{ matrix.cc }}

@@ -98,7 +98,9 @@ uper_open_type_get_simple(const asn_codec_ctx_t *ctx,
 			}
 			buf = ptr;
 		}
-		if(per_get_many_bits(pd, buf + bufLen, 0, chunk_bytes << 3)) {
+		/* an empty chunk reads nothing (buf may still be NULL) */
+		if(chunk_bytes
+		   && per_get_many_bits(pd, buf + bufLen, 0, chunk_bytes << 3)) {
 			FREEMEM(buf);
 			ASN__DECODE_STARVED;
 		}
@@ -427,7 +429,9 @@ aper_open_type_get_simple(const asn_codec_ctx_t *ctx,
 			}
 			buf = ptr;
 		}
-		if(per_get_many_bits(pd, buf + bufLen, 0, chunk_bytes << 3)) {
+		/* an empty chunk reads nothing (buf may still be NULL) */
+		if(chunk_bytes
+		   && per_get_many_bits(pd, buf + bufLen, 0, chunk_bytes << 3)) {
 			FREEMEM(buf);
 			ASN__DECODE_STARVED;
 		}

@@ -46,7 +46,8 @@ INTEGER__jer_set_decimal(INTEGER_t *st, const char *digits, size_t ndigits,
 
     if(negative) {  /* Two's complement over the whole width */
         unsigned carry = 1;
-        for(j = cap; j-- > 0;) {
+        for(j = cap; j > 0;) {
+            j--;    /* no size_t wrap below 0 on the last test */
             unsigned cur = (uint8_t)~mag[j] + carry;
             mag[j] = (uint8_t)cur;
             carry = cur >> 8;
@@ -151,7 +152,8 @@ INTEGER_encode_jer(const asn_TYPE_descriptor_t *td,
     negative = (tmp[0] & 0x80) != 0;
     if(negative) {
         unsigned carry = 1;
-        for(i = n; i-- > 0;) {
+        for(i = n; i > 0;) {
+            i--;    /* no size_t wrap below 0 on the last test */
             unsigned cur = (uint8_t)~tmp[i] + carry;
             tmp[i] = (uint8_t)cur;
             carry = cur >> 8;
