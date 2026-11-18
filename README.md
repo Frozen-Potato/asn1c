@@ -76,12 +76,15 @@ structures and the C structures.
 The compiler creates one Go package per ASN.1 module. Every PDU type gets
 the following functions:
 
-    func (p *<PDU>) Encode() ([]byte, error)
-    func Decode<PDU>(b []byte) (*<PDU>, error)
+    func (p *<PDU>) Encode() ([]byte, error)         // APER
+    func Decode<PDU>(b []byte) (*<PDU>, error)       // APER
+    func (p *<PDU>) EncodeUPER() ([]byte, error)     // UPER
+    func DecodeUPER<PDU>(b []byte) (*<PDU>, error)   // UPER
 
-The runtime module (**asn1cgo-rt**) must be placed next to the generated
-module, and a C compiler is required to build the generated Go code
-(CGO_ENABLED=1).
+The generated go.mod requires the runtime module
+`github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go` at the generator's
+version (run `go mod tidy` once after generating), and a C compiler is
+required to build the generated Go code (CGO_ENABLED=1).
 
 See [libasn1compiler_go/README.md](libasn1compiler_go/README.md) for the
 build instructions, the module layout, usage examples and the list of
