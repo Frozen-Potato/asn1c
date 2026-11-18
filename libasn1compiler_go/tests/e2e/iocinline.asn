@@ -1,0 +1,41 @@
+IocInline DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- Types written directly in the objects of an object set: constrained,
+-- constructed and ENUMERATED ones (each an inline alternative of CellIE's
+-- value union), an identical type written twice (ids 9 and 11 share one
+-- alternative), and a named type whose name also exists in another module
+-- (Twin, see IocInlineTwin below). Generated in the same run as the other
+-- e2e specs (tests/run-e2e.sh).
+    CCLS ::= CLASS { &id INTEGER (0..255) UNIQUE, &Value }
+        WITH SYNTAX { ID &id TYPE &Value }
+    Twin ::= BOOLEAN
+    CellObjs CCLS ::= {
+        { ID 1 TYPE Twin } |
+        { ID 2 TYPE INTEGER (0..7) } |
+        { ID 3 TYPE OCTET STRING (SIZE(2)) } |
+        { ID 4 TYPE PrintableString (SIZE(1..8)) } |
+        { ID 5 TYPE BIT STRING (SIZE(4)) } |
+        { ID 6 TYPE ENUMERATED { red, green, blue } } |
+        { ID 7 TYPE CHOICE { x BOOLEAN, y INTEGER (0..3) } } |
+        { ID 8 TYPE SET { p INTEGER (0..9), q BOOLEAN OPTIONAL } } |
+        { ID 9 TYPE SEQUENCE { s SEQUENCE { b BOOLEAN }, t OCTET STRING (SIZE(2)) } } |
+        { ID 10 TYPE SEQUENCE (SIZE(1..4)) OF SEQUENCE { k INTEGER (0..7) } } |
+        { ID 11 TYPE SEQUENCE { s SEQUENCE { b BOOLEAN }, t OCTET STRING (SIZE(2)) } },
+        ... }
+    CellIE ::= SEQUENCE {
+        id    CCLS.&id ({CellObjs}),
+        value    CCLS.&Value ({CellObjs}{@id})
+    }
+
+END
+
+IocInlineTwin DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+-- The same type name as IocInline's Twin: asn1c prefixes both C names with
+-- their module (IocInline_Twin_t).
+    Twin ::= INTEGER (0..3)
+    TwinHolder ::= SEQUENCE { t Twin }
+
+END

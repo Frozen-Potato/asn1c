@@ -3058,6 +3058,11 @@ static int cell_id_is_literal(asn1p_expr_t *cv);
 static void emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                                  const char *x_cid, const char *parent_path,
                                  asn1p_expr_t *seq_terminal);
+static void emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
+                                  const char *inline_go,
+                                  const char *inline_cid,
+                                  const char *parent_path,
+                                  const char *altcid);
 static void emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
                                   const char *x_cid, const char *parent_path);
 static int field_shaped_element(struct walk_ctx *ctx, asn1p_expr_t *elem);
@@ -3675,22 +3680,28 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * compilable C union (asn1c fails on NULL, ENUMERATED, constrained
          * and constructed cells), so anything else is refused here. */
         int alt_lk = -1, alt_wide = 0;
+        /* a constructed type written in the object (TYPE SEQUENCE {...},
+         * SEQUENCE OF ...): an inline alternative, minted like an inline
+         * CHOICE alternative (<X>Value<Alt>, C struct <X>__value__<alt>) */
+        asn1p_expr_t *alt_inline = NULL;
         if(cell->value->expr_type != A1TC_REFERENCE
+           && cell->value->meta_type != AMT_TYPEREF
+           && (go_is_struct_kind(cell->value->expr_type)
+               || cell->value->expr_type == ASN_CONSTR_CHOICE
+               || go_is_list_kind(cell->value->expr_type)
+               || cell->value->expr_type == ASN_BASIC_ENUMERATED))
+            alt_inline = cell->value;
+        if(!alt_inline && cell->value->expr_type != A1TC_REFERENCE
            && cell->value->meta_type != AMT_TYPEREF) {
             asn1p_expr_t *bv = cell->value;
-            if(go_is_struct_kind(bv->expr_type)
-               || bv->expr_type == ASN_CONSTR_CHOICE
-               || go_is_list_kind(bv->expr_type)
-               || bv->expr_type == ASN_BASIC_ENUMERATED
-               || bv->expr_type == ASN_BASIC_NULL || bv->constraints) {
+            if(bv->expr_type == ASN_BASIC_NULL) {
                 fprintf(stderr,
                         "asn1cgo: object set of %s (module %s): a %s type "
-                        "written directly in an object is not supported; "
-                        "define it as a named type (T ::= ...) and use "
-                        "TYPE T\n",
+                        "written directly in an object is not supported "
+                        "(asn1c's C code for it does not compile); define "
+                        "it as a named type (T ::= ...) and use TYPE T\n",
                         x_go, ctx->module ? ctx->module : "?",
-                        bv->constraints ? "constrained"
-                                        : ASN_EXPR_TYPE2STR(bv->expr_type));
+                        ASN_EXPR_TYPE2STR(bv->expr_type));
                 ctx->bag->failed = 1;
                 continue;
             }
@@ -3706,6 +3717,27 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         }
         const char *altcid = go_mk_suffix(cell->value);
         char *altgo = go_r2(altcid);
+        /* A named alternative's own type: the chased terminal. Its C name
+         * (and so its Go name) is module-prefixed when the name exists in
+         * several modules (ModB_Flag / ModBFlag), while the union member
+         * token stays the bare reference (Flag). */
+        asn1p_expr_t *alt_term = NULL;
+        if(cell->value->expr_type == A1TC_REFERENCE
+           || cell->value->meta_type == AMT_TYPEREF) {
+            alt_term = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns,
+                                                   cell->value);
+            if(alt_term && !alt_term->Identifier) alt_term = NULL;
+        }
+        char *inl_go = NULL, *inl_cid = NULL;
+        if(alt_inline) {
+            inl_go = str_append(strdup(""), x_go);
+            inl_go = str_append(inl_go, "Value");
+            inl_go = str_append(inl_go, altgo);
+            char *vx = str_append(strdup(""), x_cid);
+            vx = str_append(vx, "__value");
+            inl_cid = go_cid_compound(vx, "__", altcid);
+            free(vx);
+        }
         /* choice-const <X>ValuePr<Alt>; rawCid = <X_cid>__value_PR_<AltCid> (the
          * real asn1c enum-member token). */
         {
@@ -3744,6 +3776,12 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                  * exists; the field is the leaf's mapping-table type. */
                 const char *under = go_types_leaf_underlying(alt_lk);
                 ft = str_append(ft, under ? under : altgo);
+            } else if(alt_inline) {
+                ft = str_append(ft, inl_go);
+            } else if(alt_term) {
+                char *tgo = go_type_go(alt_term);
+                ft = str_append(ft, tgo);
+                free(tgo);
             } else
                 ft = str_append(ft, altgo);
             row_set_field_type(ctx->bag, ft);
@@ -3754,9 +3792,15 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * members here are inline structs; no re-synthesis). One inline
          * slot per alt cid under the __value node. */
         {
-            char *flat_alt = own(altcid);   /* GO_MKID buffer owner */
+            char *flat_alt = own(alt_inline ? inl_cid
+                                 : alt_term ? GO_MKID(alt_term) : altcid);
             char *flat_slot = own(altcid);  /* the member token */
-            if(alt_lk >= 0) {
+            if(alt_inline
+               && alt_inline->expr_type == ASN_BASIC_ENUMERATED) {
+                /* an ENUMERATED written in the object: the bare int32 slot,
+                 * as for an inline ENUMERATED CHOICE alternative */
+                go_flat_member_prim_on(-1, "int32_t", flat_slot, 0);
+            } else if(alt_lk >= 0) {
                 /* built-in leaf cell: the union member is the bare leaf
                  * (`BOOLEAN_t BOOLEAN;`, `long INTEGER;`) — a prim slot */
                 go_flat_member_prim_on(-1, go_leaf_flat_prim(alt_lk),
@@ -3770,6 +3814,10 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
             go_flat_label_last_member(cell->value->Identifier);
             free(flat_alt); free(flat_slot);
         }
+        if(alt_inline)
+            emit_value_inline_alt(ctx, alt_inline, inl_go, inl_cid,
+                                  parent_path, altcid);
+        free(inl_go); free(inl_cid);
         free(altgo);
         free((char *)altcid);
     }
@@ -3777,6 +3825,99 @@ done_seen:
     for(size_t s = 0; s < n_seen; s++) free(seen[s]);
     free(seen);
     struct_scope_reset(ctx->bag);
+}
+
+/* emit_value_inline_alt: the Go type of a constructed type written directly
+ * in an object (TYPE SEQUENCE { a INTEGER }): asn1c makes it an inline member
+ * of the open type's union (`struct <X>__value__<alt> {...} <alt>;`), so it
+ * is minted exactly like an inline CHOICE alternative (emit_choice): a
+ * package-scoped Flat node <X>__value__<alt> (C struct tag only: inline_elem
+ * "struct") and the Go type <X>Value<Alt>. The Flat cur / last-nested
+ * registers and the Go field scope belong to the value union again after. */
+static void
+emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
+                      const char *inline_go, const char *inline_cid,
+                      const char *parent_path, const char *altcid) {
+    char *vbase = make_path(parent_path, "Value");
+    char *alt_path = make_path(vbase, altcid);
+    free(vbase);
+    /* the classify walk never visits a type written in an object: note its
+     * runtime headers (constr_SET.h) the way that walk does */
+    (void)go_construct_classify(alt);
+    char *save_sf = NULL;
+    if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
+    int save_fcur = go_flat_cur_get();
+    int save_nest = go_flat_last_nest_get();
+    if(alt->expr_type == ASN_BASIC_ENUMERATED) {
+        /* as emit_choice's inline ENUMERATED alt: `type <X>Value<Alt>
+         * int32` plus its constants; no Flat node (the slot is int32) */
+        emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
+                  strdup(inline_cid), strdup(inline_go));
+        row_set_leaf(ctx->bag, GLEAF_ENUM);
+        emit_enum(ctx, inline_go, inline_cid, alt_path, alt);
+    } else if(go_is_list_kind(alt->expr_type)) {
+        /* as emit_choice's inline SEQUENCE OF alt: `type <X>Value<Alt>
+         * []Elem`, a Flat {items,count} node */
+        emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
+                  strdup(inline_cid), strdup(inline_go));
+        int sq_row = ctx->bag->n_rows - 1;
+        asn1p_expr_t *sq_elem = TQ_FIRST(&alt->members);
+        char *ge = NULL, *fc = NULL;
+        int mrc = 0;
+        if(sq_elem && sq_elem->expr_type == ASN_BASIC_BIT_STRING)
+            mark_bitstring_module(ctx->bag, ctx->module);
+        if(seqof_elem_is_inline(sq_elem)) {
+            mrc = mint_inline_seqof_elem(ctx, sq_elem, alt_path, inline_go,
+                                         inline_cid, &ge, &fc);
+        } else {
+            ge = slice_element_type(ctx, sq_elem, alt_path);
+            if(ctx->bag->failed) mrc = -1;
+            else {
+                asn1p_expr_t *et = sq_elem;
+                asn1p_expr_t *t2 =
+                    asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, sq_elem);
+                if(t2) et = t2;
+                fc = own(GO_MKID(et));
+            }
+        }
+        if(mrc >= 0 && !ctx->bag->failed) {
+            row_set_slice_elem_at(ctx->bag, sq_row, ge);
+            (void)go_flat_seqof(inline_cid, fc, 0,
+                                alt->expr_type == ASN_CONSTR_SET_OF,
+                                ctx->module);
+            go_flat_mark_inline_elem("struct", NULL);
+        }
+        free(ge); free(fc);
+    } else {
+        emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
+                  strdup(inline_cid), strdup(inline_go));
+        if(alt->expr_type == ASN_CONSTR_CHOICE) {
+            field_scope_push(ctx->bag);
+            emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
+            field_scope_pop(ctx->bag);
+            go_flat_mark_inline_elem("struct", NULL);
+        } else {   /* SEQUENCE / SET: a struct with member fields */
+            const char *save_go = ctx->parent_go;
+            const char *save_cid = ctx->parent_cid;
+            go_flat_struct(inline_cid, ctx->module);
+            go_flat_label_cur(alt->Identifier);
+            go_flat_mark_inline_elem("struct", NULL);
+            ctx->parent_go = inline_go;
+            ctx->parent_cid = inline_cid;
+            field_scope_push(ctx->bag);
+            row_set_is_struct(ctx->bag);
+            struct_scope_open(ctx->bag, inline_go);
+            (void)walk_names_members(ctx, alt, alt_path);
+            struct_scope_reset(ctx->bag);
+            field_scope_pop(ctx->bag);
+            ctx->parent_go = save_go;
+            ctx->parent_cid = save_cid;
+        }
+    }
+    go_flat_cur_restore(save_fcur);
+    go_flat_last_nest_set(save_nest);
+    free(bag_sf_restore(ctx->bag, save_sf));
+    free(alt_path);
 }
 
 /* emit_value_pr_nothing: the lone discriminant for a value union with no

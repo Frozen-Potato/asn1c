@@ -7,9 +7,8 @@
       none, although the C code lists it as a PDU); a class field with a
       type written inline (&id INTEGER (0..255)) and a built-in type
       written directly in an object (TYPE BOOLEAN) are supported (both
-      failed after the C pass with "flat: unresolved ref"). NULL,
-      ENUMERATED, constrained and constructed types written directly in
-      an object are refused with a readable message.
+      failed after the C pass with "flat: unresolved ref"). NULL
+      written directly in an object is refused with a readable message.
     * C generator: types written directly in information objects
       (TYPE INTEGER (0..7), TYPE SEQUENCE {...}, TYPE ENUMERATED {...})
       get the module's tagging (AUTOMATIC TAGS), their constraints and a
@@ -18,6 +17,7 @@
       is the X.693 type name (OCTET_STRING, SEQUENCE_OF, ...) instead of
       the type's text. A type used in an object whose name also exists
       in another module is referred to by its module-prefixed C name.
+      The Go backend supports all of these (only NULL is refused).
     * C runtime: open types use the selected alternative's own PER and
       OER constraints, and OER encodes an open type as a length-prefixed
       value (X.696 #30); it wrote a CHOICE tag the decoder could not

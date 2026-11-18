@@ -49,6 +49,10 @@ int go_flat_struct_nested(const char *cid, const char *module);
  * construct lands on the ENCLOSING struct again (otherwise
  * a member would land inside the preceding inline CHOICE). */
 int go_flat_cur_get(void);
+/* the node the _on(-1) member calls land on (the last nested node minted);
+ * saved/restored around a nested mint that would move it */
+int go_flat_last_nest_get(void);
+void go_flat_last_nest_set(int ix);
 void go_flat_cur_restore(int ix);
 
 /* A bare leaf typedef: `typedef <prim> <P><CIdent>_flat;`. prim is

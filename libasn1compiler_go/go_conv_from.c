@@ -993,9 +993,15 @@ ioc_node_from_body(void *t) {
             char *body = arm_prim_from(un, pm, ia, oa);
             s = ca(s, body);
             free(body); free(ia); free(oa);
-        } else
-        { char *_cf = cfmt("            if (%s%s_from_tree(ar, &in->value.choice.%s, &out->value.%s, err)) return err->code;\n",
-                       pfx ? pfx : "", amsg, r->alt_token, r->alt_token); s = ca(s, _cf); free(_cf); }
+        } else {
+            char *ab = conv_ioc_alt_base(t, r->alt_token);
+            char *_cf = ab
+                ? cfmt("            if (%s_from_tree(ar, &in->value.choice.%s, &out->value.%s, err)) return err->code;\n",
+                       ab, r->alt_token, r->alt_token)
+                : cfmt("            if (%s%s_from_tree(ar, &in->value.choice.%s, &out->value.%s, err)) return err->code;\n",
+                       pfx ? pfx : "", amsg, r->alt_token, r->alt_token);
+            s = ca(s, _cf); free(_cf); free(ab);
+        }
         { char *_cf = cfmt("            break;\n"); s = ca(s, _cf); free(_cf); }
     }
     { char *_cf = cfmt("        case (int32_t)%s_PR_NOTHING:\n", prbase); s = ca(s, _cf); free(_cf); }

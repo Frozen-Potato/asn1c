@@ -375,6 +375,9 @@ go_flat_mark_c_alias(const char *cid, const char *target_cid) {
     t->c_alias_of = fstrdup(target_cid);
 }
 
+int go_flat_last_nest_get(void) { return g_flat_last_nest; }
+void go_flat_last_nest_set(int ix) { g_flat_last_nest = ix; }
+
 int
 go_flat_struct_nested(const char *cid, const char *module) {
     ;

@@ -202,14 +202,17 @@ number (`New<Record>Id<n>`), also when the object names a value reference. A
 SEQUENCE with an open-type member is a PDU like any other SEQUENCE (`Encode`,
 `Decode<T>`, ...) when `-pdu` selects it.
 
-**Built-in types in objects.** An object may name a built-in type directly
-(`{ ID 2 TYPE BOOLEAN }`): the value union field then has the Go type of that
-built-in type and the name of the C union member: `BOOLEAN *bool`,
-`INTEGER *int64`, `OCTETSTRING *[]byte`, `BITSTRING *BitString`,
-`UTF8String *string`. This works for BOOLEAN, INTEGER, BIT STRING, OCTET STRING
-and the character string types without constraints. NULL, ENUMERATED and
-constrained or constructed types written there are refused; define a named
-type (`Flag ::= BOOLEAN`) and use `TYPE Flag`.
+**Types written in objects.** An object may write a type directly instead of
+naming one (`{ ID 2 TYPE BOOLEAN }`, `TYPE INTEGER (0..7)`,
+`TYPE SEQUENCE { a INTEGER }`). The value union field is named after the C
+union member, which asn1c derives from the type's text. A built-in type, with
+or without constraints, has its Go type: `BOOLEAN *bool`, `INTEGER07 *int64`
+for `INTEGER (0..7)`, `OCTETSTRING *[]byte`, `BITSTRING *BitString`. A
+constructed or ENUMERATED type gets a named Go type `<Record>Value<Field>`, like
+an inline CHOICE alternative: `SEQUENCEAINTEGER *IEValueSEQUENCEAINTEGER` for
+`TYPE SEQUENCE { a INTEGER }`. The same type written in two objects is one
+field. These names get long; a named type (`T ::= SEQUENCE {...}`, `TYPE T`)
+keeps them short. NULL written in an object is refused.
 
 **Recursion depth.** Encode and decode charge a budget of 64 depth units per
 call (one per entry into a recursive type), so a recursive ASN.1 level nested
@@ -413,9 +416,9 @@ FROM, NumericString and time-syntax checks are the C runtime's and surface from
 ## Not supported
 
 ANY, EXTERNAL, EMBEDDED PDV, CHARACTER STRING, an open-type (information
-object class `&Value`) member of a SET (KNOWN-ISSUES #25), a NULL,
-ENUMERATED, constrained or constructed type written directly in an
-information object (KNOWN-ISSUES #52), the DEFAULT forms listed above, and an
+object class `&Value`) member of a SET (KNOWN-ISSUES #25), NULL written
+directly in an information object (KNOWN-ISSUES #52), the DEFAULT forms listed
+above, and an
 INTEGER range that fits neither `int64` nor `uint64` are
 refused at generation with an `asn1cgo: ...` message and exit 70. A bare
 `TYPE-IDENTIFIER.&Type` outside an object-set-governed field is not refused but
