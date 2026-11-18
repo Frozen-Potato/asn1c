@@ -9,6 +9,7 @@ static int _asn1f_parse_class_object_data(arg_t *, asn1p_expr_t *eclass,
 		int optional_mode, const uint8_t **newpos, int counter);
 static int _asn1f_assign_cell_value(arg_t *arg, struct asn1p_ioc_cell_s *cell, const uint8_t *buf, const uint8_t *bend, int counter);
 static asn1p_wsyntx_chunk_t *asn1f_next_literal_chunk(asn1p_wsyntx_t *syntax, asn1p_wsyntx_chunk_t *chunk, const uint8_t *buf);
+static int _asn1f_cell_type_constraints(arg_t *arg, asn1p_expr_t *expr);
 
 int
 asn1f_check_class_object(arg_t *arg) {
@@ -513,6 +514,22 @@ _asn1f_assign_cell_value(arg_t *arg, struct asn1p_ioc_cell_s *cell,
 	DEBUG("Field %s assignment of %s got %s",
 		cell->field->Identifier, mivr, expr->Identifier);
 
+	/*
+	 * A type written directly in the object (TYPE INTEGER (0..7),
+	 * TYPE SEQUENCE { a INTEGER (0..3) }) was parsed on its own, after the
+	 * module's fixing passes: run their per-type steps on it now, or it
+	 * misses the module's tagging (AUTOMATIC TAGS), enumerator numbering,
+	 * PER constraints and constraint checks.
+	 */
+	if(expr->meta_type == AMT_TYPE
+	   && _asn1f_cell_type_constraints(arg, expr)) {
+		FATAL("Cannot process the type %s at line %d",
+			mivr, arg->expr->_lineno);
+		if(expr->Identifier != mivr) free(mivr);
+		asn1p_expr_free(expr);
+		return -1;
+	}
+
 	cell->value = expr;
 	cell->new_ref = new_ref;
 
@@ -550,4 +567,84 @@ asn1f_next_literal_chunk(asn1p_wsyntx_t *syntax, asn1p_wsyntx_chunk_t *chunk, co
 	} while (next_chunk);
 
 	return next_chunk;
+}
+
+/* The per-type steps of the module fixing pipeline (asn1fix.c: fix_simple,
+ * dereference types, top-level and constructed tagging / extensibility /
+ * COMPONENTS OF, automatic tagging, BIT STRING, constraint resolution,
+ * constraint pull-up), for a type that
+ * was parsed from an object cell after that pipeline had run. Tagging uses
+ * the module of the object set (arg->mod), so AUTOMATIC TAGS apply as they
+ * do to the module's own types. */
+static int
+_cell_fix_simple(arg_t *arg) {
+	int rvalue = 0;
+	int ret = asn1f_fix_enum(arg);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_fix_integer(arg);
+	RET2RVAL(ret, rvalue);
+	return rvalue;
+}
+
+static int
+_cell_fix_constructed(arg_t *arg) {
+	int rvalue = 0;
+	int ret;
+	switch(arg->expr->expr_type) {
+	case ASN_CONSTR_SEQUENCE:
+	case ASN_CONSTR_SET:
+	case ASN_CONSTR_CHOICE:
+		break;
+	default:
+		return 0;
+	}
+	ret = asn1f_check_unique_expr(arg);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_fix_constr_ext(arg);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_fix_constr_tag(arg, 0);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_pull_components_of(arg);
+	RET2RVAL(ret, rvalue);
+	return rvalue;
+}
+
+static int
+_cell_resolve_constraints(arg_t *arg) {
+	asn1p_expr_t *top = asn1f_find_terminal_type(arg, arg->expr);
+	return asn1constraint_resolve(arg, arg->expr->constraints,
+								  top ? top->expr_type : A1TC_INVALID, 0);
+}
+
+static int
+_cell_pullup_constraints(arg_t *arg) {
+	return asn1constraint_pullup(arg);
+}
+
+static int
+_asn1f_cell_type_constraints(arg_t *arg, asn1p_expr_t *expr) {
+	asn1p_expr_t *saved = arg->expr;
+	int rvalue = 0;
+	int ret;
+
+	arg->expr = expr;
+	ret = asn1f_recurse_expr(arg, _cell_fix_simple);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_recurse_expr(arg, asn1f_fix_dereference_types);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_fix_constr_tag(arg, 1);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_recurse_expr(arg, _cell_fix_constructed);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_recurse_expr(arg, asn1f_fix_constr_autotag);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_recurse_expr(arg, asn1f_fix_bit_string);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_recurse_expr(arg, _cell_resolve_constraints);
+	RET2RVAL(ret, rvalue);
+	ret = asn1f_recurse_expr(arg, _cell_pullup_constraints);
+	RET2RVAL(ret, rvalue);
+	arg->expr = saved;
+
+	return rvalue < 0 ? -1 : 0;
 }

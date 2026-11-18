@@ -1,0 +1,30 @@
+-- OK: types written directly in the objects of an object set (an open type's
+-- alternatives): constrained, constructed and ENUMERATED types get the
+-- module's AUTOMATIC TAGS, their constraints and a descriptor of their own;
+-- an identical type written twice shares one alternative; a named type whose
+-- name exists in two modules is referred to by its prefixed name.
+
+K183 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+CLS ::= CLASS { &id INTEGER (0..255) UNIQUE, &Value }
+	WITH SYNTAX { ID &id TYPE &Value }
+Named ::= INTEGER (0..255)
+Objs CLS ::= {
+	{ ID 1 TYPE Named } |
+	{ ID 2 TYPE INTEGER (0..7) } |
+	{ ID 3 TYPE OCTET STRING (SIZE(2)) } |
+	{ ID 4 TYPE ENUMERATED { red, green, blue } } |
+	{ ID 5 TYPE SET { p INTEGER (0..9), q BOOLEAN OPTIONAL } } |
+	{ ID 6 TYPE SEQUENCE { a INTEGER (0..3) } } |
+	{ ID 7 TYPE SEQUENCE { a INTEGER (0..3) } },
+	... }
+IE ::= SEQUENCE { id CLS.&id ({Objs}), value CLS.&Value ({Objs}{@id}) }
+
+END
+
+K183B DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+Named ::= BOOLEAN
+Holder ::= SEQUENCE { n Named }
+
+END

@@ -10,6 +10,18 @@
       failed after the C pass with "flat: unresolved ref"). NULL,
       ENUMERATED, constrained and constructed types written directly in
       an object are refused with a readable message.
+    * C generator: types written directly in information objects
+      (TYPE INTEGER (0..7), TYPE SEQUENCE {...}, TYPE ENUMERATED {...})
+      get the module's tagging (AUTOMATIC TAGS), their constraints and a
+      descriptor of their own; the generated C did not compile, ignored
+      the constraints, or (ENUMERATED) crashed asn1c. Their XER element
+      is the X.693 type name (OCTET_STRING, SEQUENCE_OF, ...) instead of
+      the type's text. A type used in an object whose name also exists
+      in another module is referred to by its module-prefixed C name.
+    * C runtime: open types use the selected alternative's own PER and
+      OER constraints, and OER encodes an open type as a length-prefixed
+      value (X.696 #30); it wrote a CHOICE tag the decoder could not
+      read.
 
 0.9.29-go.13:
     * C runtime: the decoders' stack guard (ASN__STACK_OVERFLOW_CHECK)

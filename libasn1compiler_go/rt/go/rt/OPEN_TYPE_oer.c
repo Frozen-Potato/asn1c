@@ -54,8 +54,11 @@ OPEN_TYPE_oer_get(const asn_codec_ctx_t *opt_codec_ctx,
         (char *)*memb_ptr2
         + elm->type->elements[selected.presence_index - 1].memb_offset;
 
-    ot_ret = oer_open_type_get(opt_codec_ctx, selected.type_descriptor, NULL,
-                               &inner_value, ptr, size);
+    ot_ret = oer_open_type_get(
+        opt_codec_ctx, selected.type_descriptor,
+        elm->type->elements[selected.presence_index - 1]
+            .encoding_constraints.oer_constraints,
+        &inner_value, ptr, size);
     switch(ot_ret) {
     default:
         if(CHOICE_variant_set_presence(elm->type, *memb_ptr2,
@@ -92,3 +95,47 @@ OPEN_TYPE_oer_get(const asn_codec_ctx_t *opt_codec_ctx,
     }
     return rv;
 }
+
+#if !defined(ASN_DISABLE_OER_SUPPORT)
+/*
+ * X.696 #30: an open type is the encoding of the selected alternative's
+ * value, wrapped in a length determinant (the decoder above expects exactly
+ * that); a CHOICE tag is not written.
+ */
+asn_enc_rval_t
+OPEN_TYPE_encode_oer(const asn_TYPE_descriptor_t *td,
+                     const asn_oer_constraints_t *constraints, const void *sptr,
+                     asn_app_consume_bytes_f *cb, void *app_key) {
+    const asn_TYPE_member_t *elm;
+    const void *memb_ptr;
+    unsigned present;
+    ssize_t encoded;
+    asn_enc_rval_t er = {0, 0, 0};
+
+    (void)constraints;
+
+    if(!sptr) ASN__ENCODE_FAILED;
+
+    present = CHOICE_variant_get_presence(td, sptr);
+    if(present == 0 || present > td->elements_count) {
+        ASN__ENCODE_FAILED;
+    }
+
+    elm = &td->elements[present - 1];
+    if(elm->flags & ATF_POINTER) {
+        memb_ptr =
+            *(const void *const *)((const char *)sptr + elm->memb_offset);
+        if(!memb_ptr) ASN__ENCODE_FAILED;
+    } else {
+        memb_ptr = (const void *)((const char *)sptr + elm->memb_offset);
+    }
+
+    encoded = oer_open_type_put(elm->type,
+                                elm->encoding_constraints.oer_constraints,
+                                memb_ptr, cb, app_key);
+    if(encoded < 0) ASN__ENCODE_FAILED;
+
+    er.encoded = encoded;
+    ASN__ENCODED_OK(er);
+}
+#endif  /* !defined(ASN_DISABLE_OER_SUPPORT) */

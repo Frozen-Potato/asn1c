@@ -209,8 +209,42 @@ emit_ioc_value(arg_t *arg, struct asn1p_ioc_cell_s *cell) {
     return 0;
 }
 
+/*
+ * A type written in an object that asn1c gives a descriptor of its own (as an
+ * inline member of the open type's union): constructed types, and ENUMERATED
+ * (its enumerator map lives in that descriptor; the bare NativeEnumerated
+ * cannot decode it).
+ */
 static int
-emit_ioc_cell(arg_t *arg, struct asn1p_ioc_cell_s *cell) {
+ioc_type_has_own_descriptor(const asn1p_expr_t *t) {
+    return (t->expr_type & ASN_CONSTR_MASK)
+           || t->expr_type == ASN_BASIC_ENUMERATED;
+}
+
+/*
+ * The cell whose descriptor a constructed type written in an object uses.
+ * The open type's union has one member per distinct alternative name (the
+ * first object wins, asn1c_lang_C_OpenType), so an identical type written in
+ * a later object (same name) shares that member's descriptor; its own index
+ * is never defined.
+ */
+static const struct asn1p_ioc_cell_s *
+ioc_inline_type_owner(const asn1p_ioc_table_t *ioct, size_t cn,
+                      const struct asn1p_ioc_cell_s *cell) {
+    for(size_t rn = 0; rn < ioct->rows; rn++) {
+        const struct asn1p_ioc_cell_s *c = &ioct->row[rn]->column[cn];
+        if(c == cell) break;
+        if(c->value && c->value->meta_type == AMT_TYPE
+           && c->value->Identifier && cell->value->Identifier
+           && strcmp(c->value->Identifier, cell->value->Identifier) == 0)
+            return c;
+    }
+    return cell;
+}
+
+static int
+emit_ioc_cell(arg_t *arg, struct asn1p_ioc_cell_s *cell,
+              const struct asn1p_ioc_cell_s *type_owner) {
     OUT("{ \"%s\", ", cell->field->Identifier);
 
     if(!cell->value) {
@@ -224,10 +258,16 @@ emit_ioc_cell(arg_t *arg, struct asn1p_ioc_cell_s *cell) {
 
     } else if(cell->value->meta_type == AMT_TYPEREF) {
         GEN_INCLUDE(asn1c_type_name(arg, cell->value, TNF_INCLUDE));
-        OUT("aioc__type, &asn_DEF_%s", MKID(cell->value));
+        OUT("aioc__type, &asn_DEF_%s", asn1c_type_name(arg, cell->value, TNF_SAFE));
     } else if(cell->value->meta_type == AMT_TYPE) {
         GEN_INCLUDE(asn1c_type_name(arg, cell->value, TNF_INCLUDE));
-        OUT("aioc__type, &asn_DEF_%s", asn1c_type_name(arg, cell->value, TNF_SAFE));
+        if(ioc_type_has_own_descriptor(cell->value)) {
+            OUT("aioc__type, &asn_DEF_%s_%d",
+                MKID(cell->value), type_owner->value->_type_unique_index);
+        } else {
+            OUT("aioc__type, &asn_DEF_%s",
+                asn1c_type_name(arg, cell->value, TNF_SAFE));
+        }
     } else {
         return -1;
     }
@@ -262,6 +302,26 @@ emit_ioc_table(arg_t *arg, asn1p_expr_t *context, asn1c_ioc_table_and_objset_t i
     if(ioc_tao.ioct->rows == 0)
         return 0;
 
+    /*
+     * A constructed type written directly in an object (TYPE SEQUENCE {...})
+     * gets its descriptor emitted later in this file, as an inline member of
+     * the open type's union: declare it before the table refers to it
+     * (static like that descriptor, unless -fall-defs-global).
+     */
+    for(size_t rn = 0; rn < ioc_tao.ioct->rows; rn++) {
+        asn1p_ioc_row_t *row = ioc_tao.ioct->row[rn];
+        for(size_t cn = 0; cn < row->columns; cn++) {
+            asn1p_expr_t *v = row->column[cn].value;
+            if(v && v->meta_type == AMT_TYPE
+               && ioc_type_has_own_descriptor(v)
+               && ioc_inline_type_owner(ioc_tao.ioct, cn, &row->column[cn])
+                      == &row->column[cn])
+                OUT("%s asn_TYPE_descriptor_t asn_DEF_%s_%d;\n",
+                    (arg->flags & A1C_ALL_DEFS_GLOBAL) ? "extern" : "static",
+                    MKID(v), v->_type_unique_index);
+        }
+    }
+
     /* Emit the Information Object Set */
     OUT("static const asn_ioc_cell_t asn_IOS_%s_%d_rows[] = {\n",
         MKID(ioc_tao.objset), ioc_tao.objset->_type_unique_index);
@@ -277,7 +337,9 @@ emit_ioc_table(arg_t *arg, asn1p_expr_t *context, asn1c_ioc_table_and_objset_t i
         }
         for(size_t cn = 0; cn < row->columns; cn++) {
             if(rn || cn) OUT(",\n");
-            emit_ioc_cell(arg, &row->column[cn]);
+            emit_ioc_cell(arg, &row->column[cn],
+                          ioc_inline_type_owner(ioc_tao.ioct, cn,
+                                                &row->column[cn]));
         }
     }
     OUT("\n");

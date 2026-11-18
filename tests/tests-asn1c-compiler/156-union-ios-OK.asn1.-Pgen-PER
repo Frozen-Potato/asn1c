@@ -251,7 +251,7 @@ static asn_TYPE_member_t asn_MBR_value_3[] = {
 		.type_selector = 0,
 		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
 		0, 0, /* No default value */
-		.name = "OCTET STRING"
+		.name = "OCTET_STRING"
 		},
 };
 static const unsigned asn_MAP_value_to_canonical_3[] = { 1, 0, 2 };

@@ -20,7 +20,6 @@ extern "C" {
 #define OPEN_TYPE_decode_xer NULL
 #define OPEN_TYPE_encode_xer CHOICE_encode_xer
 #define OPEN_TYPE_decode_oer NULL
-#define OPEN_TYPE_encode_oer CHOICE_encode_oer
 #define OPEN_TYPE_decode_uper NULL
 #define OPEN_TYPE_decode_aper NULL
 
@@ -62,6 +61,10 @@ asn_enc_rval_t OPEN_TYPE_jer_put(const asn_TYPE_descriptor_t *parent_type,
                                  enum jer_encoder_flags_e flags,
                                  asn_app_consume_bytes_f *cb, void *app_key);
 #endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
+
+#if !defined(ASN_DISABLE_OER_SUPPORT)
+oer_type_encoder_f OPEN_TYPE_encode_oer;
+#endif  /* !defined(ASN_DISABLE_OER_SUPPORT) */
 
 asn_dec_rval_t OPEN_TYPE_oer_get(const asn_codec_ctx_t *opt_codec_ctx,
                                  const asn_TYPE_descriptor_t *parent_type,

@@ -12,7 +12,6 @@ package e2e
 import (
     "bytes"
     "encoding/hex"
-    "strings"
     "testing"
 
     iof "asn1cgo.test/go/iocforms"
@@ -21,20 +20,15 @@ import (
 type ifCase struct {
     siCase
     aper string // hex
-    // the C XER element name is the C member name with a space
-    // (<OCTET STRING>): not well-formed XML, so the C XER decoder cannot
-    // read it; XER -> APER is skipped (bsXML drops the space when comparing)
-    noXerIn bool
 }
 
 func ifCases() []ifCase {
     var cs []ifCase
     inl := func(name, aper, xer string, v iof.InlineIE) {
-        cs = append(cs, ifCase{siMk(name, "InlineIE", xer, &v, iof.DecodeInlineIE), aper, false})
+        cs = append(cs, ifCase{siMk(name, "InlineIE", xer, &v, iof.DecodeInlineIE), aper})
     }
     blt := func(name, aper, xer string, v iof.BuiltinIE) {
-        cs = append(cs, ifCase{siMk(name, "BuiltinIE", xer, &v, iof.DecodeBuiltinIE), aper,
-            strings.Contains(xer, "OCTETSTRING") || strings.Contains(xer, "BITSTRING")})
+        cs = append(cs, ifCase{siMk(name, "BuiltinIE", xer, &v, iof.DecodeBuiltinIE), aper})
     }
     ie := func(pdu string, id int64, alt string) string {
         return "<" + pdu + "><id>" + itoa(id) + "</id><value>" + alt + "</value></" + pdu + ">"
@@ -48,13 +42,13 @@ func ifCases() []ifCase {
     // built-in types in the objects
     blt("builtin-boolean", "010180", ie("BuiltinIE", 1, "<BOOLEAN><true/></BOOLEAN>"), iof.NewBuiltinIEId1(true))
     blt("builtin-integer", "020201f9", ie("BuiltinIE", 2, "<INTEGER>-7</INTEGER>"), iof.NewBuiltinIEId2(-7))
-    blt("builtin-octets", "030403010203", ie("BuiltinIE", 3, "<OCTETSTRING>010203</OCTETSTRING>"),
+    blt("builtin-octets", "030403010203", ie("BuiltinIE", 3, "<OCTET_STRING>010203</OCTET_STRING>"),
         iof.NewBuiltinIEId3([]byte{1, 2, 3}))
     blt("builtin-printable", "0403024142", ie("BuiltinIE", 4, "<PrintableString>AB</PrintableString>"),
         iof.NewBuiltinIEId4("AB"))
     blt("builtin-utf8", "05040368c3a9", ie("BuiltinIE", 5, "<UTF8String>hé</UTF8String>"),
         iof.NewBuiltinIEId5("hé"))
-    blt("builtin-bits", "060204a0", ie("BuiltinIE", 6, "<BITSTRING>1010</BITSTRING>"),
+    blt("builtin-bits", "060204a0", ie("BuiltinIE", 6, "<BIT_STRING>1010</BIT_STRING>"),
         iof.NewBuiltinIEId6(iof.BitString{Bytes: []byte{0xA0}, BitsUnused: 4}))
     // id 7 shares the BOOLEAN alternative with id 1
     blt("builtin-shared-alt", "070100", ie("BuiltinIE", 7, "<BOOLEAN><false/></BOOLEAN>"), iof.NewBuiltinIEId7(false))
@@ -86,9 +80,7 @@ func TestIocFormsCConverter(t *testing.T) {
             t.Errorf("%s: encode: %v", c.name, err)
             continue
         }
-        if c.noXerIn {
-            // no XER input (see ifCase.noXerIn)
-        } else if ref, ok := siConv(t, bin, c.siCase, []byte(c.xer), "-ixer", "-oaper"); ok && !bytes.Equal(ref, aper) {
+        if ref, ok := siConv(t, bin, c.siCase, []byte(c.xer), "-ixer", "-oaper"); ok && !bytes.Equal(ref, aper) {
             t.Errorf("%s: Go APER % x != C APER of the XER value % x", c.name, aper, ref)
         }
         if re, ok := siConv(t, bin, c.siCase, aper, "-iaper", "-oaper"); ok && !bytes.Equal(re, aper) {

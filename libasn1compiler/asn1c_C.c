@@ -54,6 +54,7 @@ static int emit_member_OER_constraints(arg_t *arg, asn1p_expr_t *expr, const cha
 static int emit_member_PER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx);
 static int emit_member_JER_constraints(arg_t *arg, asn1p_expr_t *expr, const char *pfx);
 static int jer_fixed_bit_string_size(arg_t *arg, asn1p_expr_t *expr, long long *size);
+static int is_object_cell_type(const asn1p_expr_t *expr);
 static int emit_member_table(arg_t *arg, asn1p_expr_t *expr,
                              asn1c_ioc_table_and_objset_t *);
 static int emit_tag2member_map(arg_t *arg, tag2el_t *tag2el, int tag2el_count, const char *opt_modifier);
@@ -5606,6 +5607,13 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 	if(C99_MODE) OUT(".name = ");
 	if(expr->_anonymous_type && !strcmp(expr->Identifier, "Member")) {
 		OUT("\"\"\n");
+	} else if(is_object_cell_type(expr)) {
+		/* X.693: the XML element of an open type value is the type's
+		 * xmlasn1typename (OCTET_STRING, SEQUENCE_OF, ...), the same
+		 * name its descriptor's xml_tag carries, which the decoder
+		 * expects */
+		OUT("\"%s\"\n", asn1c_make_identifier(AMI_CHECK_RESERVED, 0,
+			ASN_EXPR_TYPE2STR(expr->expr_type), 0));
 	} else {
 		OUT("\"%s\"\n", expr->Identifier);
 	}
@@ -5654,6 +5662,17 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 /*
  * Generate "asn_DEF_XXX" type definition.
  */
+/*
+ * A type written directly in an information object (TYPE INTEGER (0..7),
+ * TYPE SEQUENCE {...}): an alternative of an open type's union whose
+ * "identifier" is the type's text. XER names it like an anonymous type.
+ */
+static int
+is_object_cell_type(const asn1p_expr_t *expr) {
+	return expr->meta_type == AMT_TYPE && expr->parent_expr
+		   && expr->parent_expr->expr_type == ASN_CONSTR_OPEN_TYPE;
+}
+
 static int
 emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_count, int all_tags_count, int elements_count, enum etd_spec spec) {
 	asn1p_expr_t *terminal;
@@ -5681,7 +5700,7 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
     OUT(" = {\n");
 	INDENT(+1);
 
-		if(expr->_anonymous_type) {
+		if(expr->_anonymous_type || is_object_cell_type(expr)) {
 			p = strdup(ASN_EXPR_TYPE2STR(expr->expr_type));
 			OUT("\"%s\",\n", p?p:"");
 			OUT("\"%s\",\n",

@@ -338,7 +338,12 @@ OPEN_TYPE_uper_get(const asn_codec_ctx_t *opt_codec_ctx,
         (char *)*memb_ptr2
         + elm->type->elements[selected.presence_index - 1].memb_offset;
 
-    rv = uper_open_type_get(opt_codec_ctx, selected.type_descriptor, NULL,
+    /* the selected alternative's own constraints (a constrained type
+     * written in the object, TYPE INTEGER (0..7)); NULL for a named type,
+     * which then uses its own */
+    rv = uper_open_type_get(opt_codec_ctx, selected.type_descriptor,
+        elm->type->elements[selected.presence_index - 1]
+            .encoding_constraints.per_constraints,
                             &inner_value, pd);
     switch(rv.code) {
     case RC_OK:
@@ -395,7 +400,8 @@ OPEN_TYPE_encode_uper(const asn_TYPE_descriptor_t *td,
         memb_ptr = (const char *)sptr + elm->memb_offset;
     }
 
-    if(uper_open_type_put(elm->type, NULL, memb_ptr, po) < 0) {
+    if(uper_open_type_put(elm->type, elm->encoding_constraints.per_constraints,
+                          memb_ptr, po) < 0) {
         ASN__ENCODE_FAILED;
     }
 
@@ -448,7 +454,12 @@ OPEN_TYPE_aper_get(const asn_codec_ctx_t *opt_codec_ctx,
         (char *)*memb_ptr2
         + elm->type->elements[selected.presence_index - 1].memb_offset;
 
-    rv = aper_open_type_get(opt_codec_ctx, selected.type_descriptor, NULL,
+    /* the selected alternative's own constraints (a constrained type
+     * written in the object, TYPE INTEGER (0..7)); NULL for a named type,
+     * which then uses its own */
+    rv = aper_open_type_get(opt_codec_ctx, selected.type_descriptor,
+        elm->type->elements[selected.presence_index - 1]
+            .encoding_constraints.per_constraints,
                             &inner_value, pd);
     switch(rv.code) {
     case RC_OK:
@@ -505,7 +516,8 @@ OPEN_TYPE_encode_aper(const asn_TYPE_descriptor_t *td,
         memb_ptr = (const char *)sptr + elm->memb_offset;
     }
 
-    if(aper_open_type_put(elm->type, NULL, memb_ptr, po) < 0) {
+    if(aper_open_type_put(elm->type, elm->encoding_constraints.per_constraints,
+                          memb_ptr, po) < 0) {
         ASN__ENCODE_FAILED;
     }
 
