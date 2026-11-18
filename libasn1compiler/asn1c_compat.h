@@ -36,4 +36,21 @@ void asn1c_txn_created(const char *path);
 int asn1c_txn_rollback(void);
 int asn1c_txn_commit(void);
 
+/*
+ * Output-directory helpers for asn1c -Fgo.
+ * asn1c_outdir_lock(): take an exclusive flock(2) on the directory destdir
+ *   itself (no lock file) and keep it until the process exits, so two runs
+ *   that write the same C output directory do not interleave. Prints a note
+ *   when it has to wait. Returns 0, or -1 (diagnosed). A no-op on Windows.
+ * asn1c_outdir_backups(): count the backup files of the undo journal
+ *   (".<name>.asn1c-bak.<pid>.<n>") in destdir, printing the first few;
+ *   they are only left behind by a run that was killed.
+ * asn1c_canonical_path(): absolute path with symlinks resolved; components
+ *   that do not exist yet are appended as written ("." dropped, ".."
+ *   applied). malloc'd; NULL on failure.
+ */
+int asn1c_outdir_lock(const char *destdir);
+int asn1c_outdir_backups(const char *destdir);
+char *asn1c_canonical_path(const char *path);
+
 #endif	/* ASN1C_COMPAT_H */

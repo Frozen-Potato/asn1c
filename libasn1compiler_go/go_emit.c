@@ -309,8 +309,10 @@ sibling_template(const char *go_outdir, const char *kind) {
 int
 go_outdir_stage(const char *go_outdir, char **tmp_out) {
     struct stat st;
+    int have_old = 0;
     *tmp_out = NULL;
     if(stat(go_outdir, &st) == 0) {
+        have_old = 1;
         if(!S_ISDIR(st.st_mode)) {
             fprintf(stderr, "asn1cgo: -Fgo target exists and is not a "
                     "directory: %s\n", go_outdir);
@@ -339,10 +341,17 @@ go_outdir_stage(const char *go_outdir, char **tmp_out) {
         free(t);
         return -1;
     }
-    /* mkdtemp makes it 0700; give it what mkdir(…, 0777) would have. */
-    mode_t um = umask(0);
-    umask(um);
-    if(chmod(t, 0777 & ~um) != 0) {
+    /* mkdtemp makes it 0700. A regenerated tree keeps the permissions of
+     * the one it replaces; a new one gets what mkdir(…, 0777) would give. */
+    mode_t mode;
+    if(have_old) {
+        mode = st.st_mode & 07777;
+    } else {
+        mode_t um = umask(0);
+        umask(um);
+        mode = 0777 & ~um;
+    }
+    if(chmod(t, mode) != 0) {
         fprintf(stderr, "asn1cgo: cannot chmod staging directory: %s: %s\n",
                 t, strerror(errno));
         rm_tree(t);
@@ -352,6 +361,8 @@ go_outdir_stage(const char *go_outdir, char **tmp_out) {
     *tmp_out = t;
     return 0;
 }
+
+int go_dir_exchange(const char *a, const char *b);   /* go_swap.c */
 
 /* Swap the staged tree in. On success *old_out is the renamed-aside previous
  * tree (malloc'd; NULL when there was none) for go_outdir_commit, or
@@ -385,6 +396,32 @@ go_outdir_publish(const char *go_outdir, const char *tmp, char **old_out) {
     if(!mkdtemp(old)) {
         fprintf(stderr, "asn1cgo: cannot create directory: %s: %s\n",
                 old, strerror(errno));
+        free(old);
+        return -1;
+    }
+    /* Where the system can, swap the two trees in one step, so <dir>
+     * exists at every instant, then move the old tree (now at tmp) onto
+     * the reservation. */
+    if(go_dir_exchange(tmp, go_outdir) == 0) {
+        if(rename(tmp, old) != 0) {
+            int e = errno;
+            if(go_dir_exchange(tmp, go_outdir) != 0)
+                fprintf(stderr, "asn1cgo: cannot restore previous tree: "
+                        "%s (the previous tree is at %s)\n",
+                        strerror(errno), tmp);
+            fprintf(stderr, "asn1cgo: cannot rename %s -> %s: %s\n",
+                    tmp, old, strerror(e));
+            rmdir(old);
+            free(old);
+            return -1;
+        }
+        *old_out = old;
+        return 0;
+    } else if(errno != ENOSYS && errno != EINVAL && errno != ENOTSUP
+              && errno != EOPNOTSUPP) {
+        fprintf(stderr, "asn1cgo: cannot exchange %s and %s: %s\n",
+                tmp, go_outdir, strerror(errno));
+        rmdir(old);
         free(old);
         return -1;
     }

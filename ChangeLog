@@ -1,3 +1,20 @@
+0.9.29-go.15 (unreleased):
+    * asn1c -Fgo: runs that write the same C output directory (-D) at
+      the same time take turns (an exclusive lock on -D, held from
+      before the C pass to the end of the run). Two such runs could
+      both exit 0 with C files of both generations mixed, and a Go tree
+      that did not compile.
+    * asn1c -Fgo: a -D that is the -Fgo directory or inside it is
+      refused before the C pass (symbolic links resolved); the Go tree
+      replaced it and the C output was lost.
+    * asn1c -Fgo: backup files left in -D by a killed run
+      (.<name>.asn1c-bak.*) stop the next run until they are restored
+      or deleted, instead of being mixed with a new generation.
+    * Go backend: a regenerated -Fgo directory keeps the permissions of
+      the one it replaces (a 0700 directory became 0755). On Linux the
+      new tree is swapped in with one atomic exchange, so the directory
+      exists at every moment.
+
 0.9.29-go.14:
     * Go backend: in a module with BIT STRING members, generated names
       containing BITSTR (a type BITSTRING-Count) were mangled and the

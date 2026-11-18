@@ -1,5 +1,9 @@
 #include "asn1c_internal.h"
 #include "asn1c_compat.h"
+#ifndef	_WIN32
+#include <dirent.h>	/* opendir(3) */
+#include <sys/file.h>	/* flock(2) */
+#endif
 
 /* Normally file permissions are (DEFFILEMODE & ~umask(2)) */
 #ifndef	DEFFILEMODE	/* Normally in <sys/stat.h> */
@@ -290,6 +294,125 @@ asn1c_txn_commit(void) {
 	}
 	txn_end();
 	return rc;
+}
+
+/*
+ * Output-directory helpers (see asn1c_compat.h).
+ */
+int
+asn1c_outdir_lock(const char *destdir) {
+#ifdef	_WIN32
+	(void)destdir;
+	return 0;
+#else
+	/* flock(2) on the directory itself: no lock file in -D. */
+	const char *dir = destdir && *destdir ? destdir : ".";
+	int fd;
+	int r;
+	fd = open(dir, O_RDONLY);
+	if(fd < 0) {
+		fprintf(stderr, "asn1c: cannot open %s: %s\n", dir,
+				strerror(errno));
+		return -1;
+	}
+	(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
+	if(flock(fd, LOCK_EX | LOCK_NB) != 0) {
+		if(errno != EWOULDBLOCK && errno != EINTR) {
+			fprintf(stderr, "asn1c: cannot lock %s: %s\n", dir,
+					strerror(errno));
+			close(fd);
+			return -1;
+		}
+		fprintf(stderr, "asn1c: waiting for another asn1c run that "
+				"writes %s\n", dir);
+		while((r = flock(fd, LOCK_EX)) != 0 && errno == EINTR) { }
+		if(r != 0) {
+			fprintf(stderr, "asn1c: cannot lock %s: %s\n", dir,
+					strerror(errno));
+			close(fd);
+			return -1;
+		}
+	}
+	return 0;	/* fd stays open: the lock lasts until exit */
+#endif
+}
+
+int
+asn1c_outdir_backups(const char *destdir) {
+	const char *dir = destdir && *destdir ? destdir : ".";
+	int count = 0;
+#ifndef	_WIN32
+	DIR *d = opendir(dir);
+	struct dirent *e;
+	if(!d) return 0;
+	while((e = readdir(d)) != NULL) {
+		if(e->d_name[0] != '.' || !strstr(e->d_name, ".asn1c-bak."))
+			continue;
+		if(count++ < 5)
+			fprintf(stderr, "asn1c: backup file of an interrupted "
+					"run: %s%s\n", destdir && *destdir ? destdir : "",
+					e->d_name);
+	}
+	closedir(d);
+#else
+	(void)dir;
+#endif
+	return count;
+}
+
+char *
+asn1c_canonical_path(const char *path) {
+	size_t len = strlen(path);
+	char *head = malloc(len + 3);
+	char *tail = malloc(len + 2);	/* the components that do not exist */
+	char *res = NULL;
+	char *real = NULL;
+
+	if(!head || !tail) goto done;
+	strcpy(head, path);
+	tail[0] = '\0';
+	for(;;) {
+		char *slash;
+		real = realpath(*head ? head : ".", NULL);
+		if(real) break;
+		if(errno != ENOENT && errno != ENOTDIR) goto done;
+		/* move the last component of head to the front of tail */
+		while(*head && head[strlen(head) - 1] == '/' && strlen(head) > 1)
+			head[strlen(head) - 1] = '\0';
+		slash = strrchr(head, '/');
+		{
+			const char *comp = slash ? slash + 1 : head;
+			size_t cl = strlen(comp);
+			memmove(tail + cl + 1, tail, strlen(tail) + 1);
+			memcpy(tail, comp, cl);
+			tail[cl] = '/';
+		}
+		if(slash == head) head[1] = '\0';	/* "/x" -> "/" */
+		else if(slash) *slash = '\0';
+		else head[0] = '\0';
+	}
+	res = malloc(strlen(real) + strlen(tail) + 2);
+	if(!res) goto done;
+	strcpy(res, real);
+	{
+		char *comp = strtok(tail, "/");
+		for(; comp; comp = strtok(NULL, "/")) {
+			if(strcmp(comp, ".") == 0 || !*comp) continue;
+			if(strcmp(comp, "..") == 0) {
+				char *s = strrchr(res, '/');
+				if(s && s != res) *s = '\0';
+				else strcpy(res, "/");
+				continue;
+			}
+			if(strcmp(res, "/") != 0) strcat(res, "/");
+			strcat(res, comp);
+		}
+	}
+done:
+	free(head);
+	free(tail);
+	free(real);
+	return res;
 }
 
 const char *

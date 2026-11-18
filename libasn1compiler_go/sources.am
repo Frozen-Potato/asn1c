@@ -13,5 +13,6 @@ asn1c_SOURCES += \
     $(top_srcdir)/libasn1compiler_go/go_ioc.c \
     $(top_srcdir)/libasn1compiler_go/go_entry.c \
     $(top_srcdir)/libasn1compiler_go/go_emit.c \
+    $(top_srcdir)/libasn1compiler_go/go_swap.c \
     $(top_srcdir)/libasn1compiler_go/go_glue.c \
     $(top_srcdir)/libasn1compiler_go/go_ctor.c

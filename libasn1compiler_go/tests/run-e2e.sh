@@ -309,6 +309,104 @@ EOS
     fi
 }
 
+# Output directory safety with -Fgo: a -D that is the -Fgo directory or
+# inside it is refused before the C pass; a regenerated Go tree keeps its
+# directory permissions; backup files left by a killed run stop the next run
+# (-D untouched); two runs writing the same -D and -Fgo at the same time are
+# serialised, so each leaves a consistent C + Go generation.
+run_outdir_safety() {
+    work="$tmp/outsafe"
+    mkdir -p "$work"
+    echo "== run-e2e: output directory safety =="
+    gen() {
+        dir=$1; spec=$2; shift 2
+        (
+            cd "$work/$dir"
+            ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+            "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+                -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+                -pdu=all "$@" "$spec"
+        )
+    }
+    for rev in 1 2; do
+        {
+            echo "Many DEFINITIONS AUTOMATIC TAGS ::= BEGIN"
+            i=0
+            while [ $i -lt 40 ]; do
+                if [ $rev = 2 ]; then
+                    echo "Item$i ::= SEQUENCE { a INTEGER (0..255), newField BOOLEAN }"
+                else
+                    echo "Item$i ::= SEQUENCE { a INTEGER (0..255) }"
+                fi
+                i=$((i + 1))
+            done
+            echo "END"
+        } >"$work/rev$rev.asn"
+    done
+
+    # overlapping directories
+    while IFS='|' read -r name d g; do
+        mkdir -p "$work/$name/$d"
+        printf 'keep\n' >"$work/$name/$d/keep.txt"
+        rc=0
+        gen "$name" "$work/rev1.asn" -D "$d" -Fgo="$g" >"$work/$name.log" 2>&1 || rc=$?
+        if [ "$rc" != 70 ] || ! grep -qF 'use separate directories' "$work/$name.log" \
+           || [ "$(ls -A "$work/$name/$d")" != keep.txt ]; then
+            cat "$work/$name.log" >&2
+            echo "run-e2e: overlap $name (-D $d -Fgo=$g): exit $rc, want 70 and -D untouched" >&2
+            return 1
+        fi
+    done <<'EOT'
+same|out|out
+dotted|out|./out/.
+inside|go/c|go
+EOT
+
+    # permissions of a regenerated tree
+    mkdir -p "$work/perm/c"
+    gen perm "$work/rev1.asn" -D c -Fgo=gen >"$work/perm.log" 2>&1 || { cat "$work/perm.log" >&2; return 1; }
+    chmod 750 "$work/perm/gen"
+    gen perm "$work/rev2.asn" -D c -Fgo=gen >"$work/perm.log" 2>&1 || { cat "$work/perm.log" >&2; return 1; }
+    if [ "$(stat -c %a "$work/perm/gen")" != 750 ]; then
+        echo "run-e2e: regenerated Go tree mode $(stat -c %a "$work/perm/gen"), want 750" >&2
+        return 1
+    fi
+
+    # backups of a killed run
+    printf 'old\n' >"$work/perm/c/.Item0.c.asn1c-bak.1.0"
+    ls -lA --time-style=+%s "$work/perm/c" >"$work/perm.0"
+    rc=0
+    gen perm "$work/rev1.asn" -D c -Fgo=gen >"$work/perm.log" 2>&1 || rc=$?
+    ls -lA --time-style=+%s "$work/perm/c" >"$work/perm.1"
+    if [ "$rc" != 70 ] || ! grep -qF 'backup files of a run that was killed' "$work/perm.log" \
+       || ! cmp -s "$work/perm.0" "$work/perm.1"; then
+        cat "$work/perm.log" >&2
+        echo "run-e2e: stale backup: exit $rc, want 70 and -D untouched" >&2
+        return 1
+    fi
+    rm "$work/perm/c/.Item0.c.asn1c-bak.1.0"
+
+    # concurrent runs on the same -D and -Fgo
+    mkdir -p "$work/conc/c"
+    gen conc "$work/rev1.asn" -D c -Fgo=gen >"$work/conc.log" 2>&1 || { cat "$work/conc.log" >&2; return 1; }
+    for round in 1 2 3; do
+        rc1=0; rc2=0
+        gen conc "$work/rev1.asn" -D c -Fgo=gen >"$work/conc1.log" 2>&1 & p1=$!
+        gen conc "$work/rev2.asn" -D c -Fgo=gen >"$work/conc2.log" 2>&1 & p2=$!
+        wait $p1 || rc1=$?
+        wait $p2 || rc2=$?
+        nc=$(grep -l newField "$work"/conc/c/Item*.h | wc -l)
+        ns=$(grep -l newField "$work"/conc/gen/internal/cspec/Item*.h | wc -l)
+        ng=$(grep -c NewField "$work/conc/gen/many/types.go" || :)
+        if [ "$rc1" != 0 ] || [ "$rc2" != 0 ] || [ "$nc" != "$ns" ] \
+           || [ "$nc" != "$ng" ] || { [ "$nc" != 0 ] && [ "$nc" != 40 ]; }; then
+            cat "$work/conc1.log" "$work/conc2.log" >&2
+            echo "run-e2e: concurrent round $round: rc $rc1/$rc2, newField in C $nc, cspec $ns, Go $ng (want 0 or 40, all equal)" >&2
+            return 1
+        fi
+    done
+}
+
 # A one-way import between two modules still generates and builds.
 run_oneway() {
     work="$tmp/oneway"
@@ -523,6 +621,7 @@ run_rt_skeleton_sync() {
 run_cycle
 run_jer_clash
 run_post_c_restore
+run_outdir_safety
 run_oneway
 run_unsupported_default
 run_stdlib_collision

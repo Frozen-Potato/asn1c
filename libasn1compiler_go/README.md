@@ -49,7 +49,9 @@ generated directory to fetch it and write `go.sum`; with
 runtime checkout and no fetch is needed. When `-Fgo` has a parent directory
 (`out/go`), the generator also adds the module to `out/go.work` (created if
 absent). Generators running in parallel into sibling directories are
-serialised by a lock file `<parent>/.go.work.lock`.
+serialised by a lock file `<parent>/.go.work.lock`. `go.work` is updated
+right after `<dir>` is swapped in, not in the same step: if a run is killed
+in between, `go.work` may lack the new `use` entry until the next run.
 
 **Output layout.** `-Fgo=<dir>` writes `go.mod`, one Go package per ASN.1
 module (`<module>_dir`, lowercased, `-` replaced by `_`) with the `Encode` /
@@ -63,8 +65,11 @@ next to `<dir>` and swapped in only when generation succeeded. On failure
 `<dir>` is left as it was, asn1c prints `asn1cgo: ...` lines and exits 70.
 `<dir>` is replaced as a whole, so files that are no longer produced disappear
 and **anything you keep in `<dir>` is deleted**: put hand-written code in a
-separate module that imports the generated one. A hidden
-`.<basename>.asn1cgo-tmp-*` directory left by a killed run is safe to delete.
+separate module that imports the generated one. The new `<dir>` keeps the
+permissions of the one it replaces. On Linux the swap is a single atomic
+exchange, so `<dir>` exists at every moment; elsewhere it is two renames. A
+hidden `.<basename>.asn1cgo-tmp-*` or `.<basename>.asn1cgo-old-*` directory
+left by a killed run is safe to delete.
 
 **The C output follows the same rule.** With `-Fgo`, a run that fails leaves
 `-D` as it was, whether the C pass or the Go pass failed: every file the run
@@ -78,8 +83,20 @@ produce are kept, and files whose contents did not change are not rewritten.
 While a run is in progress, each file it replaces is kept as a hidden
 `.<name>.asn1c-bak.*` file next to it. These are removed when the run ends,
 so if one is left behind, a run was killed: rename it back to `<name>` to
-undo that run's change to the file, or delete it. Without `-Fgo`, asn1c
-writes `-D` as upstream asn1c does.
+undo that run's change to the file, or delete it. Until you do, asn1c
+refuses to write to that `-D` (`backup files of a run that was killed`).
+
+**One run per C output directory.** With `-Fgo`, asn1c holds an exclusive
+lock on the `-D` directory itself (no lock file is created) from before the
+C pass until it exits, so runs that write the same `-D` at the same time
+take turns (asn1c prints `waiting for another asn1c run`) and each leaves a
+consistent C and Go generation. A `-D` that is `<dir>` or inside it is refused
+before the C pass: `<dir>` is replaced as a whole, so the C output would be
+lost. `<dir>` inside `-D` (for example `-D . -Fgo=go`) is fine. Paths are
+compared after resolving symbolic links. The lock is advisory (`flock`) and
+may not work on some network file systems.
+
+Without `-Fgo`, asn1c writes `-D` as upstream asn1c does.
 
 ## Using the generated code
 

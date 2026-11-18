@@ -443,6 +443,38 @@ main(int ac, char **av) {
     }
 
     /*
+     * -Fgo replaces <dir> as a whole: a C output directory that is <dir> or
+     * inside it would be lost. (<dir> inside -D is fine.)
+     */
+    if(go_outdir) {
+        const char *cdir = destdir && *destdir ? destdir : ".";
+        char *dreal = asn1c_canonical_path(cdir);
+        char *greal = asn1c_canonical_path(go_outdir);
+        size_t gl = greal ? strlen(greal) : 0;
+        int resolved = dreal && greal;
+        int overlap = resolved
+            && (strcmp(dreal, greal) == 0
+                || (strncmp(dreal, greal, gl) == 0
+                    && (dreal[gl] == '/' || strcmp(greal, "/") == 0)));
+        if(!resolved) {
+            fprintf(stderr, "asn1c: cannot resolve %s: %s\n",
+                    dreal ? go_outdir : cdir, strerror(errno));
+        } else if(overlap) {
+            fprintf(stderr, "asn1c: the C output directory %s is the -Fgo "
+                    "directory %s or inside it; -Fgo replaces that directory "
+                    "as a whole, so use separate directories\n",
+                    cdir, go_outdir);
+        }
+        free(dreal);
+        free(greal);
+        if(overlap || !resolved) {
+            fprintf(stderr, "asn1c: no C output was written\n");
+            exit_code = EX_SOFTWARE;
+            goto cleanup;
+        }
+    }
+
+    /*
      * Go backend pre-flight: rejects that do not depend on the C pass run
      * before asn1_compile (the specification, the -Fgo target), so a reject
      * leaves -D untouched.
@@ -458,7 +490,24 @@ main(int ac, char **av) {
      * With -Fgo the C output is journaled (asn1c_compat.h): if the C pass
      * or the Go pass fails, -D is restored to what it was before this run.
      */
-    if(go_outdir) asn1c_txn_begin();
+    if(go_outdir) {
+        /* One run at a time per C output directory, from here to exit. */
+        if(asn1c_outdir_lock(destdir) != 0) {
+            fprintf(stderr, "asn1c: no C output was written\n");
+            exit_code = EX_SOFTWARE;
+            goto cleanup;
+        }
+        if(asn1c_outdir_backups(destdir) > 0) {
+            fprintf(stderr, "asn1c: %s holds backup files of a run that was "
+                    "killed: rename each .<name>.asn1c-bak.* back to <name> "
+                    "to undo that run, or delete them, then run asn1c again; "
+                    "no C output was written\n",
+                    destdir && *destdir ? destdir : ".");
+            exit_code = EX_SOFTWARE;
+            goto cleanup;
+        }
+        asn1c_txn_begin();
+    }
 
     /*
      * Compile the ASN.1 tree into a set of source files
