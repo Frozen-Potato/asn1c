@@ -96,6 +96,14 @@ typedef struct asn_OCTET_STRING_specifics_s {
         ASN_OSUBV_U16, /* 16-bit character (BMPString) */
         ASN_OSUBV_U32  /* 32-bit character (UniversalString) */
     } subvariant;
+
+    /*
+     * BIT STRING only: nonzero for a type defined with a NamedBitList
+     * (asn_SPC_BIT_STRING_named_specs). Its trailing 0 bits are not
+     * significant (X.680 22.7), and the PER encoders remove them (X.691
+     * 16.2, 16.3). Last, so initializers that leave it out mean "no".
+     */
+    unsigned has_named_bits;
 } asn_OCTET_STRING_specifics_t;
 
 extern asn_OCTET_STRING_specifics_t asn_SPC_OCTET_STRING_specs;

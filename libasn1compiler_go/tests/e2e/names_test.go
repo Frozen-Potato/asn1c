@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 
 	eh "asn1cgo.test/go/enumhyphen"
@@ -139,6 +140,15 @@ func TestEnumHyphenRoundTrip(t *testing.T) {
 					txt = txt[:1] + "1"
 				}
 				xer := "<T><e><" + e.xer + "/></e><d><" + d.xer + "/></d><b>" + txt + "</b></T>"
+				// B has named bits: its trailing 0 bits are not sent
+				// (X.691 16.2), so both decoders return the value without them.
+				ctxt := strings.TrimRight(txt, "0")
+				cxml := "<T><e><" + e.xer + "/></e><d><" + d.xer + "/></d><b>" + ctxt + "</b></T>"
+				var cb eh.B
+				if len(ctxt) > 0 {
+					cb.Bytes = []byte{b.Bytes[0]}
+					cb.BitsUnused = int32(8 - len(ctxt))
+				}
 				v := eh.T{E: e.v, D: d.v, B: b}
 				aper, err := v.Encode()
 				if err != nil {
@@ -149,15 +159,15 @@ func TestEnumHyphenRoundTrip(t *testing.T) {
 					t.Errorf("%s: Go APER % x != C APER % x", xer, aper, ref)
 				}
 				got := normXML(convPDU(t, bin, "T", aper, "-iaper", "-oxer"))
-				if got != normXML([]byte(xer)) {
-					t.Errorf("C XER of the Go APER = %s, want %s", got, xer)
+				if got != normXML([]byte(cxml)) {
+					t.Errorf("C XER of the Go APER = %s, want %s", got, cxml)
 				}
 				back, err := eh.DecodeT(aper)
 				if err != nil {
 					t.Errorf("%s: decode: %v", xer, err)
 					continue
 				}
-				if back.E != e.v || back.D != d.v || !bytes.Equal(back.B.Bytes, b.Bytes) || back.B.BitsUnused != b.BitsUnused {
+				if back.E != e.v || back.D != d.v || !bytes.Equal(back.B.Bytes, cb.Bytes) || back.B.BitsUnused != cb.BitsUnused {
 					t.Errorf("%s: decoded %+v", xer, *back)
 				}
 			}

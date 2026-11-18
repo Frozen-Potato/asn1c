@@ -317,7 +317,12 @@ an absent group decodes to nil. A `[[ ]]` group in a CHOICE is a syntax error
 in asn1c itself.
 
 **Named bits.** The constants are `int` bit positions in declaration order, e.g.
-`CapsA int = 0`. Set bit n with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. In an enumerator or named-bit list, two names that differ only by a hyphen before a digit (`d1`, `d-1`) become `D1` and `D_1`: the clashing name keeps its `_` before the digit. The same holds for SEQUENCE fields, CHOICE alternatives, type names and typed value names (`a1`, `a-1` become `A1` and `A_1`; the inline type, the `<Choice>Pr<Alt>` constant and the DEFAULT constant follow). A DEFAULT of
+`CapsA int = 0`. Set bit n with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. The
+trailing 0 bits of a named-bit value are not significant (X.680 22.7):
+`Encode` leaves them out and adds 0 bits up to the lower bound of a SIZE
+constraint (X.691 16.2, 16.3), so `Decode` may return fewer bits than were
+encoded (`'1000'B` of `BIT STRING { a(0) } (SIZE(1..8))` comes back as `'1'B`).
+A BIT STRING without named bits is sent with all its bits. In an enumerator or named-bit list, two names that differ only by a hyphen before a digit (`d1`, `d-1`) become `D1` and `D_1`: the clashing name keeps its `_` before the digit. The same holds for SEQUENCE fields, CHOICE alternatives, type names and typed value names (`a1`, `a-1` become `A1` and `A_1`; the inline type, the `<Choice>Pr<Alt>` constant and the DEFAULT constant follow). A DEFAULT of
 a named-bit BIT STRING is accepted: see "DEFAULT members".
 
 **DEFAULT members.** Supported forms:

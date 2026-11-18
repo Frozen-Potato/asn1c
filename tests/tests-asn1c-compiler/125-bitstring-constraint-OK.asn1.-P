@@ -71,6 +71,6 @@ asn_TYPE_descriptor_t asn_DEF_T = {
 		/sizeof(asn_DEF_T_tags_1[0]), /* 1 */
 	{ 0, 0, T_constraint, 0 },
 	0, 0,	/* Defined elsewhere */
-	&asn_SPC_BIT_STRING_specs	/* Additional specs */
+	&asn_SPC_BIT_STRING_named_specs	/* Additional specs */
 };
 

@@ -113,9 +113,10 @@ func TestNamedBitConstants(t *testing.T) {
 type nbCase struct {
 	name    string
 	pdu     string
-	xer     string // the value as XER: the C oracle's input, and what Go and C decode the APER to
-	uper    string // hex of the C UPER of the Go bytes (hand-computed)
-	uperXER string // XER of that UPER: the compacted / padded value
+	xer   string // the value as given, as XER: the C oracle's input
+	aper  string // hex of the APER (hand-computed)
+	uper  string // hex of the UPER (hand-computed)
+	canon string // XER of what both decode to: trailing 0 bits removed, padded to the SIZE lower bound (X.691 16.2, 16.3)
 	enc     func() ([]byte, error)
 	dec     func([]byte) (string, error) // Go decode, rendered like xer
 }
@@ -124,10 +125,10 @@ type nbCase struct {
 func simpleCase[T ~struct {
 	Bytes      []byte
 	BitsUnused int32
-}](name, pdu string, bs nb.BitString, uper, uperBits string,
+}](name, pdu string, bs nb.BitString, aper, uper, canonBits string,
 	dec func([]byte) (*T, error)) nbCase {
 	el := func(bits string) string { return "<" + pdu + ">" + bits + "</" + pdu + ">" }
-	return nbCase{name, pdu, el(bitText(bs)), uper, el(uperBits),
+	return nbCase{name, pdu, el(bitText(bs)), aper, uper, el(canonBits),
 		func() ([]byte, error) {
 			v := T(bs)
 			return encodeAny(&v)
@@ -155,9 +156,9 @@ func encodeAny(v any) ([]byte, error) {
 	panic("encodeAny")
 }
 
-func holderCase(name string, req nb.BitString, uper, uperBits string) nbCase {
+func holderCase(name string, req nb.BitString, aper, uper, canonBits string) nbCase {
 	el := func(bits string) string { return "<Holder><req>" + bits + "</req><flag><true/></flag></Holder>" }
-	return nbCase{name, "Holder", el(bitText(req)), uper, el(uperBits),
+	return nbCase{name, "Holder", el(bitText(req)), aper, uper, el(canonBits),
 		func() ([]byte, error) { h := nb.Holder{Req: req, Flag: true}; return h.Encode() },
 		func(b []byte) (string, error) {
 			h, err := nb.DecodeHolder(b)
@@ -171,9 +172,9 @@ func holderCase(name string, req nb.BitString, uper, uperBits string) nbCase {
 		}}
 }
 
-func selectorCase(name string, sel nb.Selector, alt, bits, uper, uperBits string) nbCase {
+func selectorCase(name string, sel nb.Selector, alt, bits, aper, uper, canonBits string) nbCase {
 	el := func(bits string) string { return "<Selector><" + alt + ">" + bits + "</" + alt + "></Selector>" }
-	return nbCase{name, "Selector", el(bits), uper, el(uperBits),
+	return nbCase{name, "Selector", el(bits), aper, uper, el(canonBits),
 		func() ([]byte, error) { return sel.Encode() },
 		func(b []byte) (string, error) {
 			s, err := nb.DecodeSelector(b)
@@ -197,44 +198,47 @@ func nbCases() []nbCase {
 	add := func(c nbCase) { cs = append(cs, c) }
 
 	// No bits set (8 zero bits; an empty value is "not given" in C), only the
-	// highest-numbered named bit, trailing zero bits: UPER drops them.
-	add(simpleCase[nb.Caps]("caps-none", "Caps", bitsOf(8), "00", "", nb.DecodeCaps))
-	add(simpleCase[nb.Caps]("caps-highest-only", "Caps", bitsOf(8, nb.CapsC), "0801", "00000001", nb.DecodeCaps))
-	add(simpleCase[nb.Caps]("caps-trailing-zeros", "Caps", bitsOf(16, nb.CapsA, nb.CapsB), "0490", "1001", nb.DecodeCaps))
-	add(simpleCase[nb.Caps]("caps-all-named", "Caps", bitsOf(8, nb.CapsA, nb.CapsB, nb.CapsC), "0891", "10010001", nb.DecodeCaps))
+	// highest-numbered named bit, trailing zero bits: APER and UPER drop them.
+	add(simpleCase[nb.Caps]("caps-none", "Caps", bitsOf(8), "00", "00", "", nb.DecodeCaps))
+	add(simpleCase[nb.Caps]("caps-highest-only", "Caps", bitsOf(8, nb.CapsC), "0801", "0801", "00000001", nb.DecodeCaps))
+	add(simpleCase[nb.Caps]("caps-trailing-zeros", "Caps", bitsOf(16, nb.CapsA, nb.CapsB), "0490", "0490", "1001", nb.DecodeCaps))
+	// Only an unused bit set (7 bits, all 0): not a value bit, so the
+	// value is empty.
+	add(simpleCase[nb.Caps]("caps-unused-bit", "Caps", nb.BitString{Bytes: []byte{0x01}, BitsUnused: 1}, "00", "00", "", nb.DecodeCaps))
+	add(simpleCase[nb.Caps]("caps-all-named", "Caps", bitsOf(8, nb.CapsA, nb.CapsB, nb.CapsC), "0891", "0891", "10010001", nb.DecodeCaps))
 
 	// SIZE(8): fixed, nothing to drop or pad.
-	add(simpleCase[nb.Fixed]("fixed-none", "Fixed", bitsOf(8), "00", "00000000", nb.DecodeFixed))
-	add(simpleCase[nb.Fixed]("fixed-hi-only", "Fixed", bitsOf(8, nb.FixedHi), "04", "00000100", nb.DecodeFixed))
-	add(simpleCase[nb.Fixed]("fixed-lo-hi", "Fixed", bitsOf(8, nb.FixedLo, nb.FixedHi), "84", "10000100", nb.DecodeFixed))
+	add(simpleCase[nb.Fixed]("fixed-none", "Fixed", bitsOf(8), "00", "00", "00000000", nb.DecodeFixed))
+	add(simpleCase[nb.Fixed]("fixed-hi-only", "Fixed", bitsOf(8, nb.FixedHi), "04", "04", "00000100", nb.DecodeFixed))
+	add(simpleCase[nb.Fixed]("fixed-lo-hi", "Fixed", bitsOf(8, nb.FixedLo, nb.FixedHi), "84", "84", "10000100", nb.DecodeFixed))
 
 	// SIZE(4..12): the lower bound (4) above the highest set bit pads the
-	// UPER value up to 4 bits; 4 bits is the shortest value Go may give.
-	add(simpleCase[nb.Ranged]("ranged-none", "Ranged", bitsOf(4), "00", "0000", nb.DecodeRanged))
-	add(simpleCase[nb.Ranged]("ranged-p-only", "Ranged", bitsOf(12, nb.RangedP), "08", "1000", nb.DecodeRanged))
-	add(simpleCase[nb.Ranged]("ranged-q-trailing", "Ranged", bitsOf(10, nb.RangedQ), "02", "0010", nb.DecodeRanged))
-	add(simpleCase[nb.Ranged]("ranged-full", "Ranged", bitsOf(12, nb.RangedP, 11), "8801", "100000000001", nb.DecodeRanged))
-	add(simpleCase[nb.Open]("open-none", "Open", bitsOf(4), "0000", "0000", nb.DecodeOpen))
-	add(simpleCase[nb.Open]("open-p-only", "Open", bitsOf(12, nb.OpenP), "0400", "1000", nb.DecodeOpen))
-	add(simpleCase[nb.Open]("open-q-trailing", "Open", bitsOf(10, nb.OpenQ), "0100", "0010", nb.DecodeOpen))
+	// value up to 4 bits; 4 bits is the shortest value Go may give.
+	add(simpleCase[nb.Ranged]("ranged-none", "Ranged", bitsOf(4), "0000", "00", "0000", nb.DecodeRanged))
+	add(simpleCase[nb.Ranged]("ranged-p-only", "Ranged", bitsOf(12, nb.RangedP), "0080", "08", "1000", nb.DecodeRanged))
+	add(simpleCase[nb.Ranged]("ranged-q-trailing", "Ranged", bitsOf(10, nb.RangedQ), "0020", "02", "0010", nb.DecodeRanged))
+	add(simpleCase[nb.Ranged]("ranged-full", "Ranged", bitsOf(12, nb.RangedP, 11), "808010", "8801", "100000000001", nb.DecodeRanged))
+	add(simpleCase[nb.Open]("open-none", "Open", bitsOf(4), "0000", "0000", "0000", nb.DecodeOpen))
+	add(simpleCase[nb.Open]("open-p-only", "Open", bitsOf(12, nb.OpenP), "0080", "0400", "1000", nb.DecodeOpen))
+	add(simpleCase[nb.Open]("open-q-trailing", "Open", bitsOf(10, nb.OpenQ), "0020", "0100", "0010", nb.DecodeOpen))
 
 	// Inline member, SIZE(3..6); the OPTIONAL one beside it stays absent.
-	add(holderCase("holder-uv", bitsOf(5, nb.HolderReqU, nb.HolderReqV), "16", "101"))
-	add(holderCase("holder-none", bitsOf(3), "02", "000"))
-	add(holderCase("holder-u-trailing", bitsOf(6, nb.HolderReqU), "12", "100"))
+	add(holderCase("holder-uv", bitsOf(5, nb.HolderReqU, nb.HolderReqV), "00b0", "16", "101"))
+	add(holderCase("holder-none", bitsOf(3), "0010", "02", "000"))
+	add(holderCase("holder-u-trailing", bitsOf(6, nb.HolderReqU), "0090", "12", "100"))
 
 	// CHOICE alternatives: inline named-bit, plain, and a named-bit type.
 	{
 		b := bitsOf(2, nb.SelectorFlagsOff)
-		add(selectorCase("sel-flags", nb.Selector{Present: nb.SelectorPrFlags, Flags: &b}, "flags", "01", "0090", "01"))
+		add(selectorCase("sel-flags", nb.Selector{Present: nb.SelectorPrFlags, Flags: &b}, "flags", "01", "000240", "0090", "01"))
 	}
 	{
 		b := bitsOf(2, 0)
-		add(selectorCase("sel-plain", nb.Selector{Present: nb.SelectorPrPlain, Plain: &b}, "plain", "10", "60", "10"))
+		add(selectorCase("sel-plain", nb.Selector{Present: nb.SelectorPrPlain, Plain: &b}, "plain", "10", "60", "60", "10"))
 	}
 	{
 		b := nb.Item(bitsOf(8, nb.ItemN))
-		add(selectorCase("sel-named", nb.Selector{Present: nb.SelectorPrNamed, Named: &b}, "named", "00100000", "80c8", "001"))
+		add(selectorCase("sel-named", nb.Selector{Present: nb.SelectorPrNamed, Named: &b}, "named", "00100000", "800320", "80c8", "001"))
 	}
 
 	// SEQUENCE OF a named-bit type: item 2 has no bit set, item 1 and 3
@@ -243,7 +247,7 @@ func nbCases() []nbCase {
 		items := []nb.BitString{bitsOf(8, nb.ItemM), bitsOf(8), bitsOf(8, nb.ItemM, nb.ItemN)}
 		add(nbCase{"list", "List",
 			"<List><Item>01000000</Item><Item>00000000</Item><Item>01100000</Item></List>",
-			"030240" + "00d8", "<List><Item>01</Item><Item></Item><Item>011</Item></List>",
+			"030240" + "00" + "0360", "030240" + "00d8", "<List><Item>01</Item><Item></Item><Item>011</Item></List>",
 			func() ([]byte, error) {
 				l := make(nb.List, len(items))
 				for i, it := range items {
@@ -278,8 +282,11 @@ func TestNamedBitRoundTrip(t *testing.T) {
 			t.Errorf("%s: decode % x: %v", c.name, aper, err)
 			continue
 		}
-		if got != c.xer {
-			t.Errorf("%s: Go decode = %s, want %s (APER % x)", c.name, got, c.xer, aper)
+		if h := hex.EncodeToString(aper); h != c.aper {
+			t.Errorf("%s: Go APER = %s, want %s", c.name, h, c.aper)
+		}
+		if got != c.canon {
+			t.Errorf("%s: Go decode = %s, want %s (APER % x)", c.name, got, c.canon, aper)
 		}
 	}
 }
@@ -300,22 +307,22 @@ func TestNamedBitCConverter(t *testing.T) {
 		if re := nbConv(t, bin, c.pdu, aper, "-iaper", "-oaper"); !bytes.Equal(re, aper) {
 			t.Errorf("%s: C APER re-encode % x != Go % x", c.name, re, aper)
 		}
-		// C's XER of the Go bytes is the given value, and goes back to APER.
+		// C's XER of the Go bytes is the canonical value, and goes back to APER.
 		xer := nbConv(t, bin, c.pdu, aper, "-iaper", "-oxer")
-		if got := normXML(xer); got != c.xer {
-			t.Errorf("%s: C XER = %s, want %s", c.name, got, c.xer)
+		if got := normXML(xer); got != c.canon {
+			t.Errorf("%s: C XER = %s, want %s", c.name, got, c.canon)
 		}
 		if re := nbConv(t, bin, c.pdu, xer, "-ixer", "-oaper"); !bytes.Equal(re, aper) {
 			t.Errorf("%s: XER round trip -> APER % x != Go % x", c.name, re, aper)
 		}
-		// UPER of the Go bytes: trailing zeros dropped, SIZE lower bound padded.
+		// UPER of the Go bytes: the same canonical value.
 		uper := nbConv(t, bin, c.pdu, aper, "-iaper", "-oper")
 		if got := hex.EncodeToString(uper); got != c.uper {
 			t.Errorf("%s: C UPER = %s, want %s", c.name, got, c.uper)
 		}
 		ux := nbConv(t, bin, c.pdu, uper, "-iper", "-oxer")
-		if got := normXML(ux); got != c.uperXER {
-			t.Errorf("%s: C XER of the UPER = %s, want %s", c.name, got, c.uperXER)
+		if got := normXML(ux); got != c.canon {
+			t.Errorf("%s: C XER of the UPER = %s, want %s", c.name, got, c.canon)
 		}
 	}
 }

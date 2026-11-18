@@ -28,6 +28,15 @@ enum tnfmt {
 	TNF_RSAFE	= 0x60,	/* Recursion-safe C type format */
 };
 const char *asn1c_type_name(arg_t *arg, asn1p_expr_t *expr, enum tnfmt _format);
+/*
+ * A BIT STRING type written with a NamedBitList ({ a(0), b(3) }): its
+ * trailing 0 bits are not significant (X.680 22.7). Its C descriptor is
+ * asn_DEF_BIT_STRING_named / asn_SPC_BIT_STRING_named_specs.
+ */
+int asn1c_bit_string_has_named_bits(const asn1p_expr_t *expr);
+/* asn1c_type_name(TNF_SAFE) for the asn_DEF_<name> of a member or object
+ * type: "BIT_STRING_named" for an inline BIT STRING with named bits. */
+const char *asn1c_type_name_def(arg_t *arg, asn1p_expr_t *expr);
 
 /*
  * Check whether the specified INTEGER or ENUMERATED type can be represented

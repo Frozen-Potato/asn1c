@@ -266,7 +266,7 @@ emit_ioc_cell(arg_t *arg, struct asn1p_ioc_cell_s *cell,
                 MKID(cell->value), type_owner->value->_type_unique_index);
         } else {
             OUT("aioc__type, &asn_DEF_%s",
-                asn1c_type_name(arg, cell->value, TNF_SAFE));
+                asn1c_type_name_def(arg, cell->value));
         }
     } else {
         return -1;

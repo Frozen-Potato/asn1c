@@ -41,7 +41,7 @@ asn_TYPE_operation_t asn_OP_BIT_STRING = {
 	BIT_STRING_decode_uper,	/* Unaligned PER decoder */
 	BIT_STRING_encode_uper,	/* Unaligned PER encoder */
 	OCTET_STRING_decode_aper,	/* Aligned PER decoder */
-	OCTET_STRING_encode_aper,	/* Aligned PER encoder */
+	BIT_STRING_encode_aper,	/* Aligned PER encoder */
 #endif  /* ASN_DISABLE_PER_SUPPORT */
 	BIT_STRING_random_fill,
 	0,	/* Use generic outmost tag fetcher */
@@ -66,6 +66,26 @@ asn_TYPE_descriptor_t asn_DEF_BIT_STRING = {
 	{ 0, 0, BIT_STRING_constraint, 0 },
 	0, 0,	/* No members */
 	&asn_SPC_BIT_STRING_specs
+};
+asn_OCTET_STRING_specifics_t asn_SPC_BIT_STRING_named_specs = {
+	sizeof(BIT_STRING_t),
+	offsetof(BIT_STRING_t, _asn_ctx),
+	ASN_OSUBV_BIT,
+	1	/* has_named_bits */
+};
+asn_TYPE_descriptor_t asn_DEF_BIT_STRING_named = {
+	"BIT STRING",
+	"BIT_STRING",
+	&asn_OP_BIT_STRING,
+	asn_DEF_BIT_STRING_tags,
+	sizeof(asn_DEF_BIT_STRING_tags)
+	  / sizeof(asn_DEF_BIT_STRING_tags[0]),
+	asn_DEF_BIT_STRING_tags,	/* Same as above */
+	sizeof(asn_DEF_BIT_STRING_tags)
+	  / sizeof(asn_DEF_BIT_STRING_tags[0]),
+	{ 0, 0, BIT_STRING_constraint, 0 },
+	0, 0,	/* No members */
+	&asn_SPC_BIT_STRING_named_specs
 };
 
 /*
@@ -429,8 +449,106 @@ BIT_STRING_decode_uper(const asn_codec_ctx_t *opt_codec_ctx,
 	return rval;
 }
 
+/*
+ * The value the PER encoders write. A BIT STRING without a NamedBitList is
+ * written as given (its trailing 0 bits are part of the value). With a
+ * NamedBitList (specs->has_named_bits) the trailing 0 bits are removed
+ * (X.691 16.2), and with a size constraint 0 bits are then added up to the
+ * lower bound (X.691 16.3). Unused bits of the last octet are never value
+ * bits, whatever they hold. Returns st itself, or tmp (which may point to a
+ * new buffer, returned in *to_free), or NULL on allocation failure.
+ */
+static const BIT_STRING_t *
+BIT_STRING__per_value(const asn_TYPE_descriptor_t *td,
+                      const asn_per_constraints_t *constraints,
+                      const BIT_STRING_t *st, BIT_STRING_t *tmp,
+                      uint8_t **to_free) {
+    const asn_OCTET_STRING_specifics_t *specs =
+        td->specifics ? (const asn_OCTET_STRING_specifics_t *)td->specifics
+                      : &asn_SPC_BIT_STRING_specs;
+    const asn_per_constraints_t *pc =
+        constraints ? constraints : td->encoding_constraints.per_constraints;
+    size_t bits;
+    size_t lb = 0;
+
+    *to_free = NULL;
+    if(!specs->has_named_bits || !st || (!st->buf && st->size)
+       || st->bits_unused < 0 || st->bits_unused > 7
+       || (st->size == 0 && st->bits_unused))
+        return st;  /* as given; the encoders check the form */
+
+    /* X.691 16.2: remove the trailing 0 bits */
+    bits = 8 * st->size - st->bits_unused;
+    while(bits && !(st->buf[(bits - 1) >> 3] & (0x80 >> ((bits - 1) & 7))))
+        bits--;
+
+    /* X.691 16.3: add 0 bits up to the lower bound of the size constraint */
+    if(pc && (pc->size.flags & APC_CONSTRAINED) && pc->size.lower_bound > 0)
+        lb = (size_t)pc->size.lower_bound;
+
+    memset(tmp, 0, sizeof(*tmp));
+    if(bits < lb) {
+        uint8_t *b = CALLOC(1, (lb + 7) >> 3);
+        if(!b) return NULL;
+        if(bits) {
+            memcpy(b, st->buf, (bits + 7) >> 3);
+            if(bits & 7) b[bits >> 3] &= (uint8_t)(0xff00 >> (bits & 7));
+        }
+        *to_free = b;
+        tmp->buf = b;
+        bits = lb;
+    } else {
+        tmp->buf = st->buf;
+    }
+    tmp->size = (bits + 7) >> 3;
+    tmp->bits_unused = (int)(8 * tmp->size - bits);
+    return tmp;
+}
+
+static asn_enc_rval_t BIT_STRING__encode_uper_value(
+    const asn_TYPE_descriptor_t *td, const asn_per_constraints_t *constraints,
+    const void *sptr, asn_per_outp_t *po);
+
 asn_enc_rval_t
 BIT_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
+                       const asn_per_constraints_t *constraints,
+                       const void *sptr, asn_per_outp_t *po) {
+    BIT_STRING_t tmp;
+    uint8_t *to_free;
+    const BIT_STRING_t *st = BIT_STRING__per_value(
+        td, constraints, (const BIT_STRING_t *)sptr, &tmp, &to_free);
+    asn_enc_rval_t er;
+
+    if(!st && sptr) ASN__ENCODE_FAILED;
+    er = BIT_STRING__encode_uper_value(td, constraints, st, po);
+    FREEMEM(to_free);
+    /* a failure names the caller's structure, not the prepared copy */
+    if(er.encoded < 0 && er.structure_ptr == (const void *)st)
+        er.structure_ptr = sptr;
+    return er;
+}
+
+asn_enc_rval_t
+BIT_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
+                       const asn_per_constraints_t *constraints,
+                       const void *sptr, asn_per_outp_t *po) {
+    BIT_STRING_t tmp;
+    uint8_t *to_free;
+    const BIT_STRING_t *st = BIT_STRING__per_value(
+        td, constraints, (const BIT_STRING_t *)sptr, &tmp, &to_free);
+    asn_enc_rval_t er;
+
+    if(!st && sptr) ASN__ENCODE_FAILED;
+    er = OCTET_STRING_encode_aper(td, constraints, st, po);
+    FREEMEM(to_free);
+    /* a failure names the caller's structure, not the prepared copy */
+    if(er.encoded < 0 && er.structure_ptr == (const void *)st)
+        er.structure_ptr = sptr;
+    return er;
+}
+
+static asn_enc_rval_t
+BIT_STRING__encode_uper_value(const asn_TYPE_descriptor_t *td,
                        const asn_per_constraints_t *constraints,
                        const void *sptr, asn_per_outp_t *po) {
     const asn_OCTET_STRING_specifics_t *specs =
@@ -440,7 +558,6 @@ BIT_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
         constraints ? constraints : td->encoding_constraints.per_constraints;
 	const asn_per_constraint_t *csiz;
 	const BIT_STRING_t *st = (const BIT_STRING_t *)sptr;
-	BIT_STRING_t compact_bstr;  /* Do not modify this directly! */
 	asn_enc_rval_t er = { 0, 0, 0 };
 	int inext = 0;		/* Lies not within extension root */
 	size_t size_in_bits;
@@ -465,8 +582,8 @@ BIT_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
 	}
 	ct_extensible = csiz->flags & APC_EXTENSIBLE;
 
-    /* Figure out the size without the trailing bits */
-    st = BIT_STRING__compactify(st, &compact_bstr);
+    /* The value as given (BIT_STRING__per_value prepared a NamedBitList
+     * one); unused bits are never written. */
     size_in_bits = 8 * st->size - st->bits_unused;
 
     ASN_DEBUG(

@@ -4782,7 +4782,7 @@ try_inline_constructed_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 				expr->_type_unique_index);
 	} else {
 		snprintf(dsc, sizeof(dsc), "asn_DEF_%s",
-			asn1c_type_name(arg, expr, TNF_SAFE));
+            asn1c_type_name_def(arg, expr));
 	}
 
 	REDIR(OT_STAT_DEFS);
@@ -5534,7 +5534,7 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
         if(!(arg->flags & A1C_ALL_DEFS_GLOBAL))
             OUT("_%d", expr->_type_unique_index);
     } else {
-        OUT("%s", asn1c_type_name(arg, expr, TNF_SAFE));
+        OUT("%s", asn1c_type_name_def(arg, expr));
     }
     OUT(",\n");
 
@@ -5877,6 +5877,11 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
                 OUT("&asn_SPC_%s_specs_%d\t/* Additional specs */\n",
                     c_expr_name(arg, terminal).part_name,
                     terminal->_type_unique_index);
+            } else if (asn1c_bit_string_has_named_bits(expr)
+                       || ((expr->expr_type == A1TC_REFERENCE)
+                           && asn1c_bit_string_has_named_bits(terminal))) {
+                /* X.680 22.7: trailing 0 bits are not significant */
+                OUT("&asn_SPC_BIT_STRING_named_specs\t/* Additional specs */\n");
             } else if ((expr->expr_type == ASN_TYPE_ANY) ||
 					(expr->expr_type == ASN_BASIC_BIT_STRING) ||
 					(expr->expr_type == ASN_STRING_BMPString) ||

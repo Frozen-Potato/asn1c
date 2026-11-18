@@ -443,7 +443,7 @@ static asn_TYPE_member_t asn_MBR_another_name_3[] = {
 	{ ATF_NOFLAGS, 0, offsetof(struct another_name, a),
 		.tag = (ASN_TAG_CLASS_UNIVERSAL | (3 << 2)),
 		.tag_mode = 0,
-		.type = &asn_DEF_BIT_STRING,
+		.type = &asn_DEF_BIT_STRING_named,
 		.type_selector = 0,
 		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_3, .jer_constraints = 0 },
 		0, 0, /* No default value */
@@ -537,7 +537,7 @@ static asn_TYPE_member_t asn_MBR_another_name_8[] = {
 	{ ATF_NOFLAGS, 0, offsetof(struct another_name, a),
 		.tag = (ASN_TAG_CLASS_UNIVERSAL | (3 << 2)),
 		.tag_mode = 0,
-		.type = &asn_DEF_BIT_STRING,
+		.type = &asn_DEF_BIT_STRING_named,
 		.type_selector = 0,
 		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints =  memb_a_constraint_8, .jer_constraints = 0 },
 		0, 0, /* No default value */

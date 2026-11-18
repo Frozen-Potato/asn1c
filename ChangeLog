@@ -14,6 +14,20 @@
       the one it replaces (a 0700 directory became 0755). On Linux the
       new tree is swapped in with one atomic exchange, so the directory
       exists at every moment.
+    * C runtime (also for plain C users): BIT STRING in aligned and
+      unaligned PER. Unaligned PER removed the trailing 0 bits of every
+      BIT STRING, so a value of a type without named bits could decode
+      as a different value (16 zero bits of SIZE(1..160) came back as
+      1 bit), and nonzero unused bits of the last octet were sent as
+      value bits. Aligned PER did not remove the trailing 0 bits of a
+      type with named bits (X.691 16.2, 16.3). Now both forms remove
+      them for types with named bits only, then pad to the SIZE lower
+      bound. The generated C names the new asn_DEF_BIT_STRING_named /
+      asn_SPC_BIT_STRING_named_specs for those types; C code generated
+      by an older asn1c keeps working with the new runtime (its named
+      bit types are then encoded as plain BIT STRING). Aligned PER
+      bytes of named bit values with trailing 0 bits change; every
+      decoder reads both forms.
 
 0.9.29-go.14:
     * Go backend: in a module with BIT STRING members, generated names
