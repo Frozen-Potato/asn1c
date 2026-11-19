@@ -28,6 +28,15 @@
       Go backend: TYPE NULL is supported instead of refused; the
       alternative has no field, only its Present constant, and its
       constructor takes no value.
+    * C runtime: SET has an OER codec (X.696 clause 18: root components
+      in canonical tag order, extension additions in textual order, as
+      for PER). oer_encode() and oer_decode() of a SET, or of a type
+      containing one, called a NULL function pointer and crashed, and
+      asn_encode_to_buffer() / asn_decode() in OER failed.
+    * C runtime: oer_open_type_skip() returned the size of the length
+      determinant only, so a SEQUENCE extension addition unknown to the
+      receiver was not skipped and decoding failed. It now skips the
+      contents too (and waits for more data if they are not all there).
 
 0.9.29-go.15:
     * asn1c -Fgo: runs that write the same C output directory (-D) at

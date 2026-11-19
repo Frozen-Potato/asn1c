@@ -43,12 +43,22 @@ oer_decode(const asn_codec_ctx_t *opt_codec_ctx,
 
 /*
  * Open Type is encoded as a length (#8.6) followed by that number of bytes.
- * Since we're just skipping, reading the length would be enough.
+ * Skip both: the result is the length determinant plus the contents.
  */
 ssize_t
 oer_open_type_skip(const void *bufptr, size_t size) {
     size_t len = 0;
-    return oer_fetch_length(bufptr, size, &len);
+    ssize_t len_len = oer_fetch_length(bufptr, size, &len);
+
+    if(len_len <= 0) {
+        return len_len; /* Error or more data expected */
+    }
+
+    if(size - len_len < len) {
+        return 0; /* More data expected */
+    }
+
+    return len_len + len;
 }
 
 /*

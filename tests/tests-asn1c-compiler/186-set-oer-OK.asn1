@@ -1,0 +1,17 @@
+-- OK: OER (X.696 clause 18) of SET types: root components in canonical tag
+-- order (an untagged CHOICE sorts by its smallest tag), extension additions
+-- in textual order, a root component after the second extension marker,
+-- more than eight additions, and a DEFAULT addition. Q3 (a SEQUENCE) and T3
+-- also decode values from a sender that knows more additions.
+
+K186 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+T1 ::= SET { z [2] INTEGER, a [0] BOOLEAN OPTIONAL, m [1] OCTET STRING }
+T2 ::= SET { c [5] INTEGER DEFAULT 7, ch CHOICE { x [3] INTEGER, y [9] BOOLEAN }, b [4] BOOLEAN OPTIONAL }
+T3 ::= SET { a INTEGER, ..., e1 BOOLEAN, e2 INTEGER OPTIONAL }
+T4 ::= SET { r1 [3] INTEGER, ..., x1 [7] BOOLEAN OPTIONAL, x2 [0] INTEGER OPTIONAL, ..., r2 [1] INTEGER OPTIONAL }
+T6 ::= SET { p [PRIVATE 0] INTEGER, c [0] INTEGER, u INTEGER, app [APPLICATION 5] BOOLEAN OPTIONAL }
+T8 ::= SET { a INTEGER, ..., e1 INTEGER OPTIONAL, e2 INTEGER OPTIONAL, e3 INTEGER OPTIONAL, e4 INTEGER OPTIONAL, e5 INTEGER OPTIONAL, e6 INTEGER OPTIONAL, e7 INTEGER OPTIONAL, e8 INTEGER OPTIONAL, e9 INTEGER OPTIONAL, e10 INTEGER OPTIONAL }
+T9 ::= SET { inner T1, n [10] T3 OPTIONAL, d [11] INTEGER DEFAULT 5 }
+T11 ::= SET { a INTEGER, ..., e1 INTEGER DEFAULT 3 }
+Q3 ::= SEQUENCE { a INTEGER, ..., e1 BOOLEAN, e2 INTEGER OPTIONAL }
+END
