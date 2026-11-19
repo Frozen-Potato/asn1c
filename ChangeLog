@@ -37,6 +37,11 @@
       determinant only, so a SEQUENCE extension addition unknown to the
       receiver was not skipped and decoding failed. It now skips the
       contents too (and waits for more data if they are not all there).
+    * C runtime: OER decoding of a SEQUENCE with extension additions
+      failed when the input arrived in pieces and a piece ended inside
+      the extension presence bitmap (or its length): the length was
+      consumed, then read again from the wrong place. It now waits for
+      the whole bitmap before consuming it.
 
 0.9.29-go.15:
     * asn1c -Fgo: runs that write the same C output directory (-D) at

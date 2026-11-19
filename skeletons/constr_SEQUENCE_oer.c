@@ -257,20 +257,23 @@ SEQUENCE_decode_oer(const asn_codec_ctx_t *opt_codec_ctx,
          */
 
         len_len = oer_fetch_length(ptr, size, &len);
-        if(len_len > 0) {
-            ADVANCE(len_len);
-        } else if(len_len < 0) {
+        if(len_len < 0) {
             RETURN(RC_FAIL);
-        } else {
+        } else if(len_len == 0) {
             RETURN(RC_WMORE);
         }
 
         if(len == 0) {
             /* 16.4.1-2 */
             RETURN(RC_FAIL);
-        } else if(len > size) {
+        } else if(len > size - len_len) {
+            /*
+             * Consume nothing until the whole bitmap is there: a resumed
+             * call reads the length determinant again.
+             */
             RETURN(RC_WMORE);
         }
+        ADVANCE(len_len);
 
         /* Account for unused bits */
         unused_bits = 0x7 & *(const uint8_t *)ptr;

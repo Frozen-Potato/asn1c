@@ -10,6 +10,9 @@
  * - no proper prefix of an encoding decodes;
  * - an absent DEFAULT addition is filled in on decoding;
  * - additions from a newer sender are skipped (SET and SEQUENCE).
+ * A SEQUENCE with extensions (Q3) failed to decode when its input arrived
+ * in pieces (the extension bitmap's length determinant was consumed, then
+ * more data was asked for and the length read again from the wrong place).
  */
 #undef  NDEBUG
 #include <assert.h>
@@ -55,6 +58,9 @@ static const struct vec vecs[] = {
       "<n><a>5</a><e1><true/></e1></n><d>6</d></T9>",
       "c080000178010180010502068001ff0106" },
     { &asn_DEF_T11, "<T11><a>1</a><e1>4</e1></T11>", "800101020780020104" },
+    { &asn_DEF_Q3, "<Q3><a>1</a><e1><true/></e1></Q3>", "80010102068001ff" },
+    { &asn_DEF_Q3, "<Q3><a>2</a><e1><false/></e1><e2>77</e2></Q3>",
+      "8001020206c0010002014d" },
 };
 
 static size_t
@@ -175,7 +181,7 @@ main(void) {
         ASN_STRUCT_FREE(asn_DEF_T3, t);
     }
 
-    /* The same for a SEQUENCE (whole input at once). */
+    /* The same for a SEQUENCE. */
     {
         unsigned char b[16], want[16];
         size_t n = unhex("8001010205a001ff03027a7a", b);
@@ -183,6 +189,9 @@ main(void) {
         Q3_t *q = 0;
         asn_dec_rval_t dr = oer_decode(0, &asn_DEF_Q3, (void **)&q, b, n);
         assert(dr.code == RC_OK && dr.consumed == n);
+        check_reencode(&asn_DEF_Q3, q, want, wn);
+        ASN_STRUCT_FREE(asn_DEF_Q3, q);
+        q = decode_bytewise(&asn_DEF_Q3, b, n);
         check_reencode(&asn_DEF_Q3, q, want, wn);
         ASN_STRUCT_FREE(asn_DEF_Q3, q);
     }

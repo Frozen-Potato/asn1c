@@ -2,7 +2,8 @@
 -- order (an untagged CHOICE sorts by its smallest tag), extension additions
 -- in textual order, a root component after the second extension marker,
 -- more than eight additions, and a DEFAULT addition. Q3 (a SEQUENCE) and T3
--- also decode values from a sender that knows more additions.
+-- also decode values from a sender that knows more additions; Q3 also
+-- decodes when its input arrives in pieces.
 
 K186 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 T1 ::= SET { z [2] INTEGER, a [0] BOOLEAN OPTIONAL, m [1] OCTET STRING }
