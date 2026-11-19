@@ -22,6 +22,12 @@
       (extern), and its functions carry the index too, so two inline
       types with one name no longer clash. Output without the flag is
       unchanged.
+    * asn1c: NULL written directly in an information object (TYPE NULL)
+      produced a C union member named NULL, which does not compile (NULL
+      is a C macro); it is now NULL_ (its XER element stays NULL).
+      Go backend: TYPE NULL is supported instead of refused; the
+      alternative has no field, only its Present constant, and its
+      constructor takes no value.
 
 0.9.29-go.15:
     * asn1c -Fgo: runs that write the same C output directory (-D) at

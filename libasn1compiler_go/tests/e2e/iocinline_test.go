@@ -1,6 +1,6 @@
 // Types written directly in information objects (tests/e2e/iocinline.asn):
-// constrained, constructed and ENUMERATED types, a type written twice, and a
-// named type whose name exists in two modules. Copied into the generated
+// constrained, constructed and ENUMERATED types, a type written twice, a
+// NULL, and a named type whose name exists in two modules. Copied into the generated
 // module by tests/run-e2e.sh together with seqof_test.go (siCase helpers),
 // bits_test.go (bsXML) and default_test.go (the C converter).
 //
@@ -69,6 +69,9 @@ func iiCases() []iiCase {
         iil.NewCellIEId11(iil.CellIEValueSEQUENCESSEQUENCEBBOOLEANTOCTETSTRINGSIZE2{
             S: iil.CellIEValueSEQUENCESSEQUENCEBBOOLEANTOCTETSTRINGSIZE2S{B: tr},
             T: []byte{1, 2}}))
+    // a NULL: no payload, the constructor takes no value; an empty open
+    // type value is one zero octet (X.691 11.2.1)
+    add("null", "0c0100", "<NULL></NULL>", 12, iil.NewCellIEId12())
     return cs
 }
 

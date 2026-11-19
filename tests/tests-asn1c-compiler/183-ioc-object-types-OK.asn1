@@ -2,7 +2,8 @@
 -- alternatives): constrained, constructed and ENUMERATED types get the
 -- module's AUTOMATIC TAGS, their constraints and a descriptor of their own;
 -- an identical type written twice shares one alternative; a named type whose
--- name exists in two modules is referred to by its prefixed name.
+-- name exists in two modules is referred to by its prefixed name; a NULL's
+-- union member is NULL_ (NULL is a C macro).
 
 K183 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
@@ -16,7 +17,8 @@ Objs CLS ::= {
 	{ ID 4 TYPE ENUMERATED { red, green, blue } } |
 	{ ID 5 TYPE SET { p INTEGER (0..9), q BOOLEAN OPTIONAL } } |
 	{ ID 6 TYPE SEQUENCE { a INTEGER (0..3) } } |
-	{ ID 7 TYPE SEQUENCE { a INTEGER (0..3) } },
+	{ ID 7 TYPE SEQUENCE { a INTEGER (0..3) } } |
+	{ ID 8 TYPE NULL },
 	... }
 IE ::= SEQUENCE { id CLS.&id ({Objs}), value CLS.&Value ({Objs}{@id}) }
 

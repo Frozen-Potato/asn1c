@@ -246,7 +246,9 @@ constructed or ENUMERATED type gets a named Go type `<Record>Value<Field>`, like
 an inline CHOICE alternative: `SEQUENCEAINTEGER *IEValueSEQUENCEAINTEGER` for
 `TYPE SEQUENCE { a INTEGER }`. The same type written in two objects is one
 field. These names get long; a named type (`T ::= SEQUENCE {...}`, `TYPE T`)
-keeps them short. NULL written in an object is refused.
+keeps them short. `TYPE NULL` has no field, only its `Present` constant
+(`IEValuePrNULL`), and its constructor takes no value (`NewIEId2()`); the C
+union member is `NULL_`, as `NULL` is a C macro.
 
 **Recursion depth.** Encode and decode charge a budget of 64 depth units per
 call (one per entry into a recursive type), so a recursive ASN.1 level nested
@@ -455,9 +457,8 @@ FROM, NumericString and time-syntax checks are the C runtime's and surface from
 ## Not supported
 
 ANY, EXTERNAL, EMBEDDED PDV, CHARACTER STRING, an open-type (information
-object class `&Value`) member of a SET (KNOWN-ISSUES #25), NULL written
-directly in an information object (KNOWN-ISSUES #52), the DEFAULT forms listed
-above, and an
+object class `&Value`) member of a SET (KNOWN-ISSUES #25), the DEFAULT forms
+listed above, and an
 INTEGER range that fits neither `int64` nor `uint64` are
 refused at generation with an `asn1cgo: ...` message and exit 70. A bare
 `TYPE-IDENTIFIER.&Type` outside an object-set-governed field is not refused but

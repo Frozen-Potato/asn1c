@@ -57,6 +57,7 @@ asn1c_make_identifier(enum ami_flags_e flags, asn1p_expr_t *expr, ...) {
 	static char *storage;
 	static int storage_size;
 	int nodelimiter = 0;
+	int null_macro;
 	va_list ap;
 	char *str;
 	char *nextstr;
@@ -105,6 +106,7 @@ asn1c_make_identifier(enum ami_flags_e flags, asn1p_expr_t *expr, ...) {
 
 	if(prefix)
 		size += 1 + strlen(prefix);
+	size += 1;	/* The '_' after a lone NULL, see below */
 	/*
 	 * Make sure we have the required amount of storage.
 	 */
@@ -165,6 +167,15 @@ asn1c_make_identifier(enum ami_flags_e flags, asn1p_expr_t *expr, ...) {
 			/* Fall through */
 		}
 
+		/*
+		 * NULL alone is the name asn1c gives the open type alternative of
+		 * a NULL written in an information object; in C it is a macro.
+		 * Spell it NULL_ (no ASN.1 name can end in '-', so this cannot
+		 * collide with another member).
+		 */
+		null_macro = (flags & AMI_CHECK_RESERVED) && str == first
+			&& !nextstr && strcmp(str, "NULL") == 0;
+
 		for(; *str; str++) {
 			if(isalnum(*str)) {
 				*p++ = *str;
@@ -178,6 +189,7 @@ asn1c_make_identifier(enum ami_flags_e flags, asn1p_expr_t *expr, ...) {
 				}
 			}
 		}
+		if(null_macro) *p++ = '_';
 	}
 	va_end(ap);
 	*p = '\0';

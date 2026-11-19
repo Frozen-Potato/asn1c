@@ -125,6 +125,9 @@ int conv_is_pdu(const char *cid);
 
 /* Is (node_cid, alt_token) a recorded NULL alt? */
 int conv_is_null_alt(const char *node_cid, const char *alt_token);
+/* 1 iff the IOC row's &Value is a NULL written in the object (TYPE NULL):
+ * no union payload, the conv arm is a bare break. */
+int conv_ioc_row_null_alt(const conv_ioc_row *r);
 
 /* The first recorded IOC row of spec node cid (NULL when none). */
 const conv_ioc_row *conv_ioc_first(const char *spec_cid);

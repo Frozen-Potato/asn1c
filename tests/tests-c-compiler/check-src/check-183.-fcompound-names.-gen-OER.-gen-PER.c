@@ -10,6 +10,8 @@
  *   as a CHOICE (tag + value) that the decoder could not read back;
  * - ids 6 and 7 share one alternative; id 1 names K183's Named, which K183B
  *   also defines (the object set refers to asn_DEF_K183_Named);
+ * - a NULL (id 8) is the union member NULL_ (NULL is a C macro), with no
+ *   payload: APER one zero octet in the open type, OER an empty one;
  * - a value outside the alternative's constraint is refused.
  * Vectors worked out by hand from X.691 (APER) and X.696 (OER).
  */
@@ -37,6 +39,7 @@ static const struct vec vecs[] = {
 	{ IEX(5, "<SET><p>9</p><q><true/></q></SET>"), "0501cc", NULL },
 	{ IEX(6, "<SEQUENCE><a>2</a></SEQUENCE>"), "060180", "060102" },
 	{ IEX(7, "<SEQUENCE><a>3</a></SEQUENCE>"), "0701c0", "070103" },
+	{ IEX(8, "<NULL></NULL>"), "080100", "0800" },
 };
 
 static size_t
@@ -106,6 +109,10 @@ main(void) {
 		if(v->oer) check_bytes("OER", v->xer, ATS_BASIC_OER, ie, v->oer);
 		ASN_STRUCT_FREE(asn_DEF_IE, ie);
 	}
+
+	/* the NULL alternative's member is NULL_ */
+	assert(sizeof(((IE_t *)0)->value.choice.NULL_) > 0);
+	assert(IE__value_PR_NULL > 0);
 
 	/* ids 6 and 7 share one alternative of the union */
 	assert(IE__value_PR_SEQUENCE_a_INTEGER_0_3_ > 0);

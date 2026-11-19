@@ -1346,6 +1346,10 @@ ioc_node_to_body(void *t) {
             const char *amsg = (r->alt_msg && *r->alt_msg) ? r->alt_msg
                                                            : r->alt_token;
             { char *_cf = cfmt("        case (int32_t)%s_PR_%s:\n", prbase, r->alt_token); s = ca(s, _cf); free(_cf); }
+            if(conv_ioc_row_null_alt(r)) {
+                s = ca(s, "            break;   /* TYPE NULL: no payload */\n");
+                continue;
+            }
             void *un = NULL;
             void *pm = conv_ioc_alt_prim(t, r->alt_token, &un);
             if(pm) {
@@ -1408,6 +1412,10 @@ ioc_node_to_body(void *t) {
             const char *amsg = (r->alt_msg && *r->alt_msg) ? r->alt_msg
                                                            : r->alt_token;
             { char *_cf = cfmt("        case (int32_t)%s_PR_%s:\n", prbase, r->alt_token); s = ca(s, _cf); free(_cf); }
+            if(conv_ioc_row_null_alt(r)) {
+                s = ca(s, "            break;   /* TYPE NULL: no payload */\n");
+                continue;
+            }
             void *un = NULL;
             void *pm = conv_ioc_alt_prim(t, r->alt_token, &un);
             if(pm) {

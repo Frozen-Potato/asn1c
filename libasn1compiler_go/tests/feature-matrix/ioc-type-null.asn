@@ -1,7 +1,7 @@
 Probe DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
--- A NULL written directly in an object: refused, define a named type
--- instead (the C union asn1c generates for it does not compile).
+-- A NULL written directly in an object: its alternative has no payload (the
+-- C union member is NULL_, NULL being a C macro).
 Id ::= INTEGER (0..255)
 CLS ::= CLASS { &id Id UNIQUE, &Value } WITH SYNTAX { ID &id TYPE &Value }
 IntVal ::= INTEGER (0..255)

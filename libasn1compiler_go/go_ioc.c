@@ -208,6 +208,18 @@ conv_is_null_alt(const char *node_cid, const char *alt_token) {
     return 0;
 }
 
+int
+conv_ioc_row_null_alt(const conv_ioc_row *r) {
+    if(!r || !r->spec_cid || !r->alt_token) return 0;
+    size_t n = strlen(r->spec_cid) + sizeof("__value");
+    char *node = malloc(n);
+    if(!node) return 0;
+    snprintf(node, n, "%s__value", r->spec_cid);
+    int yes = conv_is_null_alt(node, r->alt_token);
+    free(node);
+    return yes;
+}
+
 const conv_ioc_row *
 conv_ioc_first(const char *spec_cid) {
     for(int i = 0; i < g_conv_n_iocs; i++)

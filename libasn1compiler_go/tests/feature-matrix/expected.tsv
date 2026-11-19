@@ -21,7 +21,7 @@ fam-xmod	OK
 int-wide-refused	REFUSED	asn1cgo: INTEGER T.a range [-1..18446744073709551615] fits neither int64 nor uint64
 int-wide-refused-alt	REFUSED	fits neither int64 nor uint64
 ioc-hyphen	OK
-ioc-type-null	REFUSED	a NULL type written directly in an object is not supported
+ioc-type-null	OK
 pdu-func-clash	REFUSED	asn1cgo: collision in module Probe
 pdu-method-clash	REFUSED	asn1cgo: collision in module Probe
 pdu-uper-func-clash	REFUSED	asn1cgo: collision in module Probe

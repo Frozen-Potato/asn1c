@@ -5614,8 +5614,9 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 		/* X.693: the XML element of an open type value is the type's
 		 * xmlasn1typename (OCTET_STRING, SEQUENCE_OF, ...), the same
 		 * name its descriptor's xml_tag carries, which the decoder
-		 * expects */
-		OUT("\"%s\"\n", asn1c_make_identifier(AMI_CHECK_RESERVED, 0,
+		 * expects (no AMI_CHECK_RESERVED: a type name is no C keyword,
+		 * and NULL stays NULL here, unlike the C member NULL_) */
+		OUT("\"%s\"\n", asn1c_make_identifier(0, 0,
 			ASN_EXPR_TYPE2STR(expr->expr_type), 0));
 	} else {
 		OUT("\"%s\"\n", expr->Identifier);
@@ -5707,8 +5708,7 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
 			p = strdup(ASN_EXPR_TYPE2STR(expr->expr_type));
 			OUT("\"%s\",\n", p?p:"");
 			OUT("\"%s\",\n",
-				p ? asn1c_make_identifier(AMI_CHECK_RESERVED,
-					0, p, 0) : "");
+				p ? asn1c_make_identifier(0, 0, p, 0) : "");
 		} else {
 			OUT("\"%s\",\n", expr->Identifier);
 			OUT("\"%s\",\n", expr->Identifier);

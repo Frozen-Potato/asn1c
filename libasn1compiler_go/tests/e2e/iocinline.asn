@@ -4,7 +4,8 @@ BEGIN
 -- Types written directly in the objects of an object set: constrained,
 -- constructed and ENUMERATED ones (each an inline alternative of CellIE's
 -- value union), an identical type written twice (ids 9 and 11 share one
--- alternative), and a named type whose name also exists in another module
+-- alternative), a NULL (no payload; its C union member is NULL_, NULL being
+-- a C macro), and a named type whose name also exists in another module
 -- (Twin, see IocInlineTwin below). Generated in the same run as the other
 -- e2e specs (tests/run-e2e.sh).
     CCLS ::= CLASS { &id INTEGER (0..255) UNIQUE, &Value }
@@ -21,7 +22,8 @@ BEGIN
         { ID 8 TYPE SET { p INTEGER (0..9), q BOOLEAN OPTIONAL } } |
         { ID 9 TYPE SEQUENCE { s SEQUENCE { b BOOLEAN }, t OCTET STRING (SIZE(2)) } } |
         { ID 10 TYPE SEQUENCE (SIZE(1..4)) OF SEQUENCE { k INTEGER (0..7) } } |
-        { ID 11 TYPE SEQUENCE { s SEQUENCE { b BOOLEAN }, t OCTET STRING (SIZE(2)) } },
+        { ID 11 TYPE SEQUENCE { s SEQUENCE { b BOOLEAN }, t OCTET STRING (SIZE(2)) } } |
+        { ID 12 TYPE NULL },
         ... }
     CellIE ::= SEQUENCE {
         id    CCLS.&id ({CellObjs}),

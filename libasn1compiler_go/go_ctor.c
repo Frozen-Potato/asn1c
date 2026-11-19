@@ -110,6 +110,7 @@ typedef struct {
     char *present;     /* R2(X)ValuePr<A> goName */
     char *alt_field;   /* A (union field goName) */
     char *alt_type;    /* T (payload type, star stripped) */
+    int null_alt;      /* TYPE NULL: no payload, the ctor takes no value */
     long id;           /* the IOC row's id (wire value, documentation) */
     long crit;         /* the IOC row's criticality (-1 = class has none) */
 } ctor_info;
@@ -321,7 +322,36 @@ go_ctor_emit(const char *go_outdir) {
             break;
         }
         free(val_owner);
-        if(!alt_go || !alt_ty || !alt_ty[0]) {
+        /* A NULL written in the object (TYPE NULL) has no union field,
+         * only its Pr const: the constructor sets Present and nothing
+         * else (go_names.c records it as a NULL alt of <X>__value). */
+        int null_alt = 0;
+        const char *null_pr = NULL;
+        if(!alt_go) {
+            char *node = cfmt2("%s__value", row->spec_cid);
+            char *pr_raw = cfmt2("%s__value_PR_%s", row->spec_cid,
+                                 row->alt_token);
+            if(node && pr_raw && conv_is_null_alt(node, row->alt_token)) {
+                for(int j = 0; j < go_names_rows_n(); j++) {
+                    if(strcmp(go_names_row_kind(j) ? go_names_row_kind(j)
+                                                   : "",
+                              "choice-const") != 0)
+                        continue;
+                    const char *raw = go_names_row_rawcid(j);
+                    if(raw && strcmp(unprefixed(raw), pr_raw) == 0) {
+                        null_pr = go_names_row_goname(j);
+                        break;
+                    }
+                }
+                if(null_pr) null_alt = 1;
+            }
+            free(node);
+            free(pr_raw);
+        }
+        if(null_alt) {
+            alt_go = "";
+            alt_ty = "";
+        } else if(!alt_go || !alt_ty || !alt_ty[0]) {
             fprintf(stderr,
                     "asn1cgo: ctor: no union field row for %s alt %s\n",
                     row->spec_cid, row->alt_token);
@@ -335,7 +365,10 @@ go_ctor_emit(const char *go_outdir) {
          * <X_cid>__value_PR_<AltCid> — its goName is <X>ValuePr<A>. Built
          * from the found pieces (same spelling the walker minted). */
         char *present = NULL;
-        {
+        if(null_alt) {
+            present = strdup(null_pr);
+            if(!present) { rc = -1; goto out; }
+        } else {
             size_t n = strlen(x_go) + strlen("ValuePr") + strlen(alt_go) + 1;
             present = malloc(n);
             if(!present) { rc = -1; goto out; }
@@ -518,6 +551,7 @@ go_ctor_emit(const char *go_outdir) {
             ct[n_ct].present = present;
             ct[n_ct].alt_field = strdup(alt_go);
             ct[n_ct].alt_type = strdup(star);
+            ct[n_ct].null_alt = null_alt;
             ct[n_ct].id = row->id;
             ct[n_ct++].crit = row->criticality;
         }
@@ -622,7 +656,39 @@ go_ctor_emit(const char *go_outdir) {
             if(first && fputs("\n", f) < 0) { CTOR_WERR(); fclose(f); free(fpath); free(pkg); rc = -1; goto out; }
             first = 0;
             int crit_on = (ct[j].crit_const != NULL);
-            if(crit_on) {
+            if(ct[j].null_alt) {
+              /* TYPE NULL: no value to carry */
+              char *crit_line = crit_on
+                  ? cfmt2("\t\tCriticality: %s,\n", ct[j].crit_ref) : NULL;
+              if(fprintf(f,
+                       "// %s constructs a %s carrying NULL (IOC row "
+                       "id=%ld).\n"
+                       "func %s() %s {\n"
+                       "\treturn %s{\n"
+                       "\t\tId:          %s,\n"
+                       "%s"
+                       "\t\tValue: %sValue{\n"
+                       "\t\t\tPresent: %s,\n"
+                       "\t\t},\n"
+                       "\t}\n"
+                       "}\n\n",
+                       ct[j].fn, ct[j].x_go, ct[j].id,
+                       ct[j].fn, ct[j].x_go,
+                       ct[j].x_go,
+                       ct[j].id_ref,
+                       crit_line ? crit_line : "",
+                       ct[j].x_go,
+                       ct[j].present) < 0) {
+                free(crit_line);
+                CTOR_WERR();
+                fclose(f);
+                free(fpath);
+                free(pkg);
+                rc = -1;
+                goto out;
+              }
+              free(crit_line);
+            } else if(crit_on) {
               if(fprintf(f,
                        "// %s constructs a %s carrying %s (IOC row "
                        "id=%ld crit=%ld).\n"

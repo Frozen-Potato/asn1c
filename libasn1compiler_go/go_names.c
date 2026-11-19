@@ -3679,7 +3679,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * member the bare leaf. Only unconstrained leaf types reach a
          * compilable C union (asn1c fails on NULL, ENUMERATED, constrained
          * and constructed cells), so anything else is refused here. */
-        int alt_lk = -1, alt_wide = 0;
+        int alt_lk = -1, alt_wide = 0, alt_null = 0;
         /* a constructed type written in the object (TYPE SEQUENCE {...},
          * SEQUENCE OF ...): an inline alternative, minted like an inline
          * CHOICE alternative (<X>Value<Alt>, C struct <X>__value__<alt>) */
@@ -3694,17 +3694,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         if(!alt_inline && cell->value->expr_type != A1TC_REFERENCE
            && cell->value->meta_type != AMT_TYPEREF) {
             asn1p_expr_t *bv = cell->value;
-            if(bv->expr_type == ASN_BASIC_NULL) {
-                fprintf(stderr,
-                        "asn1cgo: object set of %s (module %s): a %s type "
-                        "written directly in an object is not supported "
-                        "(asn1c's C code for it does not compile); define "
-                        "it as a named type (T ::= ...) and use TYPE T\n",
-                        x_go, ctx->module ? ctx->module : "?",
-                        ASN_EXPR_TYPE2STR(bv->expr_type));
-                ctx->bag->failed = 1;
-                continue;
-            }
+            alt_null = go_construct_classify(bv) == GO_CONSTR_NULL;
             ctx->wide_nr = 1; ctx->wide_hit = 0;
             alt_lk = classify_leaf(ctx, bv, parent_path);
             alt_wide = ctx->wide_hit;
@@ -3753,6 +3743,17 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
             emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
             row_set_const(ctx->bag, asn1p_itoa(++value_seq), type_go);
             free(type_go);
+        }
+        /* A NULL written in the object (TYPE NULL): like a NULL CHOICE
+         * alternative, only its Pr const; no Go field and no Flat slot (the
+         * C union member NULL_ carries nothing), and the conv switches get
+         * a bare case for it. */
+        if(alt_null) {
+            char *node = str_append(strdup(""), x_cid);
+            node = str_append(node, "__value");
+            go_conv_record_null_alt(node, altcid);
+            free(node);
+            goto alt_done;
         }
         /* field row: the alt's data pointer, struct-scoped to the union.
          * struct-body stage: the field's Go type is the alt's own named type — a pointer
@@ -3817,6 +3818,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         if(alt_inline)
             emit_value_inline_alt(ctx, alt_inline, inl_go, inl_cid,
                                   parent_path, altcid);
+alt_done:
         free(inl_go); free(inl_cid);
         free(altgo);
         free((char *)altcid);
