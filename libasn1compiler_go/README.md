@@ -66,7 +66,10 @@ next to `<dir>` and swapped in only when generation succeeded. On failure
 `<dir>` is replaced as a whole, so files that are no longer produced disappear
 and **anything you keep in `<dir>` is deleted**: put hand-written code in a
 separate module that imports the generated one. The new `<dir>` keeps the
-permissions of the one it replaces. On Linux the swap is a single atomic
+permissions of the one it replaces, but not its owner and group: like every
+file asn1c writes (including the C files it rewrites in `-D`), it belongs to
+the user who runs asn1c. Run asn1c as the user who should own the output, or
+`chown` it afterwards. On Linux the swap is a single atomic
 exchange, so `<dir>` exists at every moment; elsewhere it is two renames. A
 hidden `.<basename>.asn1cgo-tmp-*` or `.<basename>.asn1cgo-old-*` directory
 left by a killed run is safe to delete.
