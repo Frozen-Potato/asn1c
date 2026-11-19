@@ -1,3 +1,19 @@
+0.9.29-go.16 (unreleased):
+    * asn1fix: a parameterized type defined in one module and used from
+      another (ProtocolIE-Field / ProtocolIE-Container in a containers
+      module, instantiated from a later module) produced C code that did
+      not compile (asn_PER_memb_<x>_constr_0 undeclared), and with -Fgo
+      a Go package that did not build although asn1c exited 0. The
+      specialization now gets every fixer phase however late it is made.
+    * asn1fix: such a type, and one instantiated inside another
+      parameterized type defined after it (ProtocolIE-Field before
+      ProtocolIE-Container in one module), did not get its module's
+      AUTOMATIC TAGS, so its tagging depended on the order of the
+      definitions. It is now tagged in every case. BER and DER of these
+      types change; PER and OER change only for a CHOICE (or SET) written
+      in such a type whose alternatives were not already in the order of
+      their universal tags. XER and JER do not change.
+
 0.9.29-go.15:
     * asn1c -Fgo: runs that write the same C output directory (-D) at
       the same time take turns (an exclusive lock on -D, held from

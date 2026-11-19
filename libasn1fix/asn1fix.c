@@ -16,6 +16,22 @@ static int asn1f_check_constraints(arg_t *arg);	/* For subtype constraints */
 static int asn1f_check_duplicate(arg_t *arg);
 static int asn1f_apply_unique_index(arg_t *arg);
 static int phase_1_1(arg_t *arg, int prm2);
+static int asn1f_fix_late_specializations(arg_t *arg, int with_phase_2);
+static void asn1f_clear_spec_marks(asn1p_t *asn);
+
+/*
+ * Marks on the root of a specialization (the clone of a parameterized type
+ * made for one set of actual parameters), private to asn1f_process():
+ * set when phase I (phase_1_1) and phase II (unique indexes) have processed
+ * it. A specialization made after that phase passed its parameterized type
+ * (first used from another module, or from a type defined after it) gets
+ * the phase late, from asn1f_fix_late_specializations().
+ */
+#define    A1F_SPEC_PHASE1    (1u << 14)
+#define    A1F_SPEC_PHASE2    (1u << 15)
+#define    A1F_IS_SPEC_ROOT(e)    ((e)->spec_index >= 0)
+
+static int a1f_unique_index;
 
 arg_t a1f_replace_me_with_proper_interface_arg;
 
@@ -91,6 +107,8 @@ asn1f_process(asn1p_t *asn, enum asn1f_flags flags,
         asn1_namespace_free(arg.ns);
         arg.ns = 0;
     }
+    /* Specializations first used from a later module. */
+    if(asn1f_fix_late_specializations(&arg, 0) == -1) fatals++;
     /* PHASE II. */
     TQ_FOR(arg.mod, &(asn->modules), mod_next) {
         arg.ns = asn1_namespace_new_from_module(arg.mod, 0);
@@ -100,6 +118,11 @@ asn1f_process(asn1p_t *asn, enum asn1f_flags flags,
         asn1_namespace_free(arg.ns);
         arg.ns = 0;
     }
+    /* Specializations made during phase II (both phases). */
+    ret = asn1f_fix_late_specializations(&arg, 1);
+    if(ret == -1) fatals++;
+    if(ret == 1) warnings++;
+    asn1f_clear_spec_marks(asn);
 
     memset(&a1f_replace_me_with_proper_interface_arg, 0, sizeof(arg_t));
 
@@ -308,6 +331,8 @@ phase_1_1(arg_t *arg, int prm2) {
 	} else if(prm2) {
 		return 0;	/* Already done! */
 	}
+	if(A1F_IS_SPEC_ROOT(expr))
+		expr->_mark |= A1F_SPEC_PHASE1;
 
 	/* Check whether this type is a duplicate */
 	if(!expr->lhs_params) {
@@ -553,12 +578,116 @@ asn1f_check_duplicate(arg_t *arg) {
 
 static int
 asn1f_apply_unique_index(arg_t *arg) {
-	static int unique_index;
-	if(!arg) { unique_index = 0; return 0; }
+	if(!arg) { a1f_unique_index = 0; return 0; }
 
-	arg->expr->_type_unique_index = ++unique_index;
+	if(A1F_IS_SPEC_ROOT(arg->expr))
+		arg->expr->_mark |= A1F_SPEC_PHASE2;
+	arg->expr->_type_unique_index = ++a1f_unique_index;
 
 	return 0;
+}
+
+/* The largest unique index in expr, its members and its specializations */
+static int
+asn1f_max_unique_index(asn1p_expr_t *expr) {
+    asn1p_expr_t *m;
+    int max = expr->_type_unique_index;
+    int i, v;
+    for(i = 0; i < expr->specializations.pspecs_count; i++) {
+        v = asn1f_max_unique_index(expr->specializations.pspec[i].my_clone);
+        if(v > max) max = v;
+    }
+    TQ_FOR(m, &(expr->members), next) {
+        v = asn1f_max_unique_index(m);
+        if(v > max) max = v;
+    }
+    return max;
+}
+
+/*
+ * Run phase I (and with with_phase_2, phase II) on every specialization that
+ * missed it: a parameterized type defined in one module and first used from
+ * a later one is cloned after its own module was processed, and a clone made
+ * while phase II walks a type can belong to a type the walk already passed.
+ * Without this the clone kept unresolved constraints and unique index 0, and
+ * the C code referred to undefined asn_PER_memb_<x>_constr_0 tables.
+ * Repeats until no new specialization appears (fixing one may create others).
+ */
+static int
+asn1f_fix_late_specializations(arg_t *arg, int with_phase_2) {
+    asn1p_module_t *mod;
+    asn1p_expr_t *expr;
+    int rvalue = 0;
+    int progress;
+    int ret;
+    int i;
+
+    do {
+        progress = 0;
+        TQ_FOR(mod, &(arg->asn->modules), mod_next) {
+            arg->mod = mod;
+            arg->ns = asn1_namespace_new_from_module(mod, 0);
+            TQ_FOR(expr, &(mod->members), next) {
+                if(!expr->lhs_params || expr->spec_index != -1)
+                    continue;
+                for(i = 0; i < expr->specializations.pspecs_count; i++) {
+                    asn1p_expr_t *clone =
+                        expr->specializations.pspec[i].my_clone;
+                    arg->expr = clone;
+                    if(!(clone->_mark & A1F_SPEC_PHASE1)) {
+                        progress = 1;
+                        ret = phase_1_1(arg, 0);
+                        RET2RVAL(ret, rvalue);
+                        ret = asn1f_recurse_expr(arg,
+                            asn1f_fix_constr_autotag);
+                        RET2RVAL(ret, rvalue);
+                        ret = asn1f_recurse_expr(arg, asn1f_fix_bit_string);
+                        RET2RVAL(ret, rvalue);
+                        ret = asn1f_recurse_expr(arg, asn1f_fix_cstring);
+                        RET2RVAL(ret, rvalue);
+                        ret = asn1f_recurse_expr(arg,
+                            asn1f_check_constr_tags_distinct);
+                        RET2RVAL(ret, rvalue);
+                        clone->_mark |= A1F_SPEC_PHASE1;
+                    }
+                    if(with_phase_2 && !(clone->_mark & A1F_SPEC_PHASE2)) {
+                        progress = 1;
+                        ret = asn1f_recurse_expr(arg,
+                            asn1f_fix_dereference_defaults);
+                        RET2RVAL(ret, rvalue);
+                        ret = asn1f_recurse_expr(arg, asn1f_resolve_constraints);
+                        RET2RVAL(ret, rvalue);
+                        ret = asn1f_recurse_expr(arg, asn1f_check_constraints);
+                        RET2RVAL(ret, rvalue);
+                        /* Continue the numbering of the parameterized type */
+                        a1f_unique_index = asn1f_max_unique_index(expr);
+                        ret = asn1f_recurse_expr(arg, asn1f_apply_unique_index);
+                        RET2RVAL(ret, rvalue);
+                        clone->_mark |= A1F_SPEC_PHASE2;
+                    }
+                }
+            }
+            asn1_namespace_free(arg->ns);
+            arg->ns = 0;
+            if(rvalue == -1) return -1;
+        }
+    } while(progress);
+
+    return rvalue;
+}
+
+static void
+asn1f_clear_spec_marks(asn1p_t *asn) {
+    asn1p_module_t *mod;
+    asn1p_expr_t *expr;
+    int i;
+    TQ_FOR(mod, &(asn->modules), mod_next) {
+        TQ_FOR(expr, &(mod->members), next) {
+            for(i = 0; i < expr->specializations.pspecs_count; i++)
+                expr->specializations.pspec[i].my_clone->_mark &=
+                    ~(A1F_SPEC_PHASE1 | A1F_SPEC_PHASE2);
+        }
+    }
 }
 
 /*

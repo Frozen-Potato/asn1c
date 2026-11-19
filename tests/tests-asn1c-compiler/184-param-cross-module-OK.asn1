@@ -1,0 +1,48 @@
+-- OK: a parameterized type defined in one module and first used from
+-- another (ProtocolIE-Field defined before ProtocolIE-Container, the
+-- containers instantiated from a later module, twice) gets its constraints,
+-- descriptor names and AUTOMATIC TAGS exactly as when it is used from its
+-- own module; the same holds for a parameterized type instantiated inside
+-- another one defined after it in the same module (Pair in Pairs, Alt in
+-- Alts): its CHOICE alternatives keep their written order (a is index 0).
+
+K184A DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+ProtocolIE-ID ::= INTEGER (0..65535)
+Criticality ::= ENUMERATED { reject, ignore, notify }
+END
+
+K184B DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+IMPORTS ProtocolIE-ID, Criticality FROM K184A;
+IES ::= CLASS { &id ProtocolIE-ID UNIQUE, &criticality Criticality, &Value }
+    WITH SYNTAX { ID &id CRITICALITY &criticality TYPE &Value }
+ProtocolIE-Field { IES : IEsSetParam } ::= SEQUENCE {
+    id          IES.&id          ({IEsSetParam}),
+    criticality IES.&criticality ({IEsSetParam}{@id}),
+    value       IES.&Value       ({IEsSetParam}{@id})
+}
+ProtocolIE-Container { IES : IEsSetParam } ::=
+    SEQUENCE (SIZE(0..32)) OF ProtocolIE-Field {{IEsSetParam}}
+END
+
+K184C DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+IMPORTS ProtocolIE-ID, Criticality FROM K184A
+    IES, ProtocolIE-Container FROM K184B;
+id-A ProtocolIE-ID ::= 1
+id-B ProtocolIE-ID ::= 2
+Small ::= INTEGER (0..7)
+Flag ::= BOOLEAN
+Msg-IEs IES ::= { { ID id-A CRITICALITY reject TYPE Small } |
+    { ID id-B CRITICALITY ignore TYPE Flag }, ... }
+Message ::= SEQUENCE { protocolIEs ProtocolIE-Container {{Msg-IEs}}, ... }
+Msg2-IEs IES ::= { { ID id-A CRITICALITY ignore TYPE Small }, ... }
+Message2 ::= SEQUENCE { protocolIEs ProtocolIE-Container {{Msg2-IEs}}, ... }
+END
+
+K184D DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Pair { Elem } ::= SEQUENCE { first Elem, second Elem OPTIONAL }
+Pairs { Elem } ::= SEQUENCE (SIZE(1..4)) OF Pair { Elem }
+Holder ::= SEQUENCE { pairs Pairs { INTEGER (0..7) } }
+Alt { T } ::= CHOICE { a T, b BOOLEAN }
+Alts { T } ::= SEQUENCE (SIZE(1..4)) OF Alt { T }
+Choices ::= SEQUENCE { x Alts { INTEGER (0..7) } }
+END
