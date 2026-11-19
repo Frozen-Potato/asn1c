@@ -1489,7 +1489,8 @@ asn1c_lang_C_type_SIMPLE_TYPE(arg_t *arg) {
 		if(HIDE_INNER_DEFS) OUT("static ");
 		OUT("int\n");
 		OUT("%s", p);
-		if(HIDE_INNER_DEFS) OUT("_%d", expr->_type_unique_index);
+        /* an inline type's names carry _<index>, -fall-defs-global or not */
+        if(arg->embed) OUT("_%d", expr->_type_unique_index);
 		OUT("_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,\n");
 		INDENT(+1);
 		OUT("\t\tasn_app_constraint_failed_f *ctfailcb, void *app_key) {");
@@ -1555,7 +1556,11 @@ asn1c_lang_C_type_SIMPLE_TYPE(arg_t *arg) {
 			"\t// (Use -fall-defs-global to expose) */\n",
 			p, expr->_type_unique_index);
 	} else {
-		OUT("extern asn_TYPE_descriptor_t asn_DEF_%s;\n", p);
+        if(arg->embed)    /* -fall-defs-global */
+            OUT("extern asn_TYPE_descriptor_t asn_DEF_%s_%d;\n", p,
+                expr->_type_unique_index);
+        else
+            OUT("extern asn_TYPE_descriptor_t asn_DEF_%s;\n", p);
         if(etd_spec == ETD_HAS_SPECIFICS && expr->_type_referenced) {
             if((expr->expr_type == ASN_BASIC_ENUMERATED)
                || (expr->expr_type == ASN_BASIC_INTEGER)) {
@@ -4776,10 +4781,8 @@ try_inline_constructed_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	}
 	/* The descriptor expression emit_member_table prints for ".type" */
 	if(complex_type) {
-		snprintf(dsc, sizeof(dsc), "asn_DEF_%s", MKID(expr));
-		if(!(arg->flags & A1C_ALL_DEFS_GLOBAL))
-			snprintf(dsc + strlen(dsc), sizeof(dsc) - strlen(dsc), "_%d",
-				expr->_type_unique_index);
+        snprintf(dsc, sizeof(dsc), "asn_DEF_%s_%d", MKID(expr),
+            expr->_type_unique_index);
 	} else {
 		snprintf(dsc, sizeof(dsc), "asn_DEF_%s",
 			asn1c_type_name_def(arg, expr));
@@ -5530,9 +5533,9 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 
     OUT("&asn_DEF_");
     if(complex_contents) {
-        OUT("%s", MKID(expr));
-        if(!(arg->flags & A1C_ALL_DEFS_GLOBAL))
-            OUT("_%d", expr->_type_unique_index);
+        /* An inline type's descriptor is asn_DEF_<name>_<index>, with or
+         * without -fall-defs-global (which only drops its "static") */
+        OUT("%s_%d", MKID(expr), expr->_type_unique_index);
     } else {
         OUT("%s", asn1c_type_name_def(arg, expr));
     }
@@ -5695,7 +5698,7 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
 	if(HIDE_INNER_DEFS)
 		OUT("static /* Use -fall-defs-global to expose */\n");
 	OUT("asn_TYPE_descriptor_t asn_DEF_%s", p);
-    if(HIDE_INNER_DEFS || (arg->flags & A1C_ALL_DEFS_GLOBAL))
+    if(arg->embed)
         OUT("_%d", expr->_type_unique_index);
     OUT(" = {\n");
 	INDENT(+1);
@@ -5794,7 +5797,7 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
 #define FUNCREF(foo)                              \
     do {                                          \
         OUT("%s", p);                             \
-        if(HIDE_INNER_DEFS && !using_type_name)   \
+        if(arg->embed && !using_type_name)        \
             OUT("_%d", expr->_type_unique_index); \
         OUT("_" #foo "");                         \
     } while(0)

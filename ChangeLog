@@ -13,6 +13,15 @@
       types change; PER and OER change only for a CHOICE (or SET) written
       in such a type whose alternatives were not already in the order of
       their universal tags. XER and JER do not change.
+    * asn1c -fall-defs-global: the C code did not compile or link when
+      a type had an inline constructed member (a SEQUENCE or CHOICE
+      written in a SEQUENCE / CHOICE): every descriptor, the top-level
+      one included, was defined as asn_DEF_<name>_<index> while the
+      references and the header used asn_DEF_<name>. A top-level type
+      keeps asn_DEF_<name>; an inline type is asn_DEF_<name>_<index>
+      (extern), and its functions carry the index too, so two inline
+      types with one name no longer clash. Output without the flag is
+      unchanged.
 
 0.9.29-go.15:
     * asn1c -Fgo: runs that write the same C output directory (-D) at

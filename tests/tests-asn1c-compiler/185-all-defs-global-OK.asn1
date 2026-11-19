@@ -1,0 +1,14 @@
+-- OK: with -fall-defs-global an inline constructed member (a SEQUENCE or
+-- CHOICE written inside another type) and an inline element type get a
+-- global descriptor asn_DEF_<name>_<index>, the top-level type keeps
+-- asn_DEF_<name>, and two inline types with the same name (Member) do not
+-- clash.
+
+K185 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+C ::= CHOICE { x INTEGER (0..7), y SEQUENCE { a BOOLEAN }, z CHOICE { p NULL, q BOOLEAN } }
+Q ::= SEQUENCE { y SEQUENCE { a BOOLEAN }, z CHOICE { p NULL, q BOOLEAN } OPTIONAL }
+W ::= SEQUENCE {
+    l SEQUENCE (SIZE(1..4)) OF INTEGER (0..4294967295),
+    s SET (SIZE(1..4)) OF INTEGER (1..4294967295) OPTIONAL
+}
+END
