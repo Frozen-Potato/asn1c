@@ -1,0 +1,9 @@
+-- SE: a parameterized type whose specializations nest without end, each
+-- with different parameters (T{INTEGER} needs T{SEQUENCE OF INTEGER}, which
+-- needs T{SEQUENCE OF SEQUENCE OF INTEGER}, ...). asn1c stops with an error
+-- naming T instead of making new specializations forever.
+
+K187 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+T{X} ::= SEQUENCE { a X, b T{SEQUENCE OF X} OPTIONAL }
+U ::= T{INTEGER}
+END

@@ -1,5 +1,14 @@
 #include "asn1fix_internal.h"
 
+/*
+ * How deep the specializations of one parameterized type may nest: one made
+ * while fixing another one of the same type is nested in it. A definition
+ * whose specializations nest without end, each with different parameters
+ * (T{X} ::= SEQUENCE { b T{SEQUENCE OF X} OPTIONAL }), would otherwise make
+ * new ones forever.
+ */
+#define	ASN1F_MAX_SPEC_NESTING	64
+
 typedef struct resolver_arg {
 	asn1p_expr_t	  *(*resolver)(asn1p_expr_t *, void *arg);
 	arg_t		  *arg;
@@ -15,6 +24,14 @@ static asn1p_expr_t *find_target_specialization_byvalueset(resolver_arg_t *rarg,
 static asn1p_expr_t *find_target_specialization_byref(resolver_arg_t *rarg, asn1p_ref_t *ref);
 static asn1p_expr_t *find_target_specialization_bystr(resolver_arg_t *rarg, char *str);
 
+/* Whether clone is one of the specializations of expr. */
+static int
+is_specialization_of(const asn1p_expr_t *clone, const asn1p_expr_t *expr) {
+	return clone->spec_index >= 0
+		&& clone->spec_index < expr->specializations.pspecs_count
+		&& expr->specializations.pspec[clone->spec_index].my_clone == clone;
+}
+
 asn1p_expr_t *
 asn1f_parameterization_fork(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_t *rhs_pspecs) {
 	resolver_arg_t rarg;	/* resolver argument */
@@ -22,9 +39,12 @@ asn1f_parameterization_fork(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_t *rhs_ps
 	asn1p_expr_t *rpc;	/* rhs_pspecs clone */
 	asn1p_expr_t *m;	/* expr members */
 	asn1p_expr_t *target;
+	asn1p_expr_t *parent;	/* the specialization being fixed, or NULL */
+	asn1p_expr_t *a;
 	void *p;
 	struct asn1p_pspec_s *pspec;
 	int npspecs;
+	int nesting;
 
 	assert(rhs_pspecs);
 	assert(expr->lhs_params);
@@ -42,6 +62,28 @@ asn1f_parameterization_fork(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_t *rhs_ps
 				expr->Identifier);
 			return expr->specializations.pspec[npspecs].my_clone;
 		}
+	}
+
+	for(parent = arg->expr; parent && parent->parent_expr;
+			parent = parent->parent_expr)
+		;
+	if(parent && parent->spec_index < 0)
+		parent = NULL;
+	nesting = 0;
+	for(a = parent; a; a = a->spec_parent)
+		if(is_specialization_of(a, expr))
+			nesting++;
+	if(nesting >= ASN1F_MAX_SPEC_NESTING) {
+		if(!(expr->_mark & TM_BROKEN)) {
+			expr->_mark |= TM_BROKEN;
+			FATAL("Parameterized type %s at line %d is specialized "
+				"within its own specializations without end "
+				"(%d nested specializations, the last one at "
+				"line %d)", expr->Identifier, expr->_lineno,
+				nesting, rhs_pspecs->_lineno);
+		}
+		errno = EPERM;
+		return NULL;
 	}
 
 	DEBUG("Forking parameterization at %d for %s (%d alr)",
@@ -78,6 +120,7 @@ asn1f_parameterization_fork(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_t *rhs_ps
 	pspec->rhs_pspecs = rpc;
 	pspec->my_clone = exc;
 	exc->spec_index = npspecs;
+	exc->spec_parent = parent;
 	exc->rhs_pspecs = asn1p_expr_clone_with_resolver(expr->rhs_pspecs ?
 					expr->rhs_pspecs : rhs_pspecs,
 					resolve_expr, &rarg);

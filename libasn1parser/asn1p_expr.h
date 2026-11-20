@@ -169,6 +169,8 @@ typedef struct asn1p_expr_s {
 		int pspecs_count;	/* Number of specializations */
 	} specializations;
 	int spec_index;	/* -1, or 0-based specialization index in the parent */
+	/* The specialization being fixed when this one was made, or NULL */
+	struct asn1p_expr_s *spec_parent;
 
 	/*
 	 * The actual value (DefinedValue or inlined value).

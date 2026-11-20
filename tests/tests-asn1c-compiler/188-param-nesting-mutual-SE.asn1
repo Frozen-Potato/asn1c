@@ -1,0 +1,8 @@
+-- SE: the same through two parameterized types that use each other
+-- (A{X} needs B{SEQUENCE OF X}, which needs A{SEQUENCE OF X}, ...).
+
+K188 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+A{X} ::= SEQUENCE { a X, b B{SEQUENCE OF X} OPTIONAL }
+B{X} ::= CHOICE { c A{X}, d BOOLEAN }
+U ::= A{INTEGER}
+END

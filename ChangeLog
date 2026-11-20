@@ -6,6 +6,12 @@
       -pdu option acts as -pdu=auto. A -pdu=<Type> the Go backend gives
       no functions (a type defined as an instance of a parameterized
       type) is refused (exit 70).
+    * asn1fix: a parameterized type whose specializations nest without
+      end, each with different parameters (T{X} ::= SEQUENCE { a X,
+      b T{SEQUENCE OF X} OPTIONAL }, also through two parameterized
+      types that use each other), made asn1c run until it ran out of
+      memory. asn1c now stops with an error naming the type (exit 65).
+      The specializations of one type may nest 64 deep.
 
 0.9.29-go.16:
     * asn1fix: a parameterized type defined in one module and used from

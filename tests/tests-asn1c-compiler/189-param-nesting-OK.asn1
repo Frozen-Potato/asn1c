@@ -1,0 +1,86 @@
+-- OK: parameterized types that use themselves or each other, where the
+-- specializations end: T{BOOLEAN} needs T{INTEGER}, which needs only itself;
+-- R{X} uses R{X}; P1..P5 go around once and end in P1{INTEGER}. A chain of
+-- 66 different parameterized types, each specialized inside the previous
+-- one, is deeper than the limit on how deep the specializations of one
+-- type may nest, and is accepted.
+
+K189 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+T{X} ::= SEQUENCE { a X, b T{INTEGER} OPTIONAL }
+U1 ::= T{BOOLEAN}
+R{X} ::= SEQUENCE { a X, b R{X} OPTIONAL }
+U2 ::= R{SEQUENCE OF INTEGER}
+P1{X} ::= SEQUENCE { a P2{SEQUENCE OF X} }
+P2{X} ::= SEQUENCE { a P3{SEQUENCE OF X} }
+P3{X} ::= SEQUENCE { a P4{SEQUENCE OF X} }
+P4{X} ::= SEQUENCE { a P5{SEQUENCE OF X} }
+P5{X} ::= SEQUENCE { a X, b P1{INTEGER} OPTIONAL }
+U3 ::= P1{BOOLEAN}
+C1{X} ::= SEQUENCE { a C2{X} }
+C2{X} ::= SEQUENCE { a C3{X} }
+C3{X} ::= SEQUENCE { a C4{X} }
+C4{X} ::= SEQUENCE { a C5{X} }
+C5{X} ::= SEQUENCE { a C6{X} }
+C6{X} ::= SEQUENCE { a C7{X} }
+C7{X} ::= SEQUENCE { a C8{X} }
+C8{X} ::= SEQUENCE { a C9{X} }
+C9{X} ::= SEQUENCE { a C10{X} }
+C10{X} ::= SEQUENCE { a C11{X} }
+C11{X} ::= SEQUENCE { a C12{X} }
+C12{X} ::= SEQUENCE { a C13{X} }
+C13{X} ::= SEQUENCE { a C14{X} }
+C14{X} ::= SEQUENCE { a C15{X} }
+C15{X} ::= SEQUENCE { a C16{X} }
+C16{X} ::= SEQUENCE { a C17{X} }
+C17{X} ::= SEQUENCE { a C18{X} }
+C18{X} ::= SEQUENCE { a C19{X} }
+C19{X} ::= SEQUENCE { a C20{X} }
+C20{X} ::= SEQUENCE { a C21{X} }
+C21{X} ::= SEQUENCE { a C22{X} }
+C22{X} ::= SEQUENCE { a C23{X} }
+C23{X} ::= SEQUENCE { a C24{X} }
+C24{X} ::= SEQUENCE { a C25{X} }
+C25{X} ::= SEQUENCE { a C26{X} }
+C26{X} ::= SEQUENCE { a C27{X} }
+C27{X} ::= SEQUENCE { a C28{X} }
+C28{X} ::= SEQUENCE { a C29{X} }
+C29{X} ::= SEQUENCE { a C30{X} }
+C30{X} ::= SEQUENCE { a C31{X} }
+C31{X} ::= SEQUENCE { a C32{X} }
+C32{X} ::= SEQUENCE { a C33{X} }
+C33{X} ::= SEQUENCE { a C34{X} }
+C34{X} ::= SEQUENCE { a C35{X} }
+C35{X} ::= SEQUENCE { a C36{X} }
+C36{X} ::= SEQUENCE { a C37{X} }
+C37{X} ::= SEQUENCE { a C38{X} }
+C38{X} ::= SEQUENCE { a C39{X} }
+C39{X} ::= SEQUENCE { a C40{X} }
+C40{X} ::= SEQUENCE { a C41{X} }
+C41{X} ::= SEQUENCE { a C42{X} }
+C42{X} ::= SEQUENCE { a C43{X} }
+C43{X} ::= SEQUENCE { a C44{X} }
+C44{X} ::= SEQUENCE { a C45{X} }
+C45{X} ::= SEQUENCE { a C46{X} }
+C46{X} ::= SEQUENCE { a C47{X} }
+C47{X} ::= SEQUENCE { a C48{X} }
+C48{X} ::= SEQUENCE { a C49{X} }
+C49{X} ::= SEQUENCE { a C50{X} }
+C50{X} ::= SEQUENCE { a C51{X} }
+C51{X} ::= SEQUENCE { a C52{X} }
+C52{X} ::= SEQUENCE { a C53{X} }
+C53{X} ::= SEQUENCE { a C54{X} }
+C54{X} ::= SEQUENCE { a C55{X} }
+C55{X} ::= SEQUENCE { a C56{X} }
+C56{X} ::= SEQUENCE { a C57{X} }
+C57{X} ::= SEQUENCE { a C58{X} }
+C58{X} ::= SEQUENCE { a C59{X} }
+C59{X} ::= SEQUENCE { a C60{X} }
+C60{X} ::= SEQUENCE { a C61{X} }
+C61{X} ::= SEQUENCE { a C62{X} }
+C62{X} ::= SEQUENCE { a C63{X} }
+C63{X} ::= SEQUENCE { a C64{X} }
+C64{X} ::= SEQUENCE { a C65{X} }
+C65{X} ::= SEQUENCE { a C66{X} }
+C66{X} ::= SEQUENCE { a X }
+U4 ::= C1{BOOLEAN}
+END
