@@ -503,7 +503,7 @@ copy of the asn1c skeleton codec; it always contains the JER codec). Its source 
 - **Module path:** `github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go`;
   `ASN1CGO_GO_MODULE_PREFIX` does not change it.
 - **Fetch (default).** The generated `go.mod` has a plain `require` at the
-  generator's version (`v0.4.5`). Run `go mod tidy` once after generation
+  generator's version (`v0.4.6`). Run `go mod tidy` once after generation
   (network or `GOPROXY` needed) to write `go.sum`; until then `go build` stops
   with `missing go.sum entry`. Commit `go.sum`. Regenerating rewrites `go.mod`
   but not `go.sum`.
