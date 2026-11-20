@@ -1493,3 +1493,54 @@ func TestDefaultFuncNoPDUModuleAndChoiceAlt(t *testing.T) {
 	}
 	balanced(t, "default-nopdu-choice")
 }
+
+// New<T>: the constructor of a struct with DEFAULT members (or with a
+// mandatory member whose type has one) returns the value holding every
+// DEFAULT, so its encoding leaves every DEFAULT member out. Each call
+// returns fresh slices: changing one value changes no other value and no
+// exported default.
+func TestDefaultNew(t *testing.T) {
+	if got := df.NewDefaultsPDU(); !reflect.DeepEqual(got, dflt()) {
+		t.Errorf("NewDefaultsPDU() = %+v, want %+v", got, dflt())
+	}
+	if got := df.NewExtDefaults(); !reflect.DeepEqual(got, extDflt()) {
+		t.Errorf("NewExtDefaults() = %+v, want %+v", got, extDflt())
+	}
+	if got, want := df.NewDefaultsPDU().Inner, *df.NewInner(); got != want {
+		t.Errorf("NewDefaultsPDU().Inner = %+v, want NewInner() %+v", got, want)
+	}
+	b, err := df.NewDefaultsPDU().Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(b, []byte{0, 0}) {
+		t.Errorf("NewDefaultsPDU() APER = % x, want 00 00", b)
+	}
+	a := df.NewDefaultsPDU()
+	a.Octs[0] = 0
+	a.Bits.Bytes[0] = 0
+	if c := df.NewDefaultsPDU(); c.Octs[0] != 0xab || c.Bits.Bytes[0] != 0xa0 {
+		t.Errorf("a second NewDefaultsPDU() sees the change: %+v", c)
+	}
+	if df.DefaultsPDUOctsDefault[0] != 0xab || df.DefaultsPDUBitsDefault.Bytes[0] != 0xa0 {
+		t.Errorf("NewDefaultsPDU() shares the exported defaults")
+	}
+	// a SEQUENCE-valued DEFAULT, and a member of a type of another package
+	if got, want := dt.NewTopMsg().B, *dc.NewComBox(); got != want {
+		t.Errorf("NewTopMsg().B = %+v, want %+v", got, want)
+	}
+	if got, want := dc.NewComBox().P, dc.ComBoxPDefault(); got != want {
+		t.Errorf("NewComBox().P = %+v, want %+v", got, want)
+	}
+	m := dt.NewTopMsg()
+	m.N = 3
+	tb, err := m.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := dt.DecodeTopMsg(tb)
+	if err != nil || !reflect.DeepEqual(back, m) {
+		t.Errorf("TopMsg round trip: %+v, %v, want %+v", back, err, m)
+	}
+	balanced(t, "new")
+}

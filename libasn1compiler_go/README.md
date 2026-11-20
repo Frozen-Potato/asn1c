@@ -220,7 +220,7 @@ free.
 | `ErrAlloc` | yes | yes |
 | `ErrConstraint` | value outside a declared range/size/alphabet | decoded value violates a constraint |
 | `ErrEncode` | the APER, UPER or JER encoder failed (including its own out-of-memory) | never |
-| `ErrDecode` | never | malformed bytes, including an IE id the spec's object set does not list; also a C stack guard trip (see Platform and limits) |
+| `ErrDecode` | never | malformed bytes, including an IE id the spec's object set does not list, also an extensible one (KNOWN-ISSUES 68); also a C stack guard trip (see Platform and limits) |
 | `ErrTrailing` | never | bytes left after the PDU |
 | `ErrChoiceNothing`, `ErrChoiceBad` | a CHOICE with no / an invalid `Present` | defensive only |
 | `ErrIOCUnknown` | the IE id is not in the governing object set | defensive only |
@@ -283,7 +283,7 @@ with `rt.ErrDepth`.
 | OPTIONAL member | pointer (`*T`); `nil` = absent |
 | Extension addition | always a pointer, `OPTIONAL` or not; `nil` = absent |
 | `[[ ]]` group | one field `Ext<N> *<T>Ext<N>`, N counting the groups of that SEQUENCE from 1 |
-| DEFAULT member | plain value plus an exported `<Type><Field>Default` constant (or `var`); for a SEQUENCE / SET / SEQUENCE OF / SET OF value a func `<Type><Field>Default()` returning a new value |
+| DEFAULT member | plain value plus an exported `<Type><Field>Default` constant (or `var`); for a SEQUENCE / SET / SEQUENCE OF / SET OF value a func `<Type><Field>Default()` returning a new value. The struct gets `New<Type>()`, which sets every DEFAULT |
 | Instance of a parameterized type (`T{INTEGER}`, `L{Item}`, `R{10}`) | its own named type, named after its C type: `T{X} ::= SEQUENCE { v X }` on line 5 used as `T{INTEGER}` and `T{UTF8String}` gives `T_5P0_t` / `T_5P1_t` in C and `T5P0` / `T5P1` in Go (`<Template><line>P<index>`, the index counting the template's distinct instances in the order asn1c makes them). An instance whose parameter is an object set (`ProtocolIE-Field {{ItemIEs}}`) is named after the object set, as in C |
 
 Unnamed leaf elements of a SEQUENCE OF map as `[]int64`, `[]bool`, `[]float64`,
@@ -433,11 +433,32 @@ type DefaultsPDU struct {
   from "equal to the default".
 - **The Go zero value is not the DEFAULT.** `T{}` holds `false` / `0` / `""` /
   `nil` even where the DEFAULT is `TRUE`, `5` or `"hi"`, and `Encode` sends what
-  the field holds. Set DEFAULT fields explicitly, using the exported
-  `<StructGoName><FieldGoName>Default` declaration next to the struct
-  (`DefaultsPDUFlagDefault`; a typed `const`, or a `var` for OCTET STRING and
-  BIT STRING, which you must not modify; a func for a SEQUENCE / SET /
-  SEQUENCE OF / SET OF member).
+  the field holds. Start from `New<T>()` (below), or set DEFAULT fields
+  explicitly, using the exported `<StructGoName><FieldGoName>Default`
+  declaration next to the struct (`DefaultsPDUFlagDefault`; a typed `const`,
+  or a `var` for OCTET STRING and BIT STRING, which you must not modify; a
+  func for a SEQUENCE / SET / SEQUENCE OF / SET OF member).
+- **`New<T>()`.** A struct with a DEFAULT member, or with a mandatory member
+  (not OPTIONAL, not a pointer or a slice) whose type has a `New` func of its
+  own, gets `func New<T>() *T`, declared after the defaults in `types.go`. It
+  returns a new value holding each DEFAULT (a fresh copy of an OCTET STRING,
+  BIT STRING or OBJECT IDENTIFIER default on each call) and `*New<M>()` in
+  each such mandatory member; every other field is the Go zero value. Its
+  `Encode` therefore leaves every DEFAULT member out:
+
+  ```go
+  func NewDefaultsPDU() *DefaultsPDU {
+      return &DefaultsPDU{
+          Flag:  DefaultsPDUFlagDefault,
+          Octs:  []byte{0xab},
+          Inner: *NewInner(),
+          ...
+      }
+  }
+  ```
+
+  `New<T>` is a package-level name like the type names: a type named
+  `New<T>` in the same module is a collision and fails generation.
 
 **OBJECT IDENTIFIER and RELATIVE-OID.** `type T []uint64` when named,
 `*[]uint64` for an OPTIONAL member or CHOICE alternative. An arc is at most

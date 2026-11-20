@@ -75,6 +75,7 @@
                                * INTEGERs; the conv/entry stages) */
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -288,6 +289,15 @@ struct name_row {
      * is emitted at the first bit row, in walk order. */
     int bit_group;
     char *bit_type;
+    /* struct-owner rows: types.go declares func New<goName>() *<goName>,
+     * which sets every DEFAULT member (and every mandatory member of a type
+     * that has such a func) — see mark_ctors. */
+    int has_ctor;
+    /* GK_FIELD rows of a struct with has_ctor: the ord of the member's
+     * GK_DEFAULT_VALUE row (ctor_dflt) or of the struct row of its type when
+     * that type has a constructor (ctor_type); -1 when neither. */
+    int ctor_dflt;
+    int ctor_type;
     int ord;                /* insertion (WALK) order; dump sorting does
                              * not preserve it, but const-block ORDER inside
                              * one block must (PrNothing first, alts in
@@ -1090,6 +1100,7 @@ row_set_is_struct(struct name_bag *b) {
 static void qualify_field_types(struct name_bag *b);
 static void qualify_slice_elems(struct name_bag *b);
 static int check_go_cycles(struct name_bag *b);
+static int mark_ctors(struct name_bag *b);
 static int check_go_import_cycles(struct name_bag *b);
 
 static struct name_bag *g_emit_bag;
@@ -1340,6 +1351,80 @@ go_emit_module_imports(FILE *out, const char *module) {
     return n_imps;
 }
 
+/* gfmt_names: printf into a new string (NULL on failure). */
+static char *
+gfmt_names(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(NULL, 0, fmt, ap);
+    va_end(ap);
+    if(n < 0) return NULL;
+    char *p = malloc((size_t)n + 1);
+    if(!p) return NULL;
+    va_start(ap, fmt);
+    vsnprintf(p, (size_t)n + 1, fmt, ap);
+    va_end(ap);
+    return p;
+}
+
+/* emit_ctor: `func New<T>() *T` for a struct row with has_ctor (mark_ctors):
+ * a composite literal setting each DEFAULT member to its DEFAULT (a fresh
+ * copy for a slice or BitString value, a call for a constructed one) and
+ * each mandatory member whose type has a constructor to *New<Type>(). The
+ * keys are aligned the way gofmt aligns them. */
+static int
+emit_ctor(FILE *out, struct name_bag *b, const struct name_row *r,
+          const char *module, const int *ordx) {
+    int key_w = 0;
+    for(int s = 0; s < b->n_rows; s++) {
+        const struct name_row *f = &b->rows[ordx[s]];
+        if(f->kind != GK_FIELD || f->module != module || !f->sf_owner
+           || strcmp(f->sf_owner, r->goName) != 0
+           || (f->ctor_dflt < 0 && f->ctor_type < 0))
+            continue;
+        int w = (int)strlen(f->goName) + 1;
+        if(w > key_w) key_w = w;
+    }
+    if(fprintf(out,
+               "\n// New%s returns a new %s holding the ASN.1 DEFAULT of each DEFAULT\n"
+               "// member (and of the DEFAULT members of its mandatory members).\n"
+               "func New%s() *%s {\n\treturn &%s{\n",
+               r->goName, r->goName, r->goName, r->goName, r->goName) < 0)
+        return -1;
+    for(int s = 0; s < b->n_rows; s++) {
+        const struct name_row *f = &b->rows[ordx[s]];
+        if(f->kind != GK_FIELD || f->module != module || !f->sf_owner
+           || strcmp(f->sf_owner, r->goName) != 0)
+            continue;
+        char *val = NULL;
+        if(f->ctor_dflt >= 0) {
+            const struct name_row *d = &b->rows[ordx[f->ctor_dflt]];
+            if(d->dflt_form == 2)
+                val = gfmt_names("%s{%s}", f->field_type, d->dflt_lit);
+            else if(d->dflt_form >= 4)
+                val = gfmt_names("%s()", d->goName);
+            else
+                val = strdup(d->goName);
+        } else if(f->ctor_type >= 0) {
+            const struct name_row *t = &b->rows[ordx[f->ctor_type]];
+            const char *dot = strrchr(f->field_type, '.');
+            if(dot)
+                val = gfmt_names("*%.*sNew%s()", (int)(dot - f->field_type + 1),
+                                 f->field_type, t->goName);
+            else
+                val = gfmt_names("*New%s()", t->goName);
+        } else {
+            continue;
+        }
+        if(!val) return -1;
+        int rc = fprintf(out, "\t\t%s:%*s%s,\n", f->goName,
+                         key_w - (int)strlen(f->goName), "", val);
+        free(val);
+        if(rc < 0) return -1;
+    }
+    return fputs("\t}\n}\n", out) < 0 ? -1 : 0;
+}
+
 int
 go_emit_module_decls(FILE *out, const char *module) {
     struct name_bag *b = g_emit_bag;
@@ -1467,6 +1552,10 @@ go_emit_module_decls(FILE *out, const char *module) {
                     else
                         rc = fprintf(out, "var %s = %s{%s}\n", dr->goName, ft,
                                      dr->dflt_lit) < 0 ? -1 : 0;
+                }
+                if(rc == 0 && r->has_ctor) {
+                    rc = emit_ctor(out, b, r, module, ordx);
+                    emitted_default = 1;
                 }
                 prev_block = emitted_default;
                 wrote_any = 1;
@@ -2231,6 +2320,10 @@ go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
      * specialty mint sites (spec unions, inline slices) are covered by
      * construction. Sets bag->failed + names the cycle (-> exit 70). */
     if(check_go_cycles(&bag))
+        bag.failed = 1;
+    /* New<T> constructors of the structs with DEFAULT members (after the
+     * field types are qualified: a member's type may be in another module). */
+    if(!bag.failed && mark_ctors(&bag))
         bag.failed = 1;
 
 done:
@@ -4556,6 +4649,161 @@ typedef struct {
     int src, dst;    /* vertex indices                                  */
     int indirect;    /* 1 = pointer/slice edge (a legal break)     */
 } goedge;
+
+/* ctor_key: "<a>\x01<b>[\x01<c>]" (owned). */
+static char *
+ctor_key(const char *a, const char *b2, const char *c) {
+    char *k = str_append(strdup(""), a ? a : "");
+    k = str_append(k, "\x01");
+    k = str_append(k, b2 ? b2 : "");
+    if(c) {
+        k = str_append(k, "\x01");
+        k = str_append(k, c);
+    }
+    return k;
+}
+
+static int
+ctor_struct_kind(const struct name_row *r) {
+    return r->is_struct
+        && (r->kind == GK_TYPE || r->kind == GK_INLINE || r->kind == GK_SPEC_KEY);
+}
+
+/* mark_ctors: decide which structs get a `func New<T>() *T` in types.go:
+ * a struct with a DEFAULT member, and (to a fixed point) a struct with a
+ * mandatory member (no pointer, no slice, no DEFAULT) whose type is a struct
+ * that gets one. Records on each field row what its key in the composite
+ * literal is set to (ctor_dflt / ctor_type, as ords). New<T> must not be
+ * another package-level name of the module: a clash is reported and fails
+ * the run. */
+static int
+mark_ctors(struct name_bag *b) {
+    gsmulti by_mod, by_pkg, fields, dflts, names;
+    memset(&by_mod, 0, sizeof by_mod);
+    memset(&by_pkg, 0, sizeof by_pkg);
+    memset(&fields, 0, sizeof fields);
+    memset(&dflts, 0, sizeof dflts);
+    memset(&names, 0, sizeof names);
+    int bad = 0;
+    for(int i = 0; i < b->n_rows; i++) {
+        struct name_row *r = &b->rows[i];
+        r->has_ctor = 0;
+        r->ctor_dflt = r->ctor_type = -1;
+        char *k;
+        if(ctor_struct_kind(r) && r->goName) {
+            k = ctor_key(r->module, r->goName, NULL);
+            gsmulti_add(&by_mod, k, i);
+            free(k);
+            char *pkg = module_pkg_go(r->module);
+            k = ctor_key(pkg, r->goName, NULL);
+            gsmulti_add(&by_pkg, k, i);
+            free(k);
+            free(pkg);
+        }
+        if(r->kind == GK_FIELD && r->sf_owner && r->goName) {
+            k = ctor_key(r->module, r->sf_owner, NULL);
+            gsmulti_add(&fields, k, i);
+            free(k);
+        }
+        if(r->kind == GK_DEFAULT_VALUE && r->dflt_owner && r->dflt_field) {
+            k = ctor_key(r->module, r->dflt_owner, r->dflt_field);
+            gsmulti_add(&dflts, k, i);
+            free(k);
+        }
+        if(kind_is_package_scoped(r->kind) && r->goName) {
+            k = ctor_key(r->module, r->goName, NULL);
+            gsmulti_add(&names, k, i);
+            free(k);
+        }
+    }
+    /* field rows: the DEFAULT row, or the struct row of the member's type */
+    int *target = malloc(((size_t)b->n_rows + 1) * sizeof(int));
+    if(!target) goto out;
+    for(int i = 0; i < b->n_rows; i++) {
+        struct name_row *f = &b->rows[i];
+        target[i] = -1;
+        if(f->kind != GK_FIELD || !f->sf_owner || !f->goName) continue;
+        char *k = ctor_key(f->module, f->sf_owner, f->goName);
+        int n;
+        const int *d = gsmulti_get(&dflts, k, &n);
+        free(k);
+        if(n) {
+            f->ctor_dflt = b->rows[d[0]].ord;
+            continue;
+        }
+        const char *t = f->field_type;
+        if(!t || !*t || t[0] == '*' || strchr(t, '[')) continue;
+        const char *dot = strrchr(t, '.');
+        const int *c;
+        if(dot) {
+            char *pkg = strndup(t, (size_t)(dot - t));
+            k = ctor_key(pkg, dot + 1, NULL);
+            free(pkg);
+            c = gsmulti_get(&by_pkg, k, &n);
+        } else {
+            k = ctor_key(f->module, t, NULL);
+            c = gsmulti_get(&by_mod, k, &n);
+        }
+        free(k);
+        if(n == 1) target[i] = c[0];
+    }
+    /* the structs with a DEFAULT member */
+    for(int i = 0; i < b->n_rows; i++) {
+        struct name_row *d = &b->rows[i];
+        if(d->kind != GK_DEFAULT_VALUE || !d->dflt_owner) continue;
+        char *k = ctor_key(d->module, d->dflt_owner, NULL);
+        int n;
+        const int *o = gsmulti_get(&by_mod, k, &n);
+        free(k);
+        for(int j = 0; j < n; j++) b->rows[o[j]].has_ctor = 1;
+    }
+    /* ... and those holding one by value, to a fixed point */
+    for(int changed = 1; changed;) {
+        changed = 0;
+        for(int i = 0; i < b->n_rows; i++) {
+            struct name_row *f = &b->rows[i];
+            if(target[i] < 0 || !b->rows[target[i]].has_ctor) continue;
+            char *k = ctor_key(f->module, f->sf_owner, NULL);
+            int n;
+            const int *o = gsmulti_get(&by_mod, k, &n);
+            free(k);
+            for(int j = 0; j < n; j++)
+                if(!b->rows[o[j]].has_ctor) {
+                    b->rows[o[j]].has_ctor = 1;
+                    changed = 1;
+                }
+        }
+    }
+    for(int i = 0; i < b->n_rows; i++)
+        if(target[i] >= 0 && b->rows[target[i]].has_ctor)
+            b->rows[i].ctor_type = b->rows[target[i]].ord;
+    /* New<T> is a package-level name of its own */
+    for(int i = 0; i < b->n_rows; i++) {
+        struct name_row *r = &b->rows[i];
+        if(!r->has_ctor) continue;
+        char *fn = str_append(strdup("New"), r->goName);
+        char *k = ctor_key(r->module, fn, NULL);
+        int n;
+        const int *o = gsmulti_get(&names, k, &n);
+        for(int j = 0; j < n; j++) {
+            struct name_row *q = &b->rows[o[j]];
+            fprintf(stderr, "asn1cgo: collision in module %s: %s <- %s "
+                    "(constructor) and %s (%s)\n", r->module, fn, r->path,
+                    q->path, g_kind_tag[q->kind]);
+            bad++;
+        }
+        free(k);
+        free(fn);
+    }
+    free(target);
+out:
+    gsmulti_free(&by_mod);
+    gsmulti_free(&by_pkg);
+    gsmulti_free(&fields);
+    gsmulti_free(&dflts);
+    gsmulti_free(&names);
+    return bad ? -1 : 0;
+}
 
 static int
 check_go_cycles(struct name_bag *b) {

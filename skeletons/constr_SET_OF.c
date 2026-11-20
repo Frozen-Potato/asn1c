@@ -728,7 +728,9 @@ SET_OF_encode_xer(const asn_TYPE_descriptor_t *td, const void *sptr, int ilevel,
 	if(!sptr) ASN__ENCODE_FAILED;
 
 	if(xcan) {
-		encs = (xer_tmp_enc_t *)MALLOC(list->count * sizeof(encs[0]));
+		/* MALLOC(0) may return NULL: an empty SET OF is no failure. */
+		encs = (xer_tmp_enc_t *)MALLOC(
+			(list->count ? list->count : 1) * sizeof(encs[0]));
 		if(!encs) ASN__ENCODE_FAILED;
 		cb = SET_OF_encode_xer_callback;
 	}

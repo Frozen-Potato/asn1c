@@ -282,6 +282,38 @@ EOS
     fi
 }
 
+# The constructor New<T> of a struct with DEFAULT members is a package-level
+# name: a type named New<T> next to it is refused (exit 70) before any Go is
+# written.
+run_ctor_clash() {
+    work="$tmp/ctorclash"
+    mkdir -p "$work/c"
+    echo "== run-e2e: New<T> name clash =="
+    cat >"$work/cc.asn" <<'EOS'
+CC DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+X ::= SEQUENCE { a INTEGER (0..7) DEFAULT 3 }
+NewX ::= SEQUENCE { b BOOLEAN }
+END
+EOS
+    rc=0
+    (
+        cd "$work"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" cc.asn
+    ) >"$work/asn1c.log" 2>&1 || rc=$?
+    if [ "$rc" != 70 ] || ! grep -q 'collision in module CC: NewX <- X (constructor)' "$work/asn1c.log"; then
+        cat "$work/asn1c.log" >&2
+        echo "run-e2e: New<T> clash: exit $rc, want 70 naming NewX" >&2
+        return 1
+    fi
+    if [ -e "$work/go" ]; then
+        echo "run-e2e: New<T> clash wrote Go output" >&2
+        return 1
+    fi
+}
+
 # -pdu selects the PDU types that get Encode/Decode functions, as it selects
 # the C PDU table: no -pdu option acts as -pdu=auto, and each -pdu=<Type>
 # adds that type. A type defined as an instance of a parameterized type
@@ -725,6 +757,7 @@ run_rt_skeleton_sync() {
 run_cycle
 run_jer_clash
 run_uper_clash
+run_ctor_clash
 run_pdu_select
 run_post_c_restore
 run_outdir_safety

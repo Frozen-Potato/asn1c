@@ -35,6 +35,15 @@
       struct T, undefined in C; it is the instance's struct T_<line>P<index>.
       An instance held by another instance of the same type (T{T{BOOLEAN}})
       is written before it in the header.
+    * Go backend: a struct with DEFAULT members (or with a mandatory member
+      whose type has them) gets func New<T>() *T, which returns a value
+      holding every DEFAULT, so that its Encode leaves them out; the Go
+      zero value of such a struct is not its DEFAULT value. A type named
+      New<T> next to it is a collision (exit 70).
+    * C runtime: canonical XER of an empty SET OF allocated 0 bytes and
+      failed where malloc(0) returns NULL. The Go glue stored the length
+      of an OCTET STRING or BIT STRING value through an int, so a value of
+      2 GiB or more got a wrong size.
 
 0.9.29-go.16:
     * asn1fix: a parameterized type defined in one module and used from
