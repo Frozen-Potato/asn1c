@@ -325,6 +325,15 @@ asn1c_type_name(arg_t *arg, asn1p_expr_t *expr, enum tnfmt _format) {
 			 * parameterized instances keep their historic name.
 			 */
 			exprid = terminal;
+		} else if(_format == TNF_RSAFE && typename && terminal
+			&& terminal->spec_index != -1 && terminal->_lineno
+			&& (terminal->expr_type & ASN_CONSTR_MASK)) {
+			/*
+			 * A specialization of a parameterized type
+			 * (SEQUENCE OF Pair{INTEGER}): "struct Pair_<N>P<k>",
+			 * the name of its definition, not of the template.
+			 */
+			exprid = terminal;
 		}
 
 		break;
@@ -433,6 +442,15 @@ asn1c_type_name(arg_t *arg, asn1p_expr_t *expr, enum tnfmt _format) {
 		return asn1c_make_identifier(stdname ? 0 : AMI_USE_PREFIX, exprid,
 				exprid?"t":typename, exprid?0:"t", (char*)0);
 	case TNF_RSAFE:	/* Recursion-safe type */
+		if(exprid && exprid->spec_index != -1 && exprid->_lineno) {
+			char *id = strdup(asn1c_make_identifier(0, exprid, (char *)0));
+			const char *r;
+			if(!id) return NULL;
+			r = asn1c_make_identifier(AMI_CHECK_RESERVED | AMI_NODELIMITER,
+				0, "struct", " ", prefix, id, (char *)0);
+			free(id);
+			return r;
+		}
 		return asn1c_make_identifier(AMI_CHECK_RESERVED | AMI_NODELIMITER, 0,
 			"struct", " ", prefix, MODULE_NAME_OF(exprid), typename, (char*)0);
 	}

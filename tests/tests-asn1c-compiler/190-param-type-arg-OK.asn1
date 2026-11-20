@@ -1,0 +1,23 @@
+-- OK: specializations of parameterized types whose actual parameter is a
+-- named type (T{Item}), another specialization (L{T{Item}}, T{T{BOOLEAN}}),
+-- or a type that differs from another one only in its constraint
+-- (T{INTEGER (0..7)}, T{INTEGER (0..3)}), and a SEQUENCE OF a
+-- specialization. Each is its own C type named <T>_<line>P<index>: the one
+-- of T{Item} is not named Item (the name of the type that is the
+-- parameter), the element of a SEQUENCE OF T{INTEGER} is struct
+-- T_<line>P<index>, not the template's struct T, and T{BOOLEAN} comes
+-- before T{T{BOOLEAN}}, which holds it.
+
+K190 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+T{X} ::= SEQUENCE { v X }
+L{X} ::= SEQUENCE (SIZE(1..4)) OF X
+Item ::= SEQUENCE { k INTEGER (0..9) }
+M ::= SEQUENCE {
+    a T{Item},
+    b L{T{Item}},
+    c SEQUENCE OF T{INTEGER},
+    d T{INTEGER (0..7)},
+    e T{INTEGER (0..3)},
+    f T{T{BOOLEAN}}
+}
+END

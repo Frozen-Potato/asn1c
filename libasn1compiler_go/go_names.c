@@ -3151,6 +3151,7 @@ static void emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
 static void emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
                                   const char *x_cid, const char *parent_path);
 static int field_shaped_element(struct walk_ctx *ctx, asn1p_expr_t *elem);
+static int plain_clone(struct walk_ctx *ctx, asn1p_expr_t *t);
 
 
 /* emit_spec: the specialization names. X is the type's goName; the
@@ -5739,7 +5740,8 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         asn1p_expr_t *elem = TQ_FIRST(&terminal->members);
         int named_top_level_seqof =
             terminal != child
-            && !(terminal->lhs_params || terminal->spec_index >= 0);
+            && (!(terminal->lhs_params || terminal->spec_index >= 0)
+                || plain_clone(ctx, terminal));
         if(elem && !named_top_level_seqof
            && (go_construct_is_open_type(elem)
                || (elem->meta_type == AMT_TYPEREF
@@ -5848,7 +5850,8 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         /* Flat: a named-ref member slot (tk SEQ OF with no container clone =
          * the nested {items,count} A2 form; anything else = the terminal's
          * own <X>_flat, starred as decided). */
-        if(tk == GO_CONSTR_SEQUENCE_OF && terminal->spec_index >= 0) {
+        if(tk == GO_CONSTR_SEQUENCE_OF && terminal->spec_index >= 0
+           && !plain_clone(ctx, terminal)) {
             /* a param-container CLONE: the Flat is the nested
              * {items,count} A2 form (the clone never surfaces as a named
              * Flat of its own). */
@@ -5971,6 +5974,38 @@ field_shaped_element(struct walk_ctx *ctx, asn1p_expr_t *elem) {
     return t && is_field_shaped_spec(t) != NULL;
 }
 
+/* plain_clone: a specialization of a parameterized type that is not an
+ * information object container: a SEQUENCE / CHOICE that is not field-shaped
+ * (T{X} ::= SEQUENCE { v X }), or a SEQUENCE OF / SET OF whose element is
+ * neither an open type nor a field-shaped specialization (L{X} ::= SEQUENCE
+ * OF X). asn1c emits it as an ordinary named C type (T_<N>P<k>_t); the Go
+ * side names it like any top-level type assignment (go_type_go of the clone:
+ * T<N>P<k>). Container clones keep the inline <Parent><Member> slice. */
+static int
+plain_clone(struct walk_ctx *ctx, asn1p_expr_t *t) {
+    if(!t || t->spec_index < 0) return 0;
+    go_construct_e k = go_construct_classify(t);
+    if(k == GO_CONSTR_SEQUENCE) return is_field_shaped_spec(t) == NULL;
+    if(k == GO_CONSTR_CHOICE) return 1;
+    if(k == GO_CONSTR_SEQUENCE_OF) {
+        asn1p_expr_t *elem = TQ_FIRST(&t->members);
+        if(!elem || go_construct_is_open_type(elem)) return 0;
+        if(elem->meta_type == AMT_TYPEREF && elem->expr_type == A1TC_REFERENCE
+           && field_shaped_element(ctx, elem))
+            return 0;
+        return 1;
+    }
+    switch(k) {
+    case GO_CONSTR_ENUMERATED: case GO_CONSTR_BIT_STRING:
+    case GO_CONSTR_OCTET_STRING: case GO_CONSTR_INTEGER:
+    case GO_CONSTR_BOOLEAN: case GO_CONSTR_NULL: case GO_CONSTR_REAL:
+    case GO_CONSTR_OID: case GO_CONSTR_STRING:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 /* Iterate one struct's members. The member path passed to walk_names_child is
  * parent_path + "." + child name (the ASN.1 dotted path). */
 static int
@@ -6087,11 +6122,16 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * — mint their own names in their defining module during their own walks),
      * and a field-shaped clone mints R2(X) in X's module (see emit_spec below).
      * `spec_index >= 0` marks a clone (a hand-authored top-level assignment keeps
-     * spec_index == -1 via the lhs_params check). Refuse here so a container clone
+     * spec_index == -1 via the lhs_params check). A plain_clone (T{X} ::=
+     * SEQUENCE { v X } as T{INTEGER}) is the exception: it is named like any
+     * top-level type assignment (T<N>P<k>) and walked below, but it is never
+     * a PDU (asn1c lists no specialization in pdu_collection.c). Refuse here so a container clone
      * (ProtocolIE-Container / -ContainerPair specializations — a SEQUENCE OF
      * field-element) does not leak a `type` row + member `field` rows into the
      * template's module. */
-    if(expr->spec_index >= 0 && !(k == GO_CONSTR_SEQUENCE && is_field_shaped_spec(terminal))) {
+    if(expr->spec_index >= 0
+       && !(k == GO_CONSTR_SEQUENCE && is_field_shaped_spec(terminal))
+       && !(expr == terminal && plain_clone(ctx, expr))) {
         free(type_cid);
         free(type_path);
         free(type_go);
@@ -6193,7 +6233,8 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                        || k == GO_CONSTR_OID
                        || k == GO_CONSTR_STRING
                        || k == GO_CONSTR_ENUMERATED);
-        if(lang_cb && !expr->lhs_params && go_pdu_selected(expr)) {
+        if(lang_cb && !expr->lhs_params && expr->spec_index < 0
+           && go_pdu_selected(expr)) {
             go_pdu_record(expr, GO_MKID(terminal));
         }
     }

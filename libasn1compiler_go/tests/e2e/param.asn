@@ -1,0 +1,34 @@
+Param DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Parameterized types that are not information object containers: a type
+-- parameter in a SEQUENCE, a CHOICE and a SEQUENCE OF, a value parameter in
+-- a SEQUENCE and in an INTEGER, a named type and an instance (also of the
+-- same template) as the actual parameter, and two actual parameters that
+-- differ only in their constraint (PPair{INTEGER (0..7)}, PPair{INTEGER
+-- (0..3)}). Each instance is its own C type (<Template>_<line>P<k>_t) and its
+-- own Go type (<Template><line>P<k>).
+
+PPair{X} ::= SEQUENCE { v X, w BOOLEAN OPTIONAL }
+POpt{X} ::= CHOICE { a X, b NULL, ... }
+PLst{X} ::= SEQUENCE (SIZE(1..4)) OF X
+PRng{INTEGER:hi} ::= SEQUENCE { n INTEGER (0..hi), ... }
+PSmall{INTEGER:hi} ::= INTEGER (0..hi)
+
+PItem ::= SEQUENCE { k INTEGER (0..9) }
+
+PMsg ::= SEQUENCE {
+    i  PPair{INTEGER (0..7)},
+    s  PPair{UTF8String},
+    c  POpt{OCTET STRING},
+    l  PLst{BOOLEAN},
+    li PLst{PPair{PItem}},
+    r  PRng{100},
+    sm PSmall{5},
+    o  PPair{PItem} OPTIONAL,
+    nn PPair{PPair{BOOLEAN}} OPTIONAL,
+    ...
+}
+
+PCh ::= CHOICE { p PPair{INTEGER (0..3)}, q POpt{PItem} }
+
+END

@@ -12,6 +12,29 @@
       types that use each other), made asn1c run until it ran out of
       memory. asn1c now stops with an error naming the type (exit 65).
       The specializations of one type may nest 64 deep.
+    * Go backend: a parameterized type that is not an information object
+      container (T{X} ::= SEQUENCE { v X }, a CHOICE, a SEQUENCE OF X, a
+      value parameter as in R{INTEGER:n} ::= INTEGER (0..n)) is now
+      supported: each instance is its own Go type, named after its C type
+      (T_5P0_t -> T5P0). Before, a member of such a type stopped generation
+      (exit 70). A type defined as an instance (Inst ::= T{INTEGER}) shares
+      the instance's functions (DecodeT5P0), like a type that renames
+      another; -pdu=Inst is no longer refused.
+    * asn1fix: an instance with a named type as its parameter (T{Item})
+      was named after the parameter (Item), a FATAL name clash with the
+      type Item. It keeps its T_<line>P<index> name; only an instance
+      whose parameter is an object set is named after it, as before.
+    * asn1fix: an instance with another instance as its parameter
+      (L{T{Item}}) held the template T instead of T{Item}, and two
+      instances that differ only in a constraint (T{INTEGER (0..7)} and
+      T{INTEGER (0..3)}) were taken for one, so the second was encoded
+      with the constraint of the first. PER and OER of such a member
+      change.
+    * libasn1compiler: the element of a SEQUENCE OF an instance of a
+      parameterized type (SEQUENCE OF T{INTEGER}) was the template's
+      struct T, undefined in C; it is the instance's struct T_<line>P<index>.
+      An instance held by another instance of the same type (T{T{BOOLEAN}})
+      is written before it in the header.
 
 0.9.29-go.16:
     * asn1fix: a parameterized type defined in one module and used from

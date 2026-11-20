@@ -34,9 +34,8 @@ reproducible.
 `-pdu` picks the PDU types, the same ones as in the C PDU table: `-pdu=auto`
 (also when no `-pdu` option is given) every type no other type refers to,
 `-pdu=all` every type, and each `-pdu=<Type>` adds that type. A type that only
-renames another (`B ::= A`) shares A's functions (`DecodeA`). A `-pdu=<Type>`
-that gets no functions (an instance of a parameterized type, see
-KNOWN-ISSUES 66) is refused (exit 70).
+renames another (`B ::= A`, `Inst ::= T{INTEGER}`) shares its functions
+(`DecodeA`, `DecodeT5P0`).
 
 `-no-gen-OER` is the supported configuration. Trees generated with OER on also
 build and work; the generated Go API has no OER functions.
@@ -285,6 +284,7 @@ with `rt.ErrDepth`.
 | Extension addition | always a pointer, `OPTIONAL` or not; `nil` = absent |
 | `[[ ]]` group | one field `Ext<N> *<T>Ext<N>`, N counting the groups of that SEQUENCE from 1 |
 | DEFAULT member | plain value plus an exported `<Type><Field>Default` constant (or `var`); for a SEQUENCE / SET / SEQUENCE OF / SET OF value a func `<Type><Field>Default()` returning a new value |
+| Instance of a parameterized type (`T{INTEGER}`, `L{Item}`, `R{10}`) | its own named type, named after its C type: `T{X} ::= SEQUENCE { v X }` on line 5 used as `T{INTEGER}` and `T{UTF8String}` gives `T_5P0_t` / `T_5P1_t` in C and `T5P0` / `T5P1` in Go (`<Template><line>P<index>`, the index counting the template's distinct instances in the order asn1c makes them). An instance whose parameter is an object set (`ProtocolIE-Field {{ItemIEs}}`) is named after the object set, as in C |
 
 Unnamed leaf elements of a SEQUENCE OF map as `[]int64`, `[]bool`, `[]float64`,
 `[][]byte`, `[]BitString`, `[]string`, `[][]uint64`, `[]struct{}`. ENUMERATED

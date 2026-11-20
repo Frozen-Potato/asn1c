@@ -99,6 +99,31 @@ asn1_compile(asn1p_t *asn, const char *datadir, const char *destdir, enum asn1c_
 	return 0;
 }
 
+/*
+ * Compile specialization i of the parameterized type expr, after the ones
+ * made while fixing it: T{T{INTEGER}} holds T{INTEGER}, and the C type of a
+ * member must come before its use in the header they share.
+ */
+static int
+asn1c_compile_specialization(arg_t *arg, asn1p_expr_t *expr, int i,
+							 char *done,
+							 const asn1c_ioc_table_and_objset_t *opt_ioc) {
+	asn1p_expr_t *clone = expr->specializations.pspec[i].my_clone;
+	int j, ret;
+
+	if(done[i]) return 0;
+	done[i] = 1;
+	for(j = 0; j < expr->specializations.pspecs_count; j++) {
+		if(!done[j]
+		   && expr->specializations.pspec[j].my_clone->spec_parent == clone) {
+			ret = asn1c_compile_specialization(arg, expr, j, done, opt_ioc);
+			if(ret) return ret;
+		}
+	}
+	arg->expr = clone;
+	return asn1c_compile_expr(arg, opt_ioc);
+}
+
 static int
 asn1c_compile_expr(arg_t *arg, const asn1c_ioc_table_and_objset_t *opt_ioc) {
 	asn1p_expr_t *expr = arg->expr;
@@ -125,12 +150,15 @@ asn1c_compile_expr(arg_t *arg, const asn1c_ioc_table_and_objset_t *opt_ioc) {
 				expr->specializations.pspecs_count
 				? "compiling" : "unused, skipping",
 				expr->specializations.pspecs_count);
+			char *done = calloc(
+				expr->specializations.pspecs_count + 1, 1);
+			if(!done) return -1;
 			for(i = 0; i<expr->specializations.pspecs_count; i++) {
-				arg->expr = expr->specializations
-						.pspec[i].my_clone;
-				ret = asn1c_compile_expr(arg, opt_ioc);
+				ret = asn1c_compile_specialization(arg, expr, i,
+												   done, opt_ioc);
 				if(ret) break;
 			}
+			free(done);
 			arg->expr = expr;	/* Restore */
 		} else {
 			ret = type_cb(arg);

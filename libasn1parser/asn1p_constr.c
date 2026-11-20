@@ -22,6 +22,12 @@ asn1p_constraint_set_source(asn1p_constraint_t *ct,
     }
 }
 
+static int
+constraint_value_compare(const asn1p_value_t *a, const asn1p_value_t *b) {
+	if(!a || !b) return (a == b) ? 0 : -1;
+	return asn1p_value_compare(a, b) ? -1 : 0;
+}
+
 int asn1p_constraint_compare(const asn1p_constraint_t *a,
                              const asn1p_constraint_t *b) {
     assert((a && b));
@@ -34,6 +40,25 @@ int asn1p_constraint_compare(const asn1p_constraint_t *a,
         return strcmp(a->containedSubtype->value.v_type->reference->components[0].name,
                       b->containedSubtype->value.v_type->reference->components[0].name);
     }
+
+	/*
+	 * Everything else by value: two specializations T{INTEGER (0..7)} and
+	 * T{INTEGER (0..3)} of a parameterized type are not the same one.
+	 */
+	if(a->presence != b->presence
+	   || constraint_value_compare(a->containedSubtype, b->containedSubtype)
+	   || constraint_value_compare(a->value, b->value)
+	   || constraint_value_compare(a->range_start, b->range_start)
+	   || constraint_value_compare(a->range_stop, b->range_stop)
+	   || a->el_count != b->el_count)
+		return -1;
+	for(unsigned int i = 0; i < a->el_count; i++) {
+		if((a->elements[i] == NULL) != (b->elements[i] == NULL))
+			return -1;
+		if(a->elements[i]
+		   && asn1p_constraint_compare(a->elements[i], b->elements[i]))
+			return -1;
+	}
 
     return 0;
 }

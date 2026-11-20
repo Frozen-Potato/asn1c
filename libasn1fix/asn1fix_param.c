@@ -16,6 +16,7 @@ typedef struct resolver_arg {
 	asn1p_paramlist_t *lhs_params;
 	asn1p_expr_t	  *rhs_pspecs;
 	char		  *resolved_name;
+	int           target_governed;    /* the last target's parameter has a governor */
 } resolver_arg_t;
 
 static asn1p_expr_t *resolve_expr(asn1p_expr_t *, void *resolver_arg);
@@ -30,6 +31,21 @@ is_specialization_of(const asn1p_expr_t *clone, const asn1p_expr_t *expr) {
 	return clone->spec_index >= 0
 		&& clone->spec_index < expr->specializations.pspecs_count
 		&& expr->specializations.pspec[clone->spec_index].my_clone == clone;
+}
+
+/* Whether expr is a reference to one of the parameters (v X in T{X}). */
+static int
+is_dummy_reference(const asn1p_expr_t *expr, const asn1p_paramlist_t *params) {
+	int i;
+	if(!expr || !params || expr->meta_type != AMT_TYPEREF || !expr->reference
+	   || expr->reference->comp_count != 1)
+		return 0;
+	for(i = 0; i < params->params_count; i++)
+		if(params->params[i].argument
+		   && strcmp(params->params[i].argument,
+					 expr->reference->components[0].name) == 0)
+			return 1;
+	return 0;
 }
 
 asn1p_expr_t *
@@ -96,6 +112,7 @@ asn1f_parameterization_fork(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_t *rhs_ps
 	rarg.lhs_params = expr->lhs_params;
 	rarg.rhs_pspecs = rhs_pspecs;
 	rarg.resolved_name = NULL;
+	rarg.target_governed = 0;
 	exc = asn1p_expr_clone_with_resolver(expr, resolve_expr, &rarg);
 	if(!exc) return NULL;
 	if(rarg.resolved_name) {
@@ -129,6 +146,12 @@ asn1f_parameterization_fork(arg_t *arg, asn1p_expr_t *expr, asn1p_expr_t *rhs_ps
 
 	target = TQ_FIRST(&expr->members);
 	TQ_FOR(m, &exc->members, next) {
+		/*
+		 * A member that is a parameter (v X) became the actual
+		 * parameter, with the actual parameters of its own if any
+		 * (resolve_expr): it takes none of this specialization's.
+		 */
+		if(!m->rhs_pspecs && !is_dummy_reference(target, expr->lhs_params))
 		m->rhs_pspecs = asn1p_expr_clone_with_resolver(target->rhs_pspecs ?
 						target->rhs_pspecs : exc->rhs_pspecs,
 						resolve_expr, &rarg);
@@ -185,10 +208,24 @@ resolve_expr(asn1p_expr_t *expr_to_resolve, void *resolver_arg) {
 		DEBUG("Target is a simple type %s",
 			ASN_EXPR_TYPE2STR(expr->expr_type));
 		nex = asn1p_expr_clone(expr, 0);
+		/*
+		 * An actual parameter that is itself a specialization
+		 * (Lst{Pair{Item}}) keeps its own actual parameters ({Item}).
+		 */
+		if(nex && expr->rhs_pspecs && !nex->rhs_pspecs)
+			nex->rhs_pspecs = asn1p_expr_clone(expr->rhs_pspecs, 0);
 		free(nex->Identifier);
 		nex->Identifier = expr_to_resolve->Identifier
 			? strdup(expr_to_resolve->Identifier) : 0;
-		if(expr->meta_type == AMT_TYPEREF) {
+		/*
+		 * Name the specialization after its actual parameter only when the
+		 * parameter has a governor (an object set, or a value set:
+		 * ProtocolIE-Field {{ItemIEs}} becomes ItemIEs). A type parameter
+		 * (T{X} ::= SEQUENCE { v X } as T{Item}) keeps the
+		 * <T>_<line>P<index> name: Item would be the name of the type that
+		 * is the parameter, which the specialization is not.
+		 */
+		if(expr->meta_type == AMT_TYPEREF && rarg->target_governed) {
 			asn1p_ref_t *ref = expr->reference;
 			rarg->resolved_name = ref->components[ref->comp_count - 1].name;
 		} else if(expr->meta_type == AMT_VALUESET) {
@@ -253,6 +290,7 @@ find_target_specialization_bystr(resolver_arg_t *rarg, char *refstr) {
 		if(strcmp(param->argument, refstr))
 			continue;
 
+		rarg->target_governed = (param->governor != NULL);
 		return target;
 	}
 	if(i != rarg->lhs_params->params_count) {
