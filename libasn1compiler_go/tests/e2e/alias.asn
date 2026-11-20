@@ -1,0 +1,38 @@
+AliasTypes DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+-- Type assignments that only rename another type. Each is a PDU of its
+-- own, as in the C PDU table: its Encode / Decode functions use its own C
+-- descriptor (its own tag and XER name), over the converters of the type it
+-- renames. A SEQUENCE, SET or CHOICE alias is a Go defined type over the
+-- target (type AlSeqA AlSeq); the others keep their own declaration.
+
+AlSeq ::= SEQUENCE { id INTEGER (0..255), flag BOOLEAN OPTIONAL, ... }
+AlSeqA ::= AlSeq
+AlSeqT ::= [APPLICATION 5] AlSeq
+AlSeqAA ::= AlSeqA
+AlSet ::= SET { x INTEGER (0..7), y BOOLEAN }
+AlSetA ::= AlSet
+AlCh ::= CHOICE { a INTEGER (0..3), b BOOLEAN, ... }
+AlChA ::= AlCh
+AlEn ::= ENUMERATED { x, y, z }
+AlEnA ::= AlEn
+AlLst ::= SEQUENCE (SIZE(1..4)) OF INTEGER (0..7)
+AlLstA ::= AlLst
+AlNum ::= INTEGER (0..10)
+AlNumA ::= AlNum
+AlP{X} ::= SEQUENCE { v X }
+AlInst ::= AlP{BOOLEAN}
+
+-- An ENUMERATED and a CHOICE alias as members: their C descriptors used to
+-- carry no PER constraints, so this PDU could not be PER-encoded at all.
+AlMem ::= SEQUENCE { e AlEnA, c AlChA }
+
+END
+
+AliasOther DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+IMPORTS AlSeq, AlCh FROM AliasTypes;
+
+-- aliases of types of another module
+AlXSeq ::= AlSeq
+AlXCh ::= AlCh
+END

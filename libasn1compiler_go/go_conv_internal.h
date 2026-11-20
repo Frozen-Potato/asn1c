@@ -94,7 +94,15 @@ typedef struct { char *node_cid, *alt_token; } conv_null_alt;
 extern conv_null_alt *g_conv_nullalts;
 extern int g_conv_n_nullalts, g_conv_cap_nullalts;
 
-typedef struct { char *cid; } conv_pdu;
+/* A PDU root. cid is the Flat node whose converters the entry points use.
+ * For a type assignment that only renames another (Alias ::= Msg, also
+ * tagged), alias_cid is the assignment's own C name: its entry points are
+ * asn1cgo_*_<alias_cid> on asn_DEF_<alias_cid>, alias_go its Go type,
+ * alias_label its ASN.1 name and alias_module its module; NULL otherwise. */
+typedef struct {
+    char *cid;
+    char *alias_cid, *alias_go, *alias_label, *alias_module;
+} conv_pdu;
 extern conv_pdu *g_conv_pdus;
 extern int g_conv_n_pdus, g_conv_cap_pdus;
 

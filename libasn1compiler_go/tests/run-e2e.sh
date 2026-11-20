@@ -74,7 +74,7 @@ run_one() {
             ex.asn ioc.asn default.asn nsmall.asn bits.asn seqof.asn \
             inlconstr.asn padalloc.asn extwide.asn strings.asn oids.asn \
             extgroup.asn names.asn xmod.asn choice.asn set.asn real32.asn \
-            iocforms.asn iocinline.asn param.asn
+            iocforms.asn iocinline.asn param.asn alias.asn
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: asn1c failed" >&2; return 1; }
 
 
@@ -104,6 +104,7 @@ run_one() {
        "$here/e2e/iocforms_test.go" \
        "$here/e2e/iocinline_test.go" \
        "$here/e2e/param_test.go" \
+       "$here/e2e/alias_test.go" \
        "$here/e2e/randenc_test.go" \
        "$here/e2e/uper_test.go" \
        "$here/e2e/uper_faults_test.go" \
@@ -317,7 +318,7 @@ EOS
 # -pdu selects the PDU types that get Encode/Decode functions, as it selects
 # the C PDU table: no -pdu option acts as -pdu=auto, and each -pdu=<Type>
 # adds that type. A type defined as an instance of a parameterized type
-# (Inst ::= T{INTEGER}) shares the instance's functions (DecodeT5P0).
+# (Inst ::= T{INTEGER}) has functions of its own (DecodeInst).
 run_pdu_select() {
     echo "== run-e2e: -pdu=<Type> selection =="
     cat >"$tmp/pdusel.asn" <<'EOS'
@@ -329,7 +330,7 @@ T{X} ::= SEQUENCE { v X }
 Inst ::= T{INTEGER}
 END
 EOS
-    for sel in "none:DecodeMsg DecodeOtherPDU:DecodeInner" \
+    for sel in "none:DecodeMsg DecodeOtherPDU DecodeInst:DecodeInner DecodeT5P0" \
                "-pdu=Inner:DecodeInner DecodeUPERInner:DecodeMsg DecodeOtherPDU" \
                "-pdu=Inner -pdu=Other-PDU:DecodeInner DecodeOtherPDU:DecodeMsg" \
                "-pdu=auto -pdu=Inner:DecodeMsg DecodeOtherPDU DecodeInner:"; do
@@ -368,7 +369,7 @@ EOS
             -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
             -pdu=Inst -D "$work/c" -Fgo="$work/go" "$tmp/pdusel.asn"
     ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: -pdu=Inst: asn1c failed" >&2; return 1; }
-    for f in DecodeT5P0 DecodeUPERT5P0; do
+    for f in DecodeInst DecodeUPERInst; do
         grep -q "^func $f(" "$work/go/ps/glue.go" || { echo "run-e2e: -pdu=Inst: no $f" >&2; return 1; }
     done
     (

@@ -67,6 +67,9 @@ void go_conv_record_null_alt(const char *node_cid, const char *alt_token);
 /* Record a PDU root (cid prefixed or bare). The caller mirrors asn1c's
  * -pdu=auto membership rule over the same AST. */
 void go_conv_record_pdu(const char *cid);
+void go_conv_record_pdu_alias(const char *target_cid, const char *alias_cid,
+                              const char *alias_go, const char *alias_label,
+                              const char *alias_module);
 
 /* Record a wide-INTEGER leaf (asn1c INTEGER_t, sized per the wide-INTEGER rule to
  * uint64/int64): its converters use the asn_umax2INTEGER /

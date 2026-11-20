@@ -1,15 +1,14 @@
 // Aliases of a CHOICE (tests/e2e/choice.asn, built with
-// -findirect-choice). C has only `typedef Orig_t Alias_t;`, so the generated
-// converters of Alias, Alias2, RichA and RichA2 must spell the target's
-// Orig_PR enum and Orig__t2 struct tags: building this module is the first
-// check (C used to reject Alias_PR and struct Alias__t2).
+// -findirect-choice). C has only `typedef Orig_t Alias_t;`; Go declares each
+// alias as a defined type over the target (`type Alias Orig`), and a member
+// of an alias type is a field of the target type.
 //
-// The C descriptor of such an alias carries no PER codec, so Wrap and L (the
-// PDUs holding the aliases) cannot be APER-encoded, by Go or by the C
-// converter alike; they are compared as XER instead: the XER the generated
-// glue prints for each value must equal the C converter's XER of the same
-// document. Copied into the aliaschoice package directory by
-// tests/run-e2e.sh (the XER entry points are unexported).
+// Wrap and L hold the aliases: the XER the generated glue prints for each
+// value must equal the C converter's XER of the same document (their APER
+// is checked by randenc_test.go; the C descriptor of a CHOICE alias used to
+// carry no PER constraints, so they could not be APER-encoded). Copied into
+// the aliaschoice package directory by tests/run-e2e.sh (the XER entry
+// points are unexported).
 package aliaschoice
 
 import (

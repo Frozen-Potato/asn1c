@@ -44,6 +44,15 @@
       failed where malloc(0) returns NULL. The Go glue stored the length
       of an OCTET STRING or BIT STRING value through an int, so a value of
       2 GiB or more got a wrong size.
+    * libasn1compiler: the descriptor of an alias of an ENUMERATED or a
+      CHOICE (EA ::= E) carried no PER and OER constraints, so a type
+      holding one could not be PER-encoded at all. It now carries them.
+    * Go backend: a type that only renames a SEQUENCE, SET or CHOICE
+      (B ::= A, also tagged) is now `type B A` instead of an empty struct
+      (SEQUENCE) or a copy of A with its own constants (CHOICE). A type
+      that renames another, of any kind, is a PDU of its own as in the C
+      PDU table: DecodeB and (*B).Encode use B's descriptor (its tag and
+      XER name), where they were A's functions before.
 
 0.9.29-go.16:
     * asn1fix: a parameterized type defined in one module and used from

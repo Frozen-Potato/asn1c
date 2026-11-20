@@ -293,6 +293,10 @@ struct name_row {
      * which sets every DEFAULT member (and every mandatory member of a type
      * that has such a func) — see mark_ctors. */
     int has_ctor;
+    /* GK_TYPE rows of a type assignment that only renames a SEQUENCE, SET
+     * or CHOICE (Alias ::= Msg): the Go type it is declared as
+     * (`type Alias Msg`), package-qualified after the walk. */
+    char *alias_of;
     /* GK_FIELD rows of a struct with has_ctor: the ord of the member's
      * GK_DEFAULT_VALUE row (ctor_dflt) or of the struct row of its type when
      * that type has a constructor (ctor_type); -1 when neither. */
@@ -990,6 +994,10 @@ add_row(struct name_bag *b, const char *module,
     b->rows[b->n_rows].dflt_field_row = -1;
     b->rows[b->n_rows].bit_group = 0;
     b->rows[b->n_rows].bit_type = NULL;
+    b->rows[b->n_rows].has_ctor = 0;
+    b->rows[b->n_rows].alias_of = NULL;
+    b->rows[b->n_rows].ctor_dflt = -1;
+    b->rows[b->n_rows].ctor_type = -1;
     b->rows[b->n_rows].ord = b->n_rows;
     b->n_rows++;
 }
@@ -1320,6 +1328,11 @@ collect_module_imports(struct name_bag *b, const char *module,
             const char *dot = ft ? strchr(ft, '.') : NULL;
             if(dot)
                 NOTE_IMPORT(ft, (size_t)(dot - ft));
+        } else if(c->kind == GK_TYPE && c->alias_of) {
+            /* type AlX pkg.AlSeq */
+            const char *dot = strchr(c->alias_of, '.');
+            if(dot)
+                NOTE_IMPORT(c->alias_of, (size_t)(dot - c->alias_of));
         }
     }
     #undef NOTE_IMPORT
@@ -1577,6 +1590,18 @@ go_emit_module_decls(FILE *out, const char *module) {
                         break;
                     }
                     rc = go_types_emit_slice(out, r->goName, r->slice_elem);
+                    prev_block = 0;
+                    wrote_any = 1;
+                    break;
+                }
+                if(r->alias_of && *r->alias_of) {
+                    /* Alias ::= Msg: a defined type over the target */
+                    if((prev_block || !wrote_any) && fputs("\n", out) < 0) {
+                        rc = -1;
+                        break;
+                    }
+                    if(fprintf(out, "type %s %s\n", r->goName, r->alias_of) < 0)
+                        rc = -1;
                     prev_block = 0;
                     wrote_any = 1;
                     break;
@@ -1862,6 +1887,26 @@ go_pdu_record(const asn1p_expr_t *expr, const char *cid) {
         if(!go_pdu_names[i].cid
            && strcmp(go_pdu_names[i].name, expr->Identifier) == 0) {
             go_pdu_names[i].cid = strdup(cid);
+            assert(go_pdu_names[i].cid);
+        }
+}
+
+/* go_pdu_record_alias: record a type assignment that only renames another
+ * (Alias ::= Msg, also tagged, also of an instance of a parameterized type)
+ * as a PDU of its own: entry points on its own descriptor asn_DEF_<alias_cid>
+ * over the converters of the type it renames (target_cid), Go API on its
+ * own Go type alias_go. */
+static void
+go_pdu_record_alias(const asn1p_expr_t *expr, const char *alias_cid,
+                    const char *target_cid, const char *alias_go,
+                    const char *module) {
+    go_conv_record_pdu_alias(target_cid, alias_cid, alias_go,
+                             expr->Identifier, module);
+    if(!go_pdu_named(expr)) return;
+    for(size_t i = 0; i < go_n_pdu_names; i++)
+        if(!go_pdu_names[i].cid
+           && strcmp(go_pdu_names[i].name, expr->Identifier) == 0) {
+            go_pdu_names[i].cid = strdup(target_cid);
             assert(go_pdu_names[i].cid);
         }
 }
@@ -2520,6 +2565,7 @@ done:
             free(bag.rows[j].field_type);
             free(bag.rows[j].sf_owner);
             free(bag.rows[j].slice_elem);   /* owned copy (row_set_slice_elem) */
+            free(bag.rows[j].alias_of);
             free(bag.rows[j].dflt_lit);
             free(bag.rows[j].dflt_owner);
             free(bag.rows[j].dflt_field);
@@ -4377,6 +4423,13 @@ static void
 qualify_slice_elems(struct name_bag *b) {
     for(int i = 0; i < b->n_rows; i++) {
         struct name_row *r = &b->rows[i];
+        /* the target of an alias of a constructed type (type Alias Msg) */
+        if(r->kind == GK_TYPE && r->alias_of && *r->alias_of
+           && !strchr(r->alias_of, '.')) {
+            char *q = qualify_type(b, r->module, r->alias_of);
+            free(r->alias_of);
+            r->alias_of = q;
+        }
         if(r->kind != GK_TYPE && r->kind != GK_INLINE) continue;
         if(!r->slice_elem) continue;
         const char *t = r->slice_elem;
@@ -6459,6 +6512,26 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
         return 0;
     }
 
+    /* A type assignment that only renames a SEQUENCE, SET or CHOICE
+     * (Alias ::= Msg, TAlias ::= [APPLICATION 5] Msg, Inst ::= T{INTEGER}):
+     * C has `typedef Msg_t Alias_t;` and its own descriptor asn_DEF_Alias
+     * (its own tags, name and constraints). Go declares `type Alias Msg`
+     * (no Flat of its own, no member names) and gives it its own
+     * Encode/Decode functions on asn_DEF_Alias over Msg's converters. A
+     * member of type Alias is a Msg field, as before. */
+    if(terminal != expr
+       && (k == GO_CONSTR_SEQUENCE || k == GO_CONSTR_CHOICE)) {
+        emit_name(ctx->bag, ctx->module, type_path, GK_TYPE,
+                  type_cid ? strdup(type_cid) : strdup(""), strdup(type_go));
+        ctx->bag->rows[ctx->bag->n_rows - 1].alias_of = go_type_go(terminal);
+        if(!expr->lhs_params && expr->spec_index < 0 && go_pdu_selected(expr))
+            go_pdu_record_alias(expr, type_cid, GO_MKID(terminal), type_go,
+                                ctx->module);
+        free(type_cid);
+        free(type_go);
+        return 0;
+    }
+
     /* For a SEQUENCE/CHOICE/ENUM the type row's goName both goes in the dump
      * and parents the member names; emit it after computing k so a failed
      * classify doesn't leave a half-name. The member path root is `ident`. The
@@ -6483,7 +6556,11 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                        || k == GO_CONSTR_ENUMERATED);
         if(lang_cb && !expr->lhs_params && expr->spec_index < 0
            && go_pdu_selected(expr)) {
-            go_pdu_record(expr, GO_MKID(terminal));
+            if(terminal != expr)    /* NumA ::= Num: its own descriptor */
+                go_pdu_record_alias(expr, type_cid, GO_MKID(terminal),
+                                    type_go, ctx->module);
+            else
+                go_pdu_record(expr, GO_MKID(terminal));
         }
     }
     /* leaf-stage body data: a LEAF type assignment's declaration is

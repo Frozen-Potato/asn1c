@@ -288,8 +288,33 @@ go_conv_record_pdu(const char *cid) {
         g_conv_cap_pdus = nc;
     }
     for(int i = 0; i < g_conv_n_pdus; i++)
-        if(conv_cid_eq(g_conv_pdus[i].cid, cid)) return;
+        if(!g_conv_pdus[i].alias_cid && conv_cid_eq(g_conv_pdus[i].cid, cid))
+            return;
+    memset(&g_conv_pdus[g_conv_n_pdus], 0, sizeof g_conv_pdus[0]);
     g_conv_pdus[g_conv_n_pdus++].cid = cid_dup(cid);
+}
+
+void
+go_conv_record_pdu_alias(const char *target_cid, const char *alias_cid,
+                         const char *alias_go, const char *alias_label,
+                         const char *alias_module) {
+    if(g_conv_n_pdus + 1 > g_conv_cap_pdus) {
+        int nc = g_conv_cap_pdus ? g_conv_cap_pdus * 2 : 64;
+        conv_pdu *nr = realloc(g_conv_pdus, (size_t)nc * sizeof(conv_pdu));
+        if(!nr) { conv_failed_set(); return; }
+        g_conv_pdus = nr;
+        g_conv_cap_pdus = nc;
+    }
+    for(int i = 0; i < g_conv_n_pdus; i++)
+        if(g_conv_pdus[i].alias_cid
+           && conv_cid_eq(g_conv_pdus[i].alias_cid, alias_cid))
+            return;
+    conv_pdu *p = &g_conv_pdus[g_conv_n_pdus++];
+    p->cid = cid_dup(target_cid);
+    p->alias_cid = cid_dup(alias_cid);
+    p->alias_go = cstrdup(alias_go ? alias_go : "");
+    p->alias_label = cstrdup(alias_label ? alias_label : "");
+    p->alias_module = cstrdup(alias_module ? alias_module : "");
 }
 
 void

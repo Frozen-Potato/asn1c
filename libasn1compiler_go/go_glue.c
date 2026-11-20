@@ -3424,7 +3424,8 @@ emit_type_fn(flat_type *t) {
  * one path, on the C side: entry_decode's asn1cgo_arena_alloc(flat)
  * (go_entry.c). */
 static char *
-entry_go_wrapper(const char *kind, const char *go, const char *label,
+entry_go_wrapper(const char *kind, const char *go, const char *fngo,
+                 const char *pv, const char *label,
                  const char *tb, const char *fna, const char *root_sz,
                  const char *d0) {
     char *s;
@@ -3438,13 +3439,13 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
         s = cfmt("func xer%s(p *%s) ([]byte, error) {\n", go, go);
     { char *_cf = cfmt(
         "\tif p == nil {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
-        "\tfixed, payload, err := size%s(p%s)\n"
+        "\tfixed, payload, err := size%s(%s%s)\n"
         "\tif err != nil { return nil, err }\n"
         "\tfa, base := newBlockArena(fixed, uintptr(%s), payload)\n"
         "\tif fa == nil {\n\t\treturn nil, &rt.Error{Code: rt.CodeAlloc, TypeName: \"%s\"}\n\t}\n"
         "\tdefer C.asn1cgo_block_free(base)\n"
         "\troot := fa.allocStruct(uintptr(%s), alignInt64)\n"
-        "\tif err := fill%s(fa, root, p%s); err != nil {\n\t\treturn nil, err\n\t}\n"
+        "\tif err := fill%s(fa, root, %s%s); err != nil {\n\t\treturn nil, err\n\t}\n"
         "\tfa.exact(\"%s\")   /* consumed == reserved, exactly */\n"
         "\tvar cerr C.asn1cgo_err\n"
         "\tvar cbuf C.asn1cgo_buf\n"
@@ -3455,7 +3456,7 @@ entry_go_wrapper(const char *kind, const char *go, const char *label,
         "\tC.asn1cgo_buf_free(&cbuf)\n"
         "\treturn append([]byte(nil), out...), nil\n"
         "}\n\n",
-        label, go, d0, root_sz, label, root_sz, go, d0, label, kind, tb, fna);
+        label, fngo, pv, d0, root_sz, label, root_sz, fngo, pv, d0, label, kind, tb, fna);
       s = ca(s, _cf); free(_cf); }
     return s;
 }
@@ -3467,8 +3468,11 @@ extern int go_jer_enabled(void);
  * "jerdec"). */
 static char *
 pdu_decode_fn(const char *fn, const char *ent, const char *go,
-              const char *label, const char *fna, const char *tb) {
-    return gfmt(
+              const char *fngo, const char *label, const char *fna,
+              const char *tb) {
+    /* an alias returns its own Go type over the target's reader */
+    char *ret = strcmp(go, fngo) ? gfmt("(*%s)(v)", go) : strdup("v");
+    char *r = gfmt(
         "func %s%s(b []byte) (*%s, error) {\n"
         "\tif len(b) == 0 {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
         "\tvar cerr C.asn1cgo_err\n"
@@ -3482,21 +3486,41 @@ pdu_decode_fn(const char *fn, const char *ent, const char *go,
         "\tv, err := read%s(unsafe.Pointer(flat))\n"
         "\tC.asn1cgo_arena_free(arena)\n"
         "\tif err != nil { return nil, err }\n"
-        "\treturn v, nil\n"
+        "\treturn %s, nil\n"
         "}\n\n",
-        fn, go, go, label, fna, ent, tb, go);
+        fn, go, go, label, fna, ent, tb, fngo, ret);
+    free(ret);
+    return r;
 }
 
 /* one PDU root's API surface + its type fn queueing. `tb` = the
  * tree base (<P><cid>, the entry-point name suffix), `go` = the Go type. */
 static void
-emit_pdu_api(flat_type *rt_, gsb *src) {
+emit_pdu_api(flat_type *rt_, const conv_pdu *al, gsb *src) {
     char *tb = conv_tree_base(rt_);
-    char *go = gcamel_flat(go_flat_ir_name(rt_));
-    char *label = conv_type_label(rt_);
+    /* fngo: the base of the size/fill/read fns (the node's); go: the Go
+     * type of the API. An alias (Alias ::= Msg, type Alias Msg) has its own
+     * Go type and entry points and converts the pointer for the node's fns. */
+    char *fngo = gcamel_flat(go_flat_ir_name(rt_));
+    char *go = al ? strdup(al->alias_go) : strdup(fngo);
+    char *label = al ? strdup(al->alias_label) : conv_type_label(rt_);
+    char *pv;
+    if(al) {
+        const char *tm = go_flat_ir_module(rt_);
+        char *tpk = (tm && strcmp(tm, al->alias_module) != 0)
+                        ? gmodule_pkg(tm) : NULL;
+        char *tq = tpk ? gfmt("%s.%s", tpk, fngo) : strdup(fngo);
+        free(tpk);
+        pv = gfmt("(*%s)(p)", tq);
+        free(tq);
+        free(tb);
+        tb = gfmt("%s%s", asn1c_prefix() ? asn1c_prefix() : "", al->alias_cid);
+    } else {
+        pv = strdup("p");
+    }
     if(!tb || !*tb) {
         char *m2 = gfmt("PDU node %s has no tree base", go_flat_ir_name(rt_));
-        GFAIL(m2); free(m2); free(go); free(label);
+        GFAIL(m2); free(m2); free(go); free(label); free(fngo); free(pv);
         return;
     }
     emit_type_fn(rt_);
@@ -3516,26 +3540,26 @@ emit_pdu_api(flat_type *rt_, gsb *src) {
      * ONE shared body template (entry_go_wrapper). */
     char *root_sz = g_szconst(go_flat_ir_name(rt_));
     {
-        char *wb = entry_go_wrapper("encode", go, label, tb, fna, root_sz, d0);
+        char *wb = entry_go_wrapper("encode", go, fngo, pv, label, tb, fna, root_sz, d0);
         sb_am(src, wb);   /* gam frees wb */
     }
-    sb_am(src, pdu_decode_fn("Decode", "decode", go, label, fna, tb));
+    sb_am(src, pdu_decode_fn("Decode", "decode", go, fngo, label, fna, tb));
     {
-        char *wb = entry_go_wrapper("xer", go, label, tb, fna, root_sz, d0);
+        char *wb = entry_go_wrapper("xer", go, fngo, pv, label, tb, fna, root_sz, d0);
         sb_am(src, wb);   /* gam frees wb */
     }
     {
-        char *wb = entry_go_wrapper("uperenc", go, label, tb, fna, root_sz, d0);
+        char *wb = entry_go_wrapper("uperenc", go, fngo, pv, label, tb, fna, root_sz, d0);
         sb_am(src, wb);   /* gam frees wb */
-        sb_am(src, pdu_decode_fn("DecodeUPER", "uperdec", go, label, fna, tb));
+        sb_am(src, pdu_decode_fn("DecodeUPER", "uperdec", go, fngo, label, fna, tb));
     }
     if(go_jer_enabled()) {
-        char *wb = entry_go_wrapper("jerenc", go, label, tb, fna, root_sz, d0);
+        char *wb = entry_go_wrapper("jerenc", go, fngo, pv, label, tb, fna, root_sz, d0);
         sb_am(src, wb);   /* gam frees wb */
-        sb_am(src, pdu_decode_fn("DecodeJER", "jerdec", go, label, fna, tb));
+        sb_am(src, pdu_decode_fn("DecodeJER", "jerdec", go, fngo, label, fna, tb));
     }
     free(root_sz);
-    free(tb); free(go); free(label); free(fna);
+    free(tb); free(go); free(label); free(fna); free(fngo); free(pv);
 }
 
 /* The shared glue statics (blockArena + field helpers + goErr) — emitted
@@ -4053,7 +4077,10 @@ static int glue_foreign_modules(const char *mod, const char ***out) {
     return n_fm;
 }
 
-typedef struct { const char *module; const char *pkg; flat_type *root; } pdu_ent;
+typedef struct {
+    const char *module; const char *pkg; flat_type *root;
+    const conv_pdu *alias;   /* an alias PDU (Alias ::= Msg), or NULL */
+} pdu_ent;
 
 extern int go_names_rows_n(void);
 extern const char *go_names_row_module(int i);
@@ -4084,7 +4111,9 @@ static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
     int nrows = go_names_rows_n();
     char **go = calloc((size_t)(n_pdu ? n_pdu : 1), sizeof *go);
     if(!go) return 0;
-    for(int i = 0; i < n_pdu; i++) go[i] = gcamel_flat(go_flat_ir_name(pdus[i].root));
+    for(int i = 0; i < n_pdu; i++)
+        go[i] = pdus[i].alias ? strdup(pdus[i].alias->alias_go)
+                              : gcamel_flat(go_flat_ir_name(pdus[i].root));
     for(int i = 0; i < n_pdu; i++) {
         const char *mod = pdus[i].module;
         for(int v = 0; v < ncodec; v++) {
@@ -4162,6 +4191,8 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         if(!rt_) continue;
         const char *mod = go_flat_ir_module(rt_);
         if(!mod || !*mod) continue;
+        /* an alias PDU's API lives in the alias's own package */
+        if(g_conv_pdus[p].alias_cid) mod = g_conv_pdus[p].alias_module;
         if(n_pdu_e == cap_pdu_e) {
             cap_pdu_e = cap_pdu_e ? cap_pdu_e * 2 : 16;
             pdus = realloc(pdus, (size_t)cap_pdu_e * sizeof(pdu_ent));
@@ -4170,6 +4201,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         pdus[n_pdu_e].module = mod;
         pdus[n_pdu_e].pkg = NULL;
         pdus[n_pdu_e].root = rt_;
+        pdus[n_pdu_e].alias = g_conv_pdus[p].alias_cid ? &g_conv_pdus[p] : NULL;
         n_pdu_e++;
     }
     (void)n; (void)n_pdus;
@@ -4248,7 +4280,9 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         for(int i = 0; i < n_pdu_e; i++) {
             if(strcmp(pdus[i].module, mod) != 0) continue;
             flat_type *rt2 = pdus[i].root;
-            char *tb = conv_tree_base(rt2);
+            char *tb = pdus[i].alias
+                ? gfmt("%s%s", asn1c_prefix() ? asn1c_prefix() : "", pdus[i].alias->alias_cid)
+                : conv_tree_base(rt2);
             char *flatn = gown(go_flat_ir_name(rt2));
             if(!tb || !*tb || !*flatn) { free(tb); free(flatn); continue; }
             pdu_ext = gam(pdu_ext, gfmt(
@@ -4290,7 +4324,27 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             free(flatn);
         }
         /* the package flat header (all fn signatures' Flat types) */
-        char *flat_incs2 = gfmt("#include \"%s\"\n", flat_hdr);
+        /* a package of aliases only (AlX ::= AlSeq) has no Flat nodes and
+         * so no flat header of its own */
+        int own_flat = 0;
+        for(int i = 0; i < go_flat_ir_n_types() && !own_flat; i++) {
+            const char *tm = go_flat_ir_module(go_flat_ir_type(i));
+            if(tm && strcmp(tm, mod) == 0) own_flat = 1;
+        }
+        char *flat_incs2 = own_flat ? gfmt("#include \"%s\"\n", flat_hdr)
+                                    : strdup("");
+        /* the flat header of the target of an alias PDU of this package
+         * defined in another package (its Flat type types the externs) */
+        for(int i = 0; i < n_pdu_e; i++) {
+            if(!pdus[i].alias || strcmp(pdus[i].module, mod) != 0) continue;
+            const char *tm = go_flat_ir_module(pdus[i].root);
+            if(!tm || strcmp(tm, mod) == 0) continue;
+            char *tpk = gmodule_pkg(tm);
+            char *th = gfmt("#include \"%s%s_flat.h\"\n", pfx, tpk);
+            free(tpk);
+            if(!strstr(flat_incs2, th)) flat_incs2 = gam(flat_incs2, th);
+            else free(th);
+        }
         gsb sb = {0};
         sb_set(&sb, pkg_header(module_name, pkg, flat_hdr, flat_incs2, pdu_ext,
                                go_rt_module));
@@ -4304,7 +4358,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
          * transitively) */
         for(int i = 0; i < n_pdu_e && !glue_failed; i++) {
             if(strcmp(pdus[i].module, mod) != 0) continue;
-            emit_pdu_api(pdus[i].root, &sb);
+            emit_pdu_api(pdus[i].root, pdus[i].alias, &sb);
         }
         /* the owners' readers the Default funcs call */
         for(int k = 0, nd = go_names_dflt_n(); k < nd && !glue_failed; k++) {

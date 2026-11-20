@@ -32,8 +32,7 @@ Sq ::= SEQUENCE {
 SqA ::= Sq
 SqA2 ::= SqA
 
--- the C descriptor of an alias carries no PER codec: the aliases travel as
--- members of this PDU
+-- the aliases travel as members of this PDU
 Wrap ::= SEQUENCE { o Alias2, r RichA2, s SqA2 }
 
 END

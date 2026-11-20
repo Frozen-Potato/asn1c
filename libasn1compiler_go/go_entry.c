@@ -78,32 +78,36 @@ word_up(const char *w) {
 /* One PDU's entry points (encode/decode/xer/uperenc/uperdec, plus jerenc/jerdec with
  * -gen-JER), emitted text. entry_encode / entry_decode take the entry-point
  * name part, the ATS_* constant and the codec word of the messages. */
+/* eb: the entry-point name suffix and the asn_DEF_ base (tbasename, or an
+ * alias's own C name: Alias ::= Msg has asn_DEF_Alias on Msg's tree and
+ * converters); lbl: the type name in error messages. */
 static char *
 entry_encode(void *rt, const char *fbasename, const char *tbasename,
+             const char *eb, const char *lbl,
              const char *part, const char *ats, const char *word) {
-    char *label = conv_type_label(rt);   /* td->name display label */
+    char *label = cstrdup(lbl);   /* td->name display label */
     char *s = cstrdup("");
     { char *_cf = cfmt("/* ---- %s ---- */\n", part); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("int asn1cgo_%s_%s(\n"
                    "        const %s_flat *in,\n"
                    "        asn1cgo_buf *out, asn1cgo_err *err) {\n",
-                   part, tbasename, fbasename); s = ca(s, _cf); free(_cf); }
+                   part, eb, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!in || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    out->buf = NULL; out->len = 0;\n\n");
     { char *_cf = cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n\n", eb); s = ca(s, _cf); free(_cf); }
     /* constraints with the pinned errbuf API (the ASSUMPTION A4 form). */
     s = ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
-    { char *_cf = cfmt("    if (asn_check_constraints(&asn_DEF_%s, tree, cerr, &cerrlen) != 0) {\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("    if (asn_check_constraints(&asn_DEF_%s, tree, cerr, &cerrlen) != 0) {\n", eb); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_CONSTRAINT, \"%s\", NULL,\n"
                    "                            \"%%.*s\", (int)(cerrlen < sizeof(cerr) ? cerrlen : sizeof(cerr)-1), cerr);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    asn_encode_to_new_buffer_result_t r =\n"
              "        asn_encode_to_new_buffer(NULL, %s,\n", ats); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("                                 &asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("                                 &asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    if (r.result.encoded < 0 || !r.buffer) {\n        free(r.buffer);\n");
     { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"%s encode failed\");\n    }\n", label, word); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    out->buf = (uint8_t *)r.buffer;\n    out->len = (size_t)r.result.encoded;   /* bytes, not bits */\n    return 0;\n}\n\n");
@@ -113,14 +117,15 @@ entry_encode(void *rt, const char *fbasename, const char *tbasename,
 
 static char *
 entry_decode(void *rt, const char *fbasename, const char *tbasename,
+             const char *eb, const char *lbl,
              const char *part, const char *ats, const char *word) {
-    char *label = conv_type_label(rt);   /* td->name display label */
+    char *label = cstrdup(lbl);   /* td->name display label */
     char *s = cstrdup("");
     { char *_cf = cfmt("/* ---- %s ---- */\n", part); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("int asn1cgo_%s_%s(\n"
                    "        const uint8_t *buf, size_t len, asn1cgo_arena **arena_out,\n"
                    "        %s_flat **out, asn1cgo_err *err) {\n",
-                   part, tbasename, fbasename); s = ca(s, _cf); free(_cf); }
+                   part, eb, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!buf || !arena_out || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    *arena_out = NULL; *out = NULL;\n\n");
     s = ca(s, "    asn1cgo_arena *ar = asn1cgo_arena_new(0);\n");
@@ -138,23 +143,23 @@ entry_decode(void *rt, const char *fbasename, const char *tbasename,
      * precise cap applied in *_from_tree; the default stack budget is sized
      * so that no input within that cap trips the C guard. */
     { char *_cf = cfmt("    void *sptr = NULL;\n    asn_codec_ctx_t dctx = {0};   /* stack local: the guard measures from its address */\n    dctx.max_stack_size = ASN1CGO_C_STACK_MAX;\n    asn_dec_rval_t dr = asn_decode(&dctx, %s,\n", ats); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("                                   &asn_DEF_%s, (void **)&sptr, buf, len);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("                                   &asn_DEF_%s, (void **)&sptr, buf, len);\n", eb); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    if (dr.code != RC_OK) {\n");
-    { char *_cf = cfmt("        if (sptr) ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        if (sptr) ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"%s decode RC=%%d (malformed input, or C stack budget ASN1CGO_C_STACK_MAX exceeded)\", dr.code);\n    }\n", label, word); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    /* Trailing bytes after the PDU are an error. */\n");
     s = ca(s, "    if (dr.consumed < len) {\n");
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_TRAILING, \"%s\", NULL, \"%%zu trailing bytes\", len - dr.consumed);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    /* asn1c's %s decoder does not range/size/permitted-alphabet\n", word_up(word)); s = ca(s, _cf); free(_cf); }
     s = ca(s, "     * check; reject a decoded Tree its own constraints would fail. */\n");
     s = ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
-    { char *_cf = cfmt("    if (asn_check_constraints(&asn_DEF_%s, sptr, cerr, &cerrlen) != 0) {\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("    if (asn_check_constraints(&asn_DEF_%s, sptr, cerr, &cerrlen) != 0) {\n", eb); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_CONSTRAINT, \"%s\", NULL,\n"
                    "                            \"%%.*s\", (int)(cerrlen < sizeof(cerr) ? cerrlen : sizeof(cerr)-1), cerr);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    int rc = %s_from_tree(ar, (const %s_t *)sptr, flat, err);\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    if (rc) { asn1cgo_arena_free(ar); return err->code; }\n\n");
     s = ca(s, "    *arena_out = ar;       /* caller (Go) frees */\n    *out = flat;\n    return 0;\n}\n\n");
     free(label);
@@ -162,24 +167,25 @@ entry_decode(void *rt, const char *fbasename, const char *tbasename,
 }
 
 static char *
-entry_xer(void *rt, const char *fbasename, const char *tbasename) {
-    char *label = conv_type_label(rt);   /* td->name display label */
+entry_xer(void *rt, const char *fbasename, const char *tbasename,
+          const char *eb, const char *lbl) {
+    char *label = cstrdup(lbl);   /* td->name display label */
     char *s = cstrdup("");
     s = ca(s, "/* ---- xer (ATS_CANONICAL_XER) ---- */\n");
     { char *_cf = cfmt("int asn1cgo_xer_%s(\n"
                    "        const %s_flat *in,\n"
                    "        asn1cgo_buf *xer_out, asn1cgo_err *err) {\n",
-                   tbasename, fbasename); s = ca(s, _cf); free(_cf); }
+                   eb, fbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!in || !xer_out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    xer_out->buf = NULL; xer_out->len = 0;\n\n");
     { char *_cf = cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
     { char *_cf = cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n", eb); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    asn_encode_to_new_buffer_result_t r =\n"
              "        asn_encode_to_new_buffer(NULL, ATS_CANONICAL_XER,\n");
-    { char *_cf = cfmt("                                 &asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", tbasename); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("                                 &asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
+    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    if (r.result.encoded < 0 || !r.buffer) {\n        free(r.buffer);\n");
     { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"xer encode failed\");\n    }\n", label); s = ca(s, _cf); free(_cf); }
     s = ca(s, "    xer_out->buf = (uint8_t *)r.buffer;\n    xer_out->len = (size_t)r.result.encoded;\n    return 0;\n}\n");
@@ -1049,6 +1055,29 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 }
                 free(want);
             }
+            /* the header of each alias PDU whose target is in this package
+             * (its asn_DEF_<Alias>; the entry points go beside the target's
+             * converters) */
+            for(int pi = 0; pi < g_conv_n_pdus; pi++) {
+                if(!g_conv_pdus[pi].alias_cid) continue;
+                void *rt = go_conv_ir_ref_resolve(g_conv_pdus[pi].cid);
+                const char *pmod = rt ? go_flat_ir_module(rt) : NULL;
+                if(!pmod || strcmp(pmod, mods[mi]) != 0) continue;
+                char *ab = cfmt("%s%s", prefix, g_conv_pdus[pi].alias_cid);
+                char *h = conv_find_header(ab);
+                free(ab);
+                if(!h) continue;
+                int seen = 0;
+                for(int q = 0; q < n_incs; q++)
+                    if(strcmp(incs[q], h) == 0) { seen = 1; break; }
+                if(seen) { free(h); continue; }
+                if(n_incs + 1 > cap_incs) {
+                    cap_incs = cap_incs ? cap_incs * 2 : 32;
+                    incs = realloc(incs, (size_t)cap_incs * sizeof(char *));
+                    if(!incs) { conv_failed_set(); return -1; }
+                }
+                incs[n_incs++] = h;
+            }
             for(int q = 0; q < n_incs; q++) {
                 char *inc = cfmt("#include \"%s\"\n", incs[q]);
                 s = ca(s, inc);
@@ -1350,17 +1379,25 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                     fb[fl - 5] = '\0';
             }
             free(fbn);
-            { char *eb = entry_encode(rt, fb, tb, "encode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, eb); free(eb); }
-            { char *db = entry_decode(rt, fb, tb, "decode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, db); free(db); }
-            { char *xb = entry_xer(rt, fb, tb); s = ca(s, xb); free(xb); }
+            /* an alias PDU (Alias ::= Msg): its own entry names and
+             * descriptor over the target's tree and converters */
+            const conv_pdu *pe = &g_conv_pdus[pi];
+            char *eb_ = pe->alias_cid ? cfmt("%s%s", prefix, pe->alias_cid)
+                                      : cstrdup(tb);
+            char *lb_ = pe->alias_cid ? cstrdup(pe->alias_label)
+                                      : conv_type_label(rt);
+            { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "encode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, eb); free(eb); }
+            { char *db = entry_decode(rt, fb, tb, eb_, lb_, "decode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, db); free(db); }
+            { char *xb = entry_xer(rt, fb, tb, eb_, lb_); s = ca(s, xb); free(xb); }
             s = ca(s, "\n");
-            { char *eb = entry_encode(rt, fb, tb, "uperenc", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, eb); free(eb); }
-            { char *db = entry_decode(rt, fb, tb, "uperdec", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, db); free(db); }
+            { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "uperenc", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, eb); free(eb); }
+            { char *db = entry_decode(rt, fb, tb, eb_, lb_, "uperdec", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, db); free(db); }
             if(go_jer_enabled()) {
                 s = ca(s, "\n");
-                { char *eb = entry_encode(rt, fb, tb, "jerenc", "ATS_JER_MINIFIED", "jer"); s = ca(s, eb); free(eb); }
-                { char *db = entry_decode(rt, fb, tb, "jerdec", "ATS_JER", "jer"); s = ca(s, db); free(db); }
+                { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "jerenc", "ATS_JER_MINIFIED", "jer"); s = ca(s, eb); free(eb); }
+                { char *db = entry_decode(rt, fb, tb, eb_, lb_, "jerdec", "ATS_JER", "jer"); s = ca(s, db); free(db); }
             }
+            free(eb_); free(lb_);
             free(tb); free(fb);
             any_pdu = 1;
         }

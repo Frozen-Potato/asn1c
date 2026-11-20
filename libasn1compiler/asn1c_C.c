@@ -5765,11 +5765,18 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
 			OUT("0,\t/* No tags (count) */\n");
 		}
 
+        /*
+         * The same test as emit_member_OER_constraints() and
+         * emit_member_PER_constraints(), which decide by the terminal
+         * type: an alias of an ENUMERATED or a CHOICE (ChA ::= Ch) has
+         * constraints of its own (the enumerators, the alternatives).
+         */
+        asn1p_expr_type_e etype = expr_get_type(arg, expr);
 		OUT("{ ");
 		if(arg->flags & A1C_GEN_OER) {
 			if(expr->combined_constraints
-			|| expr->expr_type == ASN_BASIC_ENUMERATED
-			|| expr->expr_type == ASN_CONSTR_CHOICE) {
+            || etype == ASN_BASIC_ENUMERATED
+            || etype == ASN_CONSTR_CHOICE) {
 				OUT("&asn_OER_type_%s_constr_%d",
 					expr_id, expr->_type_unique_index);
 			} else {
@@ -5782,9 +5789,9 @@ emit_type_DEF(arg_t *arg, asn1p_expr_t *expr, enum tvm_compat tv_mode, int tags_
 
 		if(arg->flags & A1C_GEN_PER) {
             if(expr->combined_constraints
-               || expr->expr_type == ASN_BASIC_ENUMERATED
-               || expr->expr_type == ASN_CONSTR_CHOICE
-			   || (expr_get_type(arg, expr) & ASN_STRING_KM_MASK)) {
+               || etype == ASN_BASIC_ENUMERATED
+               || etype == ASN_CONSTR_CHOICE
+               || (etype & ASN_STRING_KM_MASK)) {
                 OUT("&asn_PER_type_%s_constr_%d",
 					expr_id, expr->_type_unique_index);
 			} else {
