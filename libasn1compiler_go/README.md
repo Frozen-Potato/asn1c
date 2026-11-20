@@ -31,6 +31,13 @@ reproducible.
 `-gen-JER` may be added: every PDU type then also gets `EncodeJER` /
 `DecodeJER<PDU>` (see Using the generated code).
 
+`-pdu` picks the PDU types, the same ones as in the C PDU table: `-pdu=auto`
+(also when no `-pdu` option is given) every type no other type refers to,
+`-pdu=all` every type, and each `-pdu=<Type>` adds that type. A type that only
+renames another (`B ::= A`) shares A's functions (`DecodeA`). A `-pdu=<Type>`
+that gets no functions (an instance of a parameterized type, see
+KNOWN-ISSUES 66) is refused (exit 70).
+
 `-no-gen-OER` is the supported configuration. Trees generated with OER on also
 build and work; the generated Go API has no OER functions.
 

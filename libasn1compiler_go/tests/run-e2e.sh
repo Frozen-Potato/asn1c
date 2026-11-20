@@ -281,6 +281,72 @@ EOS
     fi
 }
 
+# -pdu selects the PDU types that get Encode/Decode functions, as it selects
+# the C PDU table: no -pdu option acts as -pdu=auto, each -pdu=<Type> adds
+# that type, and a -pdu=<Type> the Go backend cannot give functions to (a
+# parameterized type instance) is refused: exit 70, no Go output.
+run_pdu_select() {
+    echo "== run-e2e: -pdu=<Type> selection =="
+    cat >"$tmp/pdusel.asn" <<'EOS'
+PS DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+Msg ::= SEQUENCE { id INTEGER (0..255), inner Inner, ... }
+Inner ::= SEQUENCE { x BOOLEAN }
+Other-PDU ::= CHOICE { a INTEGER, b NULL }
+T{X} ::= SEQUENCE { v X }
+Inst ::= T{INTEGER}
+END
+EOS
+    for sel in "none:DecodeMsg DecodeOtherPDU:DecodeInner" \
+               "-pdu=Inner:DecodeInner DecodeUPERInner:DecodeMsg DecodeOtherPDU" \
+               "-pdu=Inner -pdu=Other-PDU:DecodeInner DecodeOtherPDU:DecodeMsg" \
+               "-pdu=auto -pdu=Inner:DecodeMsg DecodeOtherPDU DecodeInner:"; do
+        opts=${sel%%:*}; rest=${sel#*:}; want=${rest%%:*}; nowant=${rest#*:}
+        [ "$opts" = none ] && opts=
+        work="$tmp/pdusel/$(echo "x$opts" | tr -c 'A-Za-z0-9\n' _)"
+        mkdir -p "$work/c"
+        (
+            cd "$work"
+            # shellcheck disable=SC2086
+            ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+            "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+                -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+                $opts -D "$work/c" -Fgo="$work/go" "$tmp/pdusel.asn"
+        ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: -pdu selection [$opts]: asn1c failed" >&2; return 1; }
+        for f in $want; do
+            grep -q "^func $f(" "$work/go/ps/glue.go" || { echo "run-e2e: -pdu selection [$opts]: no $f" >&2; return 1; }
+        done
+        for f in $nowant; do
+            if grep -q "^func $f(" "$work/go/ps/glue.go"; then
+                echo "run-e2e: -pdu selection [$opts]: unexpected $f" >&2; return 1
+            fi
+        done
+        (
+            cd "$work/go"
+            export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
+            go build ./...
+        ) || { echo "run-e2e: -pdu selection [$opts]: go build failed" >&2; return 1; }
+    done
+    work="$tmp/pdusel/inst"
+    mkdir -p "$work/c"
+    rc=0
+    (
+        cd "$work"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=Inst -D "$work/c" -Fgo="$work/go" "$tmp/pdusel.asn"
+    ) >"$work/asn1c.log" 2>&1 || rc=$?
+    if [ "$rc" != 70 ] || ! grep -q 'asn1cgo: -pdu=Inst: ' "$work/asn1c.log"; then
+        cat "$work/asn1c.log" >&2
+        echo "run-e2e: -pdu=Inst: exit $rc, want 70 naming -pdu=Inst" >&2
+        return 1
+    fi
+    if [ -e "$work/go" ]; then
+        echo "run-e2e: -pdu=Inst wrote Go output" >&2
+        return 1
+    fi
+}
+
 # With -Fgo a failed run leaves -D as it was: a Go refusal after the C pass
 # (the -gen-JER name clash) and a C-pass failure (a directory where a .c file
 # goes) restore every replaced file and remove every created one; a
@@ -660,6 +726,7 @@ run_rt_skeleton_sync() {
 run_cycle
 run_jer_clash
 run_uper_clash
+run_pdu_select
 run_post_c_restore
 run_outdir_safety
 run_oneway

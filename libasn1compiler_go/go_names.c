@@ -74,6 +74,7 @@
                                * reads (IOC rows, NULL alts, PDUs, wide
                                * INTEGERs; the conv/entry stages) */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1716,6 +1717,86 @@ int go_oer_disabled(void) { return (go_compiler_flags & A1C_GEN_OER) == 0; }
 int go_jer_enabled(void);
 int go_jer_enabled(void) { return (go_compiler_flags & A1C_GEN_JER) != 0; }
 
+/* -pdu=<Type> names, handed over by the driver (asn1c.c) as it parses them:
+ * the C pass frees its own list (asn1c_save.c) before the Go pass runs. */
+static struct go_pdu_name {
+    char *name;
+    char *cid;          /* the PDU root recorded for it, NULL = none */
+} *go_pdu_names;
+static size_t go_n_pdu_names;
+
+void asn1cgo_add_pdu_type(const char *name);
+void
+asn1cgo_add_pdu_type(const char *name) {
+    struct go_pdu_name *n = realloc(go_pdu_names,
+                                    (go_n_pdu_names + 1) * sizeof(*n));
+    assert(n);
+    go_pdu_names = n;
+    n[go_n_pdu_names].name = strdup(name);
+    assert(n[go_n_pdu_names].name);
+    n[go_n_pdu_names].cid = NULL;
+    go_n_pdu_names++;
+}
+
+/* go_pdu_named: nonzero when a -pdu=<Type> names this hand-written
+ * assignment. */
+static int
+go_pdu_named(const asn1p_expr_t *expr) {
+    if(expr->spec_index >= 0 || !expr->Identifier) return 0;
+    for(size_t i = 0; i < go_n_pdu_names; i++)
+        if(strcmp(go_pdu_names[i].name, expr->Identifier) == 0) return 1;
+    return 0;
+}
+
+/* go_pdu_selected: asn1c's own PDU rule (include_type_to_pdu_collection,
+ * asn1c_save.c) for a top-level type assignment the caller has already
+ * found usable as a PDU: -pdu=all takes every type, -pdu=auto (and no -pdu
+ * option at all, as in C) every type no other type refers to, and each
+ * -pdu=<Type> the hand-written assignments of that name. */
+static int
+go_pdu_selected(const asn1p_expr_t *expr) {
+    if(go_compiler_flags & A1C_PDU_ALL) return 1;
+    if(!expr->_type_referenced
+       && ((go_compiler_flags & A1C_PDU_AUTO)
+           || !(go_compiler_flags & A1C_PDU_TYPE)))
+        return 1;
+    return go_pdu_named(expr);
+}
+
+/* go_pdu_record: record cid as a PDU root for expr, and remember it for
+ * each -pdu=<Type> that names expr (go_pdu_check). */
+static void
+go_pdu_record(const asn1p_expr_t *expr, const char *cid) {
+    go_conv_record_pdu(cid);
+    if(!go_pdu_named(expr)) return;
+    for(size_t i = 0; i < go_n_pdu_names; i++)
+        if(!go_pdu_names[i].cid
+           && strcmp(go_pdu_names[i].name, expr->Identifier) == 0) {
+            go_pdu_names[i].cid = strdup(cid);
+            assert(go_pdu_names[i].cid);
+        }
+}
+
+/* go_pdu_check: every -pdu=<Type> must end up with Go Encode/Decode
+ * functions (the glue skips a PDU root without a Go type of its own); names
+ * each one that does not and returns how many. Run after the Flat layout. */
+static int
+go_pdu_check(void) {
+    int bad = 0;
+    for(size_t i = 0; i < go_n_pdu_names; i++) {
+        const char *cid = go_pdu_names[i].cid;
+        flat_type *t = cid ? go_flat_ir_ref_resolve(cid) : NULL;
+        const char *mod = t ? go_flat_ir_module(t) : NULL;
+        if(mod && *mod) continue;
+        fprintf(stderr, "asn1cgo: -pdu=%s: the Go backend gives this type no "
+                "Encode/Decode functions (%s)\n", go_pdu_names[i].name,
+                cid ? "a parameterized type instance is not supported as a PDU"
+                    : "not a type the Go backend emits");
+        bad++;
+    }
+    return bad;
+}
+
 /* -------------------------------------------------------------------------
  * leaf-kind classification. The INTEGER class comes from asn1c's own
  * decision function (asn1c_type_fits_long, asn1c_misc.c:408 — note:
@@ -2236,7 +2317,11 @@ done:
             /* Go package import cycles are detected BEFORE any file is
              * written (the glue dry run needs the layout). */
             go_flat_layout_all();
-            if(check_go_import_cycles(&bag) != 0) {
+            if(go_pdu_check() != 0) {
+                bag.failed = 1;
+                rc = -1;
+            }
+            if(rc == 0 && check_go_import_cycles(&bag) != 0) {
                 bag.failed = 1;
                 rc = -1;
             }
@@ -6078,10 +6163,8 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
          * SEQUENCE (not a parameterized clone) is a PDU root like any other
          * SEQUENCE; asn1c lists it in pdu_collection.c too. */
         if(expr->spec_index < 0 && !expr->lhs_params
-           && (go_compiler_flags & A1C_PDU_ALL
-               || ((go_compiler_flags & A1C_PDU_AUTO)
-                   && !expr->_type_referenced)))
-            go_conv_record_pdu(GO_MKID(terminal));
+           && go_pdu_selected(expr))
+            go_pdu_record(expr, GO_MKID(terminal));
         free(type_cid);
         free(type_path);
         free(type_go);
@@ -6096,11 +6179,10 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
     emit_name(ctx->bag, ctx->module, type_path, GK_TYPE,
               type_cid ? type_cid : strdup(""), type_go);
     /* Conv (the entry-point rule): record a PDU root — mirror asn1c's own membership rule
-     * (include_type_to_pdu_collection, asn1c_save.c:936): included iff a
+     * (include_type_to_pdu_collection, asn1c_save.c): included iff a
      * type_cb exists for the (meta_type, expr_type) — a constructed type we
-     * emitted a row for — AND not AMT_VALUE AND no lhs_params AND
-     * (A1C_PDU_ALL or (A1C_PDU_AUTO and !expr->_type_referenced)). The run
-     * is -pdu=auto (CFLAGS_FORK). */
+     * emitted a row for — AND not AMT_VALUE AND no lhs_params AND the -pdu
+     * options select it (go_pdu_selected). */
     {
         int lang_cb = (k == GO_CONSTR_SEQUENCE || k == GO_CONSTR_CHOICE
                        || k == GO_CONSTR_SEQUENCE_OF
@@ -6111,11 +6193,8 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                        || k == GO_CONSTR_OID
                        || k == GO_CONSTR_STRING
                        || k == GO_CONSTR_ENUMERATED);
-        if(lang_cb && !expr->lhs_params
-           && (go_compiler_flags & A1C_PDU_ALL
-               || ((go_compiler_flags & A1C_PDU_AUTO)
-                   && !expr->_type_referenced))) {
-            go_conv_record_pdu(GO_MKID(terminal));
+        if(lang_cb && !expr->lhs_params && go_pdu_selected(expr)) {
+            go_pdu_record(expr, GO_MKID(terminal));
         }
     }
     /* leaf-stage body data: a LEAF type assignment's declaration is

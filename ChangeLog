@@ -1,3 +1,12 @@
+0.9.29-go.17 (unreleased):
+    * Go backend: with -pdu=<Type> (without -pdu=all or -pdu=auto), and
+      with no -pdu option at all, the Go packages had no Encode / Decode
+      functions, and asn1c exited 0. -pdu now selects the Go PDU types as
+      it selects the C PDU table: each -pdu=<Type> adds that type, and no
+      -pdu option acts as -pdu=auto. A -pdu=<Type> the Go backend gives
+      no functions (a type defined as an instance of a parameterized
+      type) is refused (exit 70).
+
 0.9.29-go.16:
     * asn1fix: a parameterized type defined in one module and used from
       another (ProtocolIE-Field / ProtocolIE-Container in a containers

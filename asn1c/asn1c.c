@@ -58,6 +58,7 @@ extern int asn1cgo_preflight(asn1p_t *asn, const char *go_outdir);
 extern int asn1cgo_generate(asn1p_t *asn, const char *go_outdir,
                             enum asn1c_flags flags,
                             const char *skeletons_dir, const char *destdir);
+extern void asn1cgo_add_pdu_type(const char *name);
 
 int
 main(int ac, char **av) {
@@ -214,6 +215,7 @@ main(int ac, char **av) {
                     asn1_compiler_flags |= A1C_PDU_AUTO;
                 } else if(pduname[0] >= 'A' && pduname[0] <= 'Z') {
                     asn1c__add_pdu_type(pduname);
+                    asn1cgo_add_pdu_type(pduname);
                     asn1_compiler_flags |= A1C_PDU_TYPE;
                 } else {
                     fprintf(stderr, "-pdu=%s: expected -pdu={all|auto|Type}\n",
