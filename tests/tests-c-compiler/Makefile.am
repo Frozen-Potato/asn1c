@@ -82,6 +82,7 @@ TESTS += check-src/check-183.-fcompound-names.-gen-OER.-gen-PER.c
 TESTS += check-src/check-184.-fcompound-names.-gen-PER.c
 TESTS += check-src/check-185.-fcompound-names.-fall-defs-global.-gen-PER.c
 TESTS += check-src/check-186.-gen-OER.c
+TESTS += check-src/check-191.-fcompound-names.-gen-PER.c
 
 if TEST_64BIT
 TESTS += check-src/check64-134.-gen-PER.c

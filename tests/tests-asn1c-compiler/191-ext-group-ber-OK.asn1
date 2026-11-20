@@ -1,0 +1,38 @@
+-- OK: extension addition groups [[ ]] in BER, DER and XER. The components
+-- of a group are encoded as components of the SEQUENCE or SET holding it
+-- (X.690 8.9.2, 8.11.2; X.693 25.2), automatic tagging numbers them as
+-- components of that type (X.680 25.3), and the tags of the components of
+-- a SET, those of its groups included, must differ: two groups, or a group
+-- and an untagged SEQUENCE, are accepted in a SET without AUTOMATIC TAGS.
+
+K191 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+GS ::= SEQUENCE {
+    a INTEGER (0..255),
+    ...,
+    [[ b BOOLEAN, c INTEGER (0..3) OPTIONAL, s SEQUENCE { x INTEGER } OPTIONAL ]],
+    d INTEGER (0..3) OPTIONAL,
+    [[ e OCTET STRING ]]
+}
+GT ::= SET {
+    a INTEGER (0..255),
+    ...,
+    [[ b BOOLEAN, c INTEGER (0..3) OPTIONAL ]],
+    d INTEGER (0..3) OPTIONAL
+}
+END
+
+K191E DEFINITIONS ::= BEGIN
+HS ::= SEQUENCE {
+    a [0] INTEGER,
+    ...,
+    [[ b [1] BOOLEAN, c [2] INTEGER OPTIONAL ]],
+    [[ d [3] INTEGER ]]
+}
+HT ::= SET {
+    a [5] INTEGER,
+    s SEQUENCE { x INTEGER },
+    ...,
+    [[ b [1] BOOLEAN, c [2] INTEGER OPTIONAL ]],
+    [[ d [3] INTEGER ]]
+}
+END

@@ -210,6 +210,14 @@ func setCases() []soCase {
 		}
 		return s + "</" + name + ">"
 	}
+	// a [[ ]] group's components are elements of the SET itself (X.693)
+	grp := func(inner ...string) string {
+		s := ""
+		for _, i := range inner {
+			s += i
+		}
+		return s
+	}
 
 	// SetBasic: canonical order a, b, c; the extension addition d.
 	add(setMk("basic-b", "SetBasic",
@@ -225,11 +233,11 @@ func setCases() []soCase {
 	add(setMk("grp-a", "SetGrp", el("SetGrp", el("a", "1")),
 		[]byte{0x10}, &st.SetGrp{A: 1}, st.DecodeSetGrp))
 	add(setMk("grp-g", "SetGrp",
-		el("SetGrp", el("a", "1"), el("ext1", el("g1", bl(true)), el("g2", "3"))),
+		el("SetGrp", el("a", "1"), grp(el("g1", bl(true)), el("g2", "3"))),
 		[]byte{0x90, 0x10, 0x01, 0xf0},
 		&st.SetGrp{A: 1, Ext1: &st.SetGrpExt1{G1: true, G2: i64(3)}}, st.DecodeSetGrp))
 	add(setMk("grp-g-opt-absent", "SetGrp",
-		el("SetGrp", el("a", "1"), el("ext1", el("g1", bl(false)))),
+		el("SetGrp", el("a", "1"), grp(el("g1", bl(false)))),
 		nil, &st.SetGrp{A: 1, Ext1: &st.SetGrpExt1{G1: false}}, st.DecodeSetGrp))
 
 	// SetTail: the root member e follows the addition d.
@@ -259,7 +267,7 @@ func setCases() []soCase {
 		el("StHold", basicX, el("i", el("x", bl(true)))),
 		nil, &st.StHold{S: basic, I: st.StHoldI{X: true}}, st.DecodeStHold))
 	add(setMk("hold-opt", "StHold",
-		el("StHold", basicX, el("o", el("a", "1"), el("ext1", el("g1", bl(true)))), el("i", el("x", bl(false)), el("y", "3"))),
+		el("StHold", basicX, el("o", el("a", "1"), grp(el("g1", bl(true)))), el("i", el("x", bl(false)), el("y", "3"))),
 		nil, &st.StHold{S: basic, O: &st.SetOptM{A: 1, Ext1: &st.SetOptMExt1{G1: true}}, I: st.StHoldI{Y: i64(3)}}, st.DecodeStHold))
 
 	// SET as a CHOICE alternative (named and inline).

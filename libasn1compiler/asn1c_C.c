@@ -647,6 +647,21 @@ asn1c_lang_C_type_SET(arg_t *arg) {
 
 	REDIR(OT_DEPS);
 
+	/*
+	 * Name the [[ ]] groups (ext<N>) before their presence constants
+	 * use the names (two groups were both named Member there).
+	 */
+	TQ_FOR(v, &(expr->members), next) {
+		char ext_name[20];
+		if((v->expr_type == ASN_CONSTR_SEQUENCE) &&
+		   (v->marker.flags & EM_OPTIONAL) &&
+		   (v->Identifier == NULL)) {
+			sprintf(ext_name, "ext%d", ext_num++);
+			v->Identifier = strdup(ext_name);
+			v->marker.flags |= EM_EXTENSION_GROUP;
+		}
+	}
+
 	OUT("\n");
 	OUT("/*\n");
 	OUT(" * Method of determining the components presence\n");
@@ -1764,6 +1779,13 @@ _add_tag2el_member(arg_t *arg, tag2el_t **tag2el, int *count, int el_no, fte_e f
 	int ret;
 
 	assert(el_no >= 0);
+
+	/*
+	 * The components of a [[ ]] group, each mapped to the group.
+	 */
+	if(arg->expr->marker.flags & EM_EXTENSION_GROUP) {
+		return _fill_tag2el_map(arg, tag2el, count, el_no, flags);
+	}
 
     ret = WITH_MODULE_NAMESPACE(
         arg->expr->module, expr_ns,
@@ -5457,8 +5479,9 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 
 	OUT("{ ");
 
-    if((arg->flags & A1C_GEN_JER)
-       && (expr->marker.flags & EM_EXTENSION_GROUP)) {
+	/* A [[ ]] group: its components are encoded as components of the
+	 * holder in BER, DER, XER and JER (X.690 8.9.2, 8.11.2; X.693 25.2) */
+	if(expr->marker.flags & EM_EXTENSION_GROUP) {
         OUT("ATF_EXTENSION_GROUP | ");
     }
     if(is_open_type(arg, expr, opt_ioc)) {
@@ -5496,7 +5519,10 @@ emit_member_table(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *
 
     INDENT(+1);
 	if(C99_MODE) OUT(".tag = ");
-	if(outmost_tag) {
+	if(expr->marker.flags & EM_EXTENSION_GROUP) {
+		/* No tag of its own: the components' tags are in the tag map */
+		OUT("-1 /* Extension addition group [[ ]] */");
+	} else if(outmost_tag) {
 		if(outmost_tag->tag_value == -1)
 			OUT("-1 /* Ambiguous tag (ANY?) */");
 		else

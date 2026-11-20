@@ -53,6 +53,21 @@
       that renames another, of any kind, is a PDU of its own as in the C
       PDU table: DecodeB and (*B).Encode use B's descriptor (its tag and
       XER name), where they were A's functions before.
+    * C runtime, asn1fix, libasn1compiler: extension addition groups
+      [[ ]] in BER, DER and XER now follow X.690 and X.693: the components
+      of a group are encoded as components of the SEQUENCE or SET holding
+      it, with no SEQUENCE TLV or <extN> element of the group's own, and
+      AUTOMATIC TAGS numbers them as components of that type (a [0], then
+      the group's b [1], c [2], ..., not [0] again inside the group). A SET
+      puts them among its other components in the canonical order of the
+      tags (DER). Decoding the earlier form no longer works: BER, DER and
+      XER of every type with a group change; PER, OER and JER do not. A
+      group present without one of its mandatory components is refused.
+      Without AUTOMATIC TAGS, a SET with two groups, or with a group and
+      an untagged SEQUENCE, was refused (same tag); the tags of the groups'
+      components are checked instead. In C, the presence constant of a
+      group of a SET is <T>_PR_ext<N>, like its member (it was
+      <T>_PR_Member, the same for every group).
 
 0.9.29-go.16:
     * asn1fix: a parameterized type defined in one module and used from

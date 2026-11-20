@@ -1,7 +1,8 @@
 // "[[ ]]" extension addition groups (tests/e2e/extgroup.asn): each group is an
 // optional nested struct, Ext<N> *<T>Ext<N>. Copied into the generated module
 // by tests/run-e2e.sh together with seqof_test.go (the siCase helpers)
-// and default_test.go (the converter helpers).
+// and default_test.go (the converter helpers). In XER the components of a
+// group are written as elements of the SEQUENCE holding it.
 //
 // Per case of egCases: Go APER == the C converter's APER of the same value
 // written as XER, Go's decode gives the value back, and the converter's XER of
@@ -29,28 +30,37 @@ func egCases() []siCase {
 		}
 		return s + "</" + name + ">"
 	}
+	// the components of a [[ ]] group are elements of the SEQUENCE itself
+	// in XER (X.693), with no element of the group's own
+	grp := func(inner ...string) string {
+		s := ""
+		for _, i := range inner {
+			s += i
+		}
+		return s
+	}
 
 	one := func(name string, v *eg.GrpOne, parts ...string) {
 		add(siMk(name, "GrpOne", el("GrpOne", parts...), v, eg.DecodeGrpOne))
 	}
 	one("one-absent", &eg.GrpOne{A: 2}, el("a", "2"))
 	one("one-present", &eg.GrpOne{A: 1, Ext1: &eg.GrpOneExt1{B: true, C: 5}},
-		el("a", "1"), el("ext1", el("b", bl(true)), el("c", "5")))
+		el("a", "1"), grp(el("b", bl(true)), el("c", "5")))
 	one("one-present-zero", &eg.GrpOne{A: 0, Ext1: &eg.GrpOneExt1{B: false, C: 0}},
-		el("a", "0"), el("ext1", el("b", bl(false)), el("c", "0")))
+		el("a", "0"), grp(el("b", bl(false)), el("c", "0")))
 
 	mu := func(name string, v *eg.GrpMulti, parts ...string) {
 		add(siMk(name, "GrpMulti", el("GrpMulti", parts...), v, eg.DecodeGrpMulti))
 	}
 	mu("multi-none", &eg.GrpMulti{A: 3}, el("a", "3"))
 	mu("multi-1", &eg.GrpMulti{A: 3, Ext1: &eg.GrpMultiExt1{B: true}},
-		el("a", "3"), el("ext1", el("b", bl(true))))
+		el("a", "3"), grp(el("b", bl(true))))
 	mu("multi-2", &eg.GrpMulti{A: 3, Ext2: &eg.GrpMultiExt2{C: true}},
-		el("a", "3"), el("ext2", el("c", bl(true))))
+		el("a", "3"), grp(el("c", bl(true))))
 	mu("multi-2-opt", &eg.GrpMulti{A: 3, Ext2: &eg.GrpMultiExt2{C: false, D: i64(6)}},
-		el("a", "3"), el("ext2", el("c", bl(false)), el("d", "6")))
+		el("a", "3"), grp(el("c", bl(false)), el("d", "6")))
 	mu("multi-both", &eg.GrpMulti{A: 0, Ext1: &eg.GrpMultiExt1{B: false}, Ext2: &eg.GrpMultiExt2{C: true, D: i64(0)}},
-		el("a", "0"), el("ext1", el("b", bl(false))), el("ext2", el("c", bl(true)), el("d", "0")))
+		el("a", "0"), grp(el("b", bl(false))), grp(el("c", bl(true)), el("d", "0")))
 
 	mx := func(name string, v *eg.GrpMixed, parts ...string) {
 		add(siMk(name, "GrpMixed", el("GrpMixed", parts...), v, eg.DecodeGrpMixed))
@@ -59,13 +69,13 @@ func egCases() []siCase {
 	mx("mixed-plain", &eg.GrpMixed{A: 1, X: bp(true), Y: i64(3), Z: bp(false)},
 		el("a", "1"), el("x", bl(true)), el("y", "3"), el("z", bl(false)))
 	mx("mixed-ext1", &eg.GrpMixed{A: 1, Ext1: &eg.GrpMixedExt1{B: true}},
-		el("a", "1"), el("ext1", el("b", bl(true))))
+		el("a", "1"), grp(el("b", bl(true))))
 	mx("mixed-ext2", &eg.GrpMixed{A: 1, Ext2: &eg.GrpMixedExt2{C: true, D: bp(false)}},
-		el("a", "1"), el("ext2", el("c", bl(true)), el("d", bl(false))))
+		el("a", "1"), grp(el("c", bl(true)), el("d", bl(false))))
 	mx("mixed-all", &eg.GrpMixed{A: 2, X: bp(false), Ext1: &eg.GrpMixedExt1{B: false}, Y: i64(7),
 		Ext2: &eg.GrpMixedExt2{C: false}, Z: bp(true)},
-		el("a", "2"), el("x", bl(false)), el("ext1", el("b", bl(false))), el("y", "7"),
-		el("ext2", el("c", bl(false))), el("z", bl(true)))
+		el("a", "2"), el("x", bl(false)), grp(el("b", bl(false))), el("y", "7"),
+		grp(el("c", bl(false))), el("z", bl(true)))
 	mx("mixed-y-only", &eg.GrpMixed{A: 0, Y: i64(2)}, el("a", "0"), el("y", "2"))
 
 	in := func(name string, v *eg.GrpInline, parts ...string) {
@@ -73,17 +83,17 @@ func egCases() []siCase {
 	}
 	in("inline-none", &eg.GrpInline{S: eg.GrpInlineS{P: true}}, el("s", el("p", bl(true))))
 	in("inline-s1", &eg.GrpInline{S: eg.GrpInlineS{P: false, Ext1: &eg.GrpInlineSExt1{Q: true}}},
-		el("s", el("p", bl(false)), el("ext1", el("q", bl(true)))))
+		el("s", el("p", bl(false)), grp(el("q", bl(true)))))
 	in("inline-s2", &eg.GrpInline{S: eg.GrpInlineS{P: true, Ext2: &eg.GrpInlineSExt2{R: false}}},
-		el("s", el("p", bl(true)), el("ext2", el("r", bl(false)))))
+		el("s", el("p", bl(true)), grp(el("r", bl(false)))))
 	in("inline-o", &eg.GrpInline{S: eg.GrpInlineS{P: true},
 		O: &eg.GrpInlineO{P: false, Ext1: &eg.GrpInlineOExt1{Q: 3}}},
-		el("s", el("p", bl(true))), el("o", el("p", bl(false)), el("ext1", el("q", "3"))))
+		el("s", el("p", bl(true))), el("o", el("p", bl(false)), grp(el("q", "3"))))
 	in("inline-all", &eg.GrpInline{
 		S: eg.GrpInlineS{P: true, Ext1: &eg.GrpInlineSExt1{Q: false}, Ext2: &eg.GrpInlineSExt2{R: true}},
 		O: &eg.GrpInlineO{P: true}, Ext1: &eg.GrpInlineExt1{T: true}},
-		el("s", el("p", bl(true)), el("ext1", el("q", bl(false))), el("ext2", el("r", bl(true)))),
-		el("o", el("p", bl(true))), el("ext1", el("t", bl(true))))
+		el("s", el("p", bl(true)), grp(el("q", bl(false))), grp(el("r", bl(true)))),
+		el("o", el("p", bl(true))), grp(el("t", bl(true))))
 
 	df := func(name string, v *eg.GrpDef, parts ...string) {
 		add(siMk(name, "GrpDef", el("GrpDef", parts...), v, eg.DecodeGrpDef))
@@ -91,11 +101,11 @@ func egCases() []siCase {
 	df("def-absent", &eg.GrpDef{A: 3}, el("a", "3"))
 	// the C XER writer spells out a DEFAULT member
 	df("def-at-default", &eg.GrpDef{A: 3, Ext1: &eg.GrpDefExt1{C: eg.GrpDefExt1CDefault, D: eg.GrpDefExt1DDefault}},
-		el("a", "3"), el("ext1", el("c", "4"), el("d", bl(true))))
+		el("a", "3"), grp(el("c", "4"), el("d", bl(true))))
 	df("def-away", &eg.GrpDef{A: 3, Ext1: &eg.GrpDefExt1{B: bp(true), C: 9, D: false}},
-		el("a", "3"), el("ext1", el("b", bl(true)), el("c", "9"), el("d", bl(false))))
+		el("a", "3"), grp(el("b", bl(true)), el("c", "9"), el("d", bl(false))))
 	df("def-c-away", &eg.GrpDef{A: 0, Ext1: &eg.GrpDefExt1{C: 0, D: true}},
-		el("a", "0"), el("ext1", el("c", "0"), el("d", bl(true))))
+		el("a", "0"), grp(el("c", "0"), el("d", bl(true))))
 	return cs
 }
 

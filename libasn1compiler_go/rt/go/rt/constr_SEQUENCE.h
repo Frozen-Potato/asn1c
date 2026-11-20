@@ -65,6 +65,42 @@ per_type_encoder_f SEQUENCE_encode_aper;
 asn_random_fill_f  SEQUENCE_random_fill;
 extern asn_TYPE_operation_t asn_OP_SEQUENCE;
 
+/*
+ * An extension addition group [[ ]] (a member flagged ATF_EXTENSION_GROUP,
+ * whose type is a SEQUENCE) has no encoding of its own in BER, DER and XER:
+ * its components are encoded as components of the SEQUENCE or SET holding
+ * it (X.690 8.9.2, 8.11.2; X.693 25.2). These helpers serve the codecs of
+ * both.
+ */
+/* The index of the group's component with the BER tag, or -1. */
+ssize_t SEQUENCE_group_component_by_tag(const asn_TYPE_member_t *group,
+                                        ber_tlv_tag_t tag);
+/* BER-decode one component of the group (the one with the tag at ptr, or
+ * the one being decoded when resuming) into the group's structure in st,
+ * allocating it. */
+asn_dec_rval_t SEQUENCE_group_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
+                                         const asn_TYPE_member_t *group,
+                                         void *st, const void *ptr,
+                                         size_t size);
+/* The index of the group's component whose XER tag (opening or empty) is
+ * the tag of tag_size bytes at tag_ptr, or -1. */
+ssize_t SEQUENCE_group_component_xer(const asn_TYPE_member_t *group,
+                                     const void *tag_ptr, size_t tag_size);
+/* The group's structure in st, allocated if absent (NULL on failure). */
+void *SEQUENCE_group_struct(const asn_TYPE_member_t *group, void *st);
+/* After decoding: whether every group of td present in st has all its
+ * mandatory components (the decoders record each one they decode). */
+int SEQUENCE_groups_complete(const asn_TYPE_descriptor_t *td, const void *st);
+/* Record that component i of the group's structure gptr was decoded. */
+void SEQUENCE_group_component_done(const asn_TYPE_member_t *group,
+                                   void *gptr, size_t i);
+/* XER-encode the components of the group at the level of its holder. */
+asn_enc_rval_t SEQUENCE_group_encode_xer(const asn_TYPE_member_t *group,
+                                         const void *gptr, int ilevel,
+                                         enum xer_encoder_flags_e flags,
+                                         asn_app_consume_bytes_f *cb,
+                                         void *app_key);
+
 #ifdef __cplusplus
 }
 #endif

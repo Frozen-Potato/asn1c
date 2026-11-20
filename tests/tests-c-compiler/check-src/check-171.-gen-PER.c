@@ -139,7 +139,7 @@ int main() {
 			p = i ? ou : oa;
 			assert(p->a == 1 && p->ext1 && p->ext1->g1 == 1
 			       && p->ext1->g2 && *p->ext1->g2 == 3);
-			assert(PRES(p, SetGrp, a) && PRES(p, SetGrp, Member));
+			assert(PRES(p, SetGrp, a) && PRES(p, SetGrp, ext1));
 			ASN_STRUCT_FREE(asn_DEF_SetGrp, p);
 		}
 		ASN_STRUCT_RESET(asn_DEF_SetGrp, &s);

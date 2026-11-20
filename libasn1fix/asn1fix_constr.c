@@ -277,12 +277,45 @@ _asn1f_fix_type_tag(arg_t *arg, asn1p_expr_t *expr) {
 	return r_value;
 }
 
+/*
+ * A [[ ]] extension addition group: the unnamed OPTIONAL SEQUENCE component
+ * the parser makes of it (asn1p_y.y); the compiler names it ext<N> and
+ * flags it EM_EXTENSION_GROUP later.
+ */
+static int
+_asn1f_is_ext_group(const asn1p_expr_t *v) {
+	return (v->marker.flags & EM_EXTENSION_GROUP)
+		|| (v->expr_type == ASN_CONSTR_SEQUENCE
+			&& v->meta_type == AMT_TYPE
+			&& (v->marker.flags & EM_OPTIONAL)
+			&& v->Identifier == NULL
+			&& v->parent_expr
+			&& (v->parent_expr->expr_type == ASN_CONSTR_SEQUENCE
+				|| v->parent_expr->expr_type == ASN_CONSTR_SET));
+}
+
+/* Tag v automatically with the next number (X.680 25.3). */
+static void
+_asn1f_autotag_one(arg_t *arg, asn1p_expr_t *v, asn1c_integer_t *tag_value) {
+	int must_explicit = _asn1f_check_if_tag_must_be_explicit(arg, v);
+	v->tag.tag_class = TC_CONTEXT_SPECIFIC;
+	v->tag.tag_mode = must_explicit ? TM_EXPLICIT : TM_IMPLICIT;
+	v->tag.tag_value = (*tag_value)++;
+}
+
 int
 asn1f_fix_constr_autotag(arg_t *arg) {
 	asn1p_expr_t *expr = arg->expr;
 	asn1p_expr_t *v;
 	asn1c_integer_t tag_value = 0;
 	int r_value = 0;
+
+	/*
+	 * The components of a [[ ]] group are tagged as components of the
+	 * type holding it (X.680 25.3), there: the group itself has no tag.
+	 */
+	if(_asn1f_is_ext_group(expr))
+		return 0;
 
 	switch(expr->expr_type) {
 	case ASN_CONSTR_SEQUENCE:
@@ -299,8 +332,6 @@ asn1f_fix_constr_autotag(arg_t *arg) {
 	DEBUG("(%s) for line %d", expr->Identifier, expr->_lineno);
 
 	TQ_FOR(v, &(expr->members), next) {
-		int must_explicit;
-
 		if(v->expr_type == A1TC_EXTENSIBLE) {
 			/* 28.5, d) */
 			continue;
@@ -311,11 +342,16 @@ asn1f_fix_constr_autotag(arg_t *arg) {
 			assert(v->tag.tag_class == TC_NOCLASS);
 		}
 
-		must_explicit = _asn1f_check_if_tag_must_be_explicit(arg, v);
+		if(_asn1f_is_ext_group(v)) {
+			asn1p_expr_t *gv;
+			TQ_FOR(gv, &(v->members), next) {
+				if(gv->expr_type == A1TC_EXTENSIBLE) continue;
+				_asn1f_autotag_one(arg, gv, &tag_value);
+			}
+			continue;
+		}
 
-		v->tag.tag_class = TC_CONTEXT_SPECIFIC;
-		v->tag.tag_mode = must_explicit ? TM_EXPLICIT : TM_IMPLICIT;
-		v->tag.tag_value = tag_value++;
+		_asn1f_autotag_one(arg, v, &tag_value);
 	}
 
 	return r_value;
@@ -328,6 +364,9 @@ int
 asn1f_check_constr_tags_distinct(arg_t *arg) {
 	asn1p_expr_t *expr = arg->expr;
 	asn1p_expr_t *v;
+	asn1p_expr_t **comp = NULL;    /* The components, groups opened */
+	int *opt = NULL;        /* Whether each is non-mandatory */
+	int n = 0, cap = 0, i, j;
 	int r_value = 0;
 
 	switch(expr->expr_type) {
@@ -339,7 +378,34 @@ asn1f_check_constr_tags_distinct(arg_t *arg) {
 		return 0;
 	}
 
+	/*
+	 * The components of a [[ ]] group count as components of this type
+	 * (X.680 25.3), each non-mandatory (the group may be absent); the group
+	 * itself has no tag.
+	 */
 	TQ_FOR(v, &(expr->members), next) {
+		asn1p_expr_t *gv;
+		int group = _asn1f_is_ext_group(v);
+		for(gv = group ? TQ_FIRST(&(v->members)) : v; gv;
+			gv = group ? TQ_NEXT(gv, next) : NULL) {
+			if(n == cap) {
+				int nc = cap ? 2 * cap : 16;
+				void *p1 = realloc(comp, nc * sizeof(*comp));
+				void *p2;
+				if(!p1) { free(comp); free(opt); return -1; }
+				comp = p1;
+				p2 = realloc(opt, nc * sizeof(*opt));
+				if(!p2) { free(comp); free(opt); return -1; }
+				opt = p2;
+				cap = nc;
+			}
+			comp[n] = gv;
+			opt[n] = group || gv->marker.flags;
+			n++;
+		}
+	}
+
+	for(i = 0; i < n; i++) {
 		/*
 		 * In every series of non-mandatory components,
 		 * the tags must be distinct from each other AND the
@@ -347,19 +413,20 @@ asn1f_check_constr_tags_distinct(arg_t *arg) {
 		 * For SET and CHOICE treat everything as a big set of
 		 * non-mandatory components.
 		 */
-		if(expr->expr_type != ASN_CONSTR_SEQUENCE || v->marker.flags) {
-			asn1p_expr_t *nv;
-			for(nv = v; (nv = TQ_NEXT(nv, next));) {
+		if(expr->expr_type != ASN_CONSTR_SEQUENCE || opt[i]) {
+			for(j = i + 1; j < n; j++) {
 				DEBUG("S/C comparing tags %s s. %s",
-					v->Identifier, nv->Identifier);
-				if(_asn1f_compare_tags(arg, v, nv))
+					comp[i]->Identifier, comp[j]->Identifier);
+				if(_asn1f_compare_tags(arg, comp[i], comp[j]))
 					r_value = -1;
 				if(expr->expr_type == ASN_CONSTR_SEQUENCE
-				&& !nv->marker.flags) break;
+				&& !opt[j]) break;
 			}
 		}
 	}
 
+	free(comp);
+	free(opt);
 	return r_value;
 }
 

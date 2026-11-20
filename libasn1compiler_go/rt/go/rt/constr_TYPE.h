@@ -267,7 +267,8 @@ typedef struct asn_TYPE_descriptor_s {
     ATF_POINTER = 0x01,   /* Represented by the pointer */
     ATF_OPEN_TYPE = 0x02, /* Open Type */
     ATF_ANY_TYPE = 0x04,  /* ANY type (deprecated!) */
-    ATF_EXTENSION_GROUP = 0x08 /* Members of this [[ ]] group are flattened by JER */
+    ATF_EXTENSION_GROUP = 0x08 /* A [[ ]] group: its components are encoded as
+                                  components of the holder (BER, DER, XER, JER) */
   };
 typedef struct asn_TYPE_member_s {
     enum asn_TYPE_flags_e flags; /* Element's presentation flags */

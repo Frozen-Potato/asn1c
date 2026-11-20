@@ -106,6 +106,167 @@ _t2e_cmp(const void *ap, const void *bp) {
 
 
 /*
+ * Extension addition groups in BER/DER/XER (see constr_SEQUENCE.h).
+ */
+#define IS_GROUP(elm) (((elm)->flags & ATF_EXTENSION_GROUP) != 0)
+
+ssize_t
+SEQUENCE_group_component_by_tag(const asn_TYPE_member_t *group,
+								ber_tlv_tag_t tag) {
+	const asn_SEQUENCE_specifics_t *gspecs =
+		(const asn_SEQUENCE_specifics_t *)group->type->specifics;
+	const asn_TYPE_tag2member_t *t2m;
+	asn_TYPE_tag2member_t key = {0, 0, 0, 0};
+
+	if(!gspecs || !gspecs->tag2el_count) return -1;
+	key.el_tag = tag;
+	key.el_no = 0;
+	t2m = (const asn_TYPE_tag2member_t *)bsearch(
+		&key, gspecs->tag2el, gspecs->tag2el_count, sizeof(gspecs->tag2el[0]),
+		_t2e_cmp);
+	if(!t2m) return -1;
+	t2m += t2m->toff_first;    /* The first component with this tag */
+	return t2m->el_no;
+}
+
+ssize_t
+SEQUENCE_group_component_xer(const asn_TYPE_member_t *group,
+							 const void *tag_ptr, size_t tag_size) {
+	size_t i;
+	for(i = 0; i < group->type->elements_count; i++) {
+		switch(xer_check_tag(tag_ptr, tag_size,
+							 group->type->elements[i].name)) {
+		case XCT_BOTH:
+		case XCT_OPENING:
+			return (ssize_t)i;
+		default:
+			break;
+		}
+	}
+	return -1;
+}
+
+/*
+ * The components a decoder found are recorded as bits of the left member
+ * of the group structure's own decoder context (not used otherwise: the
+ * group is never decoded as a whole); a group of more than 62 components is
+ * not checked beyond the 62nd.
+ */
+#define GROUP_MASK_BITS 62
+
+void
+SEQUENCE_group_component_done(const asn_TYPE_member_t *group, void *gptr,
+							  size_t i) {
+	const asn_SEQUENCE_specifics_t *gspecs =
+		(const asn_SEQUENCE_specifics_t *)group->type->specifics;
+	asn_struct_ctx_t *gctx =
+		(asn_struct_ctx_t *)((char *)gptr + gspecs->ctx_offset);
+	if(i < GROUP_MASK_BITS) gctx->left |= ((ssize_t)1 << i);
+}
+
+int
+SEQUENCE_groups_complete(const asn_TYPE_descriptor_t *td, const void *st) {
+	size_t edx, i;
+	for(edx = 0; edx < td->elements_count; edx++) {
+		const asn_TYPE_member_t *group = &td->elements[edx];
+		const asn_SEQUENCE_specifics_t *gspecs;
+		const asn_struct_ctx_t *gctx;
+		const void *gptr;
+		if(!IS_GROUP(group)) continue;
+		if(group->flags & ATF_POINTER) {
+			gptr = *(const void *const *)((const char *)st
+										  + group->memb_offset);
+			if(!gptr) continue;    /* Absent */
+		} else {
+			gptr = (const char *)st + group->memb_offset;
+		}
+		gspecs = (const asn_SEQUENCE_specifics_t *)group->type->specifics;
+		gctx = (const asn_struct_ctx_t *)((const char *)gptr
+										  + gspecs->ctx_offset);
+		for(i = 0; i < group->type->elements_count && i < GROUP_MASK_BITS;
+			i++) {
+			const asn_TYPE_member_t *elm = &group->type->elements[i];
+			if(elm->optional || elm->default_value_set) continue;
+			if(!(gctx->left & ((ssize_t)1 << i))) {
+				ASN_DEBUG("%s: group %s lacks its component %s", td->name,
+						  group->name, elm->name);
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+void *
+SEQUENCE_group_struct(const asn_TYPE_member_t *group, void *st) {
+	const asn_SEQUENCE_specifics_t *gspecs =
+		(const asn_SEQUENCE_specifics_t *)group->type->specifics;
+	void **gptr2;
+	if(!(group->flags & ATF_POINTER))
+		return (char *)st + group->memb_offset;
+	gptr2 = (void **)((char *)st + group->memb_offset);
+	if(!*gptr2) *gptr2 = CALLOC(1, gspecs->struct_size);
+	return *gptr2;
+}
+
+asn_dec_rval_t
+SEQUENCE_group_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
+						  const asn_TYPE_member_t *group, void *st,
+						  const void *ptr, size_t size) {
+	const asn_TYPE_descriptor_t *gtd = group->type;
+	const asn_SEQUENCE_specifics_t *gspecs =
+		(const asn_SEQUENCE_specifics_t *)gtd->specifics;
+	asn_dec_rval_t rval = {RC_FAIL, 0};
+	const asn_TYPE_member_t *elm;
+	asn_struct_ctx_t *gctx;
+	void **gptr2;
+	void *gptr;
+	void *memb_ptr;
+	void **memb_ptr2;
+	ssize_t i;
+
+	gptr = SEQUENCE_group_struct(group, st);
+	if(!gptr) return rval;
+	gptr2 = &gptr;
+	/* The step of the group's own context: 1 + the component being
+	 * decoded (a constructed component may need more data) or 0. */
+	gctx = (asn_struct_ctx_t *)((char *)*gptr2 + gspecs->ctx_offset);
+	if(gctx->step > 0) {
+		i = gctx->step - 1;
+	} else {
+		ber_tlv_tag_t tlv_tag;
+		ssize_t tag_len = ber_fetch_tag(ptr, size, &tlv_tag);
+		if(tag_len == 0) {
+			rval.code = RC_WMORE;
+			return rval;
+		}
+		if(tag_len < 0) return rval;
+		i = SEQUENCE_group_component_by_tag(group, tlv_tag);
+		if(i < 0 || (size_t)i >= gtd->elements_count) return rval;
+		elm = &gtd->elements[i];
+		/* A component may appear once */
+		if((elm->flags & ATF_POINTER)
+		   && *(void **)((char *)*gptr2 + elm->memb_offset))
+			return rval;
+	}
+	elm = &gtd->elements[i];
+	if(elm->flags & ATF_POINTER) {
+		memb_ptr2 = (void **)((char *)*gptr2 + elm->memb_offset);
+	} else {
+		memb_ptr = (char *)*gptr2 + elm->memb_offset;
+		memb_ptr2 = &memb_ptr;
+	}
+	gctx->step = (int)i + 1;
+	rval = elm->type->op->ber_decoder(opt_codec_ctx, elm->type, memb_ptr2,
+									  ptr, size, elm->tag_mode);
+	if(rval.code == RC_OK) {
+		gctx->step = 0;
+		SEQUENCE_group_component_done(group, gptr, (size_t)i);
+	}
+	return rval;
+}
+
+/*
  * The decoder of the SEQUENCE type.
  */
 asn_dec_rval_t
@@ -196,6 +357,7 @@ SEQUENCE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		size_t n;
 		int use_bsearch;
 
+	next_component:    /* The same member again: more of a [[ ]] group */
 		if(ctx->step & 1)
 			goto microphase2;
 
@@ -219,6 +381,8 @@ SEQUENCE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
              * Found the legitimate end of the structure.
              */
             PHASE_OUT(ctx);
+			if(!SEQUENCE_groups_complete(td, st))
+				RETURN(RC_FAIL);
             RETURN(RC_OK);
         }
 
@@ -293,6 +457,14 @@ SEQUENCE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 				edx = n;
 				ctx->step = 1 + 2 * edx;	/* Remember! */
 				goto microphase2;
+			} else if(IS_GROUP(&elements[n])) {
+				/* A component of the [[ ]] group, or none */
+				if(SEQUENCE_group_component_by_tag(&elements[n],
+						tlv_tag) >= 0) {
+					edx = n;
+					ctx->step = 1 + 2 * edx;
+					goto microphase2;
+				}
 			} else if(elements[n].tag == (ber_tlv_tag_t)-1) {
 				use_bsearch = 1;
 				break;
@@ -402,7 +574,16 @@ SEQUENCE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		/*
 		 * Invoke the member fetch routine according to member's type
 		 */
-		if(elements[edx].flags & ATF_OPEN_TYPE) {
+		if(IS_GROUP(&elements[edx])) {
+			/* One component of the group; then look for another */
+			rval = SEQUENCE_group_decode_ber(opt_codec_ctx,
+					&elements[edx], st, ptr, LEFT);
+			if(rval.code == RC_OK) {
+				ADVANCE(rval.consumed);
+				ctx->step = 2 * edx;
+				goto next_component;
+			}
+		} else if(elements[edx].flags & ATF_OPEN_TYPE) {
 			rval = OPEN_TYPE_ber_get(opt_codec_ctx, td, st, &elements[edx], ptr, LEFT);
         } else {
 			rval = elements[edx].type->op->ber_decoder(opt_codec_ctx,
@@ -498,6 +679,8 @@ SEQUENCE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		}
 
 		PHASE_OUT(ctx);
+		if(!SEQUENCE_groups_complete(td, st))
+			RETURN(RC_FAIL);
 	}
 
 	RETURN(RC_OK);
@@ -505,26 +688,20 @@ SEQUENCE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 
 
 /*
- * The DER encoder of the SEQUENCE type.
+ * The DER encoding of the members of a SEQUENCE (or of a [[ ]] group, whose
+ * components are encoded as members of the SEQUENCE holding it): the
+ * length of it, or -1.
  */
-asn_enc_rval_t
-SEQUENCE_encode_der(const asn_TYPE_descriptor_t *td, const void *sptr,
-                    int tag_mode, ber_tlv_tag_t tag,
-                    asn_app_consume_bytes_f *cb, void *app_key) {
-    size_t computed_size = 0;
-	asn_enc_rval_t erval = {0,0,0};
-	ssize_t ret;
+static ssize_t
+SEQUENCE__encode_der_members(const asn_TYPE_descriptor_t *td,
+							 const void *sptr, asn_app_consume_bytes_f *cb,
+							 void *app_key) {
+	size_t computed_size = 0;
 	size_t edx;
 
-	ASN_DEBUG("%s %s as SEQUENCE",
-		cb?"Encoding":"Estimating", td->name);
-
-	/*
-	 * Gather the length of the underlying members sequence.
-	 */
 	for(edx = 0; edx < td->elements_count; edx++) {
 		asn_TYPE_member_t *elm = &td->elements[edx];
-
+		asn_enc_rval_t erval;
 		const void *memb_ptr;		/* Pointer to the member */
         const void *const *memb_ptr2; /* Pointer to that pointer */
 
@@ -537,7 +714,7 @@ SEQUENCE_encode_der(const asn_TYPE_descriptor_t *td, const void *sptr,
 				if(elm->optional)
 					continue;
 				/* Mandatory element is missing */
-				ASN__ENCODE_FAILED;
+				return -1;
 			}
 		} else {
             memb_ptr = (const void *)((const char *)sptr + elm->memb_offset);
@@ -548,15 +725,47 @@ SEQUENCE_encode_der(const asn_TYPE_descriptor_t *td, const void *sptr,
 		if(elm->default_value_cmp && elm->default_value_cmp(*memb_ptr2) == 0)
 			continue;
 
+		if(IS_GROUP(elm)) {
+			ssize_t gsize = SEQUENCE__encode_der_members(elm->type,
+					*memb_ptr2, cb, app_key);
+			if(gsize < 0) return -1;
+			computed_size += gsize;
+			continue;
+		}
+
 		erval = elm->type->op->der_encoder(elm->type, *memb_ptr2,
-			elm->tag_mode, elm->tag,
-			0, 0);
+			elm->tag_mode, elm->tag, cb, app_key);
 		if(erval.encoded == -1)
-			return erval;
+			return -1;
 		computed_size += erval.encoded;
-		ASN_DEBUG("Member %" ASN_PRI_SIZE " %s estimated %ld bytes",
-			edx, elm->name, (long)erval.encoded);
+		ASN_DEBUG("Member %" ASN_PRI_SIZE " %s %s %ld bytes",
+			edx, elm->name, cb ? "encoded in" : "estimated",
+			(long)erval.encoded);
 	}
+
+	return (ssize_t)computed_size;
+}
+
+/*
+ * The DER encoder of the SEQUENCE type.
+ */
+asn_enc_rval_t
+SEQUENCE_encode_der(const asn_TYPE_descriptor_t *td, const void *sptr,
+					int tag_mode, ber_tlv_tag_t tag,
+					asn_app_consume_bytes_f *cb, void *app_key) {
+	asn_enc_rval_t erval = {0,0,0};
+	ssize_t computed_size;
+	ssize_t ret;
+
+	ASN_DEBUG("%s %s as SEQUENCE",
+		cb?"Encoding":"Estimating", td->name);
+
+	/*
+	 * Gather the length of the underlying members sequence.
+	 */
+	computed_size = SEQUENCE__encode_der_members(td, sptr, 0, 0);
+	if(computed_size < 0)
+		ASN__ENCODE_FAILED;
 
 	/*
 	 * Encode the TLV for the sequence itself.
@@ -572,35 +781,7 @@ SEQUENCE_encode_der(const asn_TYPE_descriptor_t *td, const void *sptr,
 	/*
 	 * Encode all members.
 	 */
-	for(edx = 0; edx < td->elements_count; edx++) {
-		asn_TYPE_member_t *elm = &td->elements[edx];
-		asn_enc_rval_t tmperval = {0,0,0};
-        const void *memb_ptr;           /* Pointer to the member */
-        const void *const *memb_ptr2;   /* Pointer to that pointer */
-
-        if(elm->flags & ATF_POINTER) {
-            memb_ptr2 =
-                (const void *const *)((const char *)sptr + elm->memb_offset);
-            if(!*memb_ptr2) continue;
-		} else {
-            memb_ptr = (const void *)((const char *)sptr + elm->memb_offset);
-            memb_ptr2 = &memb_ptr;
-		}
-
-		/* Eliminate default values */
-        if(elm->default_value_cmp && elm->default_value_cmp(*memb_ptr2) == 0)
-            continue;
-
-		tmperval = elm->type->op->der_encoder(elm->type, *memb_ptr2,
-			elm->tag_mode, elm->tag, cb, app_key);
-		if(tmperval.encoded == -1)
-			return tmperval;
-		computed_size -= tmperval.encoded;
-		ASN_DEBUG("Member %" ASN_PRI_SIZE " %s of SEQUENCE %s encoded in %ld bytes",
-			edx, elm->name, td->name, (long)tmperval.encoded);
-	}
-
-	if(computed_size != 0)
+	if(SEQUENCE__encode_der_members(td, sptr, cb, app_key) != computed_size)
 		/*
 		 * Encoded size is not equal to the computed size.
 		 */
@@ -682,6 +863,43 @@ SEQUENCE_decode_xer(const asn_codec_ctx_t *opt_codec_ctx,
 
 			elm = &td->elements[edx];
 
+			if(IS_GROUP(elm)) {
+				/* One component of the [[ ]] group (the group's
+				 * own context step: 1 + its index); then back to
+				 * the body, still at the group. */
+				const asn_SEQUENCE_specifics_t *gspecs =
+					(const asn_SEQUENCE_specifics_t *)elm->type->specifics;
+				void *gptr = SEQUENCE_group_struct(elm, st);
+				asn_struct_ctx_t *gctx;
+				const asn_TYPE_member_t *gelm;
+				if(!gptr) RETURN(RC_FAIL);
+				gctx = (asn_struct_ctx_t *)((char *)gptr
+					+ gspecs->ctx_offset);
+				if(gctx->step <= 0
+				   || (size_t)gctx->step > elm->type->elements_count)
+					RETURN(RC_FAIL);
+				gelm = &elm->type->elements[gctx->step - 1];
+				if(gelm->flags & ATF_POINTER) {
+					memb_ptr2 = (void **)((char *)gptr
+						+ gelm->memb_offset);
+				} else {
+					memb_ptr_dontuse = (char *)gptr + gelm->memb_offset;
+					memb_ptr2 = &memb_ptr_dontuse;
+				}
+				tmprval = gelm->type->op->xer_decoder(opt_codec_ctx,
+						gelm->type, memb_ptr2, gelm->name,
+						ptr, size);
+				XER_ADVANCE(tmprval.consumed);
+				if(tmprval.code != RC_OK)
+					RETURN(tmprval.code);
+				SEQUENCE_group_component_done(elm, gptr,
+					(size_t)gctx->step - 1);
+				gctx->step = 0;
+				ctx->phase = 1;    /* Back to body processing */
+				ctx->step = edx;
+				goto next_token;
+			}
+
 			if(elm->flags & ATF_POINTER) {
 				/* Member is a pointer to another structure */
 				memb_ptr2 = (void **)((char *)st + elm->memb_offset);
@@ -708,6 +926,7 @@ SEQUENCE_decode_xer(const asn_codec_ctx_t *opt_codec_ctx,
 			/* Fall through */
 		}
 
+	next_token:
 		/*
 		 * Get the next part of the XML stream.
 		 */
@@ -765,6 +984,8 @@ SEQUENCE_decode_xer(const asn_codec_ctx_t *opt_codec_ctx,
                    IN_EXTENSION_GROUP(specs, edx)) {
                     XER_ADVANCE(ch_size);
 					ctx->phase = 4;	/* Phase out */
+					if(!SEQUENCE_groups_complete(td, st))
+						RETURN(RC_FAIL);
 					RETURN(RC_OK);
 				} else {
 					ASN_DEBUG("Premature end of XER SEQUENCE");
@@ -798,6 +1019,23 @@ SEQUENCE_decode_xer(const asn_codec_ctx_t *opt_codec_ctx,
 					edx_end = td->elements_count;
 				for(n = edx; n < edx_end; n++) {
 					elm = &td->elements[n];
+					if(IS_GROUP(elm)) {
+						/* A component of the group? */
+						ssize_t gi = SEQUENCE_group_component_xer(
+							elm, ptr, ch_size);
+						const asn_SEQUENCE_specifics_t *gspecs =
+							(const asn_SEQUENCE_specifics_t *)
+								elm->type->specifics;
+						void *gptr;
+						if(gi < 0) continue;
+						gptr = SEQUENCE_group_struct(elm, st);
+						if(!gptr) RETURN(RC_FAIL);
+						((asn_struct_ctx_t *)((char *)gptr
+							+ gspecs->ctx_offset))->step = (int)gi + 1;
+						ctx->step = edx = n;
+						ctx->phase = 2;
+						break;
+					}
 					tcv = xer_check_tag(ptr, ch_size, elm->name);
 					switch(tcv) {
 					case XCT_BOTH:
@@ -864,10 +1102,46 @@ SEQUENCE_decode_xer(const asn_codec_ctx_t *opt_codec_ctx,
 	RETURN(RC_FAIL);
 }
 
+/*
+ * The components of a group are encoded like members of the SEQUENCE
+ * holding it: SEQUENCE_encode_xer() of the group's type without the closing
+ * indentation (which is the holder's).
+ */
+static asn_enc_rval_t SEQUENCE__encode_xer_members(
+	const asn_TYPE_descriptor_t *td, const void *sptr, int ilevel,
+	enum xer_encoder_flags_e flags, asn_app_consume_bytes_f *cb,
+	void *app_key);
+
+asn_enc_rval_t
+SEQUENCE_group_encode_xer(const asn_TYPE_member_t *group, const void *gptr,
+						  int ilevel, enum xer_encoder_flags_e flags,
+						  asn_app_consume_bytes_f *cb, void *app_key) {
+	return SEQUENCE__encode_xer_members(group->type, gptr, ilevel, flags, cb,
+										app_key);
+}
+
 asn_enc_rval_t
 SEQUENCE_encode_xer(const asn_TYPE_descriptor_t *td, const void *sptr,
                     int ilevel, enum xer_encoder_flags_e flags,
                     asn_app_consume_bytes_f *cb, void *app_key) {
+	asn_enc_rval_t er;
+	int xcan = (flags & XER_F_CANONICAL);
+
+	er = SEQUENCE__encode_xer_members(td, sptr, ilevel, flags, cb, app_key);
+	if(er.encoded == -1) return er;
+
+	if(!xcan) ASN__TEXT_INDENT(1, ilevel - 1);
+
+	ASN__ENCODED_OK(er);
+cb_failed:
+	ASN__ENCODE_FAILED;
+}
+
+static asn_enc_rval_t
+SEQUENCE__encode_xer_members(const asn_TYPE_descriptor_t *td,
+							 const void *sptr, int ilevel,
+							 enum xer_encoder_flags_e flags,
+							 asn_app_consume_bytes_f *cb, void *app_key) {
     asn_enc_rval_t er = {0,0,0};
     int xcan = (flags & XER_F_CANONICAL);
     asn_TYPE_descriptor_t *tmp_def_val_td = 0;
@@ -908,6 +1182,15 @@ SEQUENCE_encode_xer(const asn_TYPE_descriptor_t *td, const void *sptr,
             memb_ptr = (const void *)((const char *)sptr + elm->memb_offset);
         }
 
+		if(IS_GROUP(elm)) {
+			/* The components of the [[ ]] group, at this level */
+			tmper = SEQUENCE_group_encode_xer(elm, memb_ptr, ilevel, flags,
+											  cb, app_key);
+			if(tmper.encoded == -1) return tmper;
+			er.encoded += tmper.encoded;
+			continue;
+		}
+
         if(!xcan) ASN__TEXT_INDENT(1, ilevel);
         ASN__CALLBACK3("<", 1, mname, mlen, ">", 1);
 
@@ -923,8 +1206,6 @@ SEQUENCE_encode_xer(const asn_TYPE_descriptor_t *td, const void *sptr,
 
         ASN__CALLBACK3("</", 2, mname, mlen, ">", 1);
     }
-
-    if(!xcan) ASN__TEXT_INDENT(1, ilevel - 1);
 
     ASN__ENCODED_OK(er);
 cb_failed:
