@@ -83,8 +83,11 @@ void go_conv_record_wide_integer(const char *cid);
  * sync by using the one shared void* surface below. */
 #ifndef GO_CONV_FLAT_FWD
 #define GO_CONV_FLAT_FWD
+#ifndef GO_FLAT_TYPEDEFS
+#define GO_FLAT_TYPEDEFS
 typedef struct flat_type flat_type;
 typedef struct flat_member flat_member;
+#endif
 flat_type *go_flat_ir_ref_resolve(const char *ref);
 const char *go_flat_ir_name(flat_type *t);
 int go_flat_ir_is_choice(flat_type *t);
@@ -94,7 +97,7 @@ const char *go_conv_tree_typename(flat_type *t);
  * externs below / their own extern blocks). */
 int go_flat_ir_n_types(void);
 flat_type *go_flat_ir_type(int ix);
-int go_flat_ir_index(flat_type *t);   /* position in the node array, -1 = none */
+int go_flat_ir_index(const flat_type *t);   /* position in the node array, -1 = none */
 int go_flat_ir_members(flat_type *t);
 flat_member *go_flat_ir_member(flat_type *t, int i);
 int go_flat_ir_is_nested_only(flat_type *t);
@@ -119,7 +122,7 @@ int go_flat_ir_member_is_ref(flat_member *m);
 int go_flat_ir_member_is_nested(flat_member *m);
 const char *go_flat_ir_member_prim(flat_member *m);
 const char *go_flat_ir_member_ref(flat_member *m);
-const char *go_flat_ir_member_token(flat_member *m);
+const char *go_flat_ir_member_token(const flat_member *m);
 const char *go_flat_ir_member_label(flat_member *m);
 int go_flat_ir_member_stars(flat_member *m);
 int go_flat_ir_member_is_default(flat_member *m);

@@ -120,7 +120,7 @@ char *expand_oneline_ifs(char *src) {
         size_t ti = 0;
         while(ti < ll && q[ti] == '\t') ti++;
         if(ll > ti + 4 && strncmp(q + ti, "if ", 3) == 0) {
-            const char *ob = NULL, *cb = NULL, *semi = NULL;
+            const char *ob = NULL, *cb = NULL;
             /* find the LAST " { " opening and matching " }" at line end */
             for(size_t k = ti; k < ll; k++) {
                 if(q[k] == '{' && k > ti + 3 && q[k-1] == ' ') { ob = q + k; }
@@ -573,13 +573,6 @@ char *qconst(const char *node_name, char *o) {
         free(node_id);
     }
     return o;
-}
-
-static const char *g_alignconst(const char *prim) {
-    if(prim && (strcmp(prim, "int32_t") == 0 || strcmp(prim, "_bool32") == 0
-                || strcmp(prim, "float") == 0))
-        return "alignInt32";
-    return "alignInt64";
 }
 
 int gprim_width(const char *prim) {

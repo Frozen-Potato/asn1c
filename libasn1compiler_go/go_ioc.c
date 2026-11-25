@@ -122,9 +122,9 @@ char *
 conv_tree_base(const void *t) {
     /* the override first (the bare-named container clones carry a prefixed
      * tree typedef; per-spec prefix and Flat naming) */
-    const char *ov = t ? go_conv_ir_tree_base_override((void *)t) : NULL;
+    const char *ov = t ? go_conv_ir_tree_base_override(t) : NULL;
     if(ov && *ov) return cstrdup(ov);
-    const char *nm = t ? go_conv_ir_name((void *)t) : NULL;
+    const char *nm = t ? go_conv_ir_name(t) : NULL;
     if(!nm || !*nm) return NULL;
     size_t n = strlen(nm);
     if(n < 6 || strcmp(nm + n - 5, "_flat") != 0) return NULL;
@@ -148,7 +148,7 @@ conv_c_base(const void *t) {
 
 char *
 conv_flat_name(const void *t) {
-    return cstrdup(t ? go_conv_ir_name((void *)t) : "");
+    return cstrdup(t ? go_conv_ir_name(t) : "");
 }
 
 char *
@@ -169,7 +169,7 @@ char *
 conv_member_label(const void *m) {
     const char *lbl = go_conv_ir_member_label(m);
     if(lbl && *lbl) return cstrdup(lbl);
-    lbl = go_flat_ir_member_token((void *)m);
+    lbl = go_flat_ir_member_token((const flat_member *)m);
     return cstrdup(lbl ? lbl : "");
 }
 

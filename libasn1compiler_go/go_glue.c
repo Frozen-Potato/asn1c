@@ -149,12 +149,6 @@ typedef struct {
     const conv_pdu *alias;   /* an alias PDU (Alias ::= Msg), or NULL */
 } pdu_ent;
 
-extern int go_names_rows_n(void);
-extern const char *go_names_row_module(int i);
-extern const char *go_names_row_goname(int i);
-extern const char *go_names_row_kind(int i);
-extern const char *go_names_row_sf_owner(int i);
-
 /* kinds whose Go name lives at package level (go_names.c kind_is_package_scoped) */
 static int row_kind_package_scoped(const char *k) {
     static const char *const ks[] = { "type", "inline", "choice-pr",

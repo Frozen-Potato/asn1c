@@ -193,18 +193,6 @@ gowner(flat_type *t, char **owned_out) {
     return *owned_out;
 }
 
-/* size line for a prim CHOICE alt: bytes/bits payload only (inline scalar
- * alts ride in the choice body). */
-static char *
-size_prim_alt(flat_member *m, const char *acc) {
-    const char *prim = go_flat_ir_member_prim(m);
-    if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0)
-        return gfmt("\tpayload += uintptr(len(%s))\n", acc);
-    if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0)
-        return gfmt("\tpayload += uintptr(len(%s.Bytes))\n", acc);
-    return strdup("");
-}
-
 /* the qualified const identifier of a Pr/enum const from emit module's
  * view (package qualification: a const declared in another module carries its package
  * qualifier). */
@@ -246,7 +234,6 @@ static void rebalance_switch(char **slot) {
     char *rest = gown(last);
     /* iterate lines of rest */
     char *line = strtok(rest, "\n");
-    int arm = 0;
     int in_arm = 0;
     while(line) {
         if(strncmp(line, "\tcase ", 6) == 0 || strncmp(line, "\tdefault:", 9) == 0) {
@@ -255,7 +242,6 @@ static void rebalance_switch(char **slot) {
             out = ga(out, line);
             out = ga(out, "\n\t{");
             in_arm = 1;
-            arm++;
         } else {
             out = ga(out, "\n");
             out = ga(out, line);
@@ -431,7 +417,7 @@ emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
                     /* prim alt sizing: emit_prim's OWN member
                      * branches emit the szt lines (bytes/bits payload,
                      * guarded/padded fixed; scalars 0 by construction) —
-                     * the old size_prim_alt call DUPLICATED them (GNB-ID-
+                     * an extra alt size line DUPLICATED them (GNB-ID-
                      * Choice gnb_ID: payload += len(Bytes) twice; the
                      * exact-consumption invariant's find #3). The alt
                      * nil-guard above already ran; nothing more to add. */

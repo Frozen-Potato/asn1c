@@ -196,7 +196,6 @@ entry_xer(void *rt, const char *fbasename, const char *tbasename,
 /* ---------------------------------------------------------------------------
  * File utilities (shared by the conv emission; this TU owns file IO).
  * ------------------------------------------------------------------------- */
-static int conv_copy_dir_files(const char *srcdir, const char *dstdir);
 static int
 conv_mkdir_p(const char *path) {
     char buf[4096];
@@ -657,35 +656,6 @@ rt_local_paths(const char *go_outdir, char **gomod_rel, char **work_entry) {
     }
     free(par); free(rl);
     return (*gomod_rel && *work_entry) ? 0 : -1;
-}
-
-/* Copy every regular file of srcdir into dstdir (flat). */
-static int conv_copy_dir_files(const char *srcdir, const char *dstdir);
-static int
-conv_copy_dir_files(const char *srcdir, const char *dstdir) {
-    DIR *d = opendir(srcdir);
-    if(!d) {
-        fprintf(stderr, "asn1cgo: conv: cannot open '%s': %s\n",
-                srcdir, strerror(errno));
-        return -1;
-    }
-    struct dirent *e;
-    int rc = 0;
-    while((e = readdir(d)) != NULL) {
-        const char *nm = e->d_name;
-        if(nm[0] == '.') continue;
-        struct stat st;
-        char *sp = conv_path(srcdir, nm);
-        if(stat(sp, &st) == 0 && S_ISREG(st.st_mode)) {
-            char *dp = conv_path(dstdir, nm);
-            if(conv_copy_file(sp, dp) < 0) rc = -1;
-            free(dp);
-        }
-        free(sp);
-        if(rc) break;
-    }
-    closedir(d);
-    return rc;
 }
 
 /* Resolve a tree type base to the .h file name the C backend wrote for it

@@ -132,9 +132,6 @@ typedef enum {
     FT_NESTED
 } flat_member_kind_e;
 
-typedef struct flat_member flat_member;
-typedef struct flat_type flat_type;
-
 struct flat_member {
     flat_member_kind_e kind;
     char *prim;        /* FT_PRIM: the C type token                        */
@@ -711,7 +708,7 @@ go_flat_member_seqof_on(int nest_ix, const char *elem_cid,
  * ------------------------------------------------------------------------ */
 int go_flat_ir_n_types(void) { return g_flat.n_types; }
 flat_type *go_flat_ir_type(int ix) { return flat_at(ix); }
-int go_flat_ir_index(flat_type *t) {
+int go_flat_ir_index(const flat_type *t) {
     return (t && t >= g_flat.types && t < g_flat.types + g_flat.n_types)
                ? (int)(t - g_flat.types) : -1;
 }
@@ -746,7 +743,7 @@ int go_flat_ir_member_is_nested(flat_member *m) {
 }
 const char *go_flat_ir_member_prim(flat_member *m) { return m ? m->prim : NULL; }
 const char *go_flat_ir_member_ref(flat_member *m) { return m ? m->ref : NULL; }
-const char *go_flat_ir_member_token(flat_member *m) { return m ? m->token : NULL; }
+const char *go_flat_ir_member_token(const flat_member *m) { return m ? m->token : NULL; }
 /* display label (recorded Identifier); NULL = unrecorded. */
 const char *go_flat_ir_member_label(flat_member *m) { return m ? m->label : NULL; }
 const char *go_flat_ir_type_label(flat_type *t) { return t ? t->label : NULL; }

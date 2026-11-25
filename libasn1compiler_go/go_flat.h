@@ -16,7 +16,11 @@
 /* forward decls (the IR is private to go_flat.c; the walk holds opaque
  * handles only — a nested construct's member list is populated through the
  * returned handle, then attached by the mint calls). */
+#ifndef GO_FLAT_TYPEDEFS
+#define GO_FLAT_TYPEDEFS
 typedef struct flat_type flat_type;
+typedef struct flat_member flat_member;
+#endif
 
 /* ---- IR construction hooks (called during the name walk) ----------------
  *

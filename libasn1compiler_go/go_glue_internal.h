@@ -24,21 +24,8 @@
 #include "go_conv.h"             /* flat IR surface + conv facts (PDU roots) */
 #include "go_conv_internal.h"    /* g_conv_pdus, conv_* helpers */
 #include "go_strmap.h"
-
-/* The name-row surface (go_names.c — the bag outlives the glue emit;
- * extern decls here keep -Wmissing-prototypes quiet in both TUs). */
-int go_names_rows_n(void);
-const char *go_names_row_module(int i);
-const char *go_names_row_goname(int i);
-const char *go_names_row_rawcid(int i);
-const char *go_names_row_kind(int i);
-const char *go_names_row_field_type(int i);
-const char *go_names_row_sf_owner(int i);
-const char *go_names_row_slice_elem(int i);
-const char *go_names_row_intval(int i);
-const char *go_names_row_gotype(int i);
-int go_names_row_is_struct(int i);
-const char *go_names_row_leaf_underlying(int i);
+#include "go_rows.h"             /* the name-row surface (go_names.c; the bag
+                                 * outlives the glue emit) */
 #define GFAIL(msg) do { fprintf(stderr, "asn1cgo: glue: %s\n", (msg)); \
                         glue_failed = 1; } while(0)
 typedef struct { char *name; long value; } goneconst;

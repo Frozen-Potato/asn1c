@@ -56,23 +56,10 @@
 
 #include "go_conv.h"
 #include "go_conv_internal.h"
-
 /* The name-row surface (go_names.c: the same read-only view go_glue.c
  * uses; rows are WALK order here, dump order after the qsort — both are
- * complete by emit time). */
-extern int go_names_rows_n(void);
-extern const char *go_names_row_module(int i);
-extern const char *go_names_row_goname(int i);
-extern const char *go_names_row_rawcid(int i);
-extern const char *go_names_row_kind(int i);
-extern const char *go_names_row_field_type(int i);
-extern const char *go_names_row_sf_owner(int i);
-extern const char *go_names_row_intval(int i);
-extern const char *go_names_row_gotype(int i);
-
-/* module pkg dir + import-path head (go_names.c surfaces, flat-extern). */
-extern char *go_ctor_pkg_of(const char *module);
-extern const char *go_ctor_module_path(void);
+ * complete by emit time), module pkg dir + import-path head. */
+#include "go_rows.h"
 
 /* path join under go_outdir (go_names.c's mkpath/join are private; local
  * copies keep this TU flat). */

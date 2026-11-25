@@ -51,7 +51,7 @@ extern char *conv_from_node(void *t, int scc);
  * ------------------------------------------------------------------------- */
 static int
 ir_ix_of(const void *t) {
-    return go_flat_ir_index((flat_type *)t);
+    return go_flat_ir_index((const flat_type *)t);
 }
 
 static void *
@@ -194,7 +194,7 @@ conv_is_scc(const void *t) {
     }
     int ix = -1;
     for(int i = 0; i < n; i++)
-        if(go_flat_ir_type(i) == (flat_type *)t) { ix = i; break; }
+        if(go_flat_ir_type(i) == (const flat_type *)t) { ix = i; break; }
     if(ix < 0) return 0;
     return scc_ix[ix];
 }

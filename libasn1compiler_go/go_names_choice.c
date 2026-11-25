@@ -146,7 +146,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
          * flags 0), and the alt's own field row carries the unprefixed
          * member-decl token (MKID_safe, asn1c_C.c:1353). One unprefixed
          * string serves both. */
-        const char *altcid = go_mk_suffix(alt);
+        char *altcid = go_mk_suffix(alt);
         char *altgo = go_list_suffix(choice_expr, alt);
         {
             /* layout / glue name the alt's slot and constant by camel-casing
@@ -218,7 +218,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                  * break;` (a selected NULL alt must not fall to BAD). */
                 go_conv_record_null_alt(choice_cid, altcid);
                 free(altgo);
-                free((char *)altcid);
+                free(altcid);
                 continue;
             }
             char *path = make_path(parent_path, alt->Identifier);
@@ -262,9 +262,9 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                           || go_is_list_kind(alt->expr_type)) {
                     /* inline constructed alt: pointee = the __-compound cid
                      * the mint below creates; prim-form slot when inline */
-                    const char *ac = go_mk_suffix(alt);
+                    char *ac = go_mk_suffix(alt);
                     ccid = go_cid_compound(choice_cid, "__", ac);
-                    free((char *)ac);
+                    free(ac);
                     /* an inline CHOICE/SEQ alt under -findirect-choice
                      * carries EM_INDIRECT (constructed terminal) — cstars
                      * already 1; without the flag (leaf alts) EM_INDIRECT
@@ -482,7 +482,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             free(sq_go); free(sq_cid); free(sq_path);
         }
         free(altgo);
-        free((char *)altcid);
+        free(altcid);
     }
     struct_scope_reset(ctx->bag);
 }
@@ -575,7 +575,7 @@ emit_enum(struct walk_ctx *ctx, const char *enum_go,
          * the per-spec prefix rule: the suffix itself carries NO prefix AND NO reserved-word
          * upcasing (c_member_name's suffix is make_identifier(0, expr, 0),
          * asn1c_naming.c:304 — the real token is `..._true`, lowercase). */
-        const char *ecid = go_mk_suffix(e);
+        char *ecid = go_mk_suffix(e);
         char *raw = str_append(strdup(""), enum_cid);
         raw = str_append(raw, "_");
         raw = str_append(raw, ecid);
@@ -590,7 +590,7 @@ emit_enum(struct walk_ctx *ctx, const char *enum_go,
             row_set_const(ctx->bag, asn1p_itoa(e->value->value.v_integer),
                           etype);
         free(etype);
-        free((char *)ecid);
+        free(ecid);
     }
 }
 
@@ -623,7 +623,7 @@ emit_bit_names(struct walk_ctx *ctx, const char *type_go,
             ctx->bag->failed = 1;
             return;
         }
-        const char *bcid = go_mk_suffix(v);
+        char *bcid = go_mk_suffix(v);
         char *raw = str_append(strdup(""), type_cid);
         raw = str_append(raw, "_");
         raw = str_append(raw, bcid);
@@ -638,6 +638,6 @@ emit_bit_names(struct walk_ctx *ctx, const char *type_go,
         if(!group) group = r->ord + 1;
         r->bit_group = group;
         r->bit_type = own(type_path);
-        free((char *)bcid);
+        free(bcid);
     }
 }

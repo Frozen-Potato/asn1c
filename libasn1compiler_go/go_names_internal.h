@@ -14,6 +14,7 @@
                                * layout stage) */
 #include "go_leaf.h"         /* go_leaf_kind: shared leaf body kinds */
 #include "go_strmap.h"
+#include "go_rows.h"          /* the name-row surface defined in go_names.c */
 #include "go_conv.h"         /* go_conv_record_*: the conv facts the walk
                                * reads (IOC rows, NULL alts, PDUs, wide
                                * INTEGERs; the conv/entry stages) */

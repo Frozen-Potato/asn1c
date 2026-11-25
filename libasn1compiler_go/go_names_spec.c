@@ -687,7 +687,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                && go_construct_classify(bv) == GO_CONSTR_BIT_STRING)
                 mark_bitstring_module(ctx->bag, ctx->module);
         }
-        const char *altcid = go_mk_suffix(cell->value);
+        char *altcid = go_mk_suffix(cell->value);
         char *altgo = go_r2(altcid);
         /* A named alternative's own type: the chased terminal. Its C name
          * (and so its Go name) is module-prefixed when the name exists in
@@ -803,7 +803,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
 alt_done:
         free(inl_go); free(inl_cid);
         free(altgo);
-        free((char *)altcid);
+        free(altcid);
     }
 done_seen:
     for(size_t s = 0; s < n_seen; s++) free(seen[s]);
