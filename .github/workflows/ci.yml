@@ -56,6 +56,9 @@ jobs:
       - name: No new compiler warnings
         if: matrix.cc == 'gcc'
         run: sh .github/ci/check-warnings.sh build.log .github/ci/gcc-warnings.txt
+      - name: Go backend globals prefixed
+        if: matrix.cc == 'gcc'
+        run: sh .github/ci/check-go-symbols.sh asn1c
       # Runs even when the warning check failed, as long as the build passed.
       - name: make check
         if: (success() || failure()) && steps.build.outcome == 'success'

@@ -1,7 +1,7 @@
 /*
  * go_names_walk.c — the recursive walkers: one member
- * (walk_names_child), a member list (walk_names_members) and a top-level
- * assignment (walk_names_expr).
+ * (walk_names_child), a member list (go_walk_names_members) and a top-level
+ * assignment (go_walk_names_expr).
  *
  * Part of the Go-name generator pass; go_names.c has the overview.
  */
@@ -19,30 +19,30 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                        const char *parent_path, const char *parent_go,
                        const char *parent_cid) {
     /* Defense-in-depth: the canonical ext-marker skip is in
-     * walk_names_members (the SEQUENCE loop), but reject an A1TC_EXTENSIBLE
+     * go_walk_names_members (the SEQUENCE loop), but reject an A1TC_EXTENSIBLE
      * child here too so a future direct caller can't leak a blank-goName row. */
     if(child->expr_type == A1TC_EXTENSIBLE) return 0;
     const char *cid = child->Identifier ? child->Identifier : "?";
-    /* Pointer-star FIRST: member_stars also rejects DEFAULT — before
+    /* Pointer-star FIRST: go_member_stars also rejects DEFAULT — before
      * any row is emitted, so a failed run writes nothing for the member. */
     ctx->last_opt_extra = 0;
-    const char *stars = member_stars(ctx, child, parent_path);
+    const char *stars = go_member_stars(ctx, child, parent_path);
     if(ctx->bag->failed) return -1;
     /* Field row (struct-scoped). rawCid = GO_MKID(child). The census
      * out-param rides along: non-zero iff OPTIONAL carried
      * marker bits beyond EM_OPTIONAL. The row INDEX is retained: the SEQ-OF
      * mint below emits its own inline row AFTER this one, and the field's
-     * field_type must land on THIS row (row_set_field_type writes n_rows-1,
+     * field_type must land on THIS row (go_row_set_field_type writes n_rows-1,
      * which by then is the inline row; a mismatch left the
      * emitted body of a parameterized container empty). */
     int field_row_ix;
     {
-        char *path = make_path(parent_path, cid);
+        char *path = go_make_path(parent_path, cid);
         char *mgo_ = go_member_go(child);
         char *mtok_ = go_mk_member(child);
-        alt_register(parent_cid ? parent_cid : "", mtok_, mgo_);
+        go_alt_register(parent_cid ? parent_cid : "", mtok_, mgo_);
         free(mtok_);
-        emit_name(ctx->bag, ctx->module, path, GK_FIELD,
+        go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
                   go_mk_member(child), mgo_);
         field_row_ix = ctx->bag->n_rows - 1;
         ctx->bag->rows[field_row_ix].opt_extra_bits = ctx->last_opt_extra;
@@ -50,7 +50,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
     /* A supported DEFAULT member is a plain Go value; its Flat slot is by
      * value too (the C tree slot is a pointer iff the C pass left
      * EM_INDIRECT set: tree_ptr, handled by the conv arms). */
-    const int is_dflt = member_is_default(child);
+    const int is_dflt = go_member_is_default(child);
     const int tree_ptr = is_dflt && (child->marker.flags & EM_INDIRECT);
 
     /* Recurse into the child's OWN inline children only (mirrors go_walk.c
@@ -72,19 +72,19 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         char *child_field_go = go_member_go(child);
         /* struct-body stage: the field's Go type is the inline name (the field is typed by
          * the minted named type <Parent><Member>), pointer-starred by the
-         * marker rule (member_stars, computed above). Same-module by
+         * marker rule (go_member_stars, computed above). Same-module by
          * construction (the name is minted in the parent's own module). Set
          * before the recursion may emit more rows. */
         {
-            char *ft = str_append(strdup(""), stars);
-            ft = str_append(ft, parent_go);
-            ft = str_append(ft, child_field_go);
-            row_set_field_type(ctx->bag, ft);
+            char *ft = go_str_append(strdup(""), stars);
+            ft = go_str_append(ft, parent_go);
+            ft = go_str_append(ft, child_field_go);
+            go_row_set_field_type(ctx->bag, ft);
             free(ft);
         }
-        char *child_cid = own_mkid(child);
-        char *inline_go = str_append(strdup(""), parent_go);
-        inline_go = str_append(inline_go, child_field_go);
+        char *child_cid = go_own_mkid(child);
+        char *inline_go = go_str_append(strdup(""), parent_go);
+        inline_go = go_str_append(inline_go, child_field_go);
         free(child_field_go);
         /* an inline tag is an aggregate name — prefix once, parts
          * unprefixed (go_cid_compound strips each part's prefix and puts the
@@ -101,7 +101,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             char *raw = strdup(inline_cid);
             char *go = strdup(inline_go);
             char *path = strdup(inline_path);
-            emit_name(ctx->bag, ctx->module, path, GK_INLINE, raw, go);
+            go_emit_name(ctx->bag, ctx->module, path, GK_INLINE, raw, go);
             /* leaf-stage body data: an inline LEAF construct's declaration is the
              * same named-type form as a top-level leaf (the anonymous-inline
              * naming rule: the
@@ -112,7 +112,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * SEQUENCE/CHOICE/SEQ-OF inline rows carry GLEAF_NONE (bodies are
              * struct-body); a SEQ-OF of a plain leaf is a slice-stage alias. */
             if(child->expr_type == ASN_BASIC_ENUMERATED) {
-                row_set_leaf(ctx->bag, GLEAF_ENUM);
+                go_row_set_leaf(ctx->bag, GLEAF_ENUM);
                 /* Flat: NO leaf typedef mint — an inline ENUM member
                  * is the bare int32 slot only (no
                  * <P>__<m>_flat leaf is authored; the .h's e_<P>__<m> enum tag is not a
@@ -121,7 +121,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         }
 
         if(go_construct_classify(child) == GO_CONSTR_BIT_STRING)
-            mark_bitstring_module(ctx->bag, ctx->module);
+            go_mark_bitstring_module(ctx->bag, ctx->module);
 
         /* Flat: an inline construct member nests an ANONYMOUS struct in
          * the enclosing Flat exactly as the .h nests `struct <P>__<m> {...}` —
@@ -187,30 +187,30 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * supported-construct set. The real cid prefix (inline_cid) reproduces
          * the verbatim enumerator tokens <P>__<member>_<enumerator>. */
         if(child->expr_type == ASN_BASIC_ENUMERATED) {
-            emit_enum(ctx, inline_go, inline_cid, inline_path, child);
+            go_emit_enum(ctx, inline_go, inline_cid, inline_path, child);
             free(inline_go); free(inline_cid); free(inline_path);
             return 0;
         }
 
         if(child->expr_type == ASN_CONSTR_CHOICE) {
-            /* emit_choice toggles the struct-owner scope (open under the
+            /* go_emit_choice toggles the struct-owner scope (open under the
              * inline CHOICE, reset at its end); a member AFTER the inline
              * CHOICE belongs to the OUTER struct again (e.g. RRC-MessageID's
              * messageID after rrcType), so SAVE/RESTORE the outer scope
-             * around the call — struct_scope_reset leaves none open, and the
+             * around the call — go_struct_scope_reset leaves none open, and the
              * outer struct's remaining members would else attach to no owner
              * (and emit nothing). The FLAT cur
-             * register needs the same save/restore: emit_choice rebinds it to
+             * register needs the same save/restore: go_emit_choice rebinds it to
              * the inline CHOICE's node (dedup finds the pre-minted node). */
             char *save_sf = NULL;
             if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
             int save_fcur = go_flat_cur_get();
-            field_scope_push(ctx->bag);
-            emit_choice(ctx, inline_go, inline_cid, inline_path, child);
-            field_scope_pop(ctx->bag);
+            go_field_scope_push(ctx->bag);
+            go_emit_choice(ctx, inline_go, inline_cid, inline_path, child);
+            go_field_scope_pop(ctx->bag);
             if(flat_nest_ix == -4) go_flat_mark_inline_elem("struct", NULL);
             go_flat_cur_restore(save_fcur);
-            free(bag_sf_restore(ctx->bag, save_sf));
+            free(go_bag_sf_restore(ctx->bag, save_sf));
             free(inline_go); free(inline_cid); free(inline_path);
             return 0;
         }
@@ -221,16 +221,16 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             if(ctx->bag->sf_cur_owner) save_sf = strdup(ctx->bag->sf_cur_owner);
             ctx->parent_go = inline_go;
             ctx->parent_cid = inline_cid;
-            field_scope_push(ctx->bag);
+            go_field_scope_push(ctx->bag);
             /* struct-body stage: the inline SEQUENCE declares a Go struct; its member
-             * fields (the rows walk_names_members emits next) attach to it.
+             * fields (the rows go_walk_names_members emits next) attach to it.
              * FLAT cur save/restore as for the CHOICE branch above. */
-            row_set_is_struct(ctx->bag);
-            struct_scope_open(ctx->bag, inline_go);
+            go_row_set_is_struct(ctx->bag);
+            go_struct_scope_open(ctx->bag, inline_go);
             int save_fcur = go_flat_cur_get();
             /* bind cur to the construct's own node (the nested node minted
              * above, or the package-scoped one of a pointer slot): the
-             * SEQUENCE branch has no emit_choice-style re-mint to do it, so
+             * SEQUENCE branch has no go_emit_choice-style re-mint to do it, so
              * without this the inline SEQUENCE's members landed on the
              * ENCLOSING struct. */
             if(flat_nest_ix == -4) {
@@ -240,11 +240,11 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             } else {
                 go_flat_cur_restore(flat_nest_ix);
             }
-            int rc = walk_names_members(ctx, child, inline_path);
+            int rc = go_walk_names_members(ctx, child, inline_path);
             go_flat_cur_restore(save_fcur);
-            struct_scope_reset(ctx->bag);
-            field_scope_pop(ctx->bag);
-            free(bag_sf_restore(ctx->bag, save_sf));
+            go_struct_scope_reset(ctx->bag);
+            go_field_scope_pop(ctx->bag);
+            free(go_bag_sf_restore(ctx->bag, save_sf));
             ctx->parent_go = save_go;
             ctx->parent_cid = save_cid;
             free(inline_go); free(inline_cid); free(inline_path);
@@ -256,10 +256,10 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * walk SEQUENCE/CHOICE/ENUM take); attach the ELEMENT type
          * to it now. No row is appended between the inline emit and here, so
          * the n_rows-1 form targets the inline row. Element rule: ONE
-         * resolver for all three slice shapes (slice_element_type) — a
+         * resolver for all three slice shapes (go_slice_element_type) — a
          * reference element is the assignment's own goName, a leaf
          * element is the mapping-table column, an inline element is minted
-         * as <Parent><Member>Member by mint_inline_seqof_elem. The
+         * as <Parent><Member>Member by go_mint_inline_seqof_elem. The
          * member's own field row was typed by the minted name in the block
          * above (stars + parent_go + child name) — never a bare []Elem.
          * A BIT STRING
@@ -269,26 +269,26 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         {
             asn1p_expr_t *elem = TQ_FIRST(&child->members);
             if(elem && elem->expr_type == ASN_BASIC_BIT_STRING)
-                mark_bitstring_module(ctx->bag, ctx->module);
+                go_mark_bitstring_module(ctx->bag, ctx->module);
             char *selem;
-            if(seqof_elem_is_inline(elem)) {
+            if(go_seqof_elem_is_inline(elem)) {
                 int inl_row = ctx->bag->n_rows - 1;
-                if(mint_inline_seqof_elem(ctx, elem, inline_path, inline_go,
+                if(go_mint_inline_seqof_elem(ctx, elem, inline_path, inline_go,
                                           inline_cid, &selem,
                                           &inl_flat_cid) < 0) {
                     free(selem);
                     free(inline_go); free(inline_cid); free(inline_path);
                     return -1;
                 }
-                row_set_slice_elem_at(ctx->bag, inl_row, selem);
+                go_row_set_slice_elem_at(ctx->bag, inl_row, selem);
             } else {
-                selem = slice_element_type(ctx, elem, inline_path);
+                selem = go_slice_element_type(ctx, elem, inline_path);
                 if(ctx->bag->failed) {
                     free(selem);
                     free(inline_go); free(inline_cid); free(inline_path);
                     return -1;
                 }
-                row_set_slice_elem(ctx->bag, selem);
+                go_row_set_slice_elem(ctx->bag, selem);
             }
             free(selem);
         }
@@ -309,7 +309,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             }
             if(flat_nest_ix == -3) {
                 char *flat_selem = inl_flat_cid ? strdup(inl_flat_cid)
-                                   : se_ ? own(GO_MKID(se_)) : strdup("");
+                                   : se_ ? go_own(GO_MKID(se_)) : strdup("");
                 char *flat_mtok = go_mk_member(child);
                 go_flat_member_seqof(flat_selem, 0,
                                      child->expr_type == ASN_CONSTR_SET_OF,
@@ -339,7 +339,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
     }
     go_construct_e tk = go_construct_classify(terminal);
     if(tk == GO_CONSTR_BIT_STRING)
-        mark_bitstring_module(ctx->bag, ctx->module);
+        go_mark_bitstring_module(ctx->bag, ctx->module);
     if(tk == GO_CONSTR_SEQUENCE_OF) {
         /* Only a param-container specialization (a SEQUENCE OF whose element is
          * itself a field-shaped specialization — a `ProtocolIE-Field {{...}}`,
@@ -349,7 +349,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * already has its own `type` row, walked as a top-level assignment);
          * the chase landing on a hand-authored assignment is detected by
          * lhs_params==NULL && spec_index==-1 (a clone carries spec_index>=0 —
-         * the same marker walk_names_expr gates the template walk on). A
+         * the same marker go_walk_names_expr gates the template walk on). A
          * member `Details.items-List` referencing the named
          * `Items-List ::= SEQUENCE OF ProtocolIE-SingleContainer {{...}}`
          * must not mint DetailsItemsList; the named-type rule names the
@@ -365,27 +365,27 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                    && elem->expr_type == A1TC_REFERENCE
                    && field_shaped_element(ctx, elem)))) {
             char *member_go = go_member_go(child);
-            char *inline_go = str_append(strdup(""), parent_go);
-            inline_go = str_append(inline_go, member_go);
+            char *inline_go = go_str_append(strdup(""), parent_go);
+            inline_go = go_str_append(inline_go, member_go);
             free(member_go);
             char *raw = strdup(inline_go);
             char *go = strdup(inline_go);
             char *path = strdup(parent_path);
-            emit_name(ctx->bag, ctx->module, path, GK_INLINE, raw, go);
+            go_emit_name(ctx->bag, ctx->module, path, GK_INLINE, raw, go);
             /* slice stage (container element resolution): the container slice's ELEMENT is
              * R2(X) — the field-shaped payload the container holds — which
-             * slice_element_type resolves to exactly (the chased terminal
+             * go_slice_element_type resolves to exactly (the chased terminal
              * IS the field-shaped clone named R2(X); same one-resolver rule
              * as every slice shape). Attached to the inline row just
              * emitted (no row between it and here). */
             {
-                char *selem = slice_element_type(ctx, elem, parent_path);
+                char *selem = go_slice_element_type(ctx, elem, parent_path);
                 if(ctx->bag->failed) {
                     free(selem);
                     free(inline_go);
                     return -1;
                 }
-                row_set_slice_elem(ctx->bag, selem);
+                go_row_set_slice_elem(ctx->bag, selem);
                 free(selem);
             }
             /* struct-body stage: the field is typed by the minted named slice
@@ -394,9 +394,9 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * row was just emitted ABOVE this point, so the n_rows-1 form
              * would type the inline row and leave the FIELD row untyped. */
             {
-                char *ft = str_append(strdup(""), stars);
-                ft = str_append(ft, inline_go);
-                row_set_field_type_at(ctx->bag, field_row_ix, ft);
+                char *ft = go_str_append(strdup(""), stars);
+                ft = go_str_append(ft, inline_go);
+                go_row_set_field_type_at(ctx->bag, field_row_ix, ft);
                 free(ft);
             }
             /* Flat (A2 collapse): the container CLONE is a
@@ -407,7 +407,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * that name (the `ProtocolIE_Container_85P0_flat
              * protocolIEs` shape — a BARE name, no run prefix on clone
              * family names). The ItemIEs element cid:
-             * slice_element_type's chase target == the field-shaped clone
+             * go_slice_element_type's chase target == the field-shaped clone
              * (R2(X)); the C id is that clone's own GO_MKID. */
             {
                 asn1p_expr_t *fterm = elem;
@@ -417,8 +417,8 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                         ctx->asn, ctx->ns, elem);
                     if(ft_) fterm = ft_;
                 }
-                char *flat_cname = own(GO_MKID(terminal));
-                char *flat_ieid = own(GO_MKID(fterm));
+                char *flat_cname = go_own(GO_MKID(terminal));
+                char *flat_ieid = go_own(GO_MKID(fterm));
                 (void)go_flat_seqof_container(flat_cname, flat_ieid,
                                               ctx->module);
                 char *flat_mtok3 = go_mk_member(child);
@@ -433,7 +433,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
     }
     /* A param-container clone member (the branch above) returned early; the
      * plain-member Flat rows ride the two tails below. The FLAT star is
-     * member_stars (OPTIONAL) OR the asn1c cycle-break/recursion marker
+     * go_member_stars (OPTIONAL) OR the asn1c cycle-break/recursion marker
      * (EM_INDIRECT/EM_UNRECURSE, the recursion Flat-pointer rule: Flat pointer placement mirrors
      * asn1c's cycle-break, masked tests per the the marker-reading rule amendment) — the walk
      * prints it once here. */
@@ -447,11 +447,11 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
      *     (R2(MKID(terminal)); a field-shaped specialization is named R2(X)
      *     — the spec-key — the same form: X IS the clone's Identifier by the
      *     time the chase lands on it). Stored UNQUALIFIED; the post-walk
-     *     prepass (qualify_field_types) applies cross-module
+     *     prepass (go_qualify_field_types) applies cross-module
      *     qualification once the whole name table exists (a member may
      *     reference an assignment its module defines LATER in the walk).
      *   an inline leaf (INTEGER/BOOLEAN/string/OCTET STRING/BIT STRING/...)
-     *     — the mapping-table Go column via classify_leaf, the SAME table the decl
+     *     — the mapping-table Go column via go_classify_leaf, the SAME table the decl
      *     emission uses (go_types_leaf_underlying — one table, no drift). */
     if(child->expr_type == A1TC_REFERENCE || child->meta_type == AMT_TYPEREF
        || terminal != child) {
@@ -461,9 +461,9 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
          * A1TC_REFERENCE form is gone). The chase resolving to a DIFFERENT
          * expr than the member is the reliable "was a reference" signal. */
         char *tgo = go_type_go(terminal);
-        char *ft = str_append(strdup(""), stars);
-        ft = str_append(ft, tgo);
-        row_set_field_type(ctx->bag, ft);
+        char *ft = go_str_append(strdup(""), stars);
+        ft = go_str_append(ft, tgo);
+        go_row_set_field_type(ctx->bag, ft);
         /* Flat: a named-ref member slot (tk SEQ OF with no container clone =
          * the nested {items,count} A2 form; anything else = the terminal's
          * own <X>_flat, starred as decided). */
@@ -480,7 +480,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                     ctx->asn, ctx->ns, selem);
                 if(st) sterm = st;
             }
-            char *flat_selem = own(GO_MKID(sterm));
+            char *flat_selem = go_own(GO_MKID(sterm));
             char *flat_mtok = go_mk_member(child);
             go_flat_member_seqof(flat_selem, 0,
                                  terminal->expr_type == ASN_CONSTR_SET_OF,
@@ -492,14 +492,14 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * member is typed by the assignment's own named {items,count}
              * typedef (a `PFX_BinRangeList_flat` member
              * shape); never a re-nested wrapper. */
-            char *flat_tcid = own(GO_MKID(terminal));
+            char *flat_tcid = go_own(GO_MKID(terminal));
             char *flat_mtok = go_mk_member(child);
             go_flat_member_ref(flat_tcid, flat_mtok, flat_star);
             go_flat_label_last_member(child->Identifier);
             if(is_dflt) go_flat_last_member_default(tree_ptr);
             free(flat_tcid); free(flat_mtok);
         } else {
-            char *flat_tcid = own(GO_MKID(terminal));
+            char *flat_tcid = go_own(GO_MKID(terminal));
             char *flat_mtok2 = go_mk_member(child);
             go_flat_member_ref(flat_tcid, flat_mtok2, flat_star);
             go_flat_label_last_member(child->Identifier);
@@ -509,22 +509,22 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         free(tgo); free(ft);
     } else {
         /* An inline leaf terminal (the member IS the construct): the
-         * mapping-table Go column (classify_leaf — INTEGER via asn1c's own
+         * mapping-table Go column (go_classify_leaf — INTEGER via asn1c's own
          * asn1c_type_fits_long). GLEAF_ENUM has no bare primitive here: a
          * member that is an inline ENUMERATED took the inline-construct
          * branch at the top of this function (the minted named type), so
          * the NULL return leaves the row unset only for genuinely
-         * unclassifiable terminals (classify_leaf already failed those). */
+         * unclassifiable terminals (go_classify_leaf already failed those). */
         ctx->wide_nr = 1; ctx->wide_hit = 0;
-        int lk = classify_leaf(ctx, terminal, parent_path);
+        int lk = go_classify_leaf(ctx, terminal, parent_path);
         int mwide = ctx->wide_hit;
         ctx->wide_nr = 0; ctx->wide_hit = 0;
         if(ctx->bag->failed) return -1;
         const char *under = go_types_leaf_underlying(lk);
         if(under) {
-            char *ft = str_append(strdup(""), stars);
-            ft = str_append(ft, under);
-            row_set_field_type(ctx->bag, ft);
+            char *ft = go_str_append(strdup(""), stars);
+            ft = go_str_append(ft, under);
+            go_row_set_field_type(ctx->bag, ft);
             /* Flat: the same classification -> the mapping-table Flat prim column. */
             {
                                 const char *fprim = go_leaf_flat_prim(lk);
@@ -546,7 +546,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
 
 /* walk_names_child: the member walk, then (for a supported DEFAULT member) the
  * exported default-value row. The row is emitted AFTER the member's rows are
- * complete: row_set_field_type and friends address the last row appended, so
+ * complete: go_row_set_field_type and friends address the last row appended, so
  * nothing may be interleaved with them. The member's field row is the first
  * row the inner walk appends. */
 static int
@@ -559,23 +559,23 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
     /* An inline named-bit BIT STRING member: a plain BitString field (typed
      * by the inner walk); the bit positions are named as an inline
      * ENUMERATED member's type would be (<Parent><Member>). Emitted here, after
-     * the member's own rows are complete (row_set_field_type addresses the
+     * the member's own rows are complete (go_row_set_field_type addresses the
      * last row). parent_path already ends in this member's name. */
     if(rc == 0 && child->expr_type == ASN_BASIC_BIT_STRING
        && child->meta_type != AMT_TYPEREF && TQ_FIRST(&child->members)
        && asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, child) == child) {
         char *mgo = go_member_go(child);
-        char *bit_go = str_append(str_append(strdup(""), parent_go), mgo);
-        char *mcid = own_mkid(child);
+        char *bit_go = go_str_append(go_str_append(strdup(""), parent_go), mgo);
+        char *mcid = go_own_mkid(child);
         char *bit_cid = go_cid_compound(parent_cid ? parent_cid : "", "__",
                                         mcid);
-        emit_bit_names(ctx, bit_go, bit_cid, parent_path, child);
+        go_emit_bit_names(ctx, bit_go, bit_cid, parent_path, child);
         free(mgo); free(bit_go); free(mcid); free(bit_cid);
         if(ctx->bag->failed) return -1;
     }
     if(rc == 0 && child->expr_type != A1TC_EXTENSIBLE
-       && member_is_default(child) && ctx->bag->n_rows > first_row) {
-        note_default_value(ctx, child, parent_path, first_row);
+       && go_member_is_default(child) && ctx->bag->n_rows > first_row) {
+        go_note_default_value(ctx, child, parent_path, first_row);
         if(ctx->bag->failed) return -1;
     }
     return rc;
@@ -588,7 +588,7 @@ walk_names_child(struct walk_ctx *ctx, asn1p_expr_t *child,
 static int
 field_shaped_element(struct walk_ctx *ctx, asn1p_expr_t *elem) {
     asn1p_expr_t *t = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, elem);
-    return t && is_field_shaped_spec(t) != NULL;
+    return t && go_is_field_shaped_spec(t) != NULL;
 }
 
 /* plain_clone: a specialization of a parameterized type that is not an
@@ -602,7 +602,7 @@ static int
 plain_clone(struct walk_ctx *ctx, asn1p_expr_t *t) {
     if(!t || t->spec_index < 0) return 0;
     go_construct_e k = go_construct_classify(t);
-    if(k == GO_CONSTR_SEQUENCE) return is_field_shaped_spec(t) == NULL;
+    if(k == GO_CONSTR_SEQUENCE) return go_is_field_shaped_spec(t) == NULL;
     if(k == GO_CONSTR_CHOICE) return 1;
     if(k == GO_CONSTR_SEQUENCE_OF) {
         asn1p_expr_t *elem = TQ_FIRST(&t->members);
@@ -626,19 +626,19 @@ plain_clone(struct walk_ctx *ctx, asn1p_expr_t *t) {
 /* Iterate one struct's members. The member path passed to walk_names_child is
  * parent_path + "." + child name (the ASN.1 dotted path). */
 int
-walk_names_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
+go_walk_names_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
                    const char *parent_path) {
     /* the caller opened this struct's (empty) field scope */
     asn1p_expr_t *child;
     TQ_FOR(child, &(parent->members), next) {
         /* Extension marker "..." (A1TC_EXTENSIBLE, Identifier "...") carries no
          * Go name — GO_MKID collapses it to "_" and go_r2 to "" — and it is not a
-         * real struct member. emit_choice (go_names.c) and emit_enum skip it in
+         * real struct member. go_emit_choice (go_names.c) and go_emit_enum skip it in
          * their alt loops; the SEQUENCE-member walk must too, or every extensible
          * SEQUENCE leaks a blank-goName field row that no name check legitimately
          * compares (docs/questions.md). */
         if(child->expr_type == A1TC_EXTENSIBLE) continue;
-        char *cp = make_path(parent_path,
+        char *cp = go_make_path(parent_path,
                              child->Identifier ? child->Identifier : "?");
         int rc = walk_names_child(ctx, child, cp, ctx->parent_go, ctx->parent_cid);
         free(cp);
@@ -649,13 +649,13 @@ walk_names_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
 
 /* Walk one top-level assignment (mirror go_walk.c walk_expr). */
 int
-walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
+go_walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
     /* Parameterized template: walk specializations, not the template
      * (go_walk.c walk_expr:446-454; asn1compiler.c:116-130). */
     if(expr->lhs_params && expr->spec_index == -1) {
         for(int i = 0; i < expr->specializations.pspecs_count; i++) {
             asn1p_expr_t *clone = expr->specializations.pspec[i].my_clone;
-            if(clone && walk_names_expr(ctx, clone) < 0) return -1;
+            if(clone && go_walk_names_expr(ctx, clone) < 0) return -1;
         }
         return 0;
     }
@@ -677,20 +677,20 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                || governing->expr_type == ASN_BASIC_ENUMERATED)) {
             /* the #define token is an aggregate — prefix once, parts
              * unprefixed (the .h: PFX_ProcedureCode_id_Setup, never
-             * ..._id_PFX_Setup). own() each part into a named local BEFORE
+             * ..._id_PFX_Setup). go_own() each part into a named local BEFORE
              * the second GO_MKID: GO_MKID returns the SHARED static buffer
              * (asn1c_misc.c:60), so passing two live GO_MKID returns aliases
              * one buffer (both parts read the same last-computed string).
              * go_cid_compound does not free its args; free the owned parts
              * after the call. */
-            char *gov_cid = own(GO_MKID(governing));
-            char *val_cid = own(GO_MKID(expr));
+            char *gov_cid = go_own(GO_MKID(governing));
+            char *val_cid = go_own(GO_MKID(expr));
             char *raw = go_cid_compound(gov_cid, "_", val_cid);
             free(gov_cid); free(val_cid);
             char *go = go_value_go(governing, expr);
-            char *path = make_path("", expr->Identifier
+            char *path = go_make_path("", expr->Identifier
                                        ? expr->Identifier : "?");
-            emit_name(ctx->bag, ctx->module, path, GK_VALUE_CONST, raw, go);
+            go_emit_name(ctx->bag, ctx->module, path, GK_VALUE_CONST, raw, go);
             /* leaf-stage body data: const value = the value assignment's own
              * integer (expr->value->value.v_integer — the exact field
              * asn1c_C.c:1264 prints), typed by the GOVERNING named type
@@ -699,7 +699,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
              * asn1c_C.c:1257-1263, no enumerator symbol). */
             if(expr->value) {
                 char *gov_go = go_type_go(governing);
-                row_set_const(ctx->bag,
+                go_row_set_const(ctx->bag,
                               asn1p_itoa(expr->value->value.v_integer), gov_go);
                 free(gov_go);
             }
@@ -717,9 +717,9 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
     /* Type assignment: one `type` row. goName = R2(MKID(expr)) (a reference
      * assignment mints its OWN named Go type — not chased to terminal). */
     char *type_go = go_type_go(expr);
-    char *type_cid = own_mkid(expr);   /* real asn1c C-ident of this assignment */
+    char *type_cid = go_own_mkid(expr);   /* real asn1c C-ident of this assignment */
     const char *ident = expr->Identifier ? expr->Identifier : "?";
-    char *type_path = make_path("", ident);
+    char *type_path = go_make_path("", ident);
 
     asn1p_expr_t *terminal = expr;
     if(expr->expr_type == A1TC_REFERENCE || expr->meta_type == AMT_TYPEREF) {
@@ -737,7 +737,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * placement is instead: a container/template clone that is NOT field-shaped
      * emits no name at all (the clone's args — the bound ItemIEs / list element
      * — mint their own names in their defining module during their own walks),
-     * and a field-shaped clone mints R2(X) in X's module (see emit_spec below).
+     * and a field-shaped clone mints R2(X) in X's module (see go_emit_spec below).
      * `spec_index >= 0` marks a clone (a hand-authored top-level assignment keeps
      * spec_index == -1 via the lhs_params check). A plain_clone (T{X} ::=
      * SEQUENCE { v X } as T{INTEGER}) is the exception: it is named like any
@@ -747,7 +747,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * field-element) does not leak a `type` row + member `field` rows into the
      * template's module. */
     if(expr->spec_index >= 0
-       && !(k == GO_CONSTR_SEQUENCE && is_field_shaped_spec(terminal))
+       && !(k == GO_CONSTR_SEQUENCE && go_is_field_shaped_spec(terminal))
        && !(expr == terminal && plain_clone(ctx, expr))) {
         free(type_cid);
         free(type_path);
@@ -760,7 +760,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * carries no ordinary top-level type name of its own in the index (the
      * spec-key row IS its "type" name). Handle before the generic SEQUENCE walk
      * so the spec rows (not a colliding `type` + member `field` rows) win. */
-    if(k == GO_CONSTR_SEQUENCE && is_field_shaped_spec(terminal)) {
+    if(k == GO_CONSTR_SEQUENCE && go_is_field_shaped_spec(terminal)) {
         /* alias collapse: a field-shaped specialization whose ASSIGNMENT is a
          * type-reference alias (AMT_TYPEREF — e.g. ProtocolIE-SingleContainer
          * {{X}} ::= ProtocolIE-Field {{X}},asn1c emits the alias as a bare
@@ -785,10 +785,10 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                 asn1p_expr_t *rt = asn1f_find_terminal_type_ex(
                     ctx->asn, ctx->ns, expr);
                 if(rt) {
-                    resolved_cid = own(GO_MKID(rt));
+                    resolved_cid = go_own(GO_MKID(rt));
                     /* the alias lives in X's module — the
                      * module that DEFINES the bound object set — resolved
-                     * the same way emit_spec does (asn1c_get_ioc_table's
+                     * the same way go_emit_spec does (asn1c_get_ioc_table's
                      * objset->module; the clone's own ->module back-pointer
                      * names the TEMPLATE's module (the container module), which
                      * would strand the alias in a header that never
@@ -815,7 +815,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
             free(type_go);
             return 0;
         }
-        emit_spec(ctx, type_go, type_cid, ident, terminal);
+        go_emit_spec(ctx, type_go, type_cid, ident, terminal);
         /* Conv (the entry-point rule, as below): a hand-written field-shaped
          * SEQUENCE (not a parameterized clone) is a PDU root like any other
          * SEQUENCE; asn1c lists it in pdu_collection.c too. */
@@ -837,7 +837,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * member of type Alias is a Msg field, as before. */
     if(terminal != expr
        && (k == GO_CONSTR_SEQUENCE || k == GO_CONSTR_CHOICE)) {
-        emit_name(ctx->bag, ctx->module, type_path, GK_TYPE,
+        go_emit_name(ctx->bag, ctx->module, type_path, GK_TYPE,
                   type_cid ? strdup(type_cid) : strdup(""), strdup(type_go));
         ctx->bag->rows[ctx->bag->n_rows - 1].alias_of = go_type_go(terminal);
         if(!expr->lhs_params && expr->spec_index < 0 && go_pdu_selected(expr))
@@ -852,8 +852,8 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * and parents the member names; emit it after computing k so a failed
      * classify doesn't leave a half-name. The member path root is `ident`. The
      * type row's rawCid (= type_cid) is the verbatim asn1c C-struct identifier;
-     * the value is handed off (owned) to emit_name here. */
-    emit_name(ctx->bag, ctx->module, type_path, GK_TYPE,
+     * the value is handed off (owned) to go_emit_name here. */
+    go_emit_name(ctx->bag, ctx->module, type_path, GK_TYPE,
               type_cid ? type_cid : strdup(""), type_go);
     /* Conv (the entry-point rule): record a PDU root — mirror asn1c's own membership rule
      * (include_type_to_pdu_collection, asn1c_save.c): included iff a
@@ -882,16 +882,16 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
     /* leaf-stage body data: a LEAF type assignment's declaration is
      * `type <goName> <underlying>` (every type assignment is a named Go
      * type; only inline constructs use the mapping-table type directly — a plain or
-     * reference leaf assignment is named). classify_leaf resolves the
+     * reference leaf assignment is named). go_classify_leaf resolves the
      * underlying via asn1c's own machinery (asn1c_type_fits_long for INTEGER,
      * asn1c_misc.c:408; the leaf classifier for the rest). Constructed
      * kinds (SEQUENCE/CHOICE/SEQ-OF) carry GLEAF_NONE — their bodies are
-     * the struct-body stage; ENUMERATED classifies GLEAF_ENUM and pairs with the emit_enum
+     * the struct-body stage; ENUMERATED classifies GLEAF_ENUM and pairs with the go_emit_enum
      * const values below. */
     if(k != GO_CONSTR_SEQUENCE && k != GO_CONSTR_CHOICE
        && k != GO_CONSTR_SEQUENCE_OF) {
-        int lk = classify_leaf(ctx, terminal, ident);
-        row_set_leaf(ctx->bag, lk);
+        int lk = go_classify_leaf(ctx, terminal, ident);
+        go_row_set_leaf(ctx->bag, lk);
         /* Flat: the leaf mint rides the SAME classification (one decision,
          * both columns; leaf = bare typedef of the mapping-table Flat prim). */
         if(lk == GLEAF_NULL) {
@@ -905,14 +905,14 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
     }
 
     if(k == GO_CONSTR_BIT_STRING)
-        mark_bitstring_module(ctx->bag, ctx->module);
+        go_mark_bitstring_module(ctx->bag, ctx->module);
     /* A named-bit BIT STRING assignment: `type X BitString` plus the bit
      * positions as int constants. Only the defining assignment gets them (an
      * alias `Y ::= X` does not redeclare X's bits). */
     if(k == GO_CONSTR_BIT_STRING && terminal == expr
        && expr->expr_type == ASN_BASIC_BIT_STRING
        && expr->meta_type != AMT_TYPEREF && TQ_FIRST(&expr->members))
-        emit_bit_names(ctx, type_go, type_cid, ident, expr);
+        go_emit_bit_names(ctx, type_go, type_cid, ident, expr);
 
     int rc = 0;
     if(k == GO_CONSTR_SEQUENCE) {
@@ -926,39 +926,39 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
         const char *save_cid = ctx->parent_cid;
         ctx->parent_go = type_go;
         ctx->parent_cid = type_cid;   /* borrowed for the duration of this walk */
-        reset_field_scope(ctx->bag);
+        go_reset_field_scope(ctx->bag);
         /* struct-body stage: SEQUENCE type rows declare Go structs; their member fields
          * attach to the struct scope opened here. */
-        row_set_is_struct(ctx->bag);
-        struct_scope_open(ctx->bag, type_go);
-        rc = walk_names_members(ctx, expr, ident);
-        struct_scope_reset(ctx->bag);
+        go_row_set_is_struct(ctx->bag);
+        go_struct_scope_open(ctx->bag, type_go);
+        rc = go_walk_names_members(ctx, expr, ident);
+        go_struct_scope_reset(ctx->bag);
         ctx->parent_go = save_go;
         ctx->parent_cid = save_cid;
     } else if(k == GO_CONSTR_CHOICE) {
-        emit_choice(ctx, type_go, type_cid, ident, terminal);
+        go_emit_choice(ctx, type_go, type_cid, ident, terminal);
         if(terminal != expr) {
             /* `A ::= B` (B a CHOICE): C has only `typedef B_t A_t;` */
-            char *tcid = own_mkid(terminal);
+            char *tcid = go_own_mkid(terminal);
             go_flat_mark_c_alias(type_cid, tcid);
             free(tcid);
         }
     } else if(k == GO_CONSTR_ENUMERATED) {
-        emit_enum(ctx, type_go, type_cid, ident, terminal);
+        go_emit_enum(ctx, type_go, type_cid, ident, terminal);
     } else if(k == GO_CONSTR_SEQUENCE_OF) {
         /* slice stage (the slice-alias naming rule): a SEQUENCE-OF type assignment declares
          * the named slice alias `type X []Elem` right at its own `type` row
          * (emitted above; no row appended between it and here). SIZE
          * constraints and a `...` do not change the shape. The ELEMENT carries
          * the same one-resolver rule as every slice shape
-         * (slice_element_type): a reference element is the assignment's
+         * (go_slice_element_type): a reference element is the assignment's
          * own goName (qualified by the prepass), an inline
          * leaf is the mapping-table column, an inline element is minted as
-         * <Type>Member by mint_inline_seqof_elem (below). */
+         * <Type>Member by go_mint_inline_seqof_elem (below). */
         asn1p_expr_t *elem = TQ_FIRST(&terminal->members);
         if(elem && elem->expr_type == ASN_BASIC_BIT_STRING)
-            mark_bitstring_module(ctx->bag, ctx->module);
-        if(seqof_elem_is_inline(elem)) {
+            go_mark_bitstring_module(ctx->bag, ctx->module);
+        if(go_seqof_elem_is_inline(elem)) {
             /* an inline element is named after the assignment that DECLARES
              * the SEQUENCE OF (the terminal): its own for a plain assignment,
              * the chased one for an alias `U ::= T` (the element is reused
@@ -982,15 +982,15 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                     return -1;
                 }
                 ogo = go_type_go(terminal);
-                ocid = own_mkid(terminal);
+                ocid = go_own_mkid(terminal);
                 opath = terminal->Identifier ? terminal->Identifier : ident;
             }
             char *ge = NULL, *fc = NULL;
-            int mrc = mint_inline_seqof_elem(ctx, elem, opath, ogo, ocid,
+            int mrc = go_mint_inline_seqof_elem(ctx, elem, opath, ogo, ocid,
                                              &ge, &fc);
             free(ogo); free(ocid);
             if(mrc < 0) { free(ge); free(fc); return -1; }
-            row_set_slice_elem_at(ctx->bag, owner_row, ge);
+            go_row_set_slice_elem_at(ctx->bag, owner_row, ge);
             (void)go_flat_seqof(type_cid, fc, 0,
                                terminal->expr_type == ASN_CONSTR_SET_OF,
                                ctx->module);
@@ -999,12 +999,12 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
             return 0;
         }
         {
-            char *selem = slice_element_type(ctx, elem, ident);
+            char *selem = go_slice_element_type(ctx, elem, ident);
             if(ctx->bag->failed) {
                 free(selem);
                 return -1;
             }
-            row_set_slice_elem(ctx->bag, selem);
+            go_row_set_slice_elem(ctx->bag, selem);
             /* Flat: the named SEQ OF — the element cid is the
              * chased terminal's own cid (a reference element; an inline
              * leaf element already failed loud above). A SingleContainer
@@ -1019,14 +1019,14 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                         ctx->asn, ctx->ns, elem);
                     if(et) eterm = et;
                 }
-                char *flat_eterm = own(GO_MKID(eterm));
+                char *flat_eterm = go_own(GO_MKID(eterm));
                 if(eterm->spec_index >= 0
                    && go_is_struct_kind(eterm->expr_type)
-                   && is_field_shaped_spec(eterm)) {
+                   && go_is_field_shaped_spec(eterm)) {
                     /* the SingleContainer clone: elem = the bare clone id
                      * (the alias node of the resolved ItemIEs Flat — minted
                      * once; the alias's target resolve is by cid). */
-                    char *bare = own(GO_MKID(eterm));
+                    char *bare = go_own(GO_MKID(eterm));
                     /* keep the _<N>P<n> slot suffix GO_MKID appended */
                     const char *pfx = asn1c_prefix();
                     size_t pl = pfx ? strlen(pfx) : 0;
@@ -1046,7 +1046,7 @@ walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
                                        ctx->module);
                     go_flat_label_cur(terminal->Identifier);
                     if(strcmp(bare, of_bare) != 0) {
-                        char *alias_cid = own(bare);
+                        char *alias_cid = go_own(bare);
                         (void)go_flat_alias_bare(alias_cid, flat_eterm,
                                                  ctx->module);
                         free(alias_cid);

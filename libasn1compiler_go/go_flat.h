@@ -98,7 +98,7 @@ void go_flat_last_member_tree_token(const char *tree_token);
 void go_flat_last_member_tree_member(const char *m);
 
 /* The same mint keyed by the walk's GLEAF_* kind (the SAME int the Go side
- * passed row_set_leaf — one classification, both columns; the C-prim token
+ * passed go_row_set_leaf — one classification, both columns; the C-prim token
  * derives from the identical table go_types.c maps to the Go column). */
 int go_flat_leaf_gleaf(const char *cid, int gleaf, const char *module);
 

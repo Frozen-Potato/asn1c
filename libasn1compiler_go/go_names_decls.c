@@ -17,7 +17,7 @@
  * precedes the envelope ValuePr chain it introduces) and a sorted-by-path
  * order would interleave foreign blocks between a decl and its consts. */
 
-struct name_bag *g_emit_bag;
+struct name_bag *g_go_emit_bag;
 
 /* g_go_module_path: the go.mod module path — `module <path>` and the
  * qualifier of every generated import line. Unset env: the path IS
@@ -26,7 +26,7 @@ struct name_bag *g_emit_bag;
  * this composed string through their go_module_basename params (every use
  * they make of it is import-path composition). The rt import lines compose
  * from g_go_rt_module_path the same way. Owned by this TU, freed via
- * clear_go_module_paths after the emit chain. */
+ * go_clear_module_paths after the emit chain. */
 char *g_go_module_path;
 char *g_go_rt_module_path;   /* the rt module path (ASN1CGO_RT_MODULE) */
 
@@ -35,7 +35,7 @@ char *g_go_rt_module_path;   /* the rt module path (ASN1CGO_RT_MODULE) */
  * the whole value has no leading/trailing '/'. Returns 0 valid, -1 invalid
  * (diagnostic already printed). Same failure route as the basename check. */
 int
-check_go_module_prefix(const char *pfx) {
+go_check_module_prefix(const char *pfx) {
     int bad = 0;
     if(!pfx || !*pfx) bad = 1;              /* set-but-empty = empty first segment */
     if(!bad && (pfx[0] == '/' || pfx[strlen(pfx) - 1] == '/'))
@@ -68,8 +68,8 @@ check_go_module_prefix(const char *pfx) {
  * Unset env -> basename form (the historical layout, byte-identical). Both
  * outputs are malloc'd (strdup-shape, never NULL... malloc failure leaves
  * NULL; the emit's NULL guards degrade exactly like the old borrowed
- * pointer); callers free via clear_go_module_paths. */
-char *path_join2(const char *a, const char *b) {
+ * pointer); callers free via go_clear_module_paths. */
+char *go_path_join2(const char *a, const char *b) {
     size_t n = strlen(a) + 1 + strlen(b) + 1;
     char *r = malloc(n);
     if(r) snprintf(r, n, "%s/%s", a, b);
@@ -84,12 +84,12 @@ static char *path_dup2(const char *a) {
 }
 
 void
-set_go_module_paths(const char *go_outdir) {
+go_set_module_paths(const char *go_outdir) {
     const char *slash = strrchr(go_outdir, '/');
     const char *base = slash ? slash + 1 : go_outdir;
     const char *pfx = getenv("ASN1CGO_GO_MODULE_PREFIX");
     if(pfx && *pfx) {
-        g_go_module_path = path_join2(pfx, base);
+        g_go_module_path = go_path_join2(pfx, base);
     } else {
         g_go_module_path = path_dup2(base);
     }
@@ -98,7 +98,7 @@ set_go_module_paths(const char *go_outdir) {
 }
 
 void
-clear_go_module_paths(void) {
+go_clear_module_paths(void) {
     free(g_go_module_path); g_go_module_path = NULL;
     free(g_go_rt_module_path); g_go_rt_module_path = NULL;
 }
@@ -113,8 +113,8 @@ go_names_module_path(void) { return g_go_module_path; }
  * order; indices are unique so the sort is total). */
 static int
 ord_cmp(const void *pa, const void *pb) {
-    const struct name_row *a = &g_emit_bag->rows[*(const int *)pa];
-    const struct name_row *b = &g_emit_bag->rows[*(const int *)pb];
+    const struct name_row *a = &g_go_emit_bag->rows[*(const int *)pa];
+    const struct name_row *b = &g_go_emit_bag->rows[*(const int *)pb];
     return a->ord < b->ord ? -1 : a->ord > b->ord ? 1 : 0;
 }
 
@@ -151,9 +151,9 @@ qualify_foreign_const_types(struct name_bag *b, const char *module) {
             }
         }
         if(!tmod || tmod == module) continue;
-        char *q = module_pkg_go(tmod);
-        q = str_append(q, ".");
-        q = str_append(q, c->goType);
+        char *q = go_module_pkg_name(tmod);
+        q = go_str_append(q, ".");
+        q = go_str_append(q, c->goType);
         free(c->goType);
         c->goType = q;
     }
@@ -181,18 +181,18 @@ qualify_foreign_const_types(struct name_bag *b, const char *module) {
  * per governing type, e.g. a ProtocolIEID block), which the same per-goType grouping
  * produces: their "owner row" is the governing type's own `type` row.
  */
-/* collect_module_imports — the ONE place that decides which sibling
+/* go_collect_module_imports — the ONE place that decides which sibling
  * packages a module's types.go imports (used by go_emit_module_imports for
  * emission and by the import-cycle check, so they cannot drift). Fills
  * imps[] (sorted, malloc'd package-dir names; caller frees) and returns the
  * count. */
 int
-collect_module_imports(struct name_bag *b, const char *module,
+go_collect_module_imports(struct name_bag *b, const char *module,
                        char **imps, int max_imps) {
     qualify_foreign_const_types(b, module);
     /* Collect distinct qualified `pkg.` prefixes across this module's value
      * consts (governing types) AND its field types (the
-     * cross-module references qualify_field_types rewrote — `pkg.Type`,
+     * cross-module references go_qualify_field_types rewrote — `pkg.Type`,
      * `*pkg.Type`), deterministic sort, one import line each. The import
      * path form: <module_pkg> alone is NOT a full path — the
      * module root prefix is added by go_emit.c (it owns the basename); here
@@ -247,10 +247,10 @@ collect_module_imports(struct name_bag *b, const char *module,
 
 int
 go_emit_module_imports(FILE *out, const char *module) {
-    struct name_bag *b = g_emit_bag;
+    struct name_bag *b = g_go_emit_bag;
     if(!b) return 0;
     char *imps[64];
-    int n_imps = collect_module_imports(b, module, imps, 64);
+    int n_imps = go_collect_module_imports(b, module, imps, 64);
     if(n_imps == 0) return 0;
     int rc = 0;
     if(fputs("\nimport (\n", out) >= 0) {
@@ -286,7 +286,7 @@ gfmt_names(const char *fmt, ...) {
     return p;
 }
 
-/* emit_ctor: `func New<T>() *T` for a struct row with has_ctor (mark_ctors):
+/* emit_ctor: `func New<T>() *T` for a struct row with has_ctor (go_mark_ctors):
  * a composite literal setting each DEFAULT member to its DEFAULT (a fresh
  * copy for a slice or BitString value, a call for a constructed one) and
  * each mandatory member whose type has a constructor to *New<Type>(). The
@@ -346,7 +346,7 @@ emit_ctor(FILE *out, struct name_bag *b, const struct name_row *r,
 
 int
 go_emit_module_decls(FILE *out, const char *module) {
-    struct name_bag *b = g_emit_bag;
+    struct name_bag *b = g_go_emit_bag;
     if(!b) return 0;
     int rc = 0;
     int prev_block = 0;   /* the previous decl ended a const block: the next

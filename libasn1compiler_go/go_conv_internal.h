@@ -31,40 +31,40 @@
 /* ---- shared emission helpers (defined once in go_conv_to.c) ------------- */
 
 /* Append b to a (malloc growth; a returned unchanged on OOM). */
-char *ca(char *a, const char *b);
+char *go_ca(char *a, const char *b);
 
 /* printf into a fresh malloc'd string. */
 __attribute__((format(printf, 1, 2)))
-char *cfmt(const char *fmt, ...);
+char *go_cfmt(const char *fmt, ...);
 
 /* strdup that never returns NULL ("" on OOM). */
-char *cstrdup(const char *s);
+char *go_cstrdup(const char *s);
 
 /* The one failed flag shared by the conv emission TUs. */
-extern int g_conv_failed_;
-#define conv_failed_set() do { g_conv_failed_ = 1; } while(0)
+extern int g_go_conv_failed_;
+#define conv_failed_set() do { g_go_conv_failed_ = 1; } while(0)
 
 /* tree type base of a node: cid with the run prefix ensured ONCE (the IR
  * cid is already prefix-stripped; the tree typedef is <P><cid>_t). NULL for
  * an anonymous nested node (no converter of its own). Shared static buffer
  * per call site is unsafe across nested use — RETURNS A MALLOC'D STRING the
  * caller frees. */
-char *conv_tree_base(const void *t);
-char *conv_c_base(const void *t);
+char *go_conv_tree_base(const void *t);
+char *go_conv_c_base(const void *t);
 
 /* The flat type name of a node (malloc'd copy of go_flat_ir_name). */
-char *conv_flat_name(const void *t);
+char *go_conv_flat_name(const void *t);
 
 /* One converter pair's emitted "type label": the display label — the
  * recorded td->name string (ASN.1 Identifier verbatim, prefix-free,
  * hyphens kept) — falling back to the prefixed tree base when unrecorded.
  * Malloc'd. */
-char *conv_type_label(const void *t);
+char *go_conv_type_label(const void *t);
 
 /* A member's emitted display label: its recorded ASN.1 Identifier
  * (hyphens kept, asn1c_C.c:3119), falling back to the member token.
  * Malloc'd. */
-char *conv_member_label(const void *m);
+char *go_conv_member_label(const void *m);
 
 /* ---- the recorded-fact tables (defined in go_ioc.c) ---------------------- */
 
@@ -87,12 +87,12 @@ typedef struct {
                           * typed conversion and the name suffix Id<decimal>) */
 } conv_ioc_row;
 
-extern conv_ioc_row *g_conv_iocs;
-extern int g_conv_n_iocs, g_conv_cap_iocs;
+extern conv_ioc_row *g_go_conv_iocs;
+extern int g_go_conv_n_iocs;
 
 typedef struct { char *node_cid, *alt_token; } conv_null_alt;
-extern conv_null_alt *g_conv_nullalts;
-extern int g_conv_n_nullalts, g_conv_cap_nullalts;
+extern conv_null_alt *g_go_conv_nullalts;
+extern int g_go_conv_n_nullalts;
 
 /* A PDU root. cid is the Flat node whose converters the entry points use.
  * For a type assignment that only renames another (Alias ::= Msg, also
@@ -103,59 +103,51 @@ typedef struct {
     char *cid;
     char *alias_cid, *alias_go, *alias_label, *alias_module;
 } conv_pdu;
-extern conv_pdu *g_conv_pdus;
-extern int g_conv_n_pdus, g_conv_cap_pdus;
+extern conv_pdu *g_go_conv_pdus;
+extern int g_go_conv_n_pdus;
 
 typedef struct { char *cid; } conv_wide;
-extern conv_wide *g_conv_wides;
-extern int g_conv_n_wides, g_conv_cap_wides;
 
 /* Prefix-stripping equality: does recorded cid equal the node's cid (either
  * side may carry the run prefix)? */
-int conv_cid_eq(const char *a, const char *b);
+int go_conv_cid_eq(const char *a, const char *b);
 
 /* Is node cid a recorded wide-INTEGER leaf (the native-width INTEGER Flat rule)? */
-int conv_is_wide(const char *cid);
-int conv_wide_unsigned(void *t);
+int go_conv_is_wide(const char *cid);
+int go_conv_wide_unsigned(void *t);
 /* The value-union slot of an IOC spec node's alt when it is a PRIM (a
  * built-in type written directly in the object, `TYPE BOOLEAN`); NULL for a
  * named-type alt (converted through its own <T>_to_tree / _from_tree).
  * *union_node receives the value-union node (the arm's owner). */
-void *conv_ioc_alt_prim(void *spec, const char *alt_token, void **union_node);
+void *go_conv_ioc_alt_prim(void *spec, const char *alt_token, void **union_node);
 /* The converter base (<base>_to_tree / _from_tree) of an IOC spec node's
  * named-type alt, from its value-union slot (the resolved Flat ref, so a
  * module-prefixed type name is right); malloc'd, NULL when the slot is not a
  * resolvable ref. */
-char *conv_ioc_alt_base(void *spec, const char *alt_token);
-
-/* Is node cid a recorded PDU root? */
-int conv_is_pdu(const char *cid);
+char *go_conv_ioc_alt_base(void *spec, const char *alt_token);
 
 /* Is (node_cid, alt_token) a recorded NULL alt? */
-int conv_is_null_alt(const char *node_cid, const char *alt_token);
+int go_conv_is_null_alt(const char *node_cid, const char *alt_token);
 /* 1 iff the IOC row's &Value is a NULL written in the object (TYPE NULL):
  * no union payload, the conv arm is a bare break. */
-int conv_ioc_row_null_alt(const conv_ioc_row *r);
-
-/* The first recorded IOC row of spec node cid (NULL when none). */
-const conv_ioc_row *conv_ioc_first(const char *spec_cid);
+int go_conv_ioc_row_null_alt(const conv_ioc_row *r);
 
 /* Does spec node cid have ANY recorded IOC row? */
-int conv_ioc_has(const char *spec_cid);
+int go_conv_ioc_has(const char *spec_cid);
 
 /* ---- per-node emission surface (implemented in the owning TUs) ----------- */
 
 /* is node cid in a recursion SCC (Tarjan over IR one-hop ref edges)?
  * Computed once by the first caller; returns 0/1. */
-int conv_is_scc(const void *t);
+int go_conv_is_scc(const void *t);
 
 /* The per-node from_tree body (go_conv_from.c) and the per-node
  * to_tree body's public form (go_conv_to.c) — both called by the emit
  * driver / go_entry.c; declared here to keep -Wmissing-prototypes quiet.
  * Malloc'd; caller frees. */
-char *conv_from_node(void *t, int scc);
-char *node_to_body_pub(void *t);
-char *conv_member_from_pub(void *t, void *m, const char *in_acc, const char *out_acc);
+char *go_conv_from_node(void *t, int scc);
+char *go_node_to_body_pub(void *t);
+char *go_conv_member_from_pub(void *t, void *m, const char *in_acc, const char *out_acc);
 
 /* Emit the whole conv/entry output for go_conv_emit (go_conv_to.c drives the
  * per-node to/from emission in dependency order and the package writing). */

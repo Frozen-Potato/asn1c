@@ -94,10 +94,10 @@
  *   go_glue.c         go_glue_emit (the driver) and the import dry run
  *   go_glue_util.c    string / file helpers, layout-const names and asserts,
  *                     the name-row index, the fn registry, Go type text
- *   go_glue_prim.c    BMPString / UniversalString helpers, emit_prim
- *   go_glue_ref.c     emit_ref (a named-type member)
- *   go_glue_member.c  nested members, CHOICE bodies, emit_member
- *   go_glue_fn.c      SEQUENCE OF item helpers, emit_type_fn
+ *   go_glue_prim.c    BMPString / UniversalString helpers, go_emit_prim
+ *   go_glue_ref.c     go_emit_ref (a named-type member)
+ *   go_glue_member.c  nested members, CHOICE bodies, go_emit_member
+ *   go_glue_fn.c      SEQUENCE OF item helpers, go_emit_type_fn
  *   go_glue_pkg.c     the PDU API, the shared glue text, the package header
  */
 #include "go_glue_internal.h"
@@ -105,8 +105,8 @@
 /* display labels of IR nodes/members (go_flat.c accessors already
  * declared via go_conv.h's fwd block). */
 
-int glue_failed = 0;
-int g_tmpseq = 0;   /* unique temp names per fn (reset in emit_type_fn) */
+int go_glue_failed = 0;
+int g_go_tmpseq = 0;   /* unique temp names per fn (reset in go_emit_type_fn) */
 
 /* go_glue_emit — the driver (called by go_generate after go_conv_emit).
  * go_module_basename = the go.mod module path (basename or
@@ -124,8 +124,8 @@ static void *g_dry_ud = NULL;
 static int glue_foreign_modules(const char *mod, const char ***out) {
     const char **fmods = NULL;
     int n_fm = 0, cap_fm = 0;
-    for(int i = 0; i < g_n_fns; i++) {
-        flat_type *ft_ = go_flat_ir_type(g_fns[i]->ix);
+    for(int i = 0; i < g_go_n_fns; i++) {
+        flat_type *ft_ = go_flat_ir_type(g_go_fns[i]->ix);
         const char *fm = ft_ ? go_flat_ir_module(ft_) : NULL;
         if(!fm || !*fm || strcmp(fm, mod) == 0) continue;
         int seen = 0;
@@ -149,7 +149,7 @@ typedef struct {
     const conv_pdu *alias;   /* an alias PDU (Alias ::= Msg), or NULL */
 } pdu_ent;
 
-/* kinds whose Go name lives at package level (go_names.c kind_is_package_scoped) */
+/* kinds whose Go name lives at package level (go_names.c go_kind_is_package_scoped) */
 static int row_kind_package_scoped(const char *k) {
     static const char *const ks[] = { "type", "inline", "choice-pr",
         "choice-const", "enum-const", "value-const", "spec-key", "spec-value",
@@ -174,11 +174,11 @@ static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
     if(!go) return 0;
     for(int i = 0; i < n_pdu; i++)
         go[i] = pdus[i].alias ? strdup(pdus[i].alias->alias_go)
-                              : gcamel_flat(go_flat_ir_name(pdus[i].root));
+                              : go_gcamel_flat(go_flat_ir_name(pdus[i].root));
     for(int i = 0; i < n_pdu; i++) {
         const char *mod = pdus[i].module;
         for(int v = 0; v < ncodec; v++) {
-            char *fn = gfmt("Decode%s%s", codec[v], go[i]);
+            char *fn = go_gfmt("Decode%s%s", codec[v], go[i]);
             for(int r = 0; r < nrows; r++) {
                 const char *rm = go_names_row_module(r), *rn = go_names_row_goname(r);
                 const char *rk = go_names_row_kind(r);
@@ -191,7 +191,7 @@ static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
             for(int j = i + 1; j < n_pdu; j++) {
                 if(strcmp(pdus[j].module, mod) != 0) continue;
                 for(int w = 0; w < ncodec; w++) {
-                    char *f2 = gfmt("Decode%s%s", codec[w], go[j]);
+                    char *f2 = go_gfmt("Decode%s%s", codec[w], go[j]);
                     if(strcmp(fn, f2) == 0) {
                         fprintf(stderr, "asn1cgo: collision in module %s: %s <- %s (pdu-func) and %s (pdu-func)\n",
                                 mod, fn, go[i], go[j]);
@@ -203,7 +203,7 @@ static int pdu_api_clashes(const pdu_ent *pdus, int n_pdu) {
             free(fn);
         }
         for(int v = 0; v < ncodec; v++) {
-            char *m = gfmt("Encode%s", codec[v]);
+            char *m = go_gfmt("Encode%s", codec[v]);
             for(int r = 0; r < nrows; r++) {
                 const char *rm = go_names_row_module(r), *rn = go_names_row_goname(r);
                 const char *rk = go_names_row_kind(r), *ro = go_names_row_sf_owner(r);
@@ -228,32 +228,32 @@ int
 go_glue_emit(const char *go_outdir, const char *go_module_basename,
              const char *go_rt_module) {
     if(!go_outdir || !*go_outdir) return 0;
-    if(glue_failed) return -1;
+    if(go_glue_failed) return -1;
 
     /* reset the registry (a second -Fgo process reuse never sees stale) */
-    for(int i = 0; i < g_n_fns; i++) {
-        free(g_fns[i]->sz); free(g_fns[i]->fill); free(g_fns[i]->read);
-        free(g_fns[i]);
+    for(int i = 0; i < g_go_n_fns; i++) {
+        free(g_go_fns[i]->sz); free(g_go_fns[i]->fill); free(g_go_fns[i]->read);
+        free(g_go_fns[i]);
     }
-    free(g_fns); g_fns = NULL; g_n_fns = g_cap_fns = 0;
-    glue_failed = 0;
+    free(g_go_fns); g_go_fns = NULL; g_go_n_fns = g_go_cap_fns = 0;
+    go_glue_failed = 0;
 
     /* group the PDU roots per package (module), mirroring go_conv_emit's
      * package derivation (go_flat_ir_module of the resolved root). */
     int n = go_flat_ir_n_types();
     int n_pdus = 0;
-    for(int p = 0; p < /* g_conv_n_pdus */ 0 + g_conv_n_pdus; p++) n_pdus++;
+    for(int p = 0; p < /* g_go_conv_n_pdus */ 0 + g_go_conv_n_pdus; p++) n_pdus++;
     /* (n_pdus via the table below) */
 
     pdu_ent *pdus = NULL;
     int n_pdu_e = 0, cap_pdu_e = 0;
-    for(int p = 0; p < g_conv_n_pdus; p++) {
-        flat_type *rt_ = go_flat_ir_ref_resolve(g_conv_pdus[p].cid);
+    for(int p = 0; p < g_go_conv_n_pdus; p++) {
+        flat_type *rt_ = go_flat_ir_ref_resolve(g_go_conv_pdus[p].cid);
         if(!rt_) continue;
         const char *mod = go_flat_ir_module(rt_);
         if(!mod || !*mod) continue;
         /* an alias PDU's API lives in the alias's own package */
-        if(g_conv_pdus[p].alias_cid) mod = g_conv_pdus[p].alias_module;
+        if(g_go_conv_pdus[p].alias_cid) mod = g_go_conv_pdus[p].alias_module;
         if(n_pdu_e == cap_pdu_e) {
             cap_pdu_e = cap_pdu_e ? cap_pdu_e * 2 : 16;
             pdus = realloc(pdus, (size_t)cap_pdu_e * sizeof(pdu_ent));
@@ -262,7 +262,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         pdus[n_pdu_e].module = mod;
         pdus[n_pdu_e].pkg = NULL;
         pdus[n_pdu_e].root = rt_;
-        pdus[n_pdu_e].alias = g_conv_pdus[p].alias_cid ? &g_conv_pdus[p] : NULL;
+        pdus[n_pdu_e].alias = g_go_conv_pdus[p].alias_cid ? &g_go_conv_pdus[p] : NULL;
         n_pdu_e++;
     }
     (void)n; (void)n_pdus;
@@ -270,7 +270,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
     /* PDU API name clashes (not in the dry run: it would print twice) */
     if(!g_dry_cb && pdu_api_clashes(pdus, n_pdu_e)) {
         free(pdus);
-        glue_failed = 1;
+        go_glue_failed = 1;
         return -1;
     }
 
@@ -309,27 +309,27 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
     int rc = 0;
     for(int m = 0; m < n_mods && rc == 0; m++) {
         const char *mod = mods[m];
-        char *pkg = gmodule_pkg(mod);
-        g_emit_mod = mod;
+        char *pkg = go_gmodule_pkg(mod);
+        g_go_emit_mod = mod;
 
         /* fresh fn registry per package (local unexported fns per package) */
-        for(int i = 0; i < g_n_fns; i++) {
-            free(g_fns[i]->sz); free(g_fns[i]->fill); free(g_fns[i]->read);
-            free(g_fns[i]);
+        for(int i = 0; i < g_go_n_fns; i++) {
+            free(g_go_fns[i]->sz); free(g_go_fns[i]->fill); free(g_go_fns[i]->read);
+            free(g_go_fns[i]);
         }
-        free(g_fns); g_fns = NULL; g_n_fns = g_cap_fns = 0;
-        item_helpers_reset();
-        for(int i = 0; i < g_n_loconsts; i++) free(g_loconsts[i].name);
-        free(g_loconsts); g_loconsts = NULL; g_n_loconsts = g_cap_loconsts = 0;
-        gsmap_free(&g_loconst_seen);
-        asserts_reset();   /* fresh assert block per package */
-        glue_failed = 0;
+        free(g_go_fns); g_go_fns = NULL; g_go_n_fns = g_go_cap_fns = 0;
+        go_item_helpers_reset();
+        for(int i = 0; i < g_go_n_loconsts; i++) free(g_go_loconsts[i].name);
+        free(g_go_loconsts); g_go_loconsts = NULL; g_go_n_loconsts = g_go_cap_loconsts = 0;
+        gsmap_free(&g_go_loconst_seen);
+        go_asserts_reset();   /* fresh assert block per package */
+        go_glue_failed = 0;
 
         const char *module_name = go_module_basename ? go_module_basename : "";
 
         /* the flat header name for this package */
         const char *pfx = asn1c_prefix(); if(!pfx) pfx = "";
-        char *flat_hdr = gfmt("%s%s_flat.h", pfx, pkg);
+        char *flat_hdr = go_gfmt("%s%s_flat.h", pfx, pkg);
         /* foreign flat headers this package's members reference (mirror
          * go_conv_emit's include derivation: refs + seqof elems + nested) */
 
@@ -342,30 +342,30 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             if(strcmp(pdus[i].module, mod) != 0) continue;
             flat_type *rt2 = pdus[i].root;
             char *tb = pdus[i].alias
-                ? gfmt("%s%s", asn1c_prefix() ? asn1c_prefix() : "", pdus[i].alias->alias_cid)
-                : conv_tree_base(rt2);
-            char *flatn = gown(go_flat_ir_name(rt2));
+                ? go_gfmt("%s%s", asn1c_prefix() ? asn1c_prefix() : "", pdus[i].alias->alias_cid)
+                : go_conv_tree_base(rt2);
+            char *flatn = go_gown(go_flat_ir_name(rt2));
             if(!tb || !*tb || !*flatn) { free(tb); free(flatn); continue; }
-            pdu_ext = gam(pdu_ext, gfmt(
+            pdu_ext = go_gam(pdu_ext, go_gfmt(
                 "extern int asn1cgo_encode_%s(const %s *in, asn1cgo_buf *out, asn1cgo_err *err);\n",
                 tb, flatn));
-            pdu_ext = gam(pdu_ext, gfmt(
+            pdu_ext = go_gam(pdu_ext, go_gfmt(
                 "extern int asn1cgo_decode_%s(const uint8_t *buf, size_t len, struct asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err);\n",
                 tb, flatn));
-            pdu_ext = gam(pdu_ext, gfmt(
+            pdu_ext = go_gam(pdu_ext, go_gfmt(
                 "extern int asn1cgo_xer_%s(const %s *in, asn1cgo_buf *xer_out, asn1cgo_err *err);\n",
                 tb, flatn));
-            pdu_ext = gam(pdu_ext, gfmt(
+            pdu_ext = go_gam(pdu_ext, go_gfmt(
                 "extern int asn1cgo_uperenc_%s(const %s *in, asn1cgo_buf *out, asn1cgo_err *err);\n",
                 tb, flatn));
-            pdu_ext = gam(pdu_ext, gfmt(
+            pdu_ext = go_gam(pdu_ext, go_gfmt(
                 "extern int asn1cgo_uperdec_%s(const uint8_t *buf, size_t len, struct asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err);\n",
                 tb, flatn));
             if(go_jer_enabled()) {
-                pdu_ext = gam(pdu_ext, gfmt(
+                pdu_ext = go_gam(pdu_ext, go_gfmt(
                     "extern int asn1cgo_jerenc_%s(const %s *in, asn1cgo_buf *out, asn1cgo_err *err);\n",
                     tb, flatn));
-                pdu_ext = gam(pdu_ext, gfmt(
+                pdu_ext = go_gam(pdu_ext, go_gfmt(
                     "extern int asn1cgo_jerdec_%s(const uint8_t *buf, size_t len, struct asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err);\n",
                     tb, flatn));
             }
@@ -378,8 +378,8 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             flat_type *dr = df && df->module && strcmp(df->module, mod) == 0
                                 ? go_flat_ir_ref_resolve(df->root_cid) : NULL;
             if(!dr) continue;
-            char *flatn = gown(go_flat_ir_name(dr));
-            pdu_ext = gam(pdu_ext, gfmt(
+            char *flatn = go_gown(go_flat_ir_name(dr));
+            pdu_ext = go_gam(pdu_ext, go_gfmt(
                 "extern int asn1cgo_dflt_%s(struct asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err);\n",
                 df->cname, flatn));
             free(flatn);
@@ -392,7 +392,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             const char *tm = go_flat_ir_module(go_flat_ir_type(i));
             if(tm && strcmp(tm, mod) == 0) own_flat = 1;
         }
-        char *flat_incs2 = own_flat ? gfmt("#include \"%s\"\n", flat_hdr)
+        char *flat_incs2 = own_flat ? go_gfmt("#include \"%s\"\n", flat_hdr)
                                     : strdup("");
         /* the flat header of the target of an alias PDU of this package
          * defined in another package (its Flat type types the externs) */
@@ -400,51 +400,51 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             if(!pdus[i].alias || strcmp(pdus[i].module, mod) != 0) continue;
             const char *tm = go_flat_ir_module(pdus[i].root);
             if(!tm || strcmp(tm, mod) == 0) continue;
-            char *tpk = gmodule_pkg(tm);
-            char *th = gfmt("#include \"%s%s_flat.h\"\n", pfx, tpk);
+            char *tpk = go_gmodule_pkg(tm);
+            char *th = go_gfmt("#include \"%s%s_flat.h\"\n", pfx, tpk);
             free(tpk);
-            if(!strstr(flat_incs2, th)) flat_incs2 = gam(flat_incs2, th);
+            if(!strstr(flat_incs2, th)) flat_incs2 = go_gam(flat_incs2, th);
             else free(th);
         }
         gsb sb = {0};
-        sb_set(&sb, pkg_header(module_name, pkg, flat_hdr, flat_incs2, pdu_ext,
+        go_sb_set(&sb, go_pkg_header(module_name, pkg, flat_hdr, flat_incs2, pdu_ext,
                                go_rt_module));
-        sb_a(&sb, "\n");
-        sb_a(&sb, GLUE_STATICS);
+        go_sb_a(&sb, "\n");
+        go_sb_a(&sb, GO_GLUE_STATICS);
         /* (the BITSTR substitution moved below: it now runs where the bits
          * helpers are conditionally appended, after the fn bodies exist) */
-        sb_a(&sb, "\n");
+        go_sb_a(&sb, "\n");
 
         /* queue every PDU root's fns + API (fn queueing fills the registry
          * transitively) */
-        for(int i = 0; i < n_pdu_e && !glue_failed; i++) {
+        for(int i = 0; i < n_pdu_e && !go_glue_failed; i++) {
             if(strcmp(pdus[i].module, mod) != 0) continue;
-            emit_pdu_api(pdus[i].root, pdus[i].alias, &sb);
+            go_emit_pdu_api(pdus[i].root, pdus[i].alias, &sb);
         }
         /* the owners' readers the Default funcs call */
-        for(int k = 0, nd = go_names_dflt_n(); k < nd && !glue_failed; k++) {
+        for(int k = 0, nd = go_names_dflt_n(); k < nd && !go_glue_failed; k++) {
             const struct go_dflt_fn *df = go_names_dflt_at(k);
             flat_type *dr = df && df->module && strcmp(df->module, mod) == 0
                                 ? go_flat_ir_ref_resolve(df->root_cid) : NULL;
-            if(dr) emit_type_fn(dr);
+            if(dr) go_emit_type_fn(dr);
         }
         /* the fns, reverse queue order (callees first) */
-        for(int i = g_n_fns - 1; i >= 0 && !glue_failed; i--)
-            emit_fn_text(g_fns[i], &sb);
+        for(int i = g_go_n_fns - 1; i >= 0 && !go_glue_failed; i--)
+            go_emit_fn_text(g_go_fns[i], &sb);
 
         /* the exported Default funcs */
-        for(int k = 0, nd = go_names_dflt_n(); k < nd && !glue_failed; k++) {
+        for(int k = 0, nd = go_names_dflt_n(); k < nd && !go_glue_failed; k++) {
             const struct go_dflt_fn *df = go_names_dflt_at(k);
             flat_type *dr = df && df->module && strcmp(df->module, mod) == 0
                                 ? go_flat_ir_ref_resolve(df->root_cid) : NULL;
             if(!dr) continue;
             if(!df->field_type || !*df->field_type) { GFAIL("DEFAULT member without a Go type"); break; }
-            char *cam = gcamel_flat(go_flat_ir_name(dr));
-            char *flatn = gown(go_flat_ir_name(dr));
+            char *cam = go_gcamel_flat(go_flat_ir_name(dr));
+            char *flatn = go_gown(go_flat_ir_name(dr));
             char *path = strdup("");
             for(int q = 0; q < df->ngo; q++)
-                path = gam(path, gfmt(".%s", df->gopath[q]));
-            sb_am(&sb, gfmt(
+                path = go_gam(path, go_gfmt(".%s", df->gopath[q]));
+            go_sb_am(&sb, go_gfmt(
                 "// %s returns the ASN.1 DEFAULT of %s (a new value on each call).\n"
                 "// The Go zero value is not the DEFAULT: set the field explicitly.\n"
                 "func %s() %s {\n"
@@ -469,10 +469,10 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
 
         /* the SEQ-OF item helper triples (first-reference order; the fns
          * they call are already emitted above) */
-        for(int i = 0; i < g_n_items && !glue_failed; i++) {
-            sb_a(&sb, g_items[i].sz);
-            sb_a(&sb, g_items[i].fill);
-            sb_a(&sb, g_items[i].read);
+        for(int i = 0; i < g_go_n_items && !go_glue_failed; i++) {
+            go_sb_a(&sb, g_go_items[i].sz);
+            go_sb_a(&sb, g_go_items[i].fill);
+            go_sb_a(&sb, g_go_items[i].read);
         }
 
         /* the bits helpers, only when this package's emitted bodies use
@@ -489,7 +489,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
              * free it at scope end */
             int use_bits = strstr(sb.p, "writeBitsField(") != NULL
                         || strstr(sb.p, "readBitsField(") != NULL;
-            char *bsname = local_bitstring();
+            char *bsname = go_local_bitstring();
             char *out = strdup("");
             const char *p2 = sb.p, *q;
             const char *m1 = "//__GLUE_WRITEBITS__\n";
@@ -500,11 +500,11 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 if(seg) {
                     memcpy(seg, p2, (size_t)(q - p2));
                     seg[q - p2] = 0;
-                    out = ga(out, seg);
+                    out = go_ga(out, seg);
                     free(seg);
                 }
                 if(use_bits)
-                    out = ga(out, GLUE_WRITE_BITS);
+                    out = go_ga(out, GO_GLUE_WRITE_BITS);
                 p2 = q + l1;
             }
             while((q = strstr(p2, m2)) != NULL) {
@@ -512,14 +512,14 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 if(seg) {
                     memcpy(seg, p2, (size_t)(q - p2));
                     seg[q - p2] = 0;
-                    out = ga(out, seg);
+                    out = go_ga(out, seg);
                     free(seg);
                 }
                 if(use_bits)
-                    out = ga(out, GLUE_READ_BITS);
+                    out = go_ga(out, GO_GLUE_READ_BITS);
                 p2 = q + l2;
             }
-            out = ga(out, p2);
+            out = go_ga(out, p2);
             if(use_bits) {
                 /* substitute BITSTR across the WHOLE package text (the
                  * chunk + any fn bodies that still carry the placeholder) */
@@ -531,23 +531,23 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                     /* whole identifiers only: a generated name that merely
                      * contains the text (a type BITSTRING-Count, a value
                      * union alt BIT_STRING -> BITSTRING) stays intact */
-                    int whole = !glue_ident_char(q2[nl])
-                                && (q2 == out || !glue_ident_char(q2[-1]));
+                    int whole = !go_glue_ident_char(q2[nl])
+                                && (q2 == out || !go_glue_ident_char(q2[-1]));
                     size_t keep = (size_t)(q2 - r) + (whole ? 0 : nl);
                     char *seg = malloc(keep + 1);
                     if(seg) {
                         memcpy(seg, r, keep);
                         seg[keep] = 0;
-                        sub = ga(sub, seg);
+                        sub = go_ga(sub, seg);
                         free(seg);
                     }
-                    if(whole) sub = ga(sub, bsname);
+                    if(whole) sub = go_ga(sub, bsname);
                     r = q2 + nl;
                 }
-                sub = ga(sub, r);
+                sub = go_ga(sub, r);
                 free(out); out = sub;
             }
-            sb_set(&sb, out);
+            go_sb_set(&sb, out);
             free(bsname);
         }
 
@@ -562,15 +562,15 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             int use_oid = strstr(sb.p, "oidLen(") != NULL
                        || strstr(sb.p, "OIDField(") != NULL;
             if(use_bmp || use_univ || use_oid) {
-                sb_a(&sb, GLUE_STRCONV_COMMON);
-                if(use_bmp) sb_a(&sb, GLUE_STRCONV_BMP);
-                if(use_univ) sb_a(&sb, GLUE_STRCONV_UNIV);
-                if(use_oid) sb_a(&sb, GLUE_STRCONV_OID);
+                go_sb_a(&sb, GO_GLUE_STRCONV_COMMON);
+                if(use_bmp) go_sb_a(&sb, GO_GLUE_STRCONV_BMP);
+                if(use_univ) go_sb_a(&sb, GO_GLUE_STRCONV_UNIV);
+                if(use_oid) go_sb_a(&sb, GO_GLUE_STRCONV_OID);
             }
         }
 
         /* sweep: assert EVERY own-package node's const set, not only
-         * the ones this package's fns dereference (qconst's first-touch
+         * the ones this package's fns dereference (go_qconst's first-touch
          * recording below the fn bodies covers only the used subset — an
          * own layout.go declares all its package's nodes; a package whose
          * fns touch just a few of them left the rest unasserted, and the
@@ -586,12 +586,12 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             if(!tm || !tn || !*tn || strcmp(tm, mod) != 0) continue;
             /* nested_only dotted nodes declare NO consts of their own in
              * layout.go (their offsets exist only as the host's composite
-             * consts, asserted by the host's own node_asserts row) —
+             * consts, asserted by the host's own go_node_asserts row) —
              * asserting them here would emit inner-relative asserts whose
              * generated names collide with the host's composite spellings
              * at different values. */
             if(go_flat_ir_is_nested_only(t)) continue;
-            node_asserts(t);
+            go_node_asserts(t);
         }
 
         /* the glue-local layout consts for FOREIGN nodes this package emits
@@ -599,19 +599,19 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
          * self-contained glue re-declares them locally; colloquial names:
          * same const spelling, local package scope — no collision because
          * the owning decl never crosses packages). */
-        if(g_n_loconsts > 0) {
-            sb_a(&sb,
+        if(g_go_n_loconsts > 0) {
+            go_sb_a(&sb,
                 "// glue-local layout consts of foreign-package nodes whose fn\n"
                 "// copies live here (the glue is self-contained per package; the\n"
                 "// owning package's layout.go consts are unexported).\n");
-            for(int i = 0; i < g_n_loconsts; i++)
-                sb_am(&sb, gfmt("const %s = %ld\n",
-                                   g_loconsts[i].name, g_loconsts[i].value));
-            sb_a(&sb, "\n");
+            for(int i = 0; i < g_go_n_loconsts; i++)
+                go_sb_am(&sb, go_gfmt("const %s = %ld\n",
+                                   g_go_loconsts[i].name, g_go_loconsts[i].value));
+            go_sb_a(&sb, "\n");
         }
 
         /* close the layout-const verification gap at COMPILE time.
-         * qconst recorded (during fn emission above) one _Static_assert per
+         * go_qconst recorded (during fn emission above) one _Static_assert per
          * layout const this glue.go's arms dereference — own layout.go
          * consts AND the glue-local foreign re-declarations just emitted —
          * keyed to the cspec flat headers this preamble already includes
@@ -621,13 +621,13 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
          * above then reference consts the C compiler has verified against
          * the very headers the Flat memory layout comes from. The fixed
          * rt/shared asserts (asn1cgo_bytes_flat / asn1cgo_bits_flat,
-         * rt/types.h) cover the GLUE_STATICS const block's rt consts the
+         * rt/types.h) cover the GO_GLUE_STATICS const block's rt consts the
          * same way, and the align* consts (allocator alignment facts with
          * no Flat host of their own) each get an _Alignof assert against
          * the C type they size (void star, int64_t, int32_t; stdint.h comes with
          * rt/types.h). */
         {
-            char *blob = gfmt(
+            char *blob = go_gfmt(
                 "#include <stddef.h>\n"
                 "// compile-time layout-const checks (own layout.go consts\n"
                 "// + glue-local foreign re-declarations; a wrong const fails the\n"
@@ -654,7 +654,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                     memcpy(ns, sb.p, off);
                     memcpy(ns + off, blob, il);
                     memcpy(ns + off + il, sb.p + off, tl - off + 1);
-                    sb_set(&sb, ns);
+                    go_sb_set(&sb, ns);
                 }
             }
             free(blob);
@@ -665,7 +665,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
          * package in the import block. Appended to the header's import
          * block by tracking the distinct foreign modules of the registry
          * and splicing one import line each before the final ")" of the
-         * import block pkg_header emitted. */
+         * import block go_pkg_header emitted. */
         {
             const char **fmods = NULL;
             int n_fm = glue_foreign_modules(mod, &fmods);
@@ -674,7 +674,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                     g_dry_cb(mod, fmods[j], g_dry_ud);
             if(n_fm > 0 && fmods) {
                 /* splice INTO the import block at the gofmt-sorted
-                 * position: the block's lines come from pkg_header
+                 * position: the block's lines come from go_pkg_header
                  * (rt-alias first, then math/runtime/strconv/unsafe) — insert
                  * each foreign line before the first existing line that
                  * sorts AFTER it (gofmt order), else before the closing
@@ -683,8 +683,8 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                 char *bend = blk ? strchr(blk + 8, ')') : NULL;
                 if(blk && bend) {
                     for(int j = 0; j < n_fm; j++) {
-                        char *fp = gmodule_pkg(fmods[j]);
-                        char *line = gfmt("\t\"%s/%s\"\n", module_name, fp);
+                        char *fp = go_gmodule_pkg(fmods[j]);
+                        char *line = go_gfmt("\t\"%s/%s\"\n", module_name, fp);
                         const char *lcmp = line + 2;   /* skip \t" */
                         size_t ll2 = strlen(lcmp) - 1; /* minus \n */
                         char *ins = blk + 8;
@@ -706,7 +706,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                             memcpy(ns, sb.p, off);
                             memcpy(ns + off, line, il);
                             memcpy(ns + off + il, sb.p + off, tl - off + 1);
-                            sb_set(&sb, ns);
+                            go_sb_set(&sb, ns);
                         }
                         /* re-anchor: the splice moved everything after ins */
                         blk = strstr(sb.p, "import (");
@@ -721,8 +721,8 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                     if(ip) {
                         char *ins = strdup("");
                         for(int j = 0; j < n_fm; j++) {
-                            char *fp = gmodule_pkg(fmods[j]);
-                            ins = gam(ins, gfmt("\t\"%s/%s\"\n", module_name, fp));
+                            char *fp = go_gmodule_pkg(fmods[j]);
+                            ins = go_gam(ins, go_gfmt("\t\"%s/%s\"\n", module_name, fp));
                             free(fp);
                         }
                         size_t off = (size_t)(ip - sb.p) + strlen("\t\"unsafe\"\n");
@@ -732,7 +732,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                             memcpy(ns, sb.p, off);
                             memcpy(ns + off, ins, il);
                             memcpy(ns + off + il, sb.p + off, tl - off + 1);
-                            sb_set(&sb, ns);
+                            go_sb_set(&sb, ns);
                         }
                         free(ins);
                     }
@@ -741,13 +741,13 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             free(fmods);
         }
 
-        if(glue_failed) { rc = -1; }
+        if(go_glue_failed) { rc = -1; }
         else if(g_dry_cb) {
             /* dry run: nothing is written */
         } else {
             /* gofmt normalization: expand one-line ifs, then trailing
              * newline count. */
-            sb_set(&sb, expand_oneline_ifs(reindent_case_blocks(gsb_take(&sb))));
+            go_sb_set(&sb, go_expand_oneline_ifs(go_reindent_case_blocks(gsb_take(&sb))));
             /* a package without a PDU (only Default funcs) may use none of
              * the optional std imports: drop the unused ones */
             {
@@ -756,8 +756,8 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
                     if(strcmp(pdus[i].module, mod) == 0) { has_pdu = 1; break; }
                 static const char *const opt[] = { "math", "runtime", "strconv" };
                 for(int o = 0; !has_pdu && o < 3; o++) {
-                    char *ln = gfmt("\t\"%s\"\n", opt[o]);
-                    char *use = gfmt("%s.", opt[o]);
+                    char *ln = go_gfmt("\t\"%s\"\n", opt[o]);
+                    char *use = go_gfmt("%s.", opt[o]);
                     char *at = strstr(sb.p, ln);
                     char *endimp = strstr(sb.p, "\n)\n");
                     if(at && endimp && at < endimp && !strstr(endimp, use))
@@ -768,25 +768,25 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
             while(strlen(sb.p) > 1 && sb.p[strlen(sb.p)-1] == '\n'
                   && sb.p[strlen(sb.p)-2] == '\n')
                 sb.p[strlen(sb.p)-1] = '\0';
-            char *pkgdir = gjoin(go_outdir, pkg);
-            if(gmkdir_p(pkgdir) < 0) rc = -1;
-            char *path = gjoin(pkgdir, "glue.go");
-            if(rc == 0 && gfwrite_all(path, sb.p) < 0) rc = -1;
+            char *pkgdir = go_gjoin(go_outdir, pkg);
+            if(go_gmkdir_p(pkgdir) < 0) rc = -1;
+            char *path = go_gjoin(pkgdir, "glue.go");
+            if(rc == 0 && go_gfwrite_all(path, sb.p) < 0) rc = -1;
             free(pkgdir); free(path);
         }
         free(sb.p); free(flat_hdr); free(flat_incs2); free(pdu_ext);
         free(pkg);
-        g_emit_mod = NULL;
+        g_go_emit_mod = NULL;
     }
 
-    for(int i = 0; i < g_n_fns; i++) {
-        free(g_fns[i]->sz); free(g_fns[i]->fill); free(g_fns[i]->read);
-        free(g_fns[i]);
+    for(int i = 0; i < g_go_n_fns; i++) {
+        free(g_go_fns[i]->sz); free(g_go_fns[i]->fill); free(g_go_fns[i]->read);
+        free(g_go_fns[i]);
     }
-    free(g_fns); g_fns = NULL; g_n_fns = g_cap_fns = 0;
-    asserts_reset();
+    free(g_go_fns); g_go_fns = NULL; g_go_n_fns = g_go_cap_fns = 0;
+    go_asserts_reset();
     free(pdus); free(mods);
-    return glue_failed ? -1 : rc;
+    return go_glue_failed ? -1 : rc;
 }
 
 /* go_glue_collect_imports — dry-run the glue emission for every package and

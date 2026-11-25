@@ -65,8 +65,8 @@
 /* The IR surface (go_flat.c). */
 
 /* The per-node body emitters (go_conv_to.c / go_conv_from.c). */
-extern char *node_to_body_pub(void *t);
-extern char *conv_from_node(void *t, int scc);
+extern char *go_node_to_body_pub(void *t);
+extern char *go_conv_from_node(void *t, int scc);
 
 /* The codec word of a message ("aper"/"uper"/"jer") in capitals, for the
  * comments. */
@@ -85,32 +85,32 @@ static char *
 entry_encode(void *rt, const char *fbasename, const char *tbasename,
              const char *eb, const char *lbl,
              const char *part, const char *ats, const char *word) {
-    char *label = cstrdup(lbl);   /* td->name display label */
-    char *s = cstrdup("");
-    { char *_cf = cfmt("/* ---- %s ---- */\n", part); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("int asn1cgo_%s_%s(\n"
+    char *label = go_cstrdup(lbl);   /* td->name display label */
+    char *s = go_cstrdup("");
+    { char *_cf = go_cfmt("/* ---- %s ---- */\n", part); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("int asn1cgo_%s_%s(\n"
                    "        const %s_flat *in,\n"
                    "        asn1cgo_buf *out, asn1cgo_err *err) {\n",
-                   part, eb, fbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (!in || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    out->buf = NULL; out->len = 0;\n\n");
-    { char *_cf = cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n\n", eb); s = ca(s, _cf); free(_cf); }
+                   part, eb, fbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (!in || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    out->buf = NULL; out->len = 0;\n\n");
+    { char *_cf = go_cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n\n", eb); s = go_ca(s, _cf); free(_cf); }
     /* constraints with the pinned errbuf API (the ASSUMPTION A4 form). */
-    s = ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
-    { char *_cf = cfmt("    if (asn_check_constraints(&asn_DEF_%s, tree, cerr, &cerrlen) != 0) {\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_CONSTRAINT, \"%s\", NULL,\n"
-                   "                            \"%%.*s\", (int)(cerrlen < sizeof(cerr) ? cerrlen : sizeof(cerr)-1), cerr);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    asn_encode_to_new_buffer_result_t r =\n"
-             "        asn_encode_to_new_buffer(NULL, %s,\n", ats); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("                                 &asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    if (r.result.encoded < 0 || !r.buffer) {\n        free(r.buffer);\n");
-    { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"%s encode failed\");\n    }\n", label, word); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    out->buf = (uint8_t *)r.buffer;\n    out->len = (size_t)r.result.encoded;   /* bytes, not bits */\n    return 0;\n}\n\n");
+    s = go_ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
+    { char *_cf = go_cfmt("    if (asn_check_constraints(&asn_DEF_%s, tree, cerr, &cerrlen) != 0) {\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        return asn1cgo_fail(err, ASN1CGO_E_CONSTRAINT, \"%s\", NULL,\n"
+                   "                            \"%%.*s\", (int)(cerrlen < sizeof(cerr) ? cerrlen : sizeof(cerr)-1), cerr);\n    }\n\n", label); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    asn_encode_to_new_buffer_result_t r =\n"
+             "        asn_encode_to_new_buffer(NULL, %s,\n", ats); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("                                 &asn_DEF_%s, tree);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    if (r.result.encoded < 0 || !r.buffer) {\n        free(r.buffer);\n");
+    { char *_cf = go_cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"%s encode failed\");\n    }\n", label, word); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    out->buf = (uint8_t *)r.buffer;\n    out->len = (size_t)r.result.encoded;   /* bytes, not bits */\n    return 0;\n}\n\n");
     free(label);
     return s;
 }
@@ -119,19 +119,19 @@ static char *
 entry_decode(void *rt, const char *fbasename, const char *tbasename,
              const char *eb, const char *lbl,
              const char *part, const char *ats, const char *word) {
-    char *label = cstrdup(lbl);   /* td->name display label */
-    char *s = cstrdup("");
-    { char *_cf = cfmt("/* ---- %s ---- */\n", part); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("int asn1cgo_%s_%s(\n"
+    char *label = go_cstrdup(lbl);   /* td->name display label */
+    char *s = go_cstrdup("");
+    { char *_cf = go_cfmt("/* ---- %s ---- */\n", part); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("int asn1cgo_%s_%s(\n"
                    "        const uint8_t *buf, size_t len, asn1cgo_arena **arena_out,\n"
                    "        %s_flat **out, asn1cgo_err *err) {\n",
-                   part, eb, fbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (!buf || !arena_out || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    *arena_out = NULL; *out = NULL;\n\n");
-    s = ca(s, "    asn1cgo_arena *ar = asn1cgo_arena_new(0);\n");
-    { char *_cf = cfmt("    if (!ar) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    %s_flat *flat = (%s_flat *)asn1cgo_arena_alloc(ar, sizeof(*flat), _Alignof(%s_flat));\n", fbasename, fbasename, fbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (!flat) { asn1cgo_arena_free(ar); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n\n", label); s = ca(s, _cf); free(_cf); }
+                   part, eb, fbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (!buf || !arena_out || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    *arena_out = NULL; *out = NULL;\n\n");
+    s = go_ca(s, "    asn1cgo_arena *ar = asn1cgo_arena_new(0);\n");
+    { char *_cf = go_cfmt("    if (!ar) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    %s_flat *flat = (%s_flat *)asn1cgo_arena_alloc(ar, sizeof(*flat), _Alignof(%s_flat));\n", fbasename, fbasename, fbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (!flat) { asn1cgo_arena_free(ar); return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL); }\n\n", label); s = go_ca(s, _cf); free(_cf); }
     /* C-side stack guard: hand asn_decode a stack-local ctx with
      * max_stack_size = ASN1CGO_C_STACK_MAX so asn1c's ASN__STACK_OVERFLOW_CHECK
      * (measured from the ctx's address, hence dctx MUST stay a local here)
@@ -142,26 +142,26 @@ entry_decode(void *rt, const char *fbasename, const char *tbasename,
      * it maps to E_DECODE. ASN1CGO_MAX_DEPTH (64 units) is the separate,
      * precise cap applied in *_from_tree; the default stack budget is sized
      * so that no input within that cap trips the C guard. */
-    { char *_cf = cfmt("    void *sptr = NULL;\n    asn_codec_ctx_t dctx = {0};   /* stack local: the guard measures from its address */\n    dctx.max_stack_size = ASN1CGO_C_STACK_MAX;\n    asn_dec_rval_t dr = asn_decode(&dctx, %s,\n", ats); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("                                   &asn_DEF_%s, (void **)&sptr, buf, len);\n", eb); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    if (dr.code != RC_OK) {\n");
-    { char *_cf = cfmt("        if (sptr) ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"%s decode RC=%%d (malformed input, or C stack budget ASN1CGO_C_STACK_MAX exceeded)\", dr.code);\n    }\n", label, word); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    /* Trailing bytes after the PDU are an error. */\n");
-    s = ca(s, "    if (dr.consumed < len) {\n");
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_TRAILING, \"%s\", NULL, \"%%zu trailing bytes\", len - dr.consumed);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    /* asn1c's %s decoder does not range/size/permitted-alphabet\n", word_up(word)); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "     * check; reject a decoded Tree its own constraints would fail. */\n");
-    s = ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
-    { char *_cf = cfmt("    if (asn_check_constraints(&asn_DEF_%s, sptr, cerr, &cerrlen) != 0) {\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_CONSTRAINT, \"%s\", NULL,\n"
-                   "                            \"%%.*s\", (int)(cerrlen < sizeof(cerr) ? cerrlen : sizeof(cerr)-1), cerr);\n    }\n\n", label); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    int rc = %s_from_tree(ar, (const %s_t *)sptr, flat, err);\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    if (rc) { asn1cgo_arena_free(ar); return err->code; }\n\n");
-    s = ca(s, "    *arena_out = ar;       /* caller (Go) frees */\n    *out = flat;\n    return 0;\n}\n\n");
+    { char *_cf = go_cfmt("    void *sptr = NULL;\n    asn_codec_ctx_t dctx = {0};   /* stack local: the guard measures from its address */\n    dctx.max_stack_size = ASN1CGO_C_STACK_MAX;\n    asn_dec_rval_t dr = asn_decode(&dctx, %s,\n", ats); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("                                   &asn_DEF_%s, (void **)&sptr, buf, len);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    if (dr.code != RC_OK) {\n");
+    { char *_cf = go_cfmt("        if (sptr) ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_DECODE, \"%s\", NULL, \"%s decode RC=%%d (malformed input, or C stack budget ASN1CGO_C_STACK_MAX exceeded)\", dr.code);\n    }\n", label, word); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    /* Trailing bytes after the PDU are an error. */\n");
+    s = go_ca(s, "    if (dr.consumed < len) {\n");
+    { char *_cf = go_cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_TRAILING, \"%s\", NULL, \"%%zu trailing bytes\", len - dr.consumed);\n    }\n\n", label); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    /* asn1c's %s decoder does not range/size/permitted-alphabet\n", word_up(word)); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "     * check; reject a decoded Tree its own constraints would fail. */\n");
+    s = go_ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
+    { char *_cf = go_cfmt("    if (asn_check_constraints(&asn_DEF_%s, sptr, cerr, &cerrlen) != 0) {\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        asn1cgo_arena_free(ar);\n        return asn1cgo_fail(err, ASN1CGO_E_CONSTRAINT, \"%s\", NULL,\n"
+                   "                            \"%%.*s\", (int)(cerrlen < sizeof(cerr) ? cerrlen : sizeof(cerr)-1), cerr);\n    }\n\n", label); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    int rc = %s_from_tree(ar, (const %s_t *)sptr, flat, err);\n", tbasename, tbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, sptr);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    if (rc) { asn1cgo_arena_free(ar); return err->code; }\n\n");
+    s = go_ca(s, "    *arena_out = ar;       /* caller (Go) frees */\n    *out = flat;\n    return 0;\n}\n\n");
     free(label);
     return s;
 }
@@ -169,26 +169,26 @@ entry_decode(void *rt, const char *fbasename, const char *tbasename,
 static char *
 entry_xer(void *rt, const char *fbasename, const char *tbasename,
           const char *eb, const char *lbl) {
-    char *label = cstrdup(lbl);   /* td->name display label */
-    char *s = cstrdup("");
-    s = ca(s, "/* ---- xer (ATS_CANONICAL_XER) ---- */\n");
-    { char *_cf = cfmt("int asn1cgo_xer_%s(\n"
+    char *label = go_cstrdup(lbl);   /* td->name display label */
+    char *s = go_cstrdup("");
+    s = go_ca(s, "/* ---- xer (ATS_CANONICAL_XER) ---- */\n");
+    { char *_cf = go_cfmt("int asn1cgo_xer_%s(\n"
                    "        const %s_flat *in,\n"
                    "        asn1cgo_buf *xer_out, asn1cgo_err *err) {\n",
-                   eb, fbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (!in || !xer_out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    xer_out->buf = NULL; xer_out->len = 0;\n\n");
-    { char *_cf = cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n", label); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n", eb); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    asn_encode_to_new_buffer_result_t r =\n"
+                   eb, fbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (!in || !xer_out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", label); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    xer_out->buf = NULL; xer_out->len = 0;\n\n");
+    { char *_cf = go_cfmt("    %s_t *tree = (%s_t *)asn1cgo_calloc(1, sizeof(*tree));\n", tbasename, tbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n", label); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n", eb); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    asn_encode_to_new_buffer_result_t r =\n"
              "        asn_encode_to_new_buffer(NULL, ATS_CANONICAL_XER,\n");
-    { char *_cf = cfmt("                                 &asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
-    { char *_cf = cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    if (r.result.encoded < 0 || !r.buffer) {\n        free(r.buffer);\n");
-    { char *_cf = cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"xer encode failed\");\n    }\n", label); s = ca(s, _cf); free(_cf); }
-    s = ca(s, "    xer_out->buf = (uint8_t *)r.buffer;\n    xer_out->len = (size_t)r.result.encoded;\n    return 0;\n}\n");
+    { char *_cf = go_cfmt("                                 &asn_DEF_%s, tree);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    { char *_cf = go_cfmt("    ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    if (r.result.encoded < 0 || !r.buffer) {\n        free(r.buffer);\n");
+    { char *_cf = go_cfmt("        return asn1cgo_fail(err, ASN1CGO_E_ENCODE, \"%s\", NULL, \"xer encode failed\");\n    }\n", label); s = go_ca(s, _cf); free(_cf); }
+    s = go_ca(s, "    xer_out->buf = (uint8_t *)r.buffer;\n    xer_out->len = (size_t)r.result.encoded;\n    return 0;\n}\n");
     free(label);
     return s;
 }
@@ -228,7 +228,7 @@ static char *
 conv_path(const char *dir, const char *leaf) {
     size_t a = strlen(dir), b = strlen(leaf);
     char *p = malloc(a + 1 + b + 1);
-    if(!p) { conv_failed_set(); return cstrdup(""); }
+    if(!p) { conv_failed_set(); return go_cstrdup(""); }
     memcpy(p, dir, a); p[a] = '/'; memcpy(p + a + 1, leaf, b); p[a + 1 + b] = 0;
     return p;
 }
@@ -287,7 +287,7 @@ static char *
 conv_module_pkg(const char *module_name) {
     const char *s = module_name ? module_name : "_";
     char *out = malloc(strlen(s) + 1);
-    if(!out) { conv_failed_set(); return cstrdup(""); }
+    if(!out) { conv_failed_set(); return go_cstrdup(""); }
     size_t j = 0;
     for(size_t i = 0; s[i]; i++) {
         unsigned char c = (unsigned char)s[i];
@@ -325,7 +325,7 @@ extern int go_jer_enabled(void);
 static char *
 cspec_cgo_go_text(void) {
     const char *oer_def = go_oer_disabled() ? " -DASN_DISABLE_OER_SUPPORT" : "";
-    return cfmt(
+    return go_cfmt(
         GO_GENERATED_BANNER
         "//go:build amd64\n"
         "\n"
@@ -645,8 +645,8 @@ rt_local_paths(const char *go_outdir, char **gomod_rel, char **work_entry) {
     }
     size_t pl = par ? strlen(par) : 0;
     if(par && pl > 1 && strncmp(rl, par, pl) == 0 && rl[pl] == '/') {
-        *gomod_rel = cfmt("../%s", rl + pl + 1);
-        *work_entry = cfmt("./%s", rl + pl + 1);
+        *gomod_rel = go_cfmt("../%s", rl + pl + 1);
+        *work_entry = go_cfmt("./%s", rl + pl + 1);
     } else if(par && strcmp(rl, par) == 0) {
         *gomod_rel = strdup("..");
         *work_entry = strdup(".");
@@ -713,7 +713,7 @@ conv_header_index(void) {
                     if(!nn) break;
                     g_hdr_names = nn;
                 }
-                g_hdr_names[g_hdr_n] = cstrdup(e->d_name);
+                g_hdr_names[g_hdr_n] = go_cstrdup(e->d_name);
                 fidx = g_hdr_n++;
             }
             gsmap_put_first(&g_hdr_ix, line + st, fidx);
@@ -729,7 +729,7 @@ conv_find_header(const char *base) {
     if(!dd || !*dd || !base || !*base) return NULL;
     conv_header_index();
     int v;
-    return gsmap_get(&g_hdr_ix, base, &v) ? cstrdup(g_hdr_names[v]) : NULL;
+    return gsmap_get(&g_hdr_ix, base, &v) ? go_cstrdup(g_hdr_names[v]) : NULL;
 }
 
 /* ---------------------------------------------------------------------------
@@ -810,7 +810,7 @@ static const char GO_OID_PREAMBLE[] =
 int
 go_conv_emit(const char *go_outdir, const char *go_rt_module) {
     if(!go_outdir || !*go_outdir) return 0;
-    if(g_conv_failed_) return -1;
+    if(g_go_conv_failed_) return -1;
 
     const char *prefix = asn1c_prefix();
     if(!prefix) prefix = "";
@@ -832,7 +832,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             mods = realloc(mods, (size_t)cap_mods * sizeof(char *));
             if(!mods) { conv_failed_set(); return -1; }
         }
-        mods[n_mods++] = cstrdup(mod);
+        mods[n_mods++] = go_cstrdup(mod);
     }
 
     /* cspec dir */
@@ -888,16 +888,16 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
     int rc = 0;
     for(int mi = 0; mi < n_mods && rc == 0; mi++) {
         char *pkg = conv_module_pkg(mods[mi]);
-        char *cname = cfmt("%s%s_conv.c", prefix, pkg);
+        char *cname = go_cfmt("%s%s_conv.c", prefix, pkg);
         char *cpath = conv_path(cspec, cname);
-        char *s = cfmt("/* Generated by asn1cgo — do not edit. */\n");
+        char *s = go_cfmt("/* Generated by asn1cgo — do not edit. */\n");
         /* includes: the rt headers (this cspec's rt/ copy), the asn1c tree
          * headers of every type this package's converters touch (the asn_DEF
          * symbols + tree typedefs), then the flat header. The tree-include
          * set: this package's own nodes' headers + every resolved ref/nested/
          * seqof-elem target's header (foreign packages included; quoted, one
          * per distinct file, walk order), one quoted include per header. */
-        s = ca(s, "#include \"rt/arena.h\"\n#include \"rt/err.h\"\n#include \"rt/types.h\"\n#include <stdlib.h>\n#include <string.h>\n");
+        s = go_ca(s, "#include \"rt/arena.h\"\n#include \"rt/err.h\"\n#include \"rt/types.h\"\n#include <stdlib.h>\n#include <string.h>\n");
         {
             char **incs = NULL;
             int n_incs = 0, cap_incs = 0;
@@ -915,7 +915,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 if(!want) { conv_failed_set(); return -1; }
                 const char *cid = go_flat_ir_cid(t);
                 if(cid && *cid) {
-                    char *b = conv_tree_base(t);
+                    char *b = go_conv_tree_base(t);
                     char *h = conv_find_header(b);
                     if(h) want[n_want++] = h;
                     free(b);
@@ -923,7 +923,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 if(go_flat_ir_is_seqof(t) && !go_flat_ir_elem_prim(t)) {
                     void *r = go_conv_ir_ref_resolve(go_flat_ir_elem(t));
                     if(r) {
-                        char *b = conv_tree_base(r);
+                        char *b = go_conv_tree_base(r);
                         if(b && *b) {
                             char *h = conv_find_header(b);
                             if(h) want[n_want++] = h;
@@ -937,7 +937,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                     if(go_flat_ir_member_is_ref(m2)) {
                         void *r = go_conv_ir_ref_resolve(go_flat_ir_member_ref(m2));
                         if(r) {
-                            char *b = conv_tree_base(r);
+                            char *b = go_conv_tree_base(r);
                             if(b && *b) {
                             char *h = conv_find_header(b);
                             if(h) want[n_want++] = h;
@@ -952,7 +952,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                             if(!go_flat_ir_elem_prim(nt)) {
                                 void *r = go_conv_ir_ref_resolve(go_flat_ir_elem(nt));
                                 if(r) {
-                                    char *b = conv_tree_base(r);
+                                    char *b = go_conv_tree_base(r);
                                     if(b && *b) {
                             char *h = conv_find_header(b);
                             if(h) want[n_want++] = h;
@@ -971,7 +971,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                                 if(go_flat_ir_member_is_ref(m3)) {
                                     void *r = go_conv_ir_ref_resolve(go_flat_ir_member_ref(m3));
                                     if(r) {
-                                        char *b = conv_tree_base(r);
+                                        char *b = go_conv_tree_base(r);
                                         if(b && *b) {
                             char *h = conv_find_header(b);
                             if(h) want[n_want++] = h;
@@ -985,7 +985,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                                        && !go_flat_ir_elem_prim(nt3)) {
                                         void *r = go_conv_ir_ref_resolve(go_flat_ir_elem(nt3));
                                         if(r) {
-                                            char *b = conv_tree_base(r);
+                                            char *b = go_conv_tree_base(r);
                                             if(b && *b) {
                             char *h = conv_find_header(b);
                             if(h) want[n_want++] = h;
@@ -1028,12 +1028,12 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             /* the header of each alias PDU whose target is in this package
              * (its asn_DEF_<Alias>; the entry points go beside the target's
              * converters) */
-            for(int pi = 0; pi < g_conv_n_pdus; pi++) {
-                if(!g_conv_pdus[pi].alias_cid) continue;
-                void *rt = go_conv_ir_ref_resolve(g_conv_pdus[pi].cid);
+            for(int pi = 0; pi < g_go_conv_n_pdus; pi++) {
+                if(!g_go_conv_pdus[pi].alias_cid) continue;
+                void *rt = go_conv_ir_ref_resolve(g_go_conv_pdus[pi].cid);
                 const char *pmod = rt ? go_flat_ir_module(rt) : NULL;
                 if(!pmod || strcmp(pmod, mods[mi]) != 0) continue;
-                char *ab = cfmt("%s%s", prefix, g_conv_pdus[pi].alias_cid);
+                char *ab = go_cfmt("%s%s", prefix, g_go_conv_pdus[pi].alias_cid);
                 char *h = conv_find_header(ab);
                 free(ab);
                 if(!h) continue;
@@ -1049,8 +1049,8 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 incs[n_incs++] = h;
             }
             for(int q = 0; q < n_incs; q++) {
-                char *inc = cfmt("#include \"%s\"\n", incs[q]);
-                s = ca(s, inc);
+                char *inc = go_cfmt("#include \"%s\"\n", incs[q]);
+                s = go_ca(s, inc);
                 free(inc); free(incs[q]);
             }
             free(incs);
@@ -1062,7 +1062,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             for(int mj = 0; mj < n_mods; mj++) {
                 if(mj == mi) continue;
                 char *mp = conv_module_pkg(mods[mj]);
-                char *fh = cfmt("%s%s_flat.h", prefix, mp);
+                char *fh = go_cfmt("%s%s_flat.h", prefix, mp);
                 free(mp);
                 char *fp = conv_path(cspec, fh);
                 char *fdir = conv_path(go_outdir, "c");
@@ -1070,21 +1070,21 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 FILE *ff = fopen(fpath, "r");
                 if(ff) {
                     fclose(ff);
-                    char *inc = cfmt("#include \"%s\"\n", fh);
-                    s = ca(s, inc);
+                    char *inc = go_cfmt("#include \"%s\"\n", fh);
+                    s = go_ca(s, inc);
                     free(inc);
                 }
                 free(fh); free(fp); free(fdir); free(fpath);
             }
-            char *fh = cfmt("%s%s_flat.h", prefix, pkg);
-            char *inc = cfmt("#include \"%s\"\n", fh);
-            s = ca(s, inc);
+            char *fh = go_cfmt("%s%s_flat.h", prefix, pkg);
+            char *inc = go_cfmt("#include \"%s\"\n", fh);
+            s = go_ca(s, inc);
             free(fh); free(inc);
         }
-        s = ca(s, "#include \"asn_application.h\"\n#include \"asn_internal.h\"\n\n");
+        s = go_ca(s, "#include \"asn_application.h\"\n#include \"asn_internal.h\"\n\n");
         /* the per-spec file carries the asn1cgo_buf TYPEDEF only
          * (the shared asn1cgo_buf_free definition lives in asn1cgo-rt). */
-        s = ca(s, "typedef struct { uint8_t *buf; size_t len; } asn1cgo_buf;\n\n");
+        s = go_ca(s, "typedef struct { uint8_t *buf; size_t len; } asn1cgo_buf;\n\n");
         /* OBJECT IDENTIFIER / RELATIVE-OID: the arc <-> contents-octets
          * helpers the converters call (only when the walk classified one,
          * so every other tree is unchanged). The Flat bytes record holds the
@@ -1107,32 +1107,32 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 const char *mod = go_flat_ir_module(t);
                 if(!mod || strcmp(mod, mods[mi]) != 0) continue;
                 if(!go_flat_ir_inline_elem(t)) continue;
-                char *base = conv_tree_base(t);
+                char *base = go_conv_tree_base(t);
                 if(!base || !*base) { free(base); continue; }
                 const char *ct = go_flat_ir_tree_ctype(t);
-                if(!any) { s = ca(s, "/* ---- inline element tree types ---- */\n"); any = 1; }
+                if(!any) { s = go_ca(s, "/* ---- inline element tree types ---- */\n"); any = 1; }
                 if(ct && strcmp(ct, "struct") == 0) {
                     /* the C type has a struct tag only (an inline CHOICE alt) */
-                    char *cb = conv_c_base(t);
-                    char *_cf = cfmt("typedef struct %s %s_t;\n", cb && *cb ? cb : base, base); s = ca(s, _cf); free(_cf); free(cb);
+                    char *cb = go_conv_c_base(t);
+                    char *_cf = go_cfmt("typedef struct %s %s_t;\n", cb && *cb ? cb : base, base); s = go_ca(s, _cf); free(_cf); free(cb);
                 } else {
-                    char *_cf = cfmt("typedef %s %s_t;\n", ct && *ct ? ct : base, base); s = ca(s, _cf); free(_cf);
+                    char *_cf = go_cfmt("typedef %s %s_t;\n", ct && *ct ? ct : base, base); s = go_ca(s, _cf); free(_cf);
                 }
                 free(base);
             }
-            if(any) s = ca(s, "\n");
+            if(any) s = go_ca(s, "\n");
         }
-        s = ca(s, "/* ---- converter forward decls ---- */\n");
+        s = go_ca(s, "/* ---- converter forward decls ---- */\n");
         for(int i = 0; i < n; i++) {
             void *t = go_flat_ir_type(i);
             const char *mod = go_flat_ir_module(t);
             if(!mod || strcmp(mod, mods[mi]) != 0) continue;
             if(go_flat_ir_is_nested_only(t)) continue;
-            char *base = conv_tree_base(t);
+            char *base = go_conv_tree_base(t);
             if(!base || !*base) continue;
-            char *fname = conv_flat_name(t);
-            { char *_cf = cfmt("int %s_to_tree(const %s *, %s_t *, asn1cgo_err *);\n", base, fname, base); s = ca(s, _cf); free(_cf); }
-            { char *_cf = cfmt("int %s_from_tree(asn1cgo_arena *, const %s_t *, %s *, asn1cgo_err *);\n", base, base, fname); s = ca(s, _cf); free(_cf); }
+            char *fname = go_conv_flat_name(t);
+            { char *_cf = go_cfmt("int %s_to_tree(const %s *, %s_t *, asn1cgo_err *);\n", base, fname, base); s = go_ca(s, _cf); free(_cf); }
+            { char *_cf = go_cfmt("int %s_from_tree(asn1cgo_arena *, const %s_t *, %s *, asn1cgo_err *);\n", base, base, fname); s = go_ca(s, _cf); free(_cf); }
             free(base); free(fname);
         }
         /* foreign-package converter pairs this package's bodies call (their
@@ -1143,7 +1143,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             const char *mod = go_flat_ir_module(t);
             if(!mod || strcmp(mod, mods[mi]) == 0) continue;
             if(go_flat_ir_is_nested_only(t)) continue;
-            char *base = conv_tree_base(t);
+            char *base = go_conv_tree_base(t);
             if(!base || !*base) { free(base); continue; }
             char *h = conv_find_header(base);
             if(!h) { free(base); free(h); continue; }
@@ -1157,15 +1157,15 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
              * (the include line is already in s — the flat/tree types are
              * then typed here; a decl without the include references
              * unknown types). */
-            char *inc_line = cfmt("#include \"%s\"\n", h);
+            char *inc_line = go_cfmt("#include \"%s\"\n", h);
             if(strstr(s, inc_line)) {
-                { char *_cf = cfmt("int %s_to_tree(const %s_flat *, %s_t *, asn1cgo_err *);\n", base, base, base); s = ca(s, _cf); free(_cf); }
-                { char *_cf = cfmt("int %s_from_tree(asn1cgo_arena *, const %s_t *, %s_flat *, asn1cgo_err *);\n", base, base, base); s = ca(s, _cf); free(_cf); }
+                { char *_cf = go_cfmt("int %s_to_tree(const %s_flat *, %s_t *, asn1cgo_err *);\n", base, base, base); s = go_ca(s, _cf); free(_cf); }
+                { char *_cf = go_cfmt("int %s_from_tree(asn1cgo_arena *, const %s_t *, %s_flat *, asn1cgo_err *);\n", base, base, base); s = go_ca(s, _cf); free(_cf); }
             }
             free(inc_line);
             free(h); free(base);
         }
-        s = ca(s, "\n");
+        s = go_ca(s, "\n");
 
         /* bodies */
         for(int i = 0; i < n; i++) {
@@ -1173,21 +1173,21 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             const char *mod = go_flat_ir_module(t);
             if(!mod || strcmp(mod, mods[mi]) != 0) continue;
             if(go_flat_ir_is_nested_only(t)) continue;   /* rides the parent */
-            char *base = conv_tree_base(t);
+            char *base = go_conv_tree_base(t);
             if(!base || !*base) continue;   /* anonymous nested node */
-            char *fname = conv_flat_name(t);   /* the Flat type (bare for
+            char *fname = go_conv_flat_name(t);   /* the Flat type (bare for
                                                 * container clones) */
-            char *label = conv_type_label(t);  /* td->name display
+            char *label = go_conv_type_label(t);  /* td->name display
                                                 * label (falls back to base
                                                 * when unrecorded) */
-            char *tobody = node_to_body_pub(t);
-            char *frombody = conv_from_node(t, 0);
-            { char *_cf = cfmt("int\n%s_to_tree(const %s *in, %s_t *out, asn1cgo_err *err) {\n    if (!in || !out) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n    /* out assumed zeroed (calloc) by caller */\n", base, fname, base, label); s = ca(s, _cf); free(_cf); }
-            s = ca(s, tobody);
-            s = ca(s, "    return 0;\n}\n\n");
-            { char *_cf = cfmt("int\n%s_from_tree(asn1cgo_arena *ar, const %s_t *in, %s *out, asn1cgo_err *err) {\n    if (!ar || !in || !out) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", base, base, fname, label); s = ca(s, _cf); free(_cf); }
-            s = ca(s, frombody);
-            s = ca(s, "    return 0;\n}\n\n");
+            char *tobody = go_node_to_body_pub(t);
+            char *frombody = go_conv_from_node(t, 0);
+            { char *_cf = go_cfmt("int\n%s_to_tree(const %s *in, %s_t *out, asn1cgo_err *err) {\n    if (!in || !out) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n    /* out assumed zeroed (calloc) by caller */\n", base, fname, base, label); s = go_ca(s, _cf); free(_cf); }
+            s = go_ca(s, tobody);
+            s = go_ca(s, "    return 0;\n}\n\n");
+            { char *_cf = go_cfmt("int\n%s_from_tree(asn1cgo_arena *ar, const %s_t *in, %s *out, asn1cgo_err *err) {\n    if (!ar || !in || !out) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n", base, base, fname, label); s = go_ca(s, _cf); free(_cf); }
+            s = go_ca(s, frombody);
+            s = go_ca(s, "    return 0;\n}\n\n");
             free(base); free(fname); free(label); free(tobody); free(frombody);
         }
 
@@ -1205,12 +1205,12 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                     continue;
                 flat_type *root = go_conv_ir_ref_resolve(df->root_cid);
                 if(!root) continue;
-                flat_type *own = root;
-                for(int q = 0; q < df->ntok && own; q++) {
+                flat_type *go_own = root;
+                for(int q = 0; q < df->ntok && go_own; q++) {
                     flat_type *nx = NULL;
-                    int nm = go_flat_ir_members(own);
+                    int nm = go_flat_ir_members(go_own);
                     for(int j = 0; j < nm; j++) {
-                        flat_member *mm = go_flat_ir_member(own, j);
+                        flat_member *mm = go_flat_ir_member(go_own, j);
                         const char *tk = go_flat_ir_member_token(mm);
                         int nix = go_flat_ir_member_nested_ix(mm);
                         if(tk && strcmp(tk, df->toks[q]) == 0 && nix >= 0
@@ -1219,13 +1219,13 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                             break;
                         }
                     }
-                    own = nx;
+                    go_own = nx;
                 }
                 flat_member *mem = NULL;
-                if(own) {
-                    int nm = go_flat_ir_members(own);
+                if(go_own) {
+                    int nm = go_flat_ir_members(go_own);
                     for(int j = 0; j < nm; j++) {
-                        flat_member *mm = go_flat_ir_member(own, j);
+                        flat_member *mm = go_flat_ir_member(go_own, j);
                         const char *tk = go_flat_ir_member_token(mm);
                         if(tk && strcmp(tk, df->member_tok) == 0) { mem = mm; break; }
                     }
@@ -1238,26 +1238,26 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 }
                 char *ctype = NULL;
                 if(df->tree_ctype) {
-                    ctype = cstrdup(df->tree_ctype);
+                    ctype = go_cstrdup(df->tree_ctype);
                 } else {
                     flat_type *rr = go_flat_ir_member_is_ref(mem)
                         ? go_conv_ir_ref_resolve(go_flat_ir_member_ref(mem)) : NULL;
-                    char *rb = rr ? conv_tree_base(rr) : NULL;
+                    char *rb = rr ? go_conv_tree_base(rr) : NULL;
                     if(!rb || !*rb) {
                         fprintf(stderr, "asn1cgo: DEFAULT member %s: no C type\n",
                                 df->label);
                         free(rb); rc = -1; break;
                     }
-                    ctype = cfmt("%s_t", rb);
+                    ctype = go_cfmt("%s_t", rb);
                     free(rb);
                 }
                 flat_type *start = go_conv_ir_ref_resolve(df->start_cid);
-                char *rootb = start ? conv_tree_base(start) : NULL;
+                char *rootb = start ? go_conv_tree_base(start) : NULL;
                 if(!rootb) { free(ctype); rc = -1; break; }
-                char *rootf = conv_flat_name(root);
-                char *label = conv_type_label(root);
+                char *rootf = go_conv_flat_name(root);
+                char *label = go_conv_type_label(root);
                 if(!any_d) {
-                    s = ca(s,
+                    s = go_ca(s,
                         "/* ---- DEFAULT values of SEQUENCE / SET / SEQUENCE OF / SET OF members ---- */\n"
                         "static const asn_TYPE_member_t *\n"
                         "asn1cgo_dflt_find(const asn_TYPE_descriptor_t *td, const char *name) {\n"
@@ -1270,13 +1270,13 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                         "}\n\n");
                     any_d = 1;
                 }
-                char *prefix_acc = cstrdup("out->");
+                char *prefix_acc = go_cstrdup("out->");
                 for(int q = 0; q < df->ntok; q++) {
-                    char *np = cfmt("%s%s.", prefix_acc, df->toks[q]);
+                    char *np = go_cfmt("%s%s.", prefix_acc, df->toks[q]);
                     free(prefix_acc); prefix_acc = np;
                 }
-                char *arm = conv_member_from_pub(own, mem, "dfin.", prefix_acc);
-                { char *_cf = cfmt(
+                char *arm = go_conv_member_from_pub(go_own, mem, "dfin.", prefix_acc);
+                { char *_cf = go_cfmt(
                     "static int\n"
                     "asn1cgo_dflt_%s_conv(asn1cgo_arena *ar, void *p, %s *out, asn1cgo_err *err) {\n"
                     "    struct { %s *%s; } dfin;\n"
@@ -1285,22 +1285,22 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                     "    return 0;\n"
                     "}\n\n",
                     df->cname, rootf, ctype, df->member_tok, df->member_tok,
-                    ctype, arm); s = ca(s, _cf); free(_cf); }
+                    ctype, arm); s = go_ca(s, _cf); free(_cf); }
                 free(arm);
                 {
-                    char *steps = cstrdup("");
+                    char *steps = go_cstrdup("");
                     for(int q = 0; q < df->ndesc; q++) {
-                        char *qn = *df->desc[q] ? cfmt("\"%s\"", df->desc[q])
-                                                : cstrdup("NULL");
-                        char *_cf = cfmt(
+                        char *qn = *df->desc[q] ? go_cfmt("\"%s\"", df->desc[q])
+                                                : go_cstrdup("NULL");
+                        char *_cf = go_cfmt(
                             "    mem = asn1cgo_dflt_find(td, %s);\n"
                             "    if (!mem) return asn1cgo_fail(err, ASN1CGO_E_INTERNAL, \"%s\", NULL, \"DEFAULT: no member %s in the descriptor\");\n"
                             "%s",
                             qn, df->label, *df->desc[q] ? df->desc[q] : "(element)",
                             q + 1 < df->ndesc ? "    td = mem->type;\n" : "");
-                        steps = ca(steps, _cf); free(_cf); free(qn);
+                        steps = go_ca(steps, _cf); free(_cf); free(qn);
                     }
-                    char *_cf = cfmt(
+                    char *_cf = go_cfmt(
                         "int\n"
                         "asn1cgo_dflt_%s(asn1cgo_arena **arena_out, %s **out, asn1cgo_err *err) {\n"
                         "    if (!arena_out || !out || !err) return asn1cgo_fail(err, ASN1CGO_E_ARG, \"%s\", NULL, NULL);\n"
@@ -1325,7 +1325,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                         "}\n\n",
                         df->cname, rootf, df->label, rootb, steps, df->label,
                         df->label, rootf, rootf, rootf, df->label, df->cname);
-                    s = ca(s, _cf); free(_cf); free(steps);
+                    s = go_ca(s, _cf); free(_cf); free(steps);
                 }
                 free(ctype); free(rootb); free(rootf); free(label); free(prefix_acc);
             }
@@ -1333,16 +1333,16 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
 
         /* this package's PDU entry points */
         int any_pdu = 0;
-        for(int pi = 0; pi < g_conv_n_pdus; pi++) {
-            void *rt = go_conv_ir_ref_resolve(g_conv_pdus[pi].cid);
+        for(int pi = 0; pi < g_go_conv_n_pdus; pi++) {
+            void *rt = go_conv_ir_ref_resolve(g_go_conv_pdus[pi].cid);
             const char *pmod = rt ? go_flat_ir_module(rt) : NULL;
             if(!pmod || strcmp(pmod, mods[mi]) != 0) continue;
-            char *tb = conv_tree_base(rt);
+            char *tb = go_conv_tree_base(rt);
             if(!tb || !*tb) continue;
             /* fb = the Flat BASE: the IR flat name (bare for container
              * clones) minus _flat; entry_* compose the suffix. */
-            char *fbn = conv_flat_name(rt);
-            char *fb = fbn ? cstrdup(fbn) : cstrdup(tb);
+            char *fbn = go_conv_flat_name(rt);
+            char *fb = fbn ? go_cstrdup(fbn) : go_cstrdup(tb);
             if(fb && *fb) {
                 size_t fl = strlen(fb);
                 if(fl > 5 && strcmp(fb + fl - 5, "_flat") == 0)
@@ -1351,21 +1351,21 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             free(fbn);
             /* an alias PDU (Alias ::= Msg): its own entry names and
              * descriptor over the target's tree and converters */
-            const conv_pdu *pe = &g_conv_pdus[pi];
-            char *eb_ = pe->alias_cid ? cfmt("%s%s", prefix, pe->alias_cid)
-                                      : cstrdup(tb);
-            char *lb_ = pe->alias_cid ? cstrdup(pe->alias_label)
-                                      : conv_type_label(rt);
-            { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "encode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, eb); free(eb); }
-            { char *db = entry_decode(rt, fb, tb, eb_, lb_, "decode", "ATS_ALIGNED_BASIC_PER", "aper"); s = ca(s, db); free(db); }
-            { char *xb = entry_xer(rt, fb, tb, eb_, lb_); s = ca(s, xb); free(xb); }
-            s = ca(s, "\n");
-            { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "uperenc", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, eb); free(eb); }
-            { char *db = entry_decode(rt, fb, tb, eb_, lb_, "uperdec", "ATS_UNALIGNED_BASIC_PER", "uper"); s = ca(s, db); free(db); }
+            const conv_pdu *pe = &g_go_conv_pdus[pi];
+            char *eb_ = pe->alias_cid ? go_cfmt("%s%s", prefix, pe->alias_cid)
+                                      : go_cstrdup(tb);
+            char *lb_ = pe->alias_cid ? go_cstrdup(pe->alias_label)
+                                      : go_conv_type_label(rt);
+            { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "encode", "ATS_ALIGNED_BASIC_PER", "aper"); s = go_ca(s, eb); free(eb); }
+            { char *db = entry_decode(rt, fb, tb, eb_, lb_, "decode", "ATS_ALIGNED_BASIC_PER", "aper"); s = go_ca(s, db); free(db); }
+            { char *xb = entry_xer(rt, fb, tb, eb_, lb_); s = go_ca(s, xb); free(xb); }
+            s = go_ca(s, "\n");
+            { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "uperenc", "ATS_UNALIGNED_BASIC_PER", "uper"); s = go_ca(s, eb); free(eb); }
+            { char *db = entry_decode(rt, fb, tb, eb_, lb_, "uperdec", "ATS_UNALIGNED_BASIC_PER", "uper"); s = go_ca(s, db); free(db); }
             if(go_jer_enabled()) {
-                s = ca(s, "\n");
-                { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "jerenc", "ATS_JER_MINIFIED", "jer"); s = ca(s, eb); free(eb); }
-                { char *db = entry_decode(rt, fb, tb, eb_, lb_, "jerdec", "ATS_JER", "jer"); s = ca(s, db); free(db); }
+                s = go_ca(s, "\n");
+                { char *eb = entry_encode(rt, fb, tb, eb_, lb_, "jerenc", "ATS_JER_MINIFIED", "jer"); s = go_ca(s, eb); free(eb); }
+                { char *db = entry_decode(rt, fb, tb, eb_, lb_, "jerdec", "ATS_JER", "jer"); s = go_ca(s, db); free(db); }
             }
             free(eb_); free(lb_);
             free(tb); free(fb);
@@ -1400,14 +1400,14 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
             char *base = cspec_cgo_go_text();
             const char *rtm = (go_rt_module && *go_rt_module)
                                   ? go_rt_module : "asn1cgo-rt";
-            char *imp = cfmt(
+            char *imp = go_cfmt(
                 "// pull the shared runtime objects into every link that includes\n"
                 "// this package (cross-package C symbols resolve through Go static\n"
                 "// linking).\n"
                 "import _ \"%s/rt\"\n", rtm);
             char *txt = base;
             if(go_skel_dir())
-                txt = ca(txt, imp);
+                txt = go_ca(txt, imp);
             if(conv_fwrite_all(p, txt) < 0) { free(txt); free(p); return -1; }
             free(txt); free(imp);
         }
@@ -1522,7 +1522,7 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
     for(int j = 0; j < n_mods; j++) free(mods[j]);
     free(mods);
     free(cspec);
-    if(g_conv_failed_) return -1;
+    if(g_go_conv_failed_) return -1;
     return 0;
 }
 
@@ -1641,10 +1641,10 @@ go_workfile_plan(const char *go_outdir, char **new_text) {
         char *rel = NULL, *wk = NULL;
         if(rt_local_paths(go_outdir, &rel, &wk) < 0) rc = -1;
         else if(wk)
-            *new_text = cfmt("go " GO_MOD_GO_VERSION
+            *new_text = go_cfmt("go " GO_MOD_GO_VERSION
                              "\n\nuse (\n\t%s\n\t./%s\n)\n", wk, base);
         else
-            *new_text = cfmt("go " GO_MOD_GO_VERSION
+            *new_text = go_cfmt("go " GO_MOD_GO_VERSION
                              "\n\nuse (\n\t./%s\n)\n", base);
         free(rel); free(wk);
     } else {
@@ -1668,7 +1668,7 @@ go_workfile_plan(const char *go_outdir, char **new_text) {
                 memcpy(out + on, (p), l__); on += l__; out[on] = '\0'; \
             } while(0)
             GW_APPEND(cur, off);
-            char *base_path = cfmt("./%s", base);
+            char *base_path = go_cfmt("./%s", base);
             char **seen = NULL;
             int n_seen = 0;
             const char *l = ub + 5;
@@ -1687,7 +1687,7 @@ go_workfile_plan(const char *go_outdir, char **new_text) {
                          * ./asn1cgo-rt from the old layout survives as long
                          * as the dir does). Absolute entries: as-is. */
                         char *dirp = entry[0] == '/' ? strdup(entry)
-                                                     : cfmt("%s/%s", parent, entry + 2);
+                                                     : go_cfmt("%s/%s", parent, entry + 2);
                         struct stat st3;
                         keep = dirp && stat(dirp, &st3) == 0;
                         free(dirp);
@@ -1719,14 +1719,14 @@ go_workfile_plan(const char *go_outdir, char **new_text) {
                     for(int i = 0; i < n_seen; i++)
                         if(strcmp(seen[i], lwk) == 0) have = 1;
                     if(!have) {
-                        char *ln = cfmt("\t%s\n", lwk);
+                        char *ln = go_cfmt("\t%s\n", lwk);
                         GW_APPEND(ln, strlen(ln));
                         free(ln);
                     }
                 }
                 free(lrel); free(lwk);
                 if(!have_base) {
-                    char *ln = cfmt("\t./%s\n", base);
+                    char *ln = go_cfmt("\t./%s\n", base);
                     GW_APPEND(ln, strlen(ln));
                     free(ln);
                 }

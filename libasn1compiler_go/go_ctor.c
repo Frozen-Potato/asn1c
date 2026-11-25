@@ -22,7 +22,7 @@
  * numeric values, plus each column's GOVERNING declared type). The name
  * surfaces used:
  *   X's goName  — the spec-key row whose rawCid == the run-prefixed
- *                 <X_cid> (emit_spec's GK_SPEC_KEY row)
+ *                 <X_cid> (go_emit_spec's GK_SPEC_KEY row)
  *   A           — the value-union alt FIELD row under <X>.Value.<alt>
  *                 (goName; alt naming, same token as the Pr const)
  *   T           — that field row's field_type minus the pointer star
@@ -256,12 +256,12 @@ go_ctor_emit(const char *go_outdir) {
     ctor_info *ct = NULL;
     int n_ct = 0;
 
-    for(int i = 0; i < g_conv_n_iocs; i++) {
-        const conv_ioc_row *row = &g_conv_iocs[i];
+    for(int i = 0; i < g_go_conv_n_iocs; i++) {
+        const conv_ioc_row *row = &g_go_conv_iocs[i];
         if(row->is_envelope) continue;   /* procedure-dispatch: no &Value payload ctor */
 
         /* X's spec-key row: rawCid == <pfx><spec_cid> (the run-prefixed
-         * clone tag; emit_spec emitted rawCid=own(x_cid) and the conv row
+         * clone tag; go_emit_spec emitted rawCid=go_own(x_cid) and the conv row
          * stored the stripped form). */
         const char *sk_module = NULL, *x_go = NULL;
         for(int j = 0; j < go_names_rows_n(); j++) {
@@ -286,7 +286,7 @@ go_ctor_emit(const char *go_outdir) {
         /* A + T: the union alt FIELD row under X's Value union whose
          * path ends .Value.<altIdentifier>. The conv row's alt_token is
          * the union member CID token (go_mk_suffix of the cell value);
-         * row_set_field_type recorded "*<AltGo>" on that row. Match by
+         * go_row_set_field_type recorded "*<AltGo>" on that row. Match by
          * sf_owner == <X>Value and rawCid == alt_token. */
         char *val_owner = NULL;
         {
@@ -318,7 +318,7 @@ go_ctor_emit(const char *go_outdir) {
             char *node = cfmt2("%s__value", row->spec_cid);
             char *pr_raw = cfmt2("%s__value_PR_%s", row->spec_cid,
                                  row->alt_token);
-            if(node && pr_raw && conv_is_null_alt(node, row->alt_token)) {
+            if(node && pr_raw && go_conv_is_null_alt(node, row->alt_token)) {
                 for(int j = 0; j < go_names_rows_n(); j++) {
                     if(strcmp(go_names_row_kind(j) ? go_names_row_kind(j)
                                                    : "",

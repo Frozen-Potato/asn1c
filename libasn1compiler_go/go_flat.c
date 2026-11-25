@@ -19,7 +19,7 @@
  *
  * IR capture: NOT a second walk. go_names.c calls the go_flat_* hooks below
  * at the exact points where it has already made each structural decision
- * (chased terminal, member_stars star, minted inline name, value-union
+ * (chased terminal, go_member_stars star, minted inline name, value-union
  * membership); the Flat tree and the Go name tree are therefore captured by
  * construction, never re-derived. The hooks are declared in go_flat.h.
  *
@@ -233,10 +233,10 @@ typedef struct {
     int failed;
 } flat_bag;
 
-flat_bag g_flat;
+static flat_bag g_flat;
 
 /* The most-recent go_flat_struct_nested mint index (the value-union
- * register: emit_spec mints the __value node, then the alt rows attach
+ * register: go_emit_spec mints the __value node, then the alt rows attach
  * onto it from emit_spec_value_alts). An INDEX register, not a pointer:
  * the types array reallocs between the mint and the rows. */
 static int g_flat_last_nest = -1;
@@ -257,7 +257,7 @@ static flat_type *flat_ref_resolve(const char *ref);
 static flat_type *
 flat_new_type(flat_type_kind_e kind, const char *cid, const char *module) {
     /* dedup by (cid, module): the walk may reach one construct twice — an
-     * inline CHOICE pre-minted as a nested member node, then emit_choice's
+     * inline CHOICE pre-minted as a nested member node, then go_emit_choice's
      * own owner mint for the same construct (the node is then completed as
      * cur). Same node, one IR entry; second mint returns the first. */
     {
@@ -280,7 +280,7 @@ flat_new_type(flat_type_kind_e kind, const char *cid, const char *module) {
                  * (or re-bound): adopt it — the walk is entering the
                  * construct now; keep nested_only until the caller emits
                  * it as part of its parent member (the CHOICE case: the
-                 * pre-minted member attach stays; emit_choice's cur re-bind
+                 * pre-minted member attach stays; go_emit_choice's cur re-bind
                  * populates THIS node either way). */
                 return t;
             }
@@ -399,8 +399,8 @@ go_flat_cur_get(void) {
 
 void
 go_flat_cur_restore(int ix) {
-    /* after an inline construct's member recursion (emit_choice /
-     * walk_names_members), cur must return to the ENCLOSING struct: a member
+    /* after an inline construct's member recursion (go_emit_choice /
+     * go_walk_names_members), cur must return to the ENCLOSING struct: a member
      * AFTER the inline construct belongs to the parent again (e.g. a
      * member after an inline CHOICE member, which would otherwise land
      * inside that CHOICE). */
@@ -2128,7 +2128,7 @@ const char *go_conv_ir_tree_base_override(const void *t) {
 /* The C tree base the node's C-side spellings (_PR enum, struct tags) use
  * when it differs from its own tree base: an alias-of-CHOICE node and the
  * inline nodes minted under it take the target's names (Alias__t2 ->
- * Orig__t2). NULL = the node's own conv_tree_base. The function and Flat
+ * Orig__t2). NULL = the node's own go_conv_tree_base. The function and Flat
  * names are NOT affected. */
 const char *go_conv_ir_c_base(const void *tp) {
     static int done_n = -1;

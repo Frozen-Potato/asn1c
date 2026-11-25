@@ -14,7 +14,7 @@
 /* the ONE emitter of the Encode/xer wrapper bodies — the
  * PDU-root arena reservation (budget += sizeof(root), root allocStruct'd
  * before any child alloc) lives HERE and nowhere else on the Go side.
- * Before this, emit_pdu_api carried two inline gfmt blocks, one per
+ * Before this, go_emit_pdu_api carried two inline go_gfmt blocks, one per
  * wrapper, with the reservation text duplicated — the exact shape of the
  * an earlier sizing bug (Encode got the +sizeof(root) budget + reservation,
  * xer silently didn't; e2removal-init xer -> present=13). `kind` switches
@@ -31,14 +31,14 @@ entry_go_wrapper(const char *kind, const char *go, const char *fngo,
                  const char *d0) {
     char *s;
     if(strcmp(kind, "encode") == 0)
-        s = cfmt("func (p *%s) Encode() ([]byte, error) {\n", go);
+        s = go_cfmt("func (p *%s) Encode() ([]byte, error) {\n", go);
     else if(strcmp(kind, "uperenc") == 0)
-        s = cfmt("func (p *%s) EncodeUPER() ([]byte, error) {\n", go);
+        s = go_cfmt("func (p *%s) EncodeUPER() ([]byte, error) {\n", go);
     else if(strcmp(kind, "jerenc") == 0)
-        s = cfmt("func (p *%s) EncodeJER() ([]byte, error) {\n", go);
+        s = go_cfmt("func (p *%s) EncodeJER() ([]byte, error) {\n", go);
     else
-        s = cfmt("func xer%s(p *%s) ([]byte, error) {\n", go, go);
-    { char *_cf = cfmt(
+        s = go_cfmt("func xer%s(p *%s) ([]byte, error) {\n", go, go);
+    { char *_cf = go_cfmt(
         "\tif p == nil {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
         "\tfixed, payload, err := size%s(%s%s)\n"
         "\tif err != nil { return nil, err }\n"
@@ -58,7 +58,7 @@ entry_go_wrapper(const char *kind, const char *go, const char *fngo,
         "\treturn append([]byte(nil), out...), nil\n"
         "}\n\n",
         label, fngo, pv, d0, root_sz, label, root_sz, fngo, pv, d0, label, kind, tb, fna);
-      s = ca(s, _cf); free(_cf); }
+      s = go_ca(s, _cf); free(_cf); }
     return s;
 }
 
@@ -72,8 +72,8 @@ pdu_decode_fn(const char *fn, const char *ent, const char *go,
               const char *fngo, const char *label, const char *fna,
               const char *tb) {
     /* an alias returns its own Go type over the target's reader */
-    char *ret = strcmp(go, fngo) ? gfmt("(*%s)(v)", go) : strdup("v");
-    char *r = gfmt(
+    char *ret = strcmp(go, fngo) ? go_gfmt("(*%s)(v)", go) : strdup("v");
+    char *r = go_gfmt(
         "func %s%s(b []byte) (*%s, error) {\n"
         "\tif len(b) == 0 {\n\t\treturn nil, &rt.Error{Code: rt.CodeArg, TypeName: \"%s\"}\n\t}\n"
         "\tvar cerr C.asn1cgo_err\n"
@@ -97,38 +97,38 @@ pdu_decode_fn(const char *fn, const char *ent, const char *go,
 /* one PDU root's API surface + its type fn queueing. `tb` = the
  * tree base (<P><cid>, the entry-point name suffix), `go` = the Go type. */
 void
-emit_pdu_api(flat_type *rt_, const conv_pdu *al, gsb *src) {
-    char *tb = conv_tree_base(rt_);
+go_emit_pdu_api(flat_type *rt_, const conv_pdu *al, gsb *src) {
+    char *tb = go_conv_tree_base(rt_);
     /* fngo: the base of the size/fill/read fns (the node's); go: the Go
      * type of the API. An alias (Alias ::= Msg, type Alias Msg) has its own
      * Go type and entry points and converts the pointer for the node's fns. */
-    char *fngo = gcamel_flat(go_flat_ir_name(rt_));
+    char *fngo = go_gcamel_flat(go_flat_ir_name(rt_));
     char *go = al ? strdup(al->alias_go) : strdup(fngo);
-    char *label = al ? strdup(al->alias_label) : conv_type_label(rt_);
+    char *label = al ? strdup(al->alias_label) : go_conv_type_label(rt_);
     char *pv;
     if(al) {
         const char *tm = go_flat_ir_module(rt_);
         char *tpk = (tm && strcmp(tm, al->alias_module) != 0)
-                        ? gmodule_pkg(tm) : NULL;
-        char *tq = tpk ? gfmt("%s.%s", tpk, fngo) : strdup(fngo);
+                        ? go_gmodule_pkg(tm) : NULL;
+        char *tq = tpk ? go_gfmt("%s.%s", tpk, fngo) : strdup(fngo);
         free(tpk);
-        pv = gfmt("(*%s)(p)", tq);
+        pv = go_gfmt("(*%s)(p)", tq);
         free(tq);
         free(tb);
-        tb = gfmt("%s%s", asn1c_prefix() ? asn1c_prefix() : "", al->alias_cid);
+        tb = go_gfmt("%s%s", asn1c_prefix() ? asn1c_prefix() : "", al->alias_cid);
     } else {
         pv = strdup("p");
     }
     if(!tb || !*tb) {
-        char *m2 = gfmt("PDU node %s has no tree base", go_flat_ir_name(rt_));
+        char *m2 = go_gfmt("PDU node %s has no tree base", go_flat_ir_name(rt_));
         GFAIL(m2); free(m2); free(go); free(label); free(fngo); free(pv);
         return;
     }
-    emit_type_fn(rt_);
-    char *fna = gown(go_flat_ir_name(rt_));   /* the C Flat typedef name */
-    const char *d0 = conv_is_scc(rt_) ? ", 0" : "";   /* the root call's depth arg */
+    go_emit_type_fn(rt_);
+    char *fna = go_gown(go_flat_ir_name(rt_));   /* the C Flat typedef name */
+    const char *d0 = go_conv_is_scc(rt_) ? ", 0" : "";   /* the root call's depth arg */
 
-    sb_am(src, gfmt(go_jer_enabled()
+    go_sb_am(src, go_gfmt(go_jer_enabled()
         ? "// %s — the public API (Encode/Decode/EncodeUPER/DecodeUPER/EncodeJER/DecodeJER entry points; xer unexported).\n"
         : "// %s — the public API (Encode/Decode/EncodeUPER/DecodeUPER entry points; xer unexported).\n", go));
     /* the ROOT's own struct: the size fns count only CHILD allocations
@@ -139,25 +139,25 @@ emit_pdu_api(flat_type *rt_, const conv_pdu *al, gsb *src) {
      * 0 ON TOP of the root (the choice-present overwritten bug class).
      * BOTH Encode and xer fill the root Flat; BOTH reserve it — via the
      * ONE shared body template (entry_go_wrapper). */
-    char *root_sz = g_szconst(go_flat_ir_name(rt_));
+    char *root_sz = g_go_szconst(go_flat_ir_name(rt_));
     {
         char *wb = entry_go_wrapper("encode", go, fngo, pv, label, tb, fna, root_sz, d0);
-        sb_am(src, wb);   /* gam frees wb */
+        go_sb_am(src, wb);   /* gam frees wb */
     }
-    sb_am(src, pdu_decode_fn("Decode", "decode", go, fngo, label, fna, tb));
+    go_sb_am(src, pdu_decode_fn("Decode", "decode", go, fngo, label, fna, tb));
     {
         char *wb = entry_go_wrapper("xer", go, fngo, pv, label, tb, fna, root_sz, d0);
-        sb_am(src, wb);   /* gam frees wb */
+        go_sb_am(src, wb);   /* gam frees wb */
     }
     {
         char *wb = entry_go_wrapper("uperenc", go, fngo, pv, label, tb, fna, root_sz, d0);
-        sb_am(src, wb);   /* gam frees wb */
-        sb_am(src, pdu_decode_fn("DecodeUPER", "uperdec", go, fngo, label, fna, tb));
+        go_sb_am(src, wb);   /* gam frees wb */
+        go_sb_am(src, pdu_decode_fn("DecodeUPER", "uperdec", go, fngo, label, fna, tb));
     }
     if(go_jer_enabled()) {
         char *wb = entry_go_wrapper("jerenc", go, fngo, pv, label, tb, fna, root_sz, d0);
-        sb_am(src, wb);   /* gam frees wb */
-        sb_am(src, pdu_decode_fn("DecodeJER", "jerdec", go, fngo, label, fna, tb));
+        go_sb_am(src, wb);   /* gam frees wb */
+        go_sb_am(src, pdu_decode_fn("DecodeJER", "jerdec", go, fngo, label, fna, tb));
     }
     free(root_sz);
     free(tb); free(go); free(label); free(fna); free(fngo); free(pv);
@@ -165,7 +165,7 @@ emit_pdu_api(flat_type *rt_, const conv_pdu *al, gsb *src) {
 
 /* The shared glue statics (blockArena + field helpers + goErr) — emitted
  * once per package (byte-stable text). */
-const char *GLUE_STATICS =
+const char *GO_GLUE_STATICS =
     "// rt/shared Flat layout consts (asn1cgo_bytes_flat/asn1cgo_bits_flat,\n"
 "// rt/types.h; x86-64 SysV). The layout.go init() probe cross-checks these\n"
 "// against cgo's C compiler view (rt/types.h include below).\n"
@@ -313,7 +313,7 @@ const char *GLUE_STATICS =
  * bodies reference them (any package with a BIT STRING does; a spec with none
  * omits the pair and never resolves the BITSTR placeholder). The
  * chunk text is carved verbatim from the static block above. */
-const char *GLUE_WRITE_BITS =
+const char *GO_GLUE_WRITE_BITS =
     "func writeBitsField(fa *blockArena, recAddr unsafe.Pointer, bs BITSTR) {\n"
     "\t*(*int32)(unsafe.Pointer(uintptr(recAddr) + offBitsFlatBitsUnused)) = bs.BitsUnused\n"
     "\tif len(bs.Bytes) == 0 {\n\t\treturn\n\t}\n"
@@ -329,7 +329,7 @@ const char *GLUE_WRITE_BITS =
  * package only when its bodies use it. The size pass validates, so the fill
  * never sees an unrepresentable string; a defensive U+FFFD keeps the byte
  * count identical to the size pass if it ever did. */
-const char *GLUE_STRCONV_COMMON =
+const char *GO_GLUE_STRCONV_COMMON =
     "// ucsEncErr builds the error for a Go string that has no BMPString /\n"
     "// UniversalString form (encode side: the value violates the type).\n"
     "func ucsEncErr(typ, msg string) error {\n"
@@ -349,7 +349,7 @@ const char *GLUE_STRCONV_COMMON =
     "}\n"
     "\n";
 
-const char *GLUE_STRCONV_BMP =
+const char *GO_GLUE_STRCONV_BMP =
     "func bmpLen(s string) (uintptr, error) {\n"
     "\tvar n uintptr\n"
     "\tfor i, r := range s {\n"
@@ -398,7 +398,7 @@ const char *GLUE_STRCONV_BMP =
     "}\n"
     "\n";
 
-const char *GLUE_STRCONV_UNIV =
+const char *GO_GLUE_STRCONV_UNIV =
     "func univLen(s string) (uintptr, error) {\n"
     "\tvar n uintptr\n"
     "\tfor i, r := range s {\n"
@@ -448,7 +448,7 @@ const char *GLUE_STRCONV_UNIV =
  * C converters feed them to OBJECT_IDENTIFIER_set_arcs / RELATIVE_OID_set_arcs
  * and back from the _get_arcs functions). The C arc type is 32 bits, so an
  * arc above 4294967295 is an error, never truncated. */
-const char *GLUE_STRCONV_OID =
+const char *GO_GLUE_STRCONV_OID =
     "func oidLen(a []uint64, rel bool) (uintptr, error) {\n"
     "\ttyp := \"OBJECT IDENTIFIER\"\n"
     "\tif rel {\n\t\ttyp = \"RELATIVE-OID\"\n\t}\n"
@@ -499,7 +499,7 @@ const char *GLUE_STRCONV_OID =
     "}\n"
     "\n";
 
-const char *GLUE_READ_BITS =
+const char *GO_GLUE_READ_BITS =
     "func readBitsField(recAddr unsafe.Pointer) BITSTR {\n"
     "\tn := *(*uintptr)(unsafe.Pointer(uintptr(recAddr) + offBitsFlatLen))\n"
     "\tbs := BITSTR{BitsUnused: *(*int32)(unsafe.Pointer(uintptr(recAddr) + offBitsFlatBitsUnused))}\n"
@@ -523,47 +523,47 @@ const char *GLUE_READ_BITS =
 extern int go_oer_disabled(void);
 
 char *
-pkg_header(const char *module, const char *pkg, const char *flat_hdr,
+go_pkg_header(const char *module, const char *pkg, const char *flat_hdr,
            const char *flat_includes, const char *pdu_externs,
            const char *rt_module) {
     char *s = strdup(GO_GENERATED_BANNER "//go:build amd64\n\n");
-    s = ga(s, "// glue.go — generated Go<->Flat glue.\n");
-    s = ga(s, "// Encode: one C block -> fill via the Go-side bump allocator -> the C\n");
-    s = ga(s, "// entry point -> C.GoBytes copy -> buf_free + free (deferred, every\n");
-    s = ga(s, "// path). Decode: the C entry point -> a deep copy into Go values\n");
-    s = ga(s, "// (nothing aliases the arena) -> arena_free (every path). No Go pointer\n");
-    s = ga(s, "// is stored in C memory; no package-level C state; each call owns its\n");
-    s = ga(s, "// own arena, so the API is safe for concurrent use.\n");
-    s = ga(s, "package ");
-    s = ga(s, pkg);
-    s = ga(s, "\n\n/*\n");
-    s = ga(s, "#cgo CFLAGS: -I${SRCDIR}/../internal/cspec -I${SRCDIR}/../internal/cspec/rt");
-    if(go_oer_disabled()) s = ga(s, " -DASN_DISABLE_OER_SUPPORT");
-    s = ga(s, "\n");
-    s = ga(s, "#include \"rt/arena.h\"\n");
-    s = ga(s, "#include \"rt/err.h\"\n");
-    s = ga(s, "#include \"rt/types.h\"\n");
-    s = ga(s, "#include <stdlib.h>\n");
-    s = ga(s, flat_includes);
-    s = ga(s, "\ntypedef struct { uint8_t *buf; size_t len; } asn1cgo_buf;\n");
-    s = ga(s, "extern void asn1cgo_buf_free(asn1cgo_buf *b);\n");
-    s = ga(s, pdu_externs);
-    s = ga(s, "*/\nimport \"C\"\n\n");
-    s = ga(s, "// the C world (the asn1c tree copy + conv/entry C) lives in internal/\n");
-    s = ga(s, "// cspec; the import links its objects into every build of this package\n");
-    s = ga(s, "// (process-global externs under Go static linking).\n");
-    s = ga(s, "import _ \"");
-    s = ga(s, module);
-    s = ga(s, "/internal/cspec\"\n\n");
-    s = ga(s, "import (\n");
-    s = ga(s, "\trt \"");
-    s = ga(s, rt_module ? rt_module : "asn1cgo-rt");
-    s = ga(s, "/rt\"\n");
-    s = ga(s, "\t\"math\"\n");
-    s = ga(s, "\t\"runtime\"\n");
-    s = ga(s, "\t\"strconv\"\n");
-    s = ga(s, "\t\"unsafe\"\n");
-    s = ga(s, ")\n");
+    s = go_ga(s, "// glue.go — generated Go<->Flat glue.\n");
+    s = go_ga(s, "// Encode: one C block -> fill via the Go-side bump allocator -> the C\n");
+    s = go_ga(s, "// entry point -> C.GoBytes copy -> buf_free + free (deferred, every\n");
+    s = go_ga(s, "// path). Decode: the C entry point -> a deep copy into Go values\n");
+    s = go_ga(s, "// (nothing aliases the arena) -> arena_free (every path). No Go pointer\n");
+    s = go_ga(s, "// is stored in C memory; no package-level C state; each call owns its\n");
+    s = go_ga(s, "// own arena, so the API is safe for concurrent use.\n");
+    s = go_ga(s, "package ");
+    s = go_ga(s, pkg);
+    s = go_ga(s, "\n\n/*\n");
+    s = go_ga(s, "#cgo CFLAGS: -I${SRCDIR}/../internal/cspec -I${SRCDIR}/../internal/cspec/rt");
+    if(go_oer_disabled()) s = go_ga(s, " -DASN_DISABLE_OER_SUPPORT");
+    s = go_ga(s, "\n");
+    s = go_ga(s, "#include \"rt/arena.h\"\n");
+    s = go_ga(s, "#include \"rt/err.h\"\n");
+    s = go_ga(s, "#include \"rt/types.h\"\n");
+    s = go_ga(s, "#include <stdlib.h>\n");
+    s = go_ga(s, flat_includes);
+    s = go_ga(s, "\ntypedef struct { uint8_t *buf; size_t len; } asn1cgo_buf;\n");
+    s = go_ga(s, "extern void asn1cgo_buf_free(asn1cgo_buf *b);\n");
+    s = go_ga(s, pdu_externs);
+    s = go_ga(s, "*/\nimport \"C\"\n\n");
+    s = go_ga(s, "// the C world (the asn1c tree copy + conv/entry C) lives in internal/\n");
+    s = go_ga(s, "// cspec; the import links its objects into every build of this package\n");
+    s = go_ga(s, "// (process-global externs under Go static linking).\n");
+    s = go_ga(s, "import _ \"");
+    s = go_ga(s, module);
+    s = go_ga(s, "/internal/cspec\"\n\n");
+    s = go_ga(s, "import (\n");
+    s = go_ga(s, "\trt \"");
+    s = go_ga(s, rt_module ? rt_module : "asn1cgo-rt");
+    s = go_ga(s, "/rt\"\n");
+    s = go_ga(s, "\t\"math\"\n");
+    s = go_ga(s, "\t\"runtime\"\n");
+    s = go_ga(s, "\t\"strconv\"\n");
+    s = go_ga(s, "\t\"unsafe\"\n");
+    s = go_ga(s, ")\n");
     return s;
 }
 
@@ -572,23 +572,23 @@ pkg_header(const char *module, const char *pkg, const char *flat_hdr,
  * queued before it completes — actually callees queue DURING body emission,
  * so reverse the registry for emission: callees first). */
 void
-emit_fn_text(gluefn *f, gsb *src) {
+go_emit_fn_text(gluefn *f, gsb *src) {
     if(!f || !f->done) return;
     flat_type *t = go_flat_ir_type(f->ix);
     if(!t) return;
-    char *cam = gcamel_flat(go_flat_ir_name(t));
-    char *qt = gtype_q(t);   /* the package-qualified type spelling */
-    const char *dp = conv_is_scc(t) ? ", depth int" : "";
+    char *cam = go_gcamel_flat(go_flat_ir_name(t));
+    char *qt = go_gtype_q(t);   /* the package-qualified type spelling */
+    const char *dp = go_conv_is_scc(t) ? ", depth int" : "";
 
-    sb_am(src, gfmt(
+    go_sb_am(src, go_gfmt(
         "func size%s(v *%s%s) (fixed, payload uintptr, err error) {\n",
         cam, qt, dp));
-    sb_a(src, f->sz);
-    sb_a(src, "\treturn\n}\n\n");
-    sb_am(src, gfmt(
+    go_sb_a(src, f->sz);
+    go_sb_a(src, "\treturn\n}\n\n");
+    go_sb_am(src, go_gfmt(
         "func fill%s(fa *blockArena, slot unsafe.Pointer, v *%s%s) error {\n",
         cam, qt, dp));
-    sb_a(src, f->fill);
+    go_sb_a(src, f->fill);
     /* a fill body that already returns (a delegation) must not get the
      * trailer `return nil` — unreachable. Mirror of the read side. */
     {
@@ -601,14 +601,14 @@ emit_fn_text(gluefn *f, gsb *src) {
             if(!eol) break;
             q = eol + 1;
         }
-        sb_a(src, fill_returns ? "}\n\n" : "\treturn nil\n}\n\n");
+        go_sb_a(src, fill_returns ? "}\n\n" : "\treturn nil\n}\n\n");
     }
     if(f->leaf_pdu) {
-        sb_am(src, gfmt(
+        go_sb_am(src, go_gfmt(
             "func read%s(slot unsafe.Pointer) (*%s, error) {\n\tv := new(%s)\n",
             cam, qt, qt));
     } else {
-    sb_am(src, gfmt(
+    go_sb_am(src, go_gfmt(
         "func read%s(slot unsafe.Pointer) (*%s, error) {\n\tv := &%s{}\n",
         cam, qt, qt));
     }
@@ -631,12 +631,12 @@ emit_fn_text(gluefn *f, gsb *src) {
          * simplest legal form: emit `_ = v` BEFORE the body (still used),
          * then the body, then just the close. */
         if(has_return && !uses_v)
-            sb_a(src, "\t_ = v\n");
-        sb_a(src, f->read);
+            go_sb_a(src, "\t_ = v\n");
+        go_sb_a(src, f->read);
         if(has_return) {
-            sb_a(src, "}\n\n");
+            go_sb_a(src, "}\n\n");
         } else {
-            sb_a(src, "\tvar err error\n\t_ = err\n\treturn v, nil\n}\n\n");
+            go_sb_a(src, "\tvar err error\n\t_ = err\n\treturn v, nil\n}\n\n");
         }
     }
     free(cam); free(qt);

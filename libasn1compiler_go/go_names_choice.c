@@ -20,7 +20,7 @@ static char *go_list_suffix(asn1p_expr_t *list, asn1p_expr_t *e);
  * ASN.1 dotted path; the parent goName (ctx->parent_go) is the inline prefix.
  * ========================================================================= */
 
-/* emit_choice / emit_enum are mutually recursive (a CHOICE alt may be an inline
+/* go_emit_choice / go_emit_enum are mutually recursive (a CHOICE alt may be an inline
  * CHOICE/ENUM). Both are defined just below; declared here so either may call the
  * other. Both take choice_go/enum_go (the Go name — the dump goName and the parent
  * prefix for nested inline names) AND choice_cid/enum_cid: the REAL asn1c C
@@ -30,13 +30,13 @@ static char *go_list_suffix(asn1p_expr_t *list, asn1p_expr_t *e);
  * it is the verbatim symbol asn1c stamps into the .h (e.g. ENB_ID_PR for the
  * ENB-ID choice, not the _-collapsed ENBID_PR the Go name would yield; an inline
  * choice's tag is <ParentCid>__<memberCid>_PR). goName and path are unaffected. */
-void emit_choice(struct walk_ctx *ctx, const char *choice_go,
+void go_emit_choice(struct walk_ctx *ctx, const char *choice_go,
                  const char *choice_cid, const char *parent_path,
                  asn1p_expr_t *choice_expr);
-void emit_enum(struct walk_ctx *ctx, const char *enum_go,
+void go_emit_enum(struct walk_ctx *ctx, const char *enum_go,
                const char *enum_cid, const char *parent_path,
                asn1p_expr_t *enum_expr);
-void emit_bit_names(struct walk_ctx *ctx, const char *type_go,
+void go_emit_bit_names(struct walk_ctx *ctx, const char *type_go,
                     const char *type_cid, const char *type_path,
                     asn1p_expr_t *bs);
 
@@ -47,12 +47,12 @@ void emit_bit_names(struct walk_ctx *ctx, const char *type_go,
  * data-pointer set, struct-scoped to this CHOICE). rawCids are built from
  * choice_cid (the verbatim asn1c symbol). */
 void
-emit_choice(struct walk_ctx *ctx, const char *choice_go,
+go_emit_choice(struct walk_ctx *ctx, const char *choice_go,
             const char *choice_cid, const char *parent_path,
             asn1p_expr_t *choice_expr) {
     /* CHOICE emission: the CHOICE's own type/inline row (emitted by the caller just
-     * before this call on ALL three call paths — walk_names_expr's top-level
-     * GK_TYPE row, walk_names_child's inline GK_INLINE row, and emit_choice's
+     * before this call on ALL three call paths — go_walk_names_expr's top-level
+     * GK_TYPE row, walk_names_child's inline GK_INLINE row, and go_emit_choice's
      * own recursion below) is declared `type <Choice> struct {...}` over the
      * Present + alt field rows this function records. Capture the owner row
      * INDEX here — at entry it is n_rows-1, but the choice-pr emit below
@@ -67,16 +67,16 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
     /* choice-pr: <Choice>Pr (discriminant-type name). rawCid = <Cid>_PR, the
      * verbatim asn1c `<Choice>_PR` enum tag (not the _-collapsed Go name + _PR). */
     {
-        char *raw = str_append(strdup(""), choice_cid);
-        raw = str_append(raw, "_PR");
-        char *go = str_append(strdup(""), choice_go);
-        go = str_append(go, "Pr");
-        char *path = make_path(parent_path, "Pr");
-        emit_name(ctx->bag, ctx->module, path, GK_CHOICE_PR, raw, go);
+        char *raw = go_str_append(strdup(""), choice_cid);
+        raw = go_str_append(raw, "_PR");
+        char *go = go_str_append(strdup(""), choice_go);
+        go = go_str_append(go, "Pr");
+        char *path = go_make_path(parent_path, "Pr");
+        go_emit_name(ctx->bag, ctx->module, path, GK_CHOICE_PR, raw, go);
     }
-    reset_field_scope(ctx->bag);    /* CHOICE is one struct for field scope */
-    row_set_is_struct_at(ctx->bag, owner_ix);
-    struct_scope_open(ctx->bag, choice_go);
+    go_reset_field_scope(ctx->bag);    /* CHOICE is one struct for field scope */
+    go_row_set_is_struct_at(ctx->bag, owner_ix);
+    go_struct_scope_open(ctx->bag, choice_go);
     /* choice-const: <Choice>PrNothing. rawCid = <Cid>_PR_NOTHING. Value 0:
      * asn1c's _PR enum lists NOTHING first with no explicit value
      * (asn1c_C.c:984), so the implicit numbering makes NOTHING=0 (the
@@ -84,15 +84,15 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
      * discriminant <Choice>Pr (e.g. `MsgPrNothing MsgPr = 0`),
      * not the CHOICE struct itself (the struct body). */
     {
-        char *raw = str_append(strdup(""), choice_cid);
-        raw = str_append(raw, "_PR_NOTHING");
-        char *go = str_append(strdup(""), choice_go);
-        go = str_append(go, "PrNothing");
-        char *type_go = str_append(strdup(""), choice_go);
-        type_go = str_append(type_go, "Pr");
-        char *path = make_path(parent_path, "PrNothing");
-        emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
-        row_set_const(ctx->bag, "0", type_go);
+        char *raw = go_str_append(strdup(""), choice_cid);
+        raw = go_str_append(raw, "_PR_NOTHING");
+        char *go = go_str_append(strdup(""), choice_go);
+        go = go_str_append(go, "PrNothing");
+        char *type_go = go_str_append(strdup(""), choice_go);
+        type_go = go_str_append(type_go, "Pr");
+        char *path = go_make_path(parent_path, "PrNothing");
+        go_emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
+        go_row_set_const(ctx->bag, "0", type_go);
         free(type_go);
     }
     /* The CHOICE Go struct carries a `Present <Choice>Pr` discriminant field
@@ -105,14 +105,14 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
      * no special case on either side (token + R2 checks both pass
      * unaided). */
     {
-        char *path = make_path(parent_path, "Present");
-        emit_name(ctx->bag, ctx->module, path, GK_FIELD,
+        char *path = go_make_path(parent_path, "Present");
+        go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
                   strdup("present"), strdup("Present"));
         /* CHOICE emission: `Present <Choice>Pr` (the discriminant holder;
          * by VALUE, never a pointer: it is the selector, not an alt slot). */
-        char *pt = str_append(strdup(""), choice_go);
-        pt = str_append(pt, "Pr");
-        row_set_field_type(ctx->bag, pt);
+        char *pt = go_str_append(strdup(""), choice_go);
+        pt = go_str_append(pt, "Pr");
+        go_row_set_field_type(ctx->bag, pt);
         free(pt);
     }
     /* Flat: the present member is the int32 prim row (the CHOICE mapping
@@ -136,7 +136,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 if(t) at = t;
             }
             if(go_construct_classify(at) == GO_CONSTR_BIT_STRING)
-                mark_bitstring_module(ctx->bag, ctx->module);
+                go_mark_bitstring_module(ctx->bag, ctx->module);
         }
         /* An alt that is itself an inline constructed type (plain inline SEQ/
          * CHOICE/ENUM) mints the inline naming + alts, exactly as a struct
@@ -152,29 +152,29 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             /* layout / glue name the alt's slot and constant by camel-casing
              * its token: tell them the alt spelling (also for a NULL alt) */
             char *at_ = go_mk_member(alt);
-            alt_register(choice_cid, at_, altgo);
-            alt_register(choice_cid, altcid, altgo);
+            go_alt_register(choice_cid, at_, altgo);
+            go_alt_register(choice_cid, altcid, altgo);
             free(at_);
         }
         /* choice-const <Choice>Pr<Alt>; rawCid = <Cid>_PR_<AltCid> (the verbatim
          * asn1c enum-member token <Choice>_PR_<AltCid>). <Cid> is the
          * aggregate prefixed form; the alt part is unprefixed. */
         {
-            char *raw = str_append(strdup(""), choice_cid);
-            raw = str_append(raw, "_PR_");
-            raw = str_append(raw, altcid);
-            char *go = str_append(strdup(""), choice_go);
-            go = str_append(go, "Pr");
-            go = str_append(go, altgo);
-            char *type_go = str_append(strdup(""), choice_go);
-            type_go = str_append(type_go, "Pr");
-            char *path = make_path(parent_path, alt->Identifier);
-            emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
+            char *raw = go_str_append(strdup(""), choice_cid);
+            raw = go_str_append(raw, "_PR_");
+            raw = go_str_append(raw, altcid);
+            char *go = go_str_append(strdup(""), choice_go);
+            go = go_str_append(go, "Pr");
+            go = go_str_append(go, altgo);
+            char *type_go = go_str_append(strdup(""), choice_go);
+            type_go = go_str_append(type_go, "Pr");
+            char *path = go_make_path(parent_path, alt->Identifier);
+            go_emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
             /* Value: the next sequential _PR slot (PrNothing=0, alt i = i+1;
              * asn1c's _PR enum carries no explicit values — asn1c_C.c:985-996
              * — so the implicit numbering follows the TQ_FOR alt order).
              * asn1p_itoa's ring buffer makes one call per row safe. */
-            row_set_const(ctx->bag, asn1p_itoa(++alt_seq), type_go);
+            go_row_set_const(ctx->bag, asn1p_itoa(++alt_seq), type_go);
             free(type_go);
         }
         /* field row: the alt's data pointer. struct-scoped to CHOICE.
@@ -192,9 +192,9 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
          * member rules: the minted <Choice><Alt> name for an inline alt (the
          * block below mints it in this same iteration), the named
          * assignment's own Go name for a reference alt, the mapping-table Go
-         * column for a plain inline leaf alt (classify_leaf — the SAME table
+         * column for a plain inline leaf alt (go_classify_leaf — the SAME table
          * the decl emission uses; never re-spelled here). The star is NOT the
-         * OPTIONAL star (member_stars): a CHOICE alt is a pointer by construction
+         * OPTIONAL star (go_member_stars): a CHOICE alt is a pointer by construction
          * whatever its marker — "*" + pointee unconditionally. */
         /* The alt's terminal (the BIT STRING chase above already resolved
          * it, but into a nested scope; re-chase here for the type — and
@@ -221,15 +221,15 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 free(altcid);
                 continue;
             }
-            char *path = make_path(parent_path, alt->Identifier);
+            char *path = go_make_path(parent_path, alt->Identifier);
             /* An alt whose field name would be `Present` collides with the
              * discriminant field (public API, kept as is): the FIELD gets the
              * deterministic name PresentAlt. The <Choice>Pr<Alt> constant
              * (TPrPresent) and the inline type name keep altgo. The renamed
              * field is registered like any other, so an alt literally named
              * `presentAlt` is still reported as a collision. */
-            emit_name(ctx->bag, ctx->module, path, GK_FIELD,
-                      own(strcmp(altcid, "present") == 0 ? "presentAlt" : go_mk_member(alt)),
+            go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
+                      go_own(strcmp(altcid, "present") == 0 ? "presentAlt" : go_mk_member(alt)),
                       strdup(strcmp(altgo, "Present") == 0 ? "PresentAlt" : altgo));
             /* Flat slot: a POINTER iff asn1c's union member for
              * this alt is one — the EM_INDIRECT marker expr_break_recursion
@@ -240,7 +240,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
              * the terminal's own cid for a reference alt, or a prim for a
              * plain inline leaf alt (none in scope: all data-bearing leaf
              * alts here are BIT STRING / INTEGER / REAL prims — the same
-             * classify_leaf table). */
+             * go_classify_leaf table). */
             {
                 int cstars = 0;
                 int cwide = 0, clk = 0;
@@ -271,11 +271,11 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                      * never set: inline slot. */
                 } else if(alt->expr_type == A1TC_REFERENCE
                           || alt->meta_type == AMT_TYPEREF || aterm != alt) {
-                    ccid = own(GO_MKID(aterm));
+                    ccid = go_own(GO_MKID(aterm));
                 } else {
                     /* a plain inline leaf alt: the mapping-table Flat prim slot. */
                     ctx->wide_nr = 1; ctx->wide_hit = 0;
-                    int lk = classify_leaf(ctx, aterm, parent_path);
+                    int lk = go_classify_leaf(ctx, aterm, parent_path);
                     clk = lk;
                     cwide = ctx->wide_hit;
                     ctx->wide_nr = 0; ctx->wide_hit = 0;
@@ -284,13 +284,13 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 {
                     /* altcid borrows the shared static buffer (go_mk_suffix);
                      * own it before the mint (the same aliasing trap). */
-                    char *flat_acid = own(altcid);
+                    char *flat_acid = go_own(altcid);
                     int alt_is_present = strcmp(altcid, "present") == 0;
                     /* the flat slot is a C struct field: a reserved word is
                      * upcased as asn1c does for the union member; the _PR
                      * suffix (tree_token) keeps the lower-case spelling */
                     char *flat_mem = go_mk_member(alt);
-                    char *flat_atok = own(alt_is_present ? "presentAlt" : flat_mem);
+                    char *flat_atok = go_own(alt_is_present ? "presentAlt" : flat_mem);
                     if(cprim) {
                         go_flat_member_prim(cprim, flat_atok, cstars);
                         if(cwide) go_flat_last_member_wide();
@@ -320,29 +320,29 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     /* An inline constructed alt: typed by its minted
                      * <Choice><Alt> name (the anonymous-inline naming
                      * rule), same-module. */
-                    ft = str_append(strdup(""), choice_go);
-                    ft = str_append(ft, altgo);
+                    ft = go_str_append(strdup(""), choice_go);
+                    ft = go_str_append(ft, altgo);
                 } else if(alt->expr_type == A1TC_REFERENCE
                           || alt->meta_type == AMT_TYPEREF || aterm != alt) {
                     /* A reference alt: the terminal assignment's own Go name
                      * (leaf or constructed alike). Stored UNQUALIFIED;
-                     * the post-walk prepass (qualify_field_types) applies cross-module qualification
+                     * the post-walk prepass (go_qualify_field_types) applies cross-module qualification
                      * cross-module qualification once the bag is complete. */
                     char *tgo = go_type_go(aterm);
-                    ft = str_append(strdup(""), tgo);
+                    ft = go_str_append(strdup(""), tgo);
                     free(tgo);
                 } else {
                     /* A plain inline leaf alt: the shared mapping table. */
                     ctx->wide_nr = 1;
-                    int lk = classify_leaf(ctx, aterm, parent_path);
+                    int lk = go_classify_leaf(ctx, aterm, parent_path);
                     ctx->wide_nr = 0; ctx->wide_hit = 0;
                     const char *under = go_types_leaf_underlying(lk);
-                    if(under) ft = own(under);
+                    if(under) ft = go_own(under);
                 }
                 if(ft) {
-                    char *sft = str_append(strdup(""), "*");
-                    sft = str_append(sft, ft);
-                    row_set_field_type(ctx->bag, sft);
+                    char *sft = go_str_append(strdup(""), "*");
+                    sft = go_str_append(sft, ft);
+                    go_row_set_field_type(ctx->bag, sft);
                     free(sft); free(ft);
                 }
             }
@@ -351,31 +351,31 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
          * <Choice><Alt> + enum-consts under it (e.g. Cond-Type.rate ->
          * CondTypeRate; the real .h compounds the parent into the enum and
          * every enumerator). An inline CHOICE alt mints <Choice><Alt> too and
-         * recurses via emit_choice (the CHOICE pass: that recursion now marks its own
+         * recurses via go_emit_choice (the CHOICE pass: that recursion now marks its own
          * inline row a struct owner + types its alt slots). An inline SEQUENCE
-         * alt mints <Choice><Alt> and walks its members (walk_names_members —
+         * alt mints <Choice><Alt> and walks its members (go_walk_names_members —
          * the struct-body machinery; the alt slot's type above points
          * at the minted name). The real C-ident compounds by `__`:
          * <choice_cid>__<altcid>, matching asn1c's nested tag form. An inline
          * SEQUENCE-OF alt mints the slice alias <Choice><Alt> below, with its
-         * element named by mint_inline_seqof_elem when that is inline too. */
+         * element named by go_mint_inline_seqof_elem when that is inline too. */
         if(alt->expr_type == ASN_BASIC_ENUMERATED
            || go_is_struct_kind(alt->expr_type)
            || alt->expr_type == ASN_CONSTR_CHOICE) {
-            char *inline_go = str_append(strdup(""), choice_go);
-            inline_go = str_append(inline_go, altgo);
+            char *inline_go = go_str_append(strdup(""), choice_go);
+            inline_go = go_str_append(inline_go, altgo);
             /* an inline tag is an AGGREGATE name — prefix once, parts
              * unprefixed (asn1c's compound tag PFX_X__y, never PFX_X__PFX_y;
              * construct_base_name flag=0, asn1c_naming.c:185-186). */
             char *inline_cid = go_cid_compound(choice_cid, "__", altcid);
-            char *alt_path = make_path(parent_path, alt->Identifier);
+            char *alt_path = go_make_path(parent_path, alt->Identifier);
             {
                 char *raw = strdup(inline_cid);
                 char *go = strdup(inline_go);
                 char *path = strdup(alt_path);
-                emit_name(ctx->bag, ctx->module, path, GK_INLINE, raw, go);
+                go_emit_name(ctx->bag, ctx->module, path, GK_INLINE, raw, go);
                 if(alt->expr_type == ASN_BASIC_ENUMERATED) {
-                    row_set_leaf(ctx->bag, GLEAF_ENUM);
+                    go_row_set_leaf(ctx->bag, GLEAF_ENUM);
                     /* Flat: NO leaf typedef mint for an inline-ENUM
                      * alt — the alt slot is the bare int32 prim above; a
                      * minted <P>__<alt>_flat leaf is unresolvable by the
@@ -383,7 +383,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                 }
             }
             if(alt->expr_type == ASN_BASIC_ENUMERATED) {
-                emit_enum(ctx, inline_go, inline_cid, alt_path, alt);
+                go_emit_enum(ctx, inline_go, inline_cid, alt_path, alt);
             } else {
                 /* An inline CHOICE / SEQUENCE alt is a package-scoped Flat
                  * node of its own (the alt slot above is a ref to it; the C
@@ -398,10 +398,10 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     save_sf = strdup(ctx->bag->sf_cur_owner);
                 int save_fcur = go_flat_cur_get();
                 if(alt->expr_type == ASN_CONSTR_CHOICE) {
-                    field_scope_push(ctx->bag);
-                    emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
-                    field_scope_pop(ctx->bag);
-                    /* emit_choice minted the node and left it cur */
+                    go_field_scope_push(ctx->bag);
+                    go_emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
+                    go_field_scope_pop(ctx->bag);
+                    /* go_emit_choice minted the node and left it cur */
                     go_flat_mark_inline_elem("struct", NULL);
                 } else {   /* ASN_CONSTR_SEQUENCE: a struct with member fields */
                     const char *save_go = ctx->parent_go;
@@ -411,17 +411,17 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
                     go_flat_mark_inline_elem("struct", NULL);
                     ctx->parent_go = inline_go;
                     ctx->parent_cid = inline_cid;
-                    field_scope_push(ctx->bag);
-                    row_set_is_struct(ctx->bag);
-                    struct_scope_open(ctx->bag, inline_go);
-                    (void)walk_names_members(ctx, alt, alt_path);
-                    struct_scope_reset(ctx->bag);
-                    field_scope_pop(ctx->bag);
+                    go_field_scope_push(ctx->bag);
+                    go_row_set_is_struct(ctx->bag);
+                    go_struct_scope_open(ctx->bag, inline_go);
+                    (void)go_walk_names_members(ctx, alt, alt_path);
+                    go_struct_scope_reset(ctx->bag);
+                    go_field_scope_pop(ctx->bag);
                     ctx->parent_go = save_go;
                     ctx->parent_cid = save_cid;
                 }
                 go_flat_cur_restore(save_fcur);
-                free(bag_sf_restore(ctx->bag, save_sf));
+                free(go_bag_sf_restore(ctx->bag, save_sf));
             }
             free(inline_go); free(inline_cid); free(alt_path);
         } else if(alt->expr_type == ASN_BASIC_BIT_STRING
@@ -432,22 +432,22 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             /* An inline named-bit BIT STRING alt: the alt is a plain
              * BitString; only the bit positions are named, as an inline
              * ENUMERATED alt would be (<Choice><Alt>). */
-            char *bit_go = str_append(strdup(""), choice_go);
-            bit_go = str_append(bit_go, altgo);
+            char *bit_go = go_str_append(strdup(""), choice_go);
+            bit_go = go_str_append(bit_go, altgo);
             char *bit_cid = go_cid_compound(choice_cid, "__", altcid);
-            char *bit_path = make_path(parent_path, alt->Identifier);
-            emit_bit_names(ctx, bit_go, bit_cid, bit_path, alt);
+            char *bit_path = go_make_path(parent_path, alt->Identifier);
+            go_emit_bit_names(ctx, bit_go, bit_cid, bit_path, alt);
             free(bit_go); free(bit_cid); free(bit_path);
         } else if(go_is_list_kind(alt->expr_type)) {
             /* An inline SEQUENCE OF alt: the named slice `type <Choice><Alt>
              * []Elem`, a package-scoped Flat {items,count} node of the C
              * cid <choice>__<alt> (the alt slot is a pointer to it). The C
              * struct has only a tag (`struct T__a {..} *a`), no typedef. */
-            char *sq_go = str_append(strdup(""), choice_go);
-            sq_go = str_append(sq_go, altgo);
+            char *sq_go = go_str_append(strdup(""), choice_go);
+            sq_go = go_str_append(sq_go, altgo);
             char *sq_cid = go_cid_compound(choice_cid, "__", altcid);
-            char *sq_path = make_path(parent_path, alt->Identifier);
-            emit_name(ctx->bag, ctx->module, strdup(sq_path), GK_INLINE,
+            char *sq_path = go_make_path(parent_path, alt->Identifier);
+            go_emit_name(ctx->bag, ctx->module, strdup(sq_path), GK_INLINE,
                       strdup(sq_cid), strdup(sq_go));
             int sq_row = ctx->bag->n_rows - 1;
             asn1p_expr_t *sq_elem = TQ_FIRST(&alt->members);
@@ -455,23 +455,23 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
             char *ge = NULL, *fc = NULL;
             int mrc = 0;
             if(sq_elem && sq_elem->expr_type == ASN_BASIC_BIT_STRING)
-                mark_bitstring_module(ctx->bag, ctx->module);
-            if(seqof_elem_is_inline(sq_elem)) {
-                mrc = mint_inline_seqof_elem(ctx, sq_elem, sq_path, sq_go,
+                go_mark_bitstring_module(ctx->bag, ctx->module);
+            if(go_seqof_elem_is_inline(sq_elem)) {
+                mrc = go_mint_inline_seqof_elem(ctx, sq_elem, sq_path, sq_go,
                                              sq_cid, &ge, &fc);
             } else {
-                ge = slice_element_type(ctx, sq_elem, sq_path);
+                ge = go_slice_element_type(ctx, sq_elem, sq_path);
                 if(ctx->bag->failed) mrc = -1;
                 else {
                     asn1p_expr_t *et = sq_elem;
                     asn1p_expr_t *t2 = asn1f_find_terminal_type_ex(
                         ctx->asn, ctx->ns, sq_elem);
                     if(t2) et = t2;
-                    fc = own(GO_MKID(et));
+                    fc = go_own(GO_MKID(et));
                 }
             }
             if(mrc >= 0 && !ctx->bag->failed) {
-                row_set_slice_elem_at(ctx->bag, sq_row, ge);
+                go_row_set_slice_elem_at(ctx->bag, sq_row, ge);
                 (void)go_flat_seqof(sq_cid, fc, 0,
                                      alt->expr_type == ASN_CONSTR_SET_OF,
                                      ctx->module);
@@ -484,7 +484,7 @@ emit_choice(struct walk_ctx *ctx, const char *choice_go,
         free(altgo);
         free(altcid);
     }
-    struct_scope_reset(ctx->bag);
+    go_struct_scope_reset(ctx->bag);
 }
 
 /* go_list_suffix: the Go suffix of member `e` of one ENUMERATED enumerator
@@ -559,7 +559,7 @@ go_member_go(asn1p_expr_t *e) {
  * number; asn1p_itoa renders it, asn1p_integer.h:39). goType is the enum's
  * own Go name (consts `<GoType>` + R2(name), typed by the enum type). */
 void
-emit_enum(struct walk_ctx *ctx, const char *enum_go,
+go_emit_enum(struct walk_ctx *ctx, const char *enum_go,
           const char *enum_cid, const char *parent_path,
           asn1p_expr_t *enum_expr) {
     asn1p_expr_t *e;
@@ -576,28 +576,28 @@ emit_enum(struct walk_ctx *ctx, const char *enum_go,
          * upcasing (c_member_name's suffix is make_identifier(0, expr, 0),
          * asn1c_naming.c:304 — the real token is `..._true`, lowercase). */
         char *ecid = go_mk_suffix(e);
-        char *raw = str_append(strdup(""), enum_cid);
-        raw = str_append(raw, "_");
-        raw = str_append(raw, ecid);
+        char *raw = go_str_append(strdup(""), enum_cid);
+        raw = go_str_append(raw, "_");
+        raw = go_str_append(raw, ecid);
         char *ego = go_list_suffix(enum_expr, e);
-        char *go = str_append(strdup(""), enum_go);
-        go = str_append(go, ego);
+        char *go = go_str_append(strdup(""), enum_go);
+        go = go_str_append(go, ego);
         free(ego);
-        char *path = make_path(parent_path, e->Identifier);
-        emit_name(ctx->bag, ctx->module, path, GK_ENUM_CONST, raw, go);
-        char *etype = str_append(strdup(""), enum_go);
+        char *path = go_make_path(parent_path, e->Identifier);
+        go_emit_name(ctx->bag, ctx->module, path, GK_ENUM_CONST, raw, go);
+        char *etype = go_str_append(strdup(""), enum_go);
         if(e->expr_type == A1TC_UNIVERVAL && e->value)
-            row_set_const(ctx->bag, asn1p_itoa(e->value->value.v_integer),
+            go_row_set_const(ctx->bag, asn1p_itoa(e->value->value.v_integer),
                           etype);
         free(etype);
         free(ecid);
     }
 }
 
-/* emit_bit_names: the bit-position constants of a named-bit BIT STRING
+/* go_emit_bit_names: the bit-position constants of a named-bit BIT STRING
  * (`BIT STRING { a(0), b(1) }`). The value type is a plain BitString; the
  * names only add one `int` constant per named bit, in declaration order:
- * <type_go> + R2(bit) -- the ENUMERATED enumerator scheme (emit_enum), with
+ * <type_go> + R2(bit) -- the ENUMERATED enumerator scheme (go_emit_enum), with
  * `type_go` the name an ENUMERATED in the same position would get (the type's
  * own Go name at top level, <Parent><Member> for an inline member,
  * <Choice><Alt> for a CHOICE alt). They are package-scoped GK_ENUM_CONST
@@ -607,7 +607,7 @@ emit_enum(struct walk_ctx *ctx, const char *enum_go,
  * values and rejects non-integer / negative ones, anything else is refused
  * here. */
 void
-emit_bit_names(struct walk_ctx *ctx, const char *type_go,
+go_emit_bit_names(struct walk_ctx *ctx, const char *type_go,
                const char *type_cid, const char *type_path,
                asn1p_expr_t *bs) {
     asn1p_expr_t *v;
@@ -624,20 +624,20 @@ emit_bit_names(struct walk_ctx *ctx, const char *type_go,
             return;
         }
         char *bcid = go_mk_suffix(v);
-        char *raw = str_append(strdup(""), type_cid);
-        raw = str_append(raw, "_");
-        raw = str_append(raw, bcid);
+        char *raw = go_str_append(strdup(""), type_cid);
+        raw = go_str_append(raw, "_");
+        raw = go_str_append(raw, bcid);
         char *bgo = go_list_suffix(bs, v);
-        char *go = str_append(strdup(""), type_go);
-        go = str_append(go, bgo);
+        char *go = go_str_append(strdup(""), type_go);
+        go = go_str_append(go, bgo);
         free(bgo);
-        emit_name(ctx->bag, ctx->module, make_path(type_path, v->Identifier),
+        go_emit_name(ctx->bag, ctx->module, go_make_path(type_path, v->Identifier),
                   GK_ENUM_CONST, raw, go);
-        row_set_const(ctx->bag, asn1p_itoa(v->value->value.v_integer), "int");
+        go_row_set_const(ctx->bag, asn1p_itoa(v->value->value.v_integer), "int");
         struct name_row *r = &ctx->bag->rows[ctx->bag->n_rows - 1];
         if(!group) group = r->ord + 1;
         r->bit_group = group;
-        r->bit_type = own(type_path);
+        r->bit_type = go_own(type_path);
         free(bcid);
     }
 }

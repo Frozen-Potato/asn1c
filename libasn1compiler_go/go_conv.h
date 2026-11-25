@@ -200,7 +200,7 @@ struct go_dflt_fn {
     /* filled by the accessor from the name row */
     const char *module, *goname, *field_type;
 };
-void dflt_fn_free(struct go_dflt_fn *f);
+void go_dflt_fn_free(struct go_dflt_fn *f);
 int go_names_dflt_n(void);
 const struct go_dflt_fn *go_names_dflt_at(int k);
 

@@ -132,7 +132,7 @@ int go_construct_is_classfield_fixedtype(const asn1p_expr_t *expr);
  *
  * A named-bit BIT STRING (`BIT STRING { a(0), b(1) }`) is supported: it maps
  * exactly like a plain BIT STRING (the value type is unchanged) and only adds
- * a block of int bit-position constants (go_names.c, emit_bit_names).
+ * a block of int bit-position constants (go_names.c, go_emit_bit_names).
  */
 
 /*

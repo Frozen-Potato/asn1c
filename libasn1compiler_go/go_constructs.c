@@ -181,7 +181,7 @@ go_construct_classify(const asn1p_expr_t *t) {
     /*
      * BIT STRING, plain or named-bit (`BIT STRING { a(0), b(1) }`): the value
      * type is the same; the identifier children in .members only produce the
-     * bit-position constants (go_names.c, emit_bit_names).
+     * bit-position constants (go_names.c, go_emit_bit_names).
      */
     case ASN_BASIC_BIT_STRING:   return GO_CONSTR_BIT_STRING;
 

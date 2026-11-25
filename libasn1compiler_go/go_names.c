@@ -84,11 +84,11 @@
 
 /* Build a dotted ASN.1 path. parent may be NULL/empty. malloc'd, never NULL. */
 char *
-make_path(const char *parent, const char *leaf) {
+go_make_path(const char *parent, const char *leaf) {
     char *p = parent && *parent
-        ? str_append(strdup(""), parent) : strdup("");
-    if(p && *p) p = str_append(p, ".");
-    return str_append(p, leaf ? leaf : "?");
+        ? go_str_append(strdup(""), parent) : strdup("");
+    if(p && *p) p = go_str_append(p, ".");
+    return go_str_append(p, leaf ? leaf : "?");
 }
 
 /* Deterministic dump order: by module, then path, then kind, then goName. */
@@ -99,7 +99,7 @@ row_cmp(const void *pa, const void *pb) {
     if(c) return c;
     c = strcmp(a->path ? a->path : "?", b->path ? b->path : "?");
     if(c) return c;
-    c = strcmp(g_kind_tag[a->kind], g_kind_tag[b->kind]);
+    c = strcmp(g_go_kind_tag[a->kind], g_go_kind_tag[b->kind]);
     if(c) return c;
     return strcmp(a->goName ? a->goName : "", b->goName ? b->goName : "");
 }
@@ -108,12 +108,12 @@ row_cmp(const void *pa, const void *pb) {
  * row for it). Called from the member walk when a member's terminal is BIT
  * STRING. Idempotent. */
 void
-mark_bitstring_module(struct name_bag *b, const char *module) {
+go_mark_bitstring_module(struct name_bag *b, const char *module) {
     for(int j = 0; j < b->n_bs; j++)
         if(b->bs_modules[j] == module) return;
     if(b->n_bs + 1 > b->cap_bs) {
         int nc = b->cap_bs ? b->cap_bs * 2 : 8;
-        const char **np = xrealloc(b->bs_modules, (size_t)nc * sizeof(char *));
+        const char **np = go_xrealloc(b->bs_modules, (size_t)nc * sizeof(char *));
         if(!np) { b->failed = 1; return; }
         b->bs_modules = np; b->cap_bs = nc;
     }
@@ -378,10 +378,10 @@ classify_integer_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
     return 0;
 }
 
-/* classify_leaf: the GLEAF_* kind of a non-INTEGER leaf terminal. INTEGER
+/* go_classify_leaf: the GLEAF_* kind of a non-INTEGER leaf terminal. INTEGER
  * goes through classify_integer_leaf (asn1c's own decision function). */
 int
-classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
+go_classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
               const char *path_for_diag) {
     switch(go_construct_classify(terminal)) {
     case GO_CONSTR_INTEGER:
@@ -495,7 +495,7 @@ static const char *const go_stdlib_top[] = {
  * `module ASN1CGO_RT_MODULE`. 0 ok, -1 (diagnostic printed). */
 static int
 go_rt_local_check(const char *dir) {
-    char *gm = path_join2(dir, "go.mod");
+    char *gm = go_path_join2(dir, "go.mod");
     FILE *f = gm ? fopen(gm, "r") : NULL;
     int ok = 0;
     if(f) {
@@ -589,7 +589,7 @@ go_check_outdir(const char *go_outdir) {
      * bytes to the historical layout). */
     {
         const char *pfx = getenv("ASN1CGO_GO_MODULE_PREFIX");
-        if(pfx && *pfx && check_go_module_prefix(pfx) < 0)
+        if(pfx && *pfx && go_check_module_prefix(pfx) < 0)
             return -1;          /* -> driver EX_SOFTWARE (70) */
     }
     return 0;
@@ -602,7 +602,7 @@ int
 go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
     struct name_bag bag = {0};
     go_clash_reset();
-    alt_reset();
+    go_alt_reset();
     go_compiler_flags = flags;   /* cached for classify_integer_leaf's arg_t */
 
     if(go_check_outdir(go_outdir) != 0)
@@ -626,7 +626,7 @@ go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
 
         asn1p_expr_t *expr;
         TQ_FOR(expr, &(mod->members), next) {
-            if(walk_names_expr(&ctx, expr) < 0) {
+            if(go_walk_names_expr(&ctx, expr) < 0) {
                 asn1_namespace_free(ctx.ns);
                 /* best-effort teardown */
                 goto done;
@@ -636,16 +636,16 @@ go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
         /* pkg-dir: one per real module, package dir = module id lowercased. The
          * row doubles as the across-module collision probe (record_pkg_dir). */
         {
-            char *pkg = module_pkg_go(mod->ModuleName);
+            char *pkg = go_module_pkg_name(mod->ModuleName);
             char *path = strdup(mod->ModuleName ? mod->ModuleName : "?");
-            emit_name(&bag, mod->ModuleName, path, GK_PKG_DIR,
+            go_emit_name(&bag, mod->ModuleName, path, GK_PKG_DIR,
                       strdup(pkg), pkg);   /* rawCid=goName=the dir itself */
         }
 
         /* helper BitString: one row per module that owns a BIT-STRING member. */
         for(int j = 0; j < bag.n_bs; j++)
             if(bag.bs_modules[j] == mod->ModuleName) {
-                emit_name(&bag, mod->ModuleName,
+                go_emit_name(&bag, mod->ModuleName,
                           strdup(mod->ModuleName ? mod->ModuleName : "?"),
                           GK_HELPER,
                           strdup("asn1cgo_bits_flat"),
@@ -662,21 +662,21 @@ go_generate(asn1p_t *asn, const char *go_outdir, enum asn1c_flags flags) {
      * types (the walk stores unqualified names; the bag must be complete
      * first — a member may reference an assignment this module, or another,
      * defines later in the walk). Runs before the dump/emit below.
-     * Slice-stage: qualify_slice_elems runs beside it — the same lookup over the
+     * Slice-stage: go_qualify_slice_elems runs beside it — the same lookup over the
      * same table, applied to every slice-owner row's ELEMENT type. */
-    qualify_field_types(&bag);
-    qualify_slice_elems(&bag);
+    go_qualify_field_types(&bag);
+    go_qualify_slice_elems(&bag);
     /* by-value-cycle check: a type cycle in which every edge is by
      * value (no OPTIONAL *T, no CHOICE/value-union alt *T, no slice) has no
      * finite Go representation — as flat types the SCC would expand forever.
      * Computed over the EMITTED Go reference graph (the rows themselves), so
      * specialty mint sites (spec unions, inline slices) are covered by
      * construction. Sets bag->failed + names the cycle (-> exit 70). */
-    if(check_go_cycles(&bag))
+    if(go_check_cycles(&bag))
         bag.failed = 1;
     /* New<T> constructors of the structs with DEFAULT members (after the
      * field types are qualified: a member's type may be in another module). */
-    if(!bag.failed && mark_ctors(&bag))
+    if(!bag.failed && go_mark_ctors(&bag))
         bag.failed = 1;
 
 done:
@@ -703,7 +703,7 @@ done:
                         (!r->rawCid || !*r->rawCid) ? "rawCid" : "",
                         r->module ? r->module : "?",
                         r->path ? r->path : "?",
-                        g_kind_tag[r->kind]);
+                        g_go_kind_tag[r->kind]);
                 bag.failed = 1;
             }
         }
@@ -738,7 +738,7 @@ done:
                     fprintf(f, "%s\t%s\t%s\t%s\t%s\n",
                             r->module ? r->module : "?",
                             r->path ? r->path : "?",
-                            g_kind_tag[r->kind],
+                            g_go_kind_tag[r->kind],
                             r->rawCid ? r->rawCid : "",
                             r->goName ? r->goName : "");
                 }
@@ -758,8 +758,8 @@ done:
              * (called under go_emit_files) can index it safely. */
             qsort(bag.rows, (size_t)bag.n_rows, sizeof(struct name_row),
                   row_cmp);
-            g_emit_bag = &bag;   /* go_emit_module_decls reads this */
-            set_go_module_paths(go_outdir);
+            g_go_emit_bag = &bag;   /* go_emit_module_decls reads this */
+            go_set_module_paths(go_outdir);
             /* Go package import cycles are detected BEFORE any file is
              * written (the glue dry run needs the layout). */
             go_flat_layout_all();
@@ -767,7 +767,7 @@ done:
                 bag.failed = 1;
                 rc = -1;
             }
-            if(rc == 0 && check_go_import_cycles(&bag) != 0) {
+            if(rc == 0 && go_check_import_cycles(&bag) != 0) {
                 bag.failed = 1;
                 rc = -1;
             }
@@ -781,7 +781,7 @@ done:
                 rc = -1;
             if(rc == 0)
                 rc = go_emit_files(asn, stage);
-            g_emit_bag = NULL;
+            g_go_emit_bag = NULL;
             /* Flat: compute every size/align/offset under
              * x86-64 SysV (no compiler), then write the per-package
              * <P><pkg>_flat.h + <P><pkg>_layout_check.c under
@@ -797,9 +797,9 @@ done:
              * skeleton rides ASN1CGO_FORK_SKEL; see go_conv.h). The rt
              * import line writes g_go_rt_module_path (prefix-aware). */
             if(rc == 0) {
-                g_emit_bag = &bag;   /* go_conv_emit reads the Default funcs */
+                g_go_emit_bag = &bag;   /* go_conv_emit reads the Default funcs */
                 rc = go_conv_emit(stage, g_go_rt_module_path);
-                g_emit_bag = NULL;
+                g_go_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
             }
             /* Glue (App. G): emit the per-package glue.go
@@ -808,19 +808,19 @@ done:
              * the name rows through the go_names_rows_* surface below (the
              * bag is still alive here; torn down below). */
             if(rc == 0) {
-                g_emit_bag = &bag;   /* go_glue_emit reads this */
+                g_go_emit_bag = &bag;   /* go_glue_emit reads this */
                 rc = go_glue_emit(stage, g_go_module_path,
                                   g_go_rt_module_path);
-                g_emit_bag = NULL;
+                g_go_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
             }
             /* one constructor per IOC row into <pkg>/
              * constructors.go (reads the name rows through the same
              * surface + the go_ioc tables; no hook change). */
             if(rc == 0) {
-                g_emit_bag = &bag;   /* go_ctor_emit reads this */
+                g_go_emit_bag = &bag;   /* go_ctor_emit reads this */
                 rc = go_ctor_emit(stage);
-                g_emit_bag = NULL;
+                g_go_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
             }
             /* Publish: compute the new go.work text (no write), swap the
@@ -860,7 +860,7 @@ done:
                         "unchanged\n", go_outdir);
             }
             free(stage);
-            clear_go_module_paths();
+            go_clear_module_paths();
         }
 
         /* teardown of retained rows */
@@ -872,12 +872,12 @@ done:
             free(bag.rows[j].goType);
             free(bag.rows[j].field_type);
             free(bag.rows[j].sf_owner);
-            free(bag.rows[j].slice_elem);   /* owned copy (row_set_slice_elem) */
+            free(bag.rows[j].slice_elem);   /* owned copy (go_row_set_slice_elem) */
             free(bag.rows[j].alias_of);
             free(bag.rows[j].dflt_lit);
             free(bag.rows[j].dflt_owner);
             free(bag.rows[j].dflt_field);
-            dflt_fn_free(bag.rows[j].dfn);
+            go_dflt_fn_free(bag.rows[j].dfn);
             free(bag.rows[j].bit_type);
         }
         free(bag.rows);
@@ -914,72 +914,72 @@ done:
  * outlives the glue emit — torn down in go_generate's epilogue). Row order
  * here is WALK order (rows[]), not dump order; the glue walks it once.
  * ========================================================================= */
-int go_names_rows_n(void) { return g_emit_bag ? g_emit_bag->n_rows : 0; }
+int go_names_rows_n(void) { return g_go_emit_bag ? g_go_emit_bag->n_rows : 0; }
 
 /* go_ctor.c's pkg-dir lookup (constructors.go placement): the same
- * module_pkg_go rule types.go uses. malloc'd. */
-char *go_ctor_pkg_of(const char *module) { return module_pkg_go(module); }
+ * go_module_pkg_name rule types.go uses. malloc'd. */
+char *go_ctor_pkg_of(const char *module) { return go_module_pkg_name(module); }
 
 /* go_ctor.c's module-path head for its import lines: the same live value
- * go_emit_module_imports formats with (set_go_module_paths set it). */
+ * go_emit_module_imports formats with (go_set_module_paths set it). */
 const char *go_ctor_module_path(void) { return g_go_module_path; }
 
 /* Row facts (NULL/0 for absent). Borrowed pointers — valid until go_generate
  * returns; the glue copies whatever it keeps. */
 const char *go_names_row_module(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].module : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].module : NULL;
 }
 const char *go_names_row_goname(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].goName : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].goName : NULL;
 }
 const char *go_names_row_rawcid(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].rawCid : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].rawCid : NULL;
 }
 /* kind: "type" "field" "choice-pr" "choice-const" "enum-const" "value-const"
- * "inline" "spec-key" "spec-value" "spec-pr" "helper" (g_kind_tag order). */
+ * "inline" "spec-key" "spec-value" "spec-pr" "helper" (g_go_kind_tag order). */
 const char *go_names_row_kind(int i) {
-    if(!g_emit_bag || i < 0 || i >= g_emit_bag->n_rows) return NULL;
-    go_kind_e k = g_emit_bag->rows[i].kind;
+    if(!g_go_emit_bag || i < 0 || i >= g_go_emit_bag->n_rows) return NULL;
+    go_kind_e k = g_go_emit_bag->rows[i].kind;
     if(k < 0 || k >= GK__COUNT) return NULL;
-    return g_kind_tag[k];
+    return g_go_kind_tag[k];
 }
-/* A field row's Go type text (qualified by qualify_field_types —
+/* A field row's Go type text (qualified by go_qualify_field_types —
  * the glue emit runs after the prepass) + its owning struct's goName. */
 const char *go_names_row_field_type(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].field_type : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].field_type : NULL;
 }
 const char *go_names_row_sf_owner(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].sf_owner : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].sf_owner : NULL;
 }
 /* A slice-owner row's element type text (qualified; NULL = not a slice). */
 const char *go_names_row_slice_elem(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].slice_elem : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].slice_elem : NULL;
 }
 /* A const row's decimal value text + its declared Go type owner. */
 const char *go_names_row_intval(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].intval : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].intval : NULL;
 }
 const char *go_names_row_gotype(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].goType : NULL;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].goType : NULL;
 }
 /* is_struct: the row declares a Go struct body (its fields attach by
  * sf_owner == this goName). */
 int go_names_row_is_struct(int i) {
-    return (g_emit_bag && i >= 0 && i < g_emit_bag->n_rows)
-               ? g_emit_bag->rows[i].is_struct : 0;
+    return (g_go_emit_bag && i >= 0 && i < g_go_emit_bag->n_rows)
+               ? g_go_emit_bag->rows[i].is_struct : 0;
 }
 /* A leaf row's mapping-table underlying Go view, as the DECLARED text emits it
  * (go_types.c's table; NULL = GLEAF_NONE / not a leaf). */
 const char *go_names_row_leaf_underlying(int i) {
-    if(!g_emit_bag || i < 0 || i >= g_emit_bag->n_rows) return NULL;
-    int lk = g_emit_bag->rows[i].leaf_kind;
+    if(!g_go_emit_bag || i < 0 || i >= g_go_emit_bag->n_rows) return NULL;
+    int lk = g_go_emit_bag->rows[i].leaf_kind;
     return lk ? go_types_leaf_underlying(lk) : NULL;
 }

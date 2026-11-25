@@ -123,14 +123,14 @@ struct name_row {
      * use's `inline` row) carries slice_elem — the ELEMENT type text of the
      * named slice alias `type X []Elem` it declares. A reference
      * element stores the referenced assignment's own goName UNQUALIFIED;
-     * the post-walk prepass (qualify_slice_elems, the slice side of
-     * qualify_field_types) applies cross-module qualification once the
+     * the post-walk prepass (go_qualify_slice_elems, the slice side of
+     * go_qualify_field_types) applies cross-module qualification once the
      * whole name table exists. A leaf element stores the leaf-kind-to-Go-type
      * mapping-table text. */
     char *slice_elem;       /* slice-owner rows: element type text, or NULL  */
     /* Non-zero iff this FIELD row's member is
      * OPTIONAL and its marker carries bits BEYOND EM_OPTIONAL (the nested-
-     * mask shape member_stars's containment test must still star — a fixer-
+     * mask shape go_member_stars's containment test must still star — a fixer-
      * added EM_INDIRECT/EM_UNRECURSE on an OPTIONAL member, e.g. 0x17).
      * Reported as a run-end stderr census; purely informational. */
     int opt_extra_bits;     /* extra marker bits beyond EM_OPTIONAL, or 0   */
@@ -160,7 +160,7 @@ struct name_row {
     char *bit_type;
     /* struct-owner rows: types.go declares func New<goName>() *<goName>,
      * which sets every DEFAULT member (and every mandatory member of a type
-     * that has such a func) — see mark_ctors. */
+     * that has such a func) — see go_mark_ctors. */
     int has_ctor;
     /* GK_TYPE rows of a type assignment that only renames a SEQUENCE, SET
      * or CHOICE (Alias ::= Msg): the Go type it is declared as
@@ -208,7 +208,7 @@ struct name_bag {
     /* Per-struct field table (reset at each struct). */
     struct field_owner *fields;
     int n_fields, cap_fields;
-    /* Enclosing structs' saved field tables (field_scope_push/pop): an inline
+    /* Enclosing structs' saved field tables (go_field_scope_push/pop): an inline
      * struct node gets its own scope and the outer one is restored on exit. */
     struct field_scope_save {
         struct field_owner *fields;
@@ -252,8 +252,8 @@ struct walk_ctx {
     asn1_namespace_t *ns;
     asn1p_t *asn;
     struct name_bag *bag;
-    /* member_stars out-param: marker bits beyond
-     * EM_OPTIONAL on an OPTIONAL member of the LAST member_stars call
+    /* go_member_stars out-param: marker bits beyond
+     * EM_OPTIONAL on an OPTIONAL member of the LAST go_member_stars call
      * (0 otherwise). The field-row caller copies it onto the member's row. */
     int last_opt_extra;
     /* classify_integer_leaf: when set, a wide-INTEGER result is recorded
@@ -272,10 +272,10 @@ struct walk_ctx {
 /* File-scope state shared between the go_names*.c files. */
 
 /* go_names_rows.c */
-extern const char *const g_kind_tag[GK__COUNT];
+extern const char *const g_go_kind_tag[GK__COUNT];
 
 /* go_names_decls.c */
-extern struct name_bag *g_emit_bag;
+extern struct name_bag *g_go_emit_bag;
 extern char *g_go_module_path;
 extern char *g_go_rt_module_path;
 
@@ -283,22 +283,22 @@ extern char *g_go_rt_module_path;
 /* Functions shared between the go_names*.c files. */
 
 /* go_names.c */
-char *make_path(const char *parent, const char *leaf);
-void mark_bitstring_module(struct name_bag *b, const char *module);
+char *go_make_path(const char *parent, const char *leaf);
+void go_mark_bitstring_module(struct name_bag *b, const char *module);
 int go_pdu_selected(const asn1p_expr_t *expr);
 void go_pdu_record(const asn1p_expr_t *expr, const char *cid);
 void go_pdu_record_alias(const asn1p_expr_t *expr, const char *alias_cid,
                          const char *target_cid, const char *alias_go,
                          const char *module);
-int classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
+int go_classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
                   const char *path_for_diag);
 
 /* go_names_rows.c */
-int kind_is_package_scoped(go_kind_e k);
+int go_kind_is_package_scoped(go_kind_e k);
 char *go_r2(const char *cid);
-char *str_append(char *a, const char *b);
-char *own(const char *s);
-char *own_mkid(asn1p_expr_t *e);
+char *go_str_append(char *a, const char *b);
+char *go_own(const char *s);
+char *go_own_mkid(asn1p_expr_t *e);
 char *go_mk_member(asn1p_expr_t *e);
 char *go_mk_suffix(asn1p_expr_t *e);
 char *go_cid_compound(const char *a, const char *sep, const char *b);
@@ -306,75 +306,75 @@ char *go_alt_spell(const char *cid);
 void go_clash_reset(void);
 char *go_type_go(asn1p_expr_t *t);
 char *go_value_go(asn1p_expr_t *gov, asn1p_expr_t *val);
-char *module_pkg_go(const char *module_name);
-void *xrealloc(void *p, size_t n);
-void reset_field_scope(struct name_bag *b);
-void field_scope_push(struct name_bag *b);
-void field_scope_pop(struct name_bag *b);
-void struct_scope_open(struct name_bag *b, const char *owner_go);
-void struct_scope_reset(struct name_bag *b);
-char *bag_sf_restore(struct name_bag *b, char *saved);
-void alt_register(const char *name, const char *tok, const char *go);
-void alt_reset(void);
-void row_set_const(struct name_bag *b, const char *value, const char *go_type);
-void row_set_leaf(struct name_bag *b, int leaf_kind);
-void row_set_slice_elem(struct name_bag *b, const char *elem);
-void row_set_slice_elem_at(struct name_bag *b, int ix, const char *elem);
-void emit_name(struct name_bag *b, const char *module,
+char *go_module_pkg_name(const char *module_name);
+void *go_xrealloc(void *p, size_t n);
+void go_reset_field_scope(struct name_bag *b);
+void go_field_scope_push(struct name_bag *b);
+void go_field_scope_pop(struct name_bag *b);
+void go_struct_scope_open(struct name_bag *b, const char *owner_go);
+void go_struct_scope_reset(struct name_bag *b);
+char *go_bag_sf_restore(struct name_bag *b, char *saved);
+void go_alt_register(const char *name, const char *tok, const char *go);
+void go_alt_reset(void);
+void go_row_set_const(struct name_bag *b, const char *value, const char *go_type);
+void go_row_set_leaf(struct name_bag *b, int leaf_kind);
+void go_row_set_slice_elem(struct name_bag *b, const char *elem);
+void go_row_set_slice_elem_at(struct name_bag *b, int ix, const char *elem);
+void go_emit_name(struct name_bag *b, const char *module,
                char *path, go_kind_e kind, char *rawCid, char *goName);
-void row_set_field_type(struct name_bag *b, const char *field_type);
-void row_set_field_type_at(struct name_bag *b, int ix, const char *field_type);
-void row_set_is_struct_at(struct name_bag *b, int ix);
-void row_set_is_struct(struct name_bag *b);
+void go_row_set_field_type(struct name_bag *b, const char *field_type);
+void go_row_set_field_type_at(struct name_bag *b, int ix, const char *field_type);
+void go_row_set_is_struct_at(struct name_bag *b, int ix);
+void go_row_set_is_struct(struct name_bag *b);
 
 /* go_names_decls.c */
-int check_go_module_prefix(const char *pfx);
-char *path_join2(const char *a, const char *b);
-void set_go_module_paths(const char *go_outdir);
-void clear_go_module_paths(void);
-int collect_module_imports(struct name_bag *b, const char *module,
+int go_check_module_prefix(const char *pfx);
+char *go_path_join2(const char *a, const char *b);
+void go_set_module_paths(const char *go_outdir);
+void go_clear_module_paths(void);
+int go_collect_module_imports(struct name_bag *b, const char *module,
                            char **imps, int max_imps);
 
 /* go_names_choice.c */
-void emit_choice(struct walk_ctx *ctx, const char *choice_go,
+void go_emit_choice(struct walk_ctx *ctx, const char *choice_go,
                  const char *choice_cid, const char *parent_path,
                  asn1p_expr_t *choice_expr);
 char *go_member_go(asn1p_expr_t *e);
-void emit_enum(struct walk_ctx *ctx, const char *enum_go,
+void go_emit_enum(struct walk_ctx *ctx, const char *enum_go,
                const char *enum_cid, const char *parent_path,
                asn1p_expr_t *enum_expr);
-void emit_bit_names(struct walk_ctx *ctx, const char *type_go,
+void go_emit_bit_names(struct walk_ctx *ctx, const char *type_go,
                     const char *type_cid, const char *type_path,
                     asn1p_expr_t *bs);
 
 /* go_names_spec.c */
-asn1p_expr_t *is_field_shaped_spec(asn1p_expr_t *seq_terminal);
-void emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
+asn1p_expr_t *go_is_field_shaped_spec(asn1p_expr_t *seq_terminal);
+void go_emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
                const char *parent_path, asn1p_expr_t *seq_terminal);
-int member_is_default(const asn1p_expr_t *child);
-const char *member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path);
+int go_member_is_default(const asn1p_expr_t *child);
+const char *go_member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path);
 
 /* go_names_check.c */
-void qualify_field_types(struct name_bag *b);
-void qualify_slice_elems(struct name_bag *b);
-int check_go_import_cycles(struct name_bag *b);
-int mark_ctors(struct name_bag *b);
-int check_go_cycles(struct name_bag *b);
+void go_qualify_field_types(struct name_bag *b);
+void go_qualify_slice_elems(struct name_bag *b);
+int go_check_import_cycles(struct name_bag *b);
+int go_mark_ctors(struct name_bag *b);
+int go_check_cycles(struct name_bag *b);
 
 /* go_names_dflt.c */
-int seqof_elem_is_inline(asn1p_expr_t *elem);
-int mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
+int go_seqof_elem_is_inline(asn1p_expr_t *elem);
+int go_mint_inline_seqof_elem(struct walk_ctx *ctx, asn1p_expr_t *elem,
                            const char *owner_path, const char *owner_go,
                            const char *owner_cid, char **go_elem,
                            char **flat_cid);
-char *slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
+char *go_slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
                          const char *path_for_diag);
-void note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
+void go_note_default_value(struct walk_ctx *ctx, asn1p_expr_t *child,
                         const char *member_path, int field_row_ix);
 
 /* go_names_walk.c */
-int walk_names_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
+int go_walk_names_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
                        const char *parent_path);
-int walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr);
+int go_walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr);
 
 #endif /* GO_NAMES_INTERNAL_H */

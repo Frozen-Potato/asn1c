@@ -9,7 +9,7 @@
 
 /* qualify_type: cross-module qualification for a named-type reference.
  * `go_name` is the referenced type's Go name; walks the FULL name table (the
- * walk has completed by the time this runs — qualify_field_types, below).
+ * walk has completed by the time this runs — go_qualify_field_types, below).
  * Returns an owned possibly-qualified copy: `pkg.Name` when the name's only
  * type row lives in another module, `Name` when local or unresolvable (go
  * build fails loudly on a truly unresolvable name — better than guessing). */
@@ -38,14 +38,14 @@ qualify_type(struct name_bag *b, const char *module, const char *go_name) {
         if(t->module == module) { local = 1; break; }
         if(t->kind == GK_TYPE || t->kind == GK_SPEC_KEY) tmod = t->module;
     }
-    if(local || !tmod || tmod == module) return own(go_name);
-    char *q = module_pkg_go(tmod);
-    q = str_append(q, ".");
-    q = str_append(q, go_name);
+    if(local || !tmod || tmod == module) return go_own(go_name);
+    char *q = go_module_pkg_name(tmod);
+    q = go_str_append(q, ".");
+    q = go_str_append(q, go_name);
     return q;
 }
 
-/* qualify_field_types: post-walk prepass — cross-module qualification of
+/* go_qualify_field_types: post-walk prepass — cross-module qualification of
  * every FIELD row's Go type. The walk stores unqualified names (an assignment
  * may be referenced before the walk reaches its own row, so the bag must be
  * complete first — same reason qualify_foreign_const_types is a prepass).
@@ -53,7 +53,7 @@ qualify_type(struct name_bag *b, const char *module, const char *go_name) {
  * by the walk today; kept idempotent) and primitives (int64, []byte, string,
  * BitString...) never carry a '.'-prefix match and stay untouched. */
 void
-qualify_field_types(struct name_bag *b) {
+go_qualify_field_types(struct name_bag *b) {
     for(int i = 0; i < b->n_rows; i++) {
         struct name_row *f = &b->rows[i];
         if(f->kind != GK_FIELD || !f->field_type) continue;
@@ -67,8 +67,8 @@ qualify_field_types(struct name_bag *b) {
         if(!*t || strchr(t, '.') || strchr(t, '[')) continue;
         char *q = qualify_type(b, f->module, t);
         if(strchr(q, '.')) {
-            char *nf = str_append(strdup(""), star);
-            nf = str_append(nf, q);
+            char *nf = go_str_append(strdup(""), star);
+            nf = go_str_append(nf, q);
             free(f->field_type);
             f->field_type = nf;
         }
@@ -76,9 +76,9 @@ qualify_field_types(struct name_bag *b) {
     }
 }
 
-/* qualify_slice_elems: post-walk prepass — the cross-module
+/* go_qualify_slice_elems: post-walk prepass — the cross-module
  * qualification of every slice-owner row's ELEMENT type (the slice side of
- * qualify_field_types; the same qualify_type lookup over the same table). A
+ * go_qualify_field_types; the same qualify_type lookup over the same table). A
  * `type X []pkg.Y` alias may reference an element assignment its module
  * references across a module boundary (e.g. a container module's
  * slices over the ...ItemIEs it declares itself — same-module there —
@@ -86,7 +86,7 @@ qualify_field_types(struct name_bag *b) {
  * qualified once the bag is complete. Primitives (int64, []byte, string,
  * BitString) never match a type row and stay untouched. */
 void
-qualify_slice_elems(struct name_bag *b) {
+go_qualify_slice_elems(struct name_bag *b) {
     for(int i = 0; i < b->n_rows; i++) {
         struct name_row *r = &b->rows[i];
         /* the target of an alias of a constructed type (type Alias Msg) */
@@ -117,7 +117,7 @@ qualify_slice_elems(struct name_bag *b) {
  * generate packages Go refuses to build ("import cycle not allowed"). The
  * graph is built BEFORE any file is written from the two places a package
  * imports siblings:
- *   - types.go: collect_module_imports (the same helper emission uses),
+ *   - types.go: go_collect_module_imports (the same helper emission uses),
  *   - glue.go:  the foreign packages of the glue fn registry, via a dry run
  *               of go_glue_emit (go_glue_collect_imports; same helper the
  *               real emission uses).
@@ -197,7 +197,7 @@ imp_find_cycle(struct impgraph *g, const int *scc, int c, int start,
 
 /* Returns 0 clean, -1 on an import cycle (diagnostic printed). */
 int
-check_go_import_cycles(struct name_bag *b) {
+go_check_import_cycles(struct name_bag *b) {
     struct impgraph g = {0};
     const char **mods = NULL;
     int n = 0, cap = 0;
@@ -209,7 +209,7 @@ check_go_import_cycles(struct name_bag *b) {
         if(seen) continue;
         if(n == cap) {
             cap = cap ? cap * 2 : 16;
-            const char **nm = xrealloc(mods, (size_t)cap * sizeof(char *));
+            const char **nm = go_xrealloc(mods, (size_t)cap * sizeof(char *));
             if(!nm) { free(mods); return 0; }
             mods = nm;
         }
@@ -220,12 +220,12 @@ check_go_import_cycles(struct name_bag *b) {
     g.pkg = calloc((size_t)n, sizeof(char *));
     g.adj = calloc((size_t)n * (size_t)n, 1);
     if(!g.pkg || !g.adj) { free(g.pkg); free(g.adj); free(mods); return 0; }
-    for(int i = 0; i < n; i++) g.pkg[i] = module_pkg_go(mods[i]);
+    for(int i = 0; i < n; i++) g.pkg[i] = go_module_pkg_name(mods[i]);
 
     /* types.go edges */
     for(int i = 0; i < n; i++) {
         char *imps[64];
-        int ni = collect_module_imports(b, mods[i], imps, 64);
+        int ni = go_collect_module_imports(b, mods[i], imps, 64);
         for(int k = 0; k < ni; k++) {
             for(int j = 0; j < n; j++)
                 if(j != i && strcmp(g.pkg[j], imps[k]) == 0)
@@ -293,7 +293,7 @@ check_go_import_cycles(struct name_bag *b) {
  *   - a slice-owner row's slice_elem (`[]Elem`; ALWAYS indirect — the slice is
  *     the seq-of break),
  *   - a scalar/alias `type` row's leaf underlying (a named-alias chain: the
- *     row_set_leaf text; a reference underlying is BY VALUE. None of the 3
+ *     go_row_set_leaf text; a reference underlying is BY VALUE. None of the 3
  *     pinned specs has a constructed named-alias cycle, but the edge keeps the
  *     graph honest under every-assignment-is-named).
  * The qualifier is stripped before the lookup (the target's module is
@@ -372,12 +372,12 @@ typedef struct {
 /* ctor_key: "<a>\x01<b>[\x01<c>]" (owned). */
 static char *
 ctor_key(const char *a, const char *b2, const char *c) {
-    char *k = str_append(strdup(""), a ? a : "");
-    k = str_append(k, "\x01");
-    k = str_append(k, b2 ? b2 : "");
+    char *k = go_str_append(strdup(""), a ? a : "");
+    k = go_str_append(k, "\x01");
+    k = go_str_append(k, b2 ? b2 : "");
     if(c) {
-        k = str_append(k, "\x01");
-        k = str_append(k, c);
+        k = go_str_append(k, "\x01");
+        k = go_str_append(k, c);
     }
     return k;
 }
@@ -388,7 +388,7 @@ ctor_struct_kind(const struct name_row *r) {
         && (r->kind == GK_TYPE || r->kind == GK_INLINE || r->kind == GK_SPEC_KEY);
 }
 
-/* mark_ctors: decide which structs get a `func New<T>() *T` in types.go:
+/* go_mark_ctors: decide which structs get a `func New<T>() *T` in types.go:
  * a struct with a DEFAULT member, and (to a fixed point) a struct with a
  * mandatory member (no pointer, no slice, no DEFAULT) whose type is a struct
  * that gets one. Records on each field row what its key in the composite
@@ -396,7 +396,7 @@ ctor_struct_kind(const struct name_row *r) {
  * another package-level name of the module: a clash is reported and fails
  * the run. */
 int
-mark_ctors(struct name_bag *b) {
+go_mark_ctors(struct name_bag *b) {
     gsmulti by_mod, by_pkg, fields, dflts, names;
     memset(&by_mod, 0, sizeof by_mod);
     memset(&by_pkg, 0, sizeof by_pkg);
@@ -413,7 +413,7 @@ mark_ctors(struct name_bag *b) {
             k = ctor_key(r->module, r->goName, NULL);
             gsmulti_add(&by_mod, k, i);
             free(k);
-            char *pkg = module_pkg_go(r->module);
+            char *pkg = go_module_pkg_name(r->module);
             k = ctor_key(pkg, r->goName, NULL);
             gsmulti_add(&by_pkg, k, i);
             free(k);
@@ -429,7 +429,7 @@ mark_ctors(struct name_bag *b) {
             gsmulti_add(&dflts, k, i);
             free(k);
         }
-        if(kind_is_package_scoped(r->kind) && r->goName) {
+        if(go_kind_is_package_scoped(r->kind) && r->goName) {
             k = ctor_key(r->module, r->goName, NULL);
             gsmulti_add(&names, k, i);
             free(k);
@@ -500,7 +500,7 @@ mark_ctors(struct name_bag *b) {
     for(int i = 0; i < b->n_rows; i++) {
         struct name_row *r = &b->rows[i];
         if(!r->has_ctor) continue;
-        char *fn = str_append(strdup("New"), r->goName);
+        char *fn = go_str_append(strdup("New"), r->goName);
         char *k = ctor_key(r->module, fn, NULL);
         int n;
         const int *o = gsmulti_get(&names, k, &n);
@@ -508,7 +508,7 @@ mark_ctors(struct name_bag *b) {
             struct name_row *q = &b->rows[o[j]];
             fprintf(stderr, "asn1cgo: collision in module %s: %s <- %s "
                     "(constructor) and %s (%s)\n", r->module, fn, r->path,
-                    q->path, g_kind_tag[q->kind]);
+                    q->path, g_go_kind_tag[q->kind]);
             bad++;
         }
         free(k);
@@ -525,7 +525,7 @@ out:
 }
 
 int
-check_go_cycles(struct name_bag *b) {
+go_check_cycles(struct name_bag *b) {
     if(b->n_rows <= 0) return 0;
 
     /* Vertex table: every type-declaring row, keyed (module, goName). The
@@ -543,13 +543,13 @@ check_go_cycles(struct name_bag *b) {
         if(vtx_lookup(vmod, vname, n, r->module, r->goName) >= 0) continue;
         if(n == cap) {
             int nc = cap ? cap * 2 : 64;
-            int *nr = xrealloc(vrow, (size_t)nc * sizeof(int));
+            int *nr = go_xrealloc(vrow, (size_t)nc * sizeof(int));
             if(!nr) { free(vrow); free(vmod); free(vname); return 0; }
             vrow = nr;
-            const char **nm = xrealloc(vmod, (size_t)nc * sizeof(char *));
+            const char **nm = go_xrealloc(vmod, (size_t)nc * sizeof(char *));
             if(!nm) { free(vrow); free(vmod); free(vname); return 0; }
             vmod = nm;
-            char **nn2 = xrealloc(vname, (size_t)nc * sizeof(char *));
+            char **nn2 = go_xrealloc(vname, (size_t)nc * sizeof(char *));
             if(!nn2) { free(vrow); free(vmod); free(vname); return 0; }
             vname = nn2;
             cap = nc;
@@ -590,7 +590,7 @@ check_go_cycles(struct name_bag *b) {
         if(!_dup) {                                                     \
             if(n_e == cap_e) {                                          \
                 int _nc = cap_e ? cap_e * 2 : 128;                      \
-                goedge *_ne = xrealloc(edg, (size_t)_nc * sizeof(goedge)); \
+                goedge *_ne = go_xrealloc(edg, (size_t)_nc * sizeof(goedge)); \
                 if(!_ne) { free(edg); edg = NULL; n_e = cap_e = 0; break; } \
                 edg = _ne; cap_e = _nc;                                 \
             }                                                           \

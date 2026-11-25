@@ -130,7 +130,7 @@ go_types_emit_leaf(FILE *out, const char *go_name, int leaf_kind) {
  * parameterized container specialization use (`<Msg>ProtocolIEs`), both the
  * anonymous-inline naming rule's `type
  * <Parent><Member> []Elem` form. The element text is verbatim what the walk
- * stored (slice_element_type: a reference element's assignment goName —
+ * stored (go_slice_element_type: a reference element's assignment goName —
  * cross-module qualified by the prepass — or the leaf-kind mapping table for a leaf).
  */
 int

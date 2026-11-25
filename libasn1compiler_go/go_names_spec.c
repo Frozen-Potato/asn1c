@@ -7,13 +7,13 @@
  */
 #include "go_names_internal.h"
 
-/* is_field_shaped_spec: a top-level SEQUENCE assignment is a field-shaped
+/* go_is_field_shaped_spec: a top-level SEQUENCE assignment is a field-shaped
  * parameterized specialization (ProtocolIE-Field / SingleContainer {{X}}, the
  * asn1c `struct <X>__value { ... }` wrapper) iff one of its members is an
  * open-type class-field `&Value` reference (go_construct_is_open_type mirrors
  * is_open_type at asn1c_C.c:305). Returns that open-type member, or NULL. */
 asn1p_expr_t *
-is_field_shaped_spec(asn1p_expr_t *seq_terminal) {
+go_is_field_shaped_spec(asn1p_expr_t *seq_terminal) {
     if(!seq_terminal) return NULL;
     asn1p_expr_t *child;
     TQ_FOR(child, &(seq_terminal->members), next) {
@@ -24,7 +24,7 @@ is_field_shaped_spec(asn1p_expr_t *seq_terminal) {
 }
 
 /* Forward decl (struct-body field-type resolution): classfield_declared_type
- * resolves a lowercase &field envelope member to its declared type; emit_spec
+ * resolves a lowercase &field envelope member to its declared type; go_emit_spec
  * uses it above its definition. */
 static asn1p_expr_t *
 classfield_declared_type(struct walk_ctx *ctx, asn1p_expr_t *mem);
@@ -39,7 +39,7 @@ static int column_is_inline(asn1p_expr_t *field);
 static int cell_id_is_literal(asn1p_expr_t *cv);
 
 /* Forward decls: emit_spec_value_alts + emit_value_pr_nothing are defined
- * after emit_spec; both are called from it. */
+ * after go_emit_spec; both are called from it. */
 static void emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                                  const char *x_cid, const char *parent_path,
                                  asn1p_expr_t *seq_terminal);
@@ -51,7 +51,7 @@ static void emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
 static void emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
                                   const char *x_cid, const char *parent_path);
 
-/* emit_spec: the specialization names. X is the type's goName; the
+/* go_emit_spec: the specialization names. X is the type's goName; the
  * specialization mints a named value union (R2(X)+Value) with a discriminant
  * (R2(X)+ValuePr), exactly as asn1c emits `struct <X>__value { union {...} }` +
  * `enum <X>__value_PR {...}`. spec-key = the type name itself (R2(X)). The
@@ -76,7 +76,7 @@ static void emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
  * invariant rests on): a field-shaped spec without it is an unforeseen
  * structure (file a Q; do not silently mis-emit). */
 void
-emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
+go_emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
           const char *parent_path, asn1p_expr_t *seq_terminal) {
     /* a field-shaped specialization's names belong in X's module — the
      * module that DEFINES the bound object set — NOT ctx->module (the template's
@@ -84,7 +84,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
      * ized type's home, e.g. the container module for all ProtocolIE-Field clones).
      * Resolve X's module from the IOC objset (the same resolution emit_spec_
      * value_alts makes) and rebind ctx->module to it for the whole spec emit, so
-     * every emit_name in this function AND emit_spec_value_alts attributes to X.
+     * every go_emit_name in this function AND emit_spec_value_alts attributes to X.
      * Falls back to ctx->module if the objset is unresolvable (a degenerate spec
      * with no object rows — emit_spec_value_alts then emits PrNothing only). */
     asn1c_ioc_table_and_objset_t ioc;
@@ -106,11 +106,11 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
      * (asn1c's `typedef struct <X_cid> {...} <X_cid>_t;` — the verbatim tag,
      * underscore-preserving, e.g. Action_ToBeSetup_ItemIEs, NOT the
      * _-collapsed Go name ActionToBeSetupItemIEs). */
-    emit_name(ctx->bag, ctx->module, path_key, GK_SPEC_KEY,
-              own(x_cid), strdup(x_go));
+    go_emit_name(ctx->bag, ctx->module, path_key, GK_SPEC_KEY,
+              go_own(x_cid), strdup(x_go));
     /* struct-body stage: the specialization's Go struct (envelope + the Value union
      * holder) — the field rows below attach to this scope. */
-    row_set_is_struct(ctx->bag);
+    go_row_set_is_struct(ctx->bag);
     /* Flat: the field-shaped spec IS a Flat struct
      * in X's module ({id/procedureCode, criticality, value{present,alts}}),
      * the PFX_Action_ToBeSetup_ItemIEs_flat / <Msg>_IEs_flat
@@ -121,8 +121,8 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
     /* The struct's field scope is this specialization; reset before the envelope
      * member walk so struct-scoped field names collide only with siblings of THIS
      * struct. */
-    reset_field_scope(ctx->bag);
-    struct_scope_open(ctx->bag, x_go);
+    go_reset_field_scope(ctx->bag);
+    go_struct_scope_open(ctx->bag, x_go);
 
     /* Envelope field rows: walk the specialization SEQUENCE's members and emit a
      * `field` for each PLAIN envelope member (id/procedureCode/criticality) AND
@@ -141,8 +141,8 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
         /* Skip a bare reference/member with no Identifier (defensive; the
          * envelope members all carry one). */
         if(!mem->Identifier) continue;
-        char *path = make_path(parent_path, mem->Identifier);
-        emit_name(ctx->bag, ctx->module, path, GK_FIELD,
+        char *path = go_make_path(parent_path, mem->Identifier);
+        go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
                   go_mk_member(mem), go_r2(GO_MKID(mem)));
         /* Flat: the envelope member's ref row (the class-field-declared
          * type's own cid; integer/enum leaves resolve via the declared
@@ -155,7 +155,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
                     /* an inline class-field type (`&id INTEGER (0..255)`):
                      * no named type behind it; the C member is the bare
                      * leaf (long id), so the Flat row is the leaf prim. */
-                    int lk = classify_leaf(ctx, decl, parent_path);
+                    int lk = go_classify_leaf(ctx, decl, parent_path);
                     const char *fprim = go_leaf_flat_prim(lk);
                     if(fprim) {
                         char *tok = go_mk_member(mem);
@@ -164,7 +164,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
                         go_flat_label_last_member(mem->Identifier);
                         free(tok);
                     }
-                } else if(decl) env_cid = own(GO_MKID(decl));
+                } else if(decl) env_cid = go_own(GO_MKID(decl));
             }
             if(env_cid) {
                 char *tok = go_mk_member(mem);
@@ -184,12 +184,12 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
             if(go_construct_is_classfield_ref(mem)) {
                 asn1p_expr_t *decl = classfield_declared_type(ctx, mem);
                 if(decl && !decl->Identifier) {
-                    int lk = classify_leaf(ctx, decl, parent_path);
+                    int lk = go_classify_leaf(ctx, decl, parent_path);
                     const char *under = go_types_leaf_underlying(lk);
-                    if(under) ft = own(under);
+                    if(under) ft = go_own(under);
                 } else if(decl) {
                     char *tgo = go_type_go(decl);
-                    ft = str_append(strdup(""), tgo);
+                    ft = go_str_append(strdup(""), tgo);
                     free(tgo);
                 }
             }
@@ -209,16 +209,16 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
                    || go_is_list_kind(t->expr_type)
                    || t->expr_type == ASN_BASIC_ENUMERATED) {
                     char *tgo = go_type_go(t);
-                    ft = str_append(strdup(""), tgo);
+                    ft = go_str_append(strdup(""), tgo);
                     free(tgo);
                 } else {
-                    int lk = classify_leaf(ctx, t, parent_path);
+                    int lk = go_classify_leaf(ctx, t, parent_path);
                     const char *under = go_types_leaf_underlying(lk);
-                    if(under) ft = own(under);
+                    if(under) ft = go_own(under);
                 }
             }
             if(ft) {
-                row_set_field_type(ctx->bag, ft);
+                go_row_set_field_type(ctx->bag, ft);
                 free(ft);
             }
         }
@@ -226,7 +226,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
 
     /* A field-shaped spec without an open-type &Value member is
      * an unforeseen structure — fail loud and file a Q rather than emit a struct
-     * with no Value union. is_field_shaped_spec already guaranteed one existed at
+     * with no Value union. go_is_field_shaped_spec already guaranteed one existed at
      * the call site, so this is a consistency guard. */
     if(!open_member) {
         fprintf(stderr,
@@ -248,12 +248,12 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
     {
         const char *leaf = open_member->Identifier ? open_member->Identifier
                                                    : "Value";
-        char *path = make_path(parent_path, leaf);
-        emit_name(ctx->bag, ctx->module, path, GK_FIELD,
+        char *path = go_make_path(parent_path, leaf);
+        go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
                   strdup("Value"), strdup("Value"));
-        char *ft = str_append(strdup(""), x_go);
-        ft = str_append(ft, "Value");
-        row_set_field_type(ctx->bag, ft);
+        char *ft = go_str_append(strdup(""), x_go);
+        ft = go_str_append(ft, "Value");
+        go_row_set_field_type(ctx->bag, ft);
         free(ft);
         /* Flat: the value member nests the open-type
          * union INLINE ({present, alts...}) — the verbatim .h `value`
@@ -262,9 +262,9 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
          * via the _on handle the enclosing struct records. OWN the cid (the
          * GO_MKID static buffer aliases across the compound call). */
         {
-            char *flat_vtok = own("value");
-            char *vx_cid = str_append(strdup(""), x_cid);
-            vx_cid = str_append(vx_cid, "__value");
+            char *flat_vtok = go_own("value");
+            char *vx_cid = go_str_append(strdup(""), x_cid);
+            vx_cid = go_str_append(vx_cid, "__value");
             int v_ix = go_flat_struct_nested(vx_cid, ctx->module);
             /* the value union IS a CHOICE layout ({present, alts}, present
              * first, exactly the .h `struct <X>__value` wrapper): the glue's
@@ -275,7 +275,7 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
              * decode).
              * flat_new_type dedups by (cid, module), so this mint lands the
              * flag ON the pre-minted node above — but go_flat_choice ALSO
-             * re-binds the cur register to it; emit_spec's caller keeps
+             * re-binds the cur register to it; go_emit_spec's caller keeps
              * populating the ENCLOSING struct after this, so save/restore
              * cur around the call (the walk_names_child CHOICE arm's own
              * pattern). */
@@ -293,25 +293,25 @@ emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
      * (the real asn1c `struct <X_cid>__value {...}` wrapper tag). struct-body stage: the
      * UNION is a struct too (Present + one pointer field per alt — the pointer-per-alt form
      * alt fields emit_spec_value_alts records in the x_go+"Value" scope).
-     * emit_name takes ownership of `go` (add_row retains it). */
+     * go_emit_name takes ownership of `go` (add_row retains it). */
     {
-        char *go = str_append(strdup(""), x_go);
-        go = str_append(go, "Value");
-        char *raw = str_append(strdup(""), x_cid);
-        raw = str_append(raw, "__value");
-        char *path = make_path(parent_path, "Value");
-        emit_name(ctx->bag, ctx->module, path, GK_SPEC_VALUE, raw, go);
-        row_set_is_struct(ctx->bag);
+        char *go = go_str_append(strdup(""), x_go);
+        go = go_str_append(go, "Value");
+        char *raw = go_str_append(strdup(""), x_cid);
+        raw = go_str_append(raw, "__value");
+        char *path = go_make_path(parent_path, "Value");
+        go_emit_name(ctx->bag, ctx->module, path, GK_SPEC_VALUE, raw, go);
+        go_row_set_is_struct(ctx->bag);
     }
     /* spec-pr: R2(X)+ValuePr — the union discriminant type. rawCid =
      * <X_cid>__value_PR (the real asn1c `typedef enum <X_cid>__value_PR` tag). */
     {
-        char *go = str_append(strdup(""), x_go);
-        go = str_append(go, "ValuePr");
-        char *raw = str_append(strdup(""), x_cid);
-        raw = str_append(raw, "__value_PR");
-        char *path = make_path(parent_path, "ValuePr");
-        emit_name(ctx->bag, ctx->module, path, GK_SPEC_PR, raw, go);
+        char *go = go_str_append(strdup(""), x_go);
+        go = go_str_append(go, "ValuePr");
+        char *raw = go_str_append(strdup(""), x_cid);
+        raw = go_str_append(raw, "__value_PR");
+        char *path = go_make_path(parent_path, "ValuePr");
+        go_emit_name(ctx->bag, ctx->module, path, GK_SPEC_PR, raw, go);
     }
 
     /* value-union alt fields + choice-consts + PrNothing. The alts are the
@@ -358,7 +358,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
      * name is component[1] of the member's reference; the IOC row stores each
      * class-field under "&<field>". The union name is <X>+"Value" regardless
      * (cf. InitiatingMessageValuePr<X>). */
-    asn1p_expr_t *valmember = is_field_shaped_spec(seq_terminal);
+    asn1p_expr_t *valmember = go_is_field_shaped_spec(seq_terminal);
     /* components[1].name already carries the leading '&' ("&Value",
      * "&InitiatingMessage"), exactly as the IOC row's field Identifier does — so
      * use it verbatim (no re-prefixing). */
@@ -396,17 +396,17 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
      *
      * struct-body stage: the union's own fields open a struct scope under <X>Value —
      * the alt fields (and Present, emitted by the first alt's row order below
-     * — see emit_choice's Present row; here the union carries ONLY the alt
+     * — see go_emit_choice's Present row; here the union carries ONLY the alt
      * pointers, the discriminant lives on the union's Go struct as `Present`,
-     * which emit_name<GK_FIELD> records through the open scope) attach to it. */
-    reset_field_scope(ctx->bag);
+     * which go_emit_name<GK_FIELD> records through the open scope) attach to it. */
+    go_reset_field_scope(ctx->bag);
     {
-        char *owner = str_append(strdup(""), x_go);
-        owner = str_append(owner, "Value");
-        struct_scope_open(ctx->bag, owner);
+        char *owner = go_str_append(strdup(""), x_go);
+        owner = go_str_append(owner, "Value");
+        go_struct_scope_open(ctx->bag, owner);
         free(owner);
         /* The union's `Present` discriminant field (the holder), rawCid
-         * the real `present` member token — same rule as emit_choice's. Its
+         * the real `present` member token — same rule as go_emit_choice's. Its
          * PATH leaf keys it under the union's own dump scope (parent_path +
          * "Value" + "Present"), mirroring the index bucketing (the wrapper's
          * `present` member routes to the compounded <X>Value owner); an
@@ -414,14 +414,14 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * carries no Present (the envelope is {Id, Criticality,
          * Value}). */
         {
-            char *base = make_path(parent_path, "Value");
-            char *path = make_path(base, "Present");
+            char *base = go_make_path(parent_path, "Value");
+            char *path = go_make_path(base, "Present");
             free(base);
-            emit_name(ctx->bag, ctx->module, path, GK_FIELD,
+            go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
                       strdup("present"), strdup("Present"));
-            char *pt = str_append(strdup(""), x_go);
-            pt = str_append(pt, "ValuePr");
-            row_set_field_type(ctx->bag, pt);
+            char *pt = go_str_append(strdup(""), x_go);
+            pt = go_str_append(pt, "ValuePr");
+            go_row_set_field_type(ctx->bag, pt);
             free(pt);
             /* Flat: the union's present member (int32) lands on the
              * nested __value node (the register — cur is the ENCLOSING
@@ -434,21 +434,21 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         }
     }
     /* PrNothing discriminant const, value 0, in this module (module already
-     * rebound to X's by emit_spec). */
+     * rebound to X's by go_emit_spec). */
     {
-        char *raw = str_append(strdup(""), x_cid);
-        raw = str_append(raw, "__value_PR_NOTHING");
-        char *go = str_append(strdup(""), x_go);
-        go = str_append(go, "ValuePrNothing");
-        char *type_go = str_append(strdup(""), x_go);
-        type_go = str_append(type_go, "ValuePr");
-        char *path = make_path(parent_path, "ValuePrNothing");
-        emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
+        char *raw = go_str_append(strdup(""), x_cid);
+        raw = go_str_append(raw, "__value_PR_NOTHING");
+        char *go = go_str_append(strdup(""), x_go);
+        go = go_str_append(go, "ValuePrNothing");
+        char *type_go = go_str_append(strdup(""), x_go);
+        type_go = go_str_append(type_go, "ValuePr");
+        char *path = go_make_path(parent_path, "ValuePrNothing");
+        go_emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
         /* Value 0: NOTHING heads the __value_PR enum (asn1c_C.c:2842-2843,
          * the indexToPresence table: NOTHING first, then one entry per object
          * row — the row ORDER is the numbering, i.e. the same order the alt
          * loop below walks). */
-        row_set_const(ctx->bag, "0", type_go);
+        go_row_set_const(ctx->bag, "0", type_go);
         free(type_go);
     }
     /* Iterate rows, dedup by the alt's ASN.1 Identifier exactly as asn1c does
@@ -647,7 +647,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                                      present_val, alt_tok, amsg, is_env,
                                      id_gov ? id_gov : "", crit_gov,
                                      id_literal);
-              free(alt_tok); }   /* record copies (cstrdup) — owned transcient */
+              free(alt_tok); }   /* record copies (go_cstrdup) — owned transcient */
             free(id_gov);
             free(crit_gov);
         if(dedup_alt) continue;   /* alt already emitted on its first row */
@@ -678,14 +678,14 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
             asn1p_expr_t *bv = cell->value;
             alt_null = go_construct_classify(bv) == GO_CONSTR_NULL;
             ctx->wide_nr = 1; ctx->wide_hit = 0;
-            alt_lk = classify_leaf(ctx, bv, parent_path);
+            alt_lk = go_classify_leaf(ctx, bv, parent_path);
             alt_wide = ctx->wide_hit;
             ctx->wide_nr = 0; ctx->wide_hit = 0;
             if(!go_leaf_flat_prim(alt_lk)) alt_lk = -1;
             /* the BitString helper type lives in the module that uses it */
             if(alt_lk >= 0
                && go_construct_classify(bv) == GO_CONSTR_BIT_STRING)
-                mark_bitstring_module(ctx->bag, ctx->module);
+                go_mark_bitstring_module(ctx->bag, ctx->module);
         }
         char *altcid = go_mk_suffix(cell->value);
         char *altgo = go_r2(altcid);
@@ -702,28 +702,28 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         }
         char *inl_go = NULL, *inl_cid = NULL;
         if(alt_inline) {
-            inl_go = str_append(strdup(""), x_go);
-            inl_go = str_append(inl_go, "Value");
-            inl_go = str_append(inl_go, altgo);
-            char *vx = str_append(strdup(""), x_cid);
-            vx = str_append(vx, "__value");
+            inl_go = go_str_append(strdup(""), x_go);
+            inl_go = go_str_append(inl_go, "Value");
+            inl_go = go_str_append(inl_go, altgo);
+            char *vx = go_str_append(strdup(""), x_cid);
+            vx = go_str_append(vx, "__value");
             inl_cid = go_cid_compound(vx, "__", altcid);
             free(vx);
         }
         /* choice-const <X>ValuePr<Alt>; rawCid = <X_cid>__value_PR_<AltCid> (the
          * real asn1c enum-member token). */
         {
-            char *raw = str_append(strdup(""), x_cid);
-            raw = str_append(raw, "__value_PR_");
-            raw = str_append(raw, altcid);
-            char *go = str_append(strdup(""), x_go);
-            go = str_append(go, "ValuePr");
-            go = str_append(go, altgo);
-            char *type_go = str_append(strdup(""), x_go);
-            type_go = str_append(type_go, "ValuePr");
-            char *path = make_path(parent_path, cell->value->Identifier);
-            emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
-            row_set_const(ctx->bag, asn1p_itoa(++value_seq), type_go);
+            char *raw = go_str_append(strdup(""), x_cid);
+            raw = go_str_append(raw, "__value_PR_");
+            raw = go_str_append(raw, altcid);
+            char *go = go_str_append(strdup(""), x_go);
+            go = go_str_append(go, "ValuePr");
+            go = go_str_append(go, altgo);
+            char *type_go = go_str_append(strdup(""), x_go);
+            type_go = go_str_append(type_go, "ValuePr");
+            char *path = go_make_path(parent_path, cell->value->Identifier);
+            go_emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
+            go_row_set_const(ctx->bag, asn1p_itoa(++value_seq), type_go);
             free(type_go);
         }
         /* A NULL written in the object (TYPE NULL): like a NULL CHOICE
@@ -731,8 +731,8 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * C union member NULL_ carries nothing), and the conv switches get
          * a bare case for it. */
         if(alt_null) {
-            char *node = str_append(strdup(""), x_cid);
-            node = str_append(node, "__value");
+            char *node = go_str_append(strdup(""), x_cid);
+            node = go_str_append(node, "__value");
             go_conv_record_null_alt(node, altcid);
             free(node);
             goto alt_done;
@@ -740,7 +740,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         /* field row: the alt's data pointer, struct-scoped to the union.
          * struct-body stage: the field's Go type is the alt's own named type — a pointer
          * (pointer per alt); cross-module qualification happens post-walk
-         * (qualify_field_types, once the whole name table exists). PATH: under
+         * (go_qualify_field_types, once the whole name table exists). PATH: under
          * the union's own scope (parent_path + "Value" + alt) — same rule as
          * the Present row above: the alt field belongs to the <X>Value union
          * struct, and the dump-side owner attribution (path-keyed
@@ -748,26 +748,26 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * path segment. A row at <X>.<Alt> would attribute to the envelope
          * IEs struct (or scopeless), desynchronizing dump vs emitted body. */
         {
-            char *base = make_path(parent_path, "Value");
-            char *path = make_path(base, cell->value->Identifier);
+            char *base = go_make_path(parent_path, "Value");
+            char *path = go_make_path(base, cell->value->Identifier);
             free(base);
-            emit_name(ctx->bag, ctx->module, path, GK_FIELD,
-                      own(altcid), strdup(altgo));
-            char *ft = str_append(strdup(""), "*");
+            go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
+                      go_own(altcid), strdup(altgo));
+            char *ft = go_str_append(strdup(""), "*");
             if(alt_lk >= 0) {
                 /* a built-in leaf cell (`TYPE BOOLEAN`): no named Go type
                  * exists; the field is the leaf's mapping-table type. */
                 const char *under = go_types_leaf_underlying(alt_lk);
-                ft = str_append(ft, under ? under : altgo);
+                ft = go_str_append(ft, under ? under : altgo);
             } else if(alt_inline) {
-                ft = str_append(ft, inl_go);
+                ft = go_str_append(ft, inl_go);
             } else if(alt_term) {
                 char *tgo = go_type_go(alt_term);
-                ft = str_append(ft, tgo);
+                ft = go_str_append(ft, tgo);
                 free(tgo);
             } else
-                ft = str_append(ft, altgo);
-            row_set_field_type(ctx->bag, ft);
+                ft = go_str_append(ft, altgo);
+            go_row_set_field_type(ctx->bag, ft);
             free(ft);
         }
         /* Flat (path 2 / the open-type mapping row): the open-type value
@@ -775,9 +775,9 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
          * members here are inline structs; no re-synthesis). One inline
          * slot per alt cid under the __value node. */
         {
-            char *flat_alt = own(alt_inline ? inl_cid
+            char *flat_alt = go_own(alt_inline ? inl_cid
                                  : alt_term ? GO_MKID(alt_term) : altcid);
-            char *flat_slot = own(altcid);  /* the member token */
+            char *flat_slot = go_own(altcid);  /* the member token */
             if(alt_inline
                && alt_inline->expr_type == ASN_BASIC_ENUMERATED) {
                 /* an ENUMERATED written in the object: the bare int32 slot,
@@ -808,13 +808,13 @@ alt_done:
 done_seen:
     for(size_t s = 0; s < n_seen; s++) free(seen[s]);
     free(seen);
-    struct_scope_reset(ctx->bag);
+    go_struct_scope_reset(ctx->bag);
 }
 
 /* emit_value_inline_alt: the Go type of a constructed type written directly
  * in an object (TYPE SEQUENCE { a INTEGER }): asn1c makes it an inline member
  * of the open type's union (`struct <X>__value__<alt> {...} <alt>;`), so it
- * is minted exactly like an inline CHOICE alternative (emit_choice): a
+ * is minted exactly like an inline CHOICE alternative (go_emit_choice): a
  * package-scoped Flat node <X>__value__<alt> (C struct tag only: inline_elem
  * "struct") and the Go type <X>Value<Alt>. The Flat cur / last-nested
  * registers and the Go field scope belong to the value union again after. */
@@ -822,8 +822,8 @@ static void
 emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
                       const char *inline_go, const char *inline_cid,
                       const char *parent_path, const char *altcid) {
-    char *vbase = make_path(parent_path, "Value");
-    char *alt_path = make_path(vbase, altcid);
+    char *vbase = go_make_path(parent_path, "Value");
+    char *alt_path = go_make_path(vbase, altcid);
     free(vbase);
     /* the classify walk never visits a type written in an object: note its
      * runtime headers (constr_SET.h) the way that walk does */
@@ -833,39 +833,39 @@ emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
     int save_fcur = go_flat_cur_get();
     int save_nest = go_flat_last_nest_get();
     if(alt->expr_type == ASN_BASIC_ENUMERATED) {
-        /* as emit_choice's inline ENUMERATED alt: `type <X>Value<Alt>
+        /* as go_emit_choice's inline ENUMERATED alt: `type <X>Value<Alt>
          * int32` plus its constants; no Flat node (the slot is int32) */
-        emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
+        go_emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
                   strdup(inline_cid), strdup(inline_go));
-        row_set_leaf(ctx->bag, GLEAF_ENUM);
-        emit_enum(ctx, inline_go, inline_cid, alt_path, alt);
+        go_row_set_leaf(ctx->bag, GLEAF_ENUM);
+        go_emit_enum(ctx, inline_go, inline_cid, alt_path, alt);
     } else if(go_is_list_kind(alt->expr_type)) {
-        /* as emit_choice's inline SEQUENCE OF alt: `type <X>Value<Alt>
+        /* as go_emit_choice's inline SEQUENCE OF alt: `type <X>Value<Alt>
          * []Elem`, a Flat {items,count} node */
-        emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
+        go_emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
                   strdup(inline_cid), strdup(inline_go));
         int sq_row = ctx->bag->n_rows - 1;
         asn1p_expr_t *sq_elem = TQ_FIRST(&alt->members);
         char *ge = NULL, *fc = NULL;
         int mrc = 0;
         if(sq_elem && sq_elem->expr_type == ASN_BASIC_BIT_STRING)
-            mark_bitstring_module(ctx->bag, ctx->module);
-        if(seqof_elem_is_inline(sq_elem)) {
-            mrc = mint_inline_seqof_elem(ctx, sq_elem, alt_path, inline_go,
+            go_mark_bitstring_module(ctx->bag, ctx->module);
+        if(go_seqof_elem_is_inline(sq_elem)) {
+            mrc = go_mint_inline_seqof_elem(ctx, sq_elem, alt_path, inline_go,
                                          inline_cid, &ge, &fc);
         } else {
-            ge = slice_element_type(ctx, sq_elem, alt_path);
+            ge = go_slice_element_type(ctx, sq_elem, alt_path);
             if(ctx->bag->failed) mrc = -1;
             else {
                 asn1p_expr_t *et = sq_elem;
                 asn1p_expr_t *t2 =
                     asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, sq_elem);
                 if(t2) et = t2;
-                fc = own(GO_MKID(et));
+                fc = go_own(GO_MKID(et));
             }
         }
         if(mrc >= 0 && !ctx->bag->failed) {
-            row_set_slice_elem_at(ctx->bag, sq_row, ge);
+            go_row_set_slice_elem_at(ctx->bag, sq_row, ge);
             (void)go_flat_seqof(inline_cid, fc, 0,
                                 alt->expr_type == ASN_CONSTR_SET_OF,
                                 ctx->module);
@@ -873,12 +873,12 @@ emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
         }
         free(ge); free(fc);
     } else {
-        emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
+        go_emit_name(ctx->bag, ctx->module, strdup(alt_path), GK_INLINE,
                   strdup(inline_cid), strdup(inline_go));
         if(alt->expr_type == ASN_CONSTR_CHOICE) {
-            field_scope_push(ctx->bag);
-            emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
-            field_scope_pop(ctx->bag);
+            go_field_scope_push(ctx->bag);
+            go_emit_choice(ctx, inline_go, inline_cid, alt_path, alt);
+            go_field_scope_pop(ctx->bag);
             go_flat_mark_inline_elem("struct", NULL);
         } else {   /* SEQUENCE / SET: a struct with member fields */
             const char *save_go = ctx->parent_go;
@@ -888,19 +888,19 @@ emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
             go_flat_mark_inline_elem("struct", NULL);
             ctx->parent_go = inline_go;
             ctx->parent_cid = inline_cid;
-            field_scope_push(ctx->bag);
-            row_set_is_struct(ctx->bag);
-            struct_scope_open(ctx->bag, inline_go);
-            (void)walk_names_members(ctx, alt, alt_path);
-            struct_scope_reset(ctx->bag);
-            field_scope_pop(ctx->bag);
+            go_field_scope_push(ctx->bag);
+            go_row_set_is_struct(ctx->bag);
+            go_struct_scope_open(ctx->bag, inline_go);
+            (void)go_walk_names_members(ctx, alt, alt_path);
+            go_struct_scope_reset(ctx->bag);
+            go_field_scope_pop(ctx->bag);
             ctx->parent_go = save_go;
             ctx->parent_cid = save_cid;
         }
     }
     go_flat_cur_restore(save_fcur);
     go_flat_last_nest_set(save_nest);
-    free(bag_sf_restore(ctx->bag, save_sf));
+    free(go_bag_sf_restore(ctx->bag, save_sf));
     free(alt_path);
 }
 
@@ -910,30 +910,30 @@ emit_value_inline_alt(struct walk_ctx *ctx, asn1p_expr_t *alt,
 static void
 emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
                       const char *x_cid, const char *parent_path) {
-    char *raw = str_append(strdup(""), x_cid);
-    raw = str_append(raw, "__value_PR_NOTHING");
-    char *go = str_append(strdup(""), x_go);
-    go = str_append(go, "ValuePrNothing");
-    char *type_go = str_append(strdup(""), x_go);
-    type_go = str_append(type_go, "ValuePr");
-    char *path = make_path(parent_path, "ValuePrNothing");
-    emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
-    row_set_const(ctx->bag, "0", type_go);
+    char *raw = go_str_append(strdup(""), x_cid);
+    raw = go_str_append(raw, "__value_PR_NOTHING");
+    char *go = go_str_append(strdup(""), x_go);
+    go = go_str_append(go, "ValuePrNothing");
+    char *type_go = go_str_append(strdup(""), x_go);
+    type_go = go_str_append(type_go, "ValuePr");
+    char *path = go_make_path(parent_path, "ValuePrNothing");
+    go_emit_name(ctx->bag, ctx->module, path, GK_CHOICE_CONST, raw, go);
+    go_row_set_const(ctx->bag, "0", type_go);
     free(type_go);
 }
 
-/* member_is_default: asn1c's own DEFAULT-vs-OPTIONAL discriminator
+/* go_member_is_default: asn1c's own DEFAULT-vs-OPTIONAL discriminator
  * (asn1c_C.c:1351-1358): DEFAULT iff (flags & (EM_DEFAULT & ~EM_INDIRECT))
  * == EM_DEFAULT & ~EM_INDIRECT -- an exact-mask test, NOT a bit test
  * (EM_OPTIONAL 0x07 shares bits with EM_DEFAULT 0x0F; the C pass adds
  * bits, so `flags == EM_DEFAULT` would miss). */
 int
-member_is_default(const asn1p_expr_t *child) {
+go_member_is_default(const asn1p_expr_t *child) {
     return (child->marker.flags & (EM_DEFAULT & ~EM_INDIRECT))
            == (EM_DEFAULT & ~EM_INDIRECT);
 }
 
-/* member_stars: the Go pointer-star rule for a struct member (the struct-body pass).
+/* go_member_stars: the Go pointer-star rule for a struct member (the struct-body pass).
  * Types.go stars a member iff it is OPTIONAL — nil = absent — with no
  * exception for slice-shaped members (an OPTIONAL SEQUENCE OF is a
  * pointer-to-slice: nil pointer = absent, non-nil pointer to nil/empty slice
@@ -949,14 +949,14 @@ member_is_default(const asn1p_expr_t *child) {
  * Returns "*" when the member is pointer-shaped, "" otherwise; sets failed on
  * the bag for the DEFAULT case (the caller's -1 return fails the run). */
 const char *
-member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path) {
+go_member_stars(struct walk_ctx *ctx, asn1p_expr_t *child, const char *path) {
     /* asn1c's own DEFAULT-vs-OPTIONAL discriminator (asn1c_C.c:1351-1358):
      * DEFAULT iff (flags & (EM_DEFAULT & ~EM_INDIRECT)) == EM_DEFAULT &
      * ~EM_INDIRECT — an exact-mask test, NOT a bit test (EM_OPTIONAL 0x07
      * shares bits with EM_DEFAULT 0x0F; a plain `& EM_DEFAULT` would
      * misread EM_UNRECURSE-composites). A real DEFAULT member is out of
      * model: fail loud, no Go shape is picked. */
-    if(member_is_default(child)) {
+    if(go_member_is_default(child)) {
         /* A supported DEFAULT member (the C generator emits default
          * callbacks for it: the shared predicate) is a PLAIN VALUE in Go --
          * never a pointer; the C runtime fills an absent default on decode.
@@ -1065,7 +1065,7 @@ column_governing_go(struct walk_ctx *ctx, asn1p_expr_t *field) {
     if(!t->Identifier) {
         /* an inline column type (`&id INTEGER (0..255)`): the Go field is
          * the leaf's mapping-table type itself (int64, ...). */
-        int lk = classify_leaf(ctx, t, "");
+        int lk = go_classify_leaf(ctx, t, "");
         const char *under = go_types_leaf_underlying(lk);
         return under ? strdup(under) : NULL;
     }

@@ -7,7 +7,7 @@
  */
 #include "go_names_internal.h"
 
-const char *const g_kind_tag[GK__COUNT] = {
+const char *const g_go_kind_tag[GK__COUNT] = {
     "type", "field", "choice-pr", "choice-const", "enum-const", "value-const",
     "inline", "spec-key", "spec-value", "spec-pr", "helper", "pkg-dir",
     "default-value",
@@ -17,7 +17,7 @@ const char *const g_kind_tag[GK__COUNT] = {
  * struct-scoped (a fresh per-struct table); pkg-dir collides across modules
  * (its own table). */
 int
-kind_is_package_scoped(go_kind_e k) {
+go_kind_is_package_scoped(go_kind_e k) {
     return k == GK_TYPE || k == GK_INLINE || k == GK_CHOICE_PR
         || k == GK_CHOICE_CONST || k == GK_ENUM_CONST || k == GK_VALUE_CONST
         || k == GK_SPEC_KEY || k == GK_SPEC_VALUE || k == GK_SPEC_PR
@@ -73,7 +73,7 @@ go_r2(const char *cid) {
  * visibly: on OOM the result is left as-is (a generator that cannot allocate
  * surfaces the failure via the row's eventual emit). */
 char *
-str_append(char *a, const char *b) {
+go_str_append(char *a, const char *b) {
     size_t la = a ? strlen(a) : 0;
     size_t lb = b ? strlen(b) : 0;
     char *r = realloc(a, la + lb + 1);
@@ -87,11 +87,11 @@ str_append(char *a, const char *b) {
  * pointer into an asn1c static buffer reused on the next call) into an owned
  * copy. Never returns NULL (returns "" on OOM). */
 char *
-own(const char *s) {
+go_own(const char *s) {
     char *r = strdup(s ? s : "");
     return r ? r : strdup("");
 }
-char *own_mkid(asn1p_expr_t *e) { return own(GO_MKID(e)); }
+char *go_own_mkid(asn1p_expr_t *e) { return go_own(GO_MKID(e)); }
 
 /* prefix-free identifier forms. Under ASN1C_PREFIX=<P>_ asn1c does NOT
  * stamp the prefix on every identifier uniformly; the real .h rules are:
@@ -117,12 +117,12 @@ char *own_mkid(asn1p_expr_t *e) { return own(GO_MKID(e)); }
  *     upcasing: the real .h carries `..._true`, lowercase, even though 'true'
  *     is in res_kwd). Not the member-decl path.
  * go_cid_compound: prefix + compound of unprefixed parts (an aggregate rawCid).
- * All return owned strings (own() semantics: "" on OOM). */
+ * All return owned strings (go_own() semantics: "" on OOM). */
 char *go_mk_member(asn1p_expr_t *e) {
-    return own(asn1c_make_identifier(AMI_CHECK_RESERVED, (e), 0));
+    return go_own(asn1c_make_identifier(AMI_CHECK_RESERVED, (e), 0));
 }
 char *go_mk_suffix(asn1p_expr_t *e) {
-    return own(asn1c_make_identifier(0, (e), 0));
+    return go_own(asn1c_make_identifier(0, (e), 0));
 }
 char *go_cid_compound(const char *a, const char *sep, const char *b) {
     /* strip the prefix from each part (parts come prefixed from GO_MKID),
@@ -135,7 +135,7 @@ char *go_cid_compound(const char *a, const char *sep, const char *b) {
     size_t sl = sep ? strlen(sep) : 0;
     size_t n = (pfx ? pl : 0) + strlen(as ? as : "") + sl + strlen(bs ? bs : "") + 1;
     char *r = malloc(n);
-    if(!r) return own("");
+    if(!r) return go_own("");
     snprintf(r, n, "%s%s%s%s", pfx ? pfx : "", as ? as : "", sep ? sep : "",
              bs ? bs : "");
     return r;
@@ -220,12 +220,12 @@ value_type_ref_name(asn1p_expr_t *v) {
 /* key of a top-level type (kind 0) or value (kind 1) assignment */
 static char *
 clash_key(asn1p_expr_t *m, int kind) {
-    char *cid = own(GO_MKID(m));
+    char *cid = go_own(GO_MKID(m));
     char *r = go_r2(cid);
     free(cid);
     if(kind == 1) {
-        r = str_append(r, "\x01");
-        r = str_append(r, value_type_ref_name(m));
+        r = go_str_append(r, "\x01");
+        r = go_str_append(r, value_type_ref_name(m));
     }
     return r;
 }
@@ -283,7 +283,7 @@ clash_has_other(struct clash_set *cs, const char *key) {
  * spelling when it clashes with another type of its module (`T1`/`T-1`). */
 char *
 go_type_go(asn1p_expr_t *t) {
-    char *cid = own(GO_MKID(t));
+    char *cid = go_own(GO_MKID(t));
     char *norm = go_r2(cid);
     if(go_has_us_digit(cid) && !t->parent_expr && t->module
        && clash_member(t, 0)
@@ -301,7 +301,7 @@ go_type_go(asn1p_expr_t *t) {
 char *
 go_value_go(asn1p_expr_t *gov, asn1p_expr_t *val) {
     char *head = go_type_go(gov);
-    char *vc = own(GO_MKID(val));
+    char *vc = go_own(GO_MKID(val));
     char *seg = NULL;
     if(go_has_us_digit(vc) && !val->parent_expr && val->module
        && clash_member(val, 1)) {
@@ -311,7 +311,7 @@ go_value_go(asn1p_expr_t *gov, asn1p_expr_t *val) {
         free(key);
     }
     if(!seg) seg = go_r2(vc);
-    head = str_append(head, seg);
+    head = go_str_append(head, seg);
     free(seg);
     free(vc);
     return head;
@@ -320,7 +320,7 @@ go_value_go(asn1p_expr_t *gov, asn1p_expr_t *val) {
 /* module_pkg: module identifier lowercased, '-' -> '_'. malloc'd, never NULL.
  * (package dir = this. Mirrors go_emit.c's same-named helper.) */
 char *
-module_pkg_go(const char *module_name) {
+go_module_pkg_name(const char *module_name) {
     const char *s = module_name ? module_name : "_";
     char *out = malloc(strlen(s) + 1);
     if(!out) return strdup("");
@@ -334,7 +334,7 @@ module_pkg_go(const char *module_name) {
 }
 
 void *
-xrealloc(void *p, size_t n) {
+go_xrealloc(void *p, size_t n) {
     void *r = realloc(p, n);
     return r;   /* caller handles NULL */
 }
@@ -343,19 +343,19 @@ static int
 ps_grow(struct name_bag *b) {
     if(b->n_ps + 1 <= b->cap_ps) return 1;
     int nc = b->cap_ps ? b->cap_ps * 2 : 16;
-    const char **nm = xrealloc(b->ps_module, (size_t)nc * sizeof(char *));
+    const char **nm = go_xrealloc(b->ps_module, (size_t)nc * sizeof(char *));
     if(!nm) return 0;
     b->ps_module = nm;
-    struct pkg_owner **no = xrealloc(b->ps_owners, (size_t)nc * sizeof(*no));
+    struct pkg_owner **no = go_xrealloc(b->ps_owners, (size_t)nc * sizeof(*no));
     if(!no) return 0;
     b->ps_owners = no;
-    int *nn = xrealloc(b->ps_n, (size_t)nc * sizeof(int));
+    int *nn = go_xrealloc(b->ps_n, (size_t)nc * sizeof(int));
     if(!nn) return 0;
     b->ps_n = nn;
-    int *ncp = xrealloc(b->ps_cap, (size_t)nc * sizeof(int));
+    int *ncp = go_xrealloc(b->ps_cap, (size_t)nc * sizeof(int));
     if(!ncp) return 0;
     b->ps_cap = ncp;
-    gsmap *nix = xrealloc(b->ps_ix, (size_t)nc * sizeof(gsmap));
+    gsmap *nix = go_xrealloc(b->ps_ix, (size_t)nc * sizeof(gsmap));
     if(!nix) return 0;
     b->ps_ix = nix;
     for(int i = b->cap_ps; i < nc; i++) {
@@ -384,7 +384,7 @@ static int
 ps_append(int i, struct name_bag *b, struct pkg_owner o) {
     if(b->ps_n[i] + 1 > b->ps_cap[i]) {
         int nc = b->ps_cap[i] ? b->ps_cap[i] * 2 : 16;
-        struct pkg_owner *np = xrealloc(b->ps_owners[i],
+        struct pkg_owner *np = go_xrealloc(b->ps_owners[i],
                                         (size_t)nc * sizeof(struct pkg_owner));
         if(!np) return 0;
         b->ps_owners[i] = np; b->ps_cap[i] = nc;
@@ -415,8 +415,8 @@ record_package(struct name_bag *b, const char *module,
             fprintf(stderr,
                     "asn1cgo: collision in module %s: %s <- %s (%s) and %s (%s)\n",
                     module ? module : "?", goName,
-                    o->path, g_kind_tag[o->kind],
-                    path, g_kind_tag[kind]);
+                    o->path, g_go_kind_tag[o->kind],
+                    path, g_go_kind_tag[kind]);
             b->failed = 1;
             return;
         }
@@ -462,7 +462,7 @@ record_field(struct name_bag *b, const char *module,
     }
     if(b->n_fields + 1 > b->cap_fields) {
         int nc = b->cap_fields ? b->cap_fields * 2 : 16;
-        struct field_owner *np = xrealloc(b->fields,
+        struct field_owner *np = go_xrealloc(b->fields,
                                           (size_t)nc * sizeof(struct field_owner));
         if(!np) { b->failed = 1; return; }
         b->fields = np; b->cap_fields = nc;
@@ -473,22 +473,22 @@ record_field(struct name_bag *b, const char *module,
 }
 
 void
-reset_field_scope(struct name_bag *b) {
+go_reset_field_scope(struct name_bag *b) {
     for(int j = 0; j < b->n_fields; j++) {
         free(b->fields[j].goName); free(b->fields[j].path);
     }
     b->n_fields = 0;
 }
 
-/* field_scope_push / field_scope_pop: give a struct that becomes its own Go
+/* go_field_scope_push / go_field_scope_pop: give a struct that becomes its own Go
  * type (inline SEQUENCE/CHOICE, SEQUENCE OF inline element, [[ ]] group) its
  * own field scope. push parks the enclosing table and starts an empty one;
  * pop discards the inner table and restores the enclosing one. */
 void
-field_scope_push(struct name_bag *b) {
+go_field_scope_push(struct name_bag *b) {
     if(b->n_fs + 1 > b->cap_fs) {
         int nc = b->cap_fs ? b->cap_fs * 2 : 8;
-        struct field_scope_save *np = xrealloc(b->fs_stack,
+        struct field_scope_save *np = go_xrealloc(b->fs_stack,
                                   (size_t)nc * sizeof(struct field_scope_save));
         if(!np) { b->failed = 1; return; }
         b->fs_stack = np; b->cap_fs = nc;
@@ -501,9 +501,9 @@ field_scope_push(struct name_bag *b) {
 }
 
 void
-field_scope_pop(struct name_bag *b) {
+go_field_scope_pop(struct name_bag *b) {
     if(b->n_fs <= 0) return;
-    reset_field_scope(b);
+    go_reset_field_scope(b);
     free(b->fields);
     b->n_fs--;
     b->fields = b->fs_stack[b->n_fs].fields;
@@ -513,43 +513,43 @@ field_scope_pop(struct name_bag *b) {
 
 /* ---- struct-body recording ------------------------------------ */
 
-/* struct_scope_open: open a struct-owner scope named `owner_go` (the struct's
+/* go_struct_scope_open: open a struct-owner scope named `owner_go` (the struct's
  * goName). Every GK_FIELD row emitted while the scope is open (until the next
  * open/reset) records `owner_go` in its sf_owner — exactly the scope
- * discipline the field collision table uses (reset_field_scope), now retained
+ * discipline the field collision table uses (go_reset_field_scope), now retained
  * for emission. Owner by NAME: the emit matches fields to their struct by
  * goName (ord-order interleaving across structs is harmless; within one
  * match, ord order is the walk order = AST member order). */
 void
-struct_scope_open(struct name_bag *b, const char *owner_go) {
+go_struct_scope_open(struct name_bag *b, const char *owner_go) {
     free(b->sf_cur_owner);
     b->sf_cur_owner = strdup(owner_go ? owner_go : "");
 }
 
-/* struct_scope_reset: close the open scope (fields emitted after this attach
+/* go_struct_scope_reset: close the open scope (fields emitted after this attach
  * to no struct — e.g. a leftover guard between top-level assignments). */
 void
-struct_scope_reset(struct name_bag *b) {
+go_struct_scope_reset(struct name_bag *b) {
     free(b->sf_cur_owner);
     b->sf_cur_owner = NULL;
 }
 
-/* bag_sf_restore: reopen a SAVED struct-owner scope after a nested struct's
- * walk finished with struct_scope_reset (an inline CHOICE/SEQUENCE member
+/* go_bag_sf_restore: reopen a SAVED struct-owner scope after a nested struct's
+ * walk finished with go_struct_scope_reset (an inline CHOICE/SEQUENCE member
  * walk). Returns the saved pointer it consumed (free() it), NULL- and
  * strdup-safe. The member walk of an OUTER struct continues after a nested
  * construct; without the restore, every later member of the outer struct
  * lands scopeless (emit skips fields with no sf_owner — RRC-MessageID's
  * messageID after the inline rrcType CHOICE). */
 char *
-bag_sf_restore(struct name_bag *b, char *saved) {
+go_bag_sf_restore(struct name_bag *b, char *saved) {
     free(b->sf_cur_owner);
     b->sf_cur_owner = saved ? strdup(saved) : NULL;
     return saved;
 }
 
 /* struct_field_note: stamp the open struct scope's owner onto the row just
- * appended (a GK_FIELD row). Called from emit_name right after add_row. */
+ * appended (a GK_FIELD row). Called from go_emit_name right after add_row. */
 static void
 struct_field_note(struct name_bag *b) {
     if(!b->sf_cur_owner) return;
@@ -577,7 +577,7 @@ record_pkg_dir(struct name_bag *b, const char *module,
     }
     if(b->n_dirs + 1 > b->cap_dirs) {
         int nc = b->cap_dirs ? b->cap_dirs * 2 : 8;
-        struct pkgdir_owner *np = xrealloc(b->dirs,
+        struct pkgdir_owner *np = go_xrealloc(b->dirs,
                                            (size_t)nc * sizeof(struct pkgdir_owner));
         if(!np) { b->failed = 1; return; }
         b->dirs = np; b->cap_dirs = nc;
@@ -617,7 +617,7 @@ alt_norm(const char *name, const char *tok) {
 }
 
 void
-alt_register(const char *name, const char *tok, const char *go) {
+go_alt_register(const char *name, const char *tok, const char *go) {
     if(!go || !strchr(go, '_')) return;      /* only alt spellings */
     char *k = alt_norm(name, tok);
     if(!k) return;
@@ -665,7 +665,7 @@ const char *go_alt_tok(const char *node_name, const char *tok) {
 }
 
 void
-alt_reset(void) {
+go_alt_reset(void) {
     for(size_t i = 0; i < g_alt_n; i++) { free(g_alt[i].key); free(g_alt[i].val); }
     free(g_alt);
     g_alt = NULL;
@@ -679,7 +679,7 @@ add_row(struct name_bag *b, const char *module,
         char *path, go_kind_e kind, char *rawCid, char *goName) {
     if(b->n_rows + 1 > b->cap_rows) {
         int nc = b->cap_rows ? b->cap_rows * 2 : 128;
-        struct name_row *nr = xrealloc(b->rows,
+        struct name_row *nr = go_xrealloc(b->rows,
                                        (size_t)nc * sizeof(struct name_row));
         if(!nr) { b->failed = 1; return; }
         b->rows = nr; b->cap_rows = nc;
@@ -717,15 +717,15 @@ add_row(struct name_bag *b, const char *module,
  * value is the decimal const value text (asn1p_itoa output, owned copy);
  * go_type the const's declared Go type name (owned copy; "" if none). */
 void
-row_set_const(struct name_bag *b, const char *value, const char *go_type) {
+go_row_set_const(struct name_bag *b, const char *value, const char *go_type) {
     struct name_row *r = &b->rows[b->n_rows - 1];
-    r->intval = own(value);
-    r->goType = own(go_type ? go_type : "");
+    r->intval = go_own(value);
+    r->goType = go_own(go_type ? go_type : "");
 }
 
 /* Attach a leaf-stage kind (GLEAF_*) to the row just appended. */
 void
-row_set_leaf(struct name_bag *b, int leaf_kind) {
+go_row_set_leaf(struct name_bag *b, int leaf_kind) {
     b->rows[b->n_rows - 1].leaf_kind = leaf_kind;
 }
 
@@ -733,29 +733,29 @@ row_set_leaf(struct name_bag *b, int leaf_kind) {
  * slice-owner row: the SEQUENCE-OF type assignment's `type` row or the
  * minted anonymous/container `inline` row). Owned copy. */
 void
-row_set_slice_elem(struct name_bag *b, const char *elem) {
-    b->rows[b->n_rows - 1].slice_elem = own(elem);
+go_row_set_slice_elem(struct name_bag *b, const char *elem) {
+    b->rows[b->n_rows - 1].slice_elem = go_own(elem);
 }
 
 /* the same, by row index (an inline element's rows are appended after the
  * slice owner's own row). */
 void
-row_set_slice_elem_at(struct name_bag *b, int ix, const char *elem) {
-    b->rows[ix].slice_elem = own(elem);
+go_row_set_slice_elem_at(struct name_bag *b, int ix, const char *elem) {
+    b->rows[ix].slice_elem = go_own(elem);
 }
 
 /* One name, fully recorded into BOTH the right collision scope and the dump
  * rows. Routes on kind, then hands path/rawCid/goName to the scope recorder.
  * path/rawCid/goName ownership is taken on all paths (freed at teardown).
  * leaf-stage body data (leaf_kind/intval/goType) attaches AFTER this call via
- * row_set_leaf/row_set_const (rows are address-stable between add_row calls:
- * the walker sets the fields immediately, before the next emit_name). */
+ * go_row_set_leaf/go_row_set_const (rows are address-stable between add_row calls:
+ * the walker sets the fields immediately, before the next go_emit_name). */
 void
-emit_name(struct name_bag *b, const char *module,
+go_emit_name(struct name_bag *b, const char *module,
           char *path, go_kind_e kind, char *rawCid, char *goName) {
     if(kind == GK_TYPE || kind == GK_INLINE)
-        alt_register(rawCid, NULL, goName);
-    if(kind_is_package_scoped(kind))
+        go_alt_register(rawCid, NULL, goName);
+    if(go_kind_is_package_scoped(kind))
         record_package(b, module, path, kind, rawCid, goName);
     else if(kind == GK_FIELD)
         record_field(b, module, path, rawCid, goName);
@@ -766,39 +766,39 @@ emit_name(struct name_bag *b, const char *module,
         struct_field_note(b);   /* struct-body pass: retain per-owner, in walk order */
 }
 
-/* row_set_field_type: attach a struct-body field's Go TYPE text to the row just
+/* go_row_set_field_type: attach a struct-body field's Go TYPE text to the row just
  * appended (a GK_FIELD row). Owned copy; pointer-star and cross-module
  * qualification are the caller's (computed by field_go_type below). */
 void
-row_set_field_type(struct name_bag *b, const char *field_type) {
+go_row_set_field_type(struct name_bag *b, const char *field_type) {
     struct name_row *r = &b->rows[b->n_rows - 1];
     free(r->field_type);
-    r->field_type = own(field_type ? field_type : "");
+    r->field_type = go_own(field_type ? field_type : "");
 }
 
-/* row_set_field_type_at: the by-INDEX form for the one site that emits rows
+/* go_row_set_field_type_at: the by-INDEX form for the one site that emits rows
  * BETWEEN the field row and its field_type computation (the SEQ-OF mint: the
  * inline row lands after the field row; the n_rows-1 form would type the
  * inline row and leave the field row untyped — the emitted struct body then
  * drops the field entirely). */
 void
-row_set_field_type_at(struct name_bag *b, int ix, const char *field_type) {
+go_row_set_field_type_at(struct name_bag *b, int ix, const char *field_type) {
     struct name_row *r = &b->rows[ix];
     free(r->field_type);
-    r->field_type = own(field_type ? field_type : "");
+    r->field_type = go_own(field_type ? field_type : "");
 }
 
-/* row_set_is_struct: mark the row just appended as a STRUCT-OWNER row (its
+/* go_row_set_is_struct: mark the row just appended as a STRUCT-OWNER row (its
  * declaration is `type X struct {...}` over the recorded field rows).
- * row_set_is_struct_at: the by-INDEX form for emit_choice, which appends its
+ * go_row_set_is_struct_at: the by-INDEX form for go_emit_choice, which appends its
  * choice-pr row between the owner row and the call (the owner row is a GK_TYPE
  * or GK_INLINE row emitted by the caller). */
 void
-row_set_is_struct_at(struct name_bag *b, int ix) {
+go_row_set_is_struct_at(struct name_bag *b, int ix) {
     b->rows[ix].is_struct = 1;
 }
 
 void
-row_set_is_struct(struct name_bag *b) {
-    row_set_is_struct_at(b, b->n_rows - 1);
+go_row_set_is_struct(struct name_bag *b) {
+    go_row_set_is_struct_at(b, b->n_rows - 1);
 }

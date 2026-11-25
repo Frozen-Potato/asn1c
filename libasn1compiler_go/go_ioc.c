@@ -38,24 +38,27 @@ extern const char *go_conv_ir_member_label(const void *m);
 
 /* ---- the tables ----------------------------------------------------------- */
 
-conv_ioc_row *g_conv_iocs = NULL;
-int g_conv_n_iocs = 0, g_conv_cap_iocs = 0;
+conv_ioc_row *g_go_conv_iocs = NULL;
+int g_go_conv_n_iocs = 0;
+static int g_conv_cap_iocs = 0;
 
-conv_null_alt *g_conv_nullalts = NULL;
-int g_conv_n_nullalts = 0, g_conv_cap_nullalts = 0;
+conv_null_alt *g_go_conv_nullalts = NULL;
+int g_go_conv_n_nullalts = 0;
+static int g_conv_cap_nullalts = 0;
 
-conv_pdu *g_conv_pdus = NULL;
-int g_conv_n_pdus = 0, g_conv_cap_pdus = 0;
+conv_pdu *g_go_conv_pdus = NULL;
+int g_go_conv_n_pdus = 0;
+static int g_conv_cap_pdus = 0;
 
-conv_wide *g_conv_wides = NULL;
-int g_conv_n_wides = 0, g_conv_cap_wides = 0;
+static conv_wide *g_conv_wides = NULL;
+static int g_conv_n_wides = 0, g_conv_cap_wides = 0;
 
-int g_conv_failed_ = 0;
+int g_go_conv_failed_ = 0;
 
 /* ---- shared string helpers (all conv TUs link these) ---------------------- */
 
 char *
-ca(char *a, const char *b) {
+go_ca(char *a, const char *b) {
     size_t la = a ? strlen(a) : 0;
     size_t lb = b ? strlen(b) : 0;
     char *r = realloc(a, la + lb + 1);
@@ -67,23 +70,23 @@ ca(char *a, const char *b) {
 
 __attribute__((format(printf, 1, 2)))
 char *
-cfmt(const char *fmt, ...) {
+go_cfmt(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     va_list ap2;
     va_copy(ap2, ap);
     int n = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
-    if(n < 0) { va_end(ap2); return cstrdup(""); }
+    if(n < 0) { va_end(ap2); return go_cstrdup(""); }
     char *s = malloc((size_t)n + 1);
-    if(!s) { conv_failed_set(); va_end(ap2); return cstrdup(""); }
+    if(!s) { conv_failed_set(); va_end(ap2); return go_cstrdup(""); }
     vsnprintf(s, (size_t)n + 1, fmt, ap2);
     va_end(ap2);
     return s;
 }
 
 char *
-cstrdup(const char *s) {
+go_cstrdup(const char *s) {
     char *r = strdup(s ? s : "");
     if(!r) conv_failed_set();
     return r;
@@ -101,11 +104,11 @@ cid_strip(const char *cid) {
 /* strip + strdup (the stored form of every recorded cid). */
 static char *
 cid_dup(const char *cid) {
-    return cstrdup(cid_strip(cid ? cid : ""));
+    return go_cstrdup(cid_strip(cid ? cid : ""));
 }
 
 int
-conv_cid_eq(const char *a, const char *b) {
+go_conv_cid_eq(const char *a, const char *b) {
     if(!a || !b) return 0;
     return strcmp(cid_strip(a), cid_strip(b)) == 0;
 }
@@ -119,17 +122,17 @@ conv_cid_eq(const char *a, const char *b) {
  * converter name base. NULL for an anonymous nested node (its IR name is the
  * empty-issued "_flat"). Malloc'd; caller frees. */
 char *
-conv_tree_base(const void *t) {
+go_conv_tree_base(const void *t) {
     /* the override first (the bare-named container clones carry a prefixed
      * tree typedef; per-spec prefix and Flat naming) */
     const char *ov = t ? go_conv_ir_tree_base_override(t) : NULL;
-    if(ov && *ov) return cstrdup(ov);
+    if(ov && *ov) return go_cstrdup(ov);
     const char *nm = t ? go_conv_ir_name(t) : NULL;
     if(!nm || !*nm) return NULL;
     size_t n = strlen(nm);
     if(n < 6 || strcmp(nm + n - 5, "_flat") != 0) return NULL;
     char *b = malloc(n - 5 + 1);
-    if(!b) { conv_failed_set(); return cstrdup(""); }
+    if(!b) { conv_failed_set(); return go_cstrdup(""); }
     memcpy(b, nm, n - 5);
     b[n - 5] = '\0';
     return b;
@@ -138,46 +141,46 @@ conv_tree_base(const void *t) {
 /* The base of the node's C-side tags (the _PR enum, the struct tag of an
  * inline alternative): the target's for an alias of a CHOICE (C has only
  * `typedef Orig_t Alias_t;`), else the tree base. Function and Flat names
- * keep using conv_tree_base. */
+ * keep using go_conv_tree_base. */
 char *
-conv_c_base(const void *t) {
+go_conv_c_base(const void *t) {
     const char *c = t ? go_conv_ir_c_base(t) : NULL;
-    if(c && *c) return cstrdup(c);
-    return conv_tree_base(t);
+    if(c && *c) return go_cstrdup(c);
+    return go_conv_tree_base(t);
 }
 
 char *
-conv_flat_name(const void *t) {
-    return cstrdup(t ? go_conv_ir_name(t) : "");
+go_conv_flat_name(const void *t) {
+    return go_cstrdup(t ? go_conv_ir_name(t) : "");
 }
 
 char *
-conv_type_label(const void *t) {
+go_conv_type_label(const void *t) {
     /* the recorded td->name display label (expr->Identifier verbatim,
      * prefix-free, hyphens kept — e.g. "Function-Description",
      * unprefixed even under an ASN1C_PREFIX run); falls back to the prefixed tree base when
      * unrecorded. */
     const char *lbl = go_conv_ir_type_label(t);
-    if(lbl && *lbl) return cstrdup(lbl);
-    return conv_tree_base(t);
+    if(lbl && *lbl) return go_cstrdup(lbl);
+    return go_conv_tree_base(t);
 }
 
 /* The member's display label (its recorded ASN.1 Identifier, hyphens kept —
  * the td-member name string, asn1c_C.c:3119); falls back to the member
  * token. Malloc'd. */
 char *
-conv_member_label(const void *m) {
+go_conv_member_label(const void *m) {
     const char *lbl = go_conv_ir_member_label(m);
-    if(lbl && *lbl) return cstrdup(lbl);
+    if(lbl && *lbl) return go_cstrdup(lbl);
     lbl = go_flat_ir_member_token((const flat_member *)m);
-    return cstrdup(lbl ? lbl : "");
+    return go_cstrdup(lbl ? lbl : "");
 }
 
 int
-conv_is_wide(const char *cid) {
+go_conv_is_wide(const char *cid) {
     if(!cid) return 0;
     for(int i = 0; i < g_conv_n_wides; i++)
-        if(conv_cid_eq(g_conv_wides[i].cid, cid)) return 1;
+        if(go_conv_cid_eq(g_conv_wides[i].cid, cid)) return 1;
     return 0;
 }
 
@@ -185,51 +188,43 @@ conv_is_wide(const char *cid) {
  * asn_umax2INTEGER / asn_INTEGER2umax verbs only when its Go type is uint64;
  * an int64 one (negative lower bound) needs the signed imax verbs. */
 int
-conv_wide_unsigned(void *t) {
+go_conv_wide_unsigned(void *t) {
     const char *prim = go_flat_ir_prim(t);
     return !(prim && strcmp(prim, "int64_t") == 0);
 }
 
 int
-conv_is_pdu(const char *cid) {
-    if(!cid) return 0;
-    for(int i = 0; i < g_conv_n_pdus; i++)
-        if(conv_cid_eq(g_conv_pdus[i].cid, cid)) return 1;
-    return 0;
-}
-
-int
-conv_is_null_alt(const char *node_cid, const char *alt_token) {
+go_conv_is_null_alt(const char *node_cid, const char *alt_token) {
     if(!node_cid || !alt_token) return 0;
-    for(int i = 0; i < g_conv_n_nullalts; i++)
-        if(conv_cid_eq(g_conv_nullalts[i].node_cid, node_cid)
-           && strcmp(g_conv_nullalts[i].alt_token, alt_token) == 0)
+    for(int i = 0; i < g_go_conv_n_nullalts; i++)
+        if(go_conv_cid_eq(g_go_conv_nullalts[i].node_cid, node_cid)
+           && strcmp(g_go_conv_nullalts[i].alt_token, alt_token) == 0)
             return 1;
     return 0;
 }
 
 int
-conv_ioc_row_null_alt(const conv_ioc_row *r) {
+go_conv_ioc_row_null_alt(const conv_ioc_row *r) {
     if(!r || !r->spec_cid || !r->alt_token) return 0;
     size_t n = strlen(r->spec_cid) + sizeof("__value");
     char *node = malloc(n);
     if(!node) return 0;
     snprintf(node, n, "%s__value", r->spec_cid);
-    int yes = conv_is_null_alt(node, r->alt_token);
+    int yes = go_conv_is_null_alt(node, r->alt_token);
     free(node);
     return yes;
 }
 
-const conv_ioc_row *
+static const conv_ioc_row *
 conv_ioc_first(const char *spec_cid) {
-    for(int i = 0; i < g_conv_n_iocs; i++)
-        if(conv_cid_eq(g_conv_iocs[i].spec_cid, spec_cid))
-            return &g_conv_iocs[i];
+    for(int i = 0; i < g_go_conv_n_iocs; i++)
+        if(go_conv_cid_eq(g_go_conv_iocs[i].spec_cid, spec_cid))
+            return &g_go_conv_iocs[i];
     return NULL;
 }
 
 int
-conv_ioc_has(const char *spec_cid) {
+go_conv_ioc_has(const char *spec_cid) {
     return conv_ioc_first(spec_cid) != NULL;
 }
 
@@ -241,80 +236,80 @@ go_conv_record_ioc_row(const char *spec_cid, const char *id_member,
                        const char *alt_token, const char *alt_msg,
                        int is_envelope, const char *id_gov,
                        const char *crit_gov, int id_literal) {
-    if(g_conv_n_iocs + 1 > g_conv_cap_iocs) {
+    if(g_go_conv_n_iocs + 1 > g_conv_cap_iocs) {
         int nc = g_conv_cap_iocs ? g_conv_cap_iocs * 2 : 64;
-        conv_ioc_row *nr = realloc(g_conv_iocs,
+        conv_ioc_row *nr = realloc(g_go_conv_iocs,
                                    (size_t)nc * sizeof(conv_ioc_row));
         if(!nr) { conv_failed_set(); return; }
-        g_conv_iocs = nr;
+        g_go_conv_iocs = nr;
         g_conv_cap_iocs = nc;
     }
-    conv_ioc_row *r = &g_conv_iocs[g_conv_n_iocs++];
+    conv_ioc_row *r = &g_go_conv_iocs[g_go_conv_n_iocs++];
     r->spec_cid = cid_dup(spec_cid);
-    r->id_member = cstrdup(id_member ? id_member : "id");
+    r->id_member = go_cstrdup(id_member ? id_member : "id");
     r->id = id;
     r->criticality = criticality;
     r->present = present;
-    r->alt_token = cstrdup(alt_token ? alt_token : "");
+    r->alt_token = go_cstrdup(alt_token ? alt_token : "");
     r->alt_msg = cid_dup(alt_msg ? alt_msg : "");
     r->is_envelope = is_envelope;
-    r->id_gov = cstrdup(id_gov ? id_gov : "");
-    r->crit_gov = crit_gov ? cstrdup(crit_gov) : NULL;
+    r->id_gov = go_cstrdup(id_gov ? id_gov : "");
+    r->crit_gov = crit_gov ? go_cstrdup(crit_gov) : NULL;
     r->id_literal = id_literal;
 }
 
 void
 go_conv_record_null_alt(const char *node_cid, const char *alt_token) {
-    if(g_conv_n_nullalts + 1 > g_conv_cap_nullalts) {
+    if(g_go_conv_n_nullalts + 1 > g_conv_cap_nullalts) {
         int nc = g_conv_cap_nullalts ? g_conv_cap_nullalts * 2 : 16;
-        conv_null_alt *nr = realloc(g_conv_nullalts,
+        conv_null_alt *nr = realloc(g_go_conv_nullalts,
                                     (size_t)nc * sizeof(conv_null_alt));
         if(!nr) { conv_failed_set(); return; }
-        g_conv_nullalts = nr;
+        g_go_conv_nullalts = nr;
         g_conv_cap_nullalts = nc;
     }
-    conv_null_alt *r = &g_conv_nullalts[g_conv_n_nullalts++];
+    conv_null_alt *r = &g_go_conv_nullalts[g_go_conv_n_nullalts++];
     r->node_cid = cid_dup(node_cid);
-    r->alt_token = cstrdup(alt_token ? alt_token : "");
+    r->alt_token = go_cstrdup(alt_token ? alt_token : "");
 }
 
 void
 go_conv_record_pdu(const char *cid) {
-    if(g_conv_n_pdus + 1 > g_conv_cap_pdus) {
+    if(g_go_conv_n_pdus + 1 > g_conv_cap_pdus) {
         int nc = g_conv_cap_pdus ? g_conv_cap_pdus * 2 : 64;
-        conv_pdu *nr = realloc(g_conv_pdus, (size_t)nc * sizeof(conv_pdu));
+        conv_pdu *nr = realloc(g_go_conv_pdus, (size_t)nc * sizeof(conv_pdu));
         if(!nr) { conv_failed_set(); return; }
-        g_conv_pdus = nr;
+        g_go_conv_pdus = nr;
         g_conv_cap_pdus = nc;
     }
-    for(int i = 0; i < g_conv_n_pdus; i++)
-        if(!g_conv_pdus[i].alias_cid && conv_cid_eq(g_conv_pdus[i].cid, cid))
+    for(int i = 0; i < g_go_conv_n_pdus; i++)
+        if(!g_go_conv_pdus[i].alias_cid && go_conv_cid_eq(g_go_conv_pdus[i].cid, cid))
             return;
-    memset(&g_conv_pdus[g_conv_n_pdus], 0, sizeof g_conv_pdus[0]);
-    g_conv_pdus[g_conv_n_pdus++].cid = cid_dup(cid);
+    memset(&g_go_conv_pdus[g_go_conv_n_pdus], 0, sizeof g_go_conv_pdus[0]);
+    g_go_conv_pdus[g_go_conv_n_pdus++].cid = cid_dup(cid);
 }
 
 void
 go_conv_record_pdu_alias(const char *target_cid, const char *alias_cid,
                          const char *alias_go, const char *alias_label,
                          const char *alias_module) {
-    if(g_conv_n_pdus + 1 > g_conv_cap_pdus) {
+    if(g_go_conv_n_pdus + 1 > g_conv_cap_pdus) {
         int nc = g_conv_cap_pdus ? g_conv_cap_pdus * 2 : 64;
-        conv_pdu *nr = realloc(g_conv_pdus, (size_t)nc * sizeof(conv_pdu));
+        conv_pdu *nr = realloc(g_go_conv_pdus, (size_t)nc * sizeof(conv_pdu));
         if(!nr) { conv_failed_set(); return; }
-        g_conv_pdus = nr;
+        g_go_conv_pdus = nr;
         g_conv_cap_pdus = nc;
     }
-    for(int i = 0; i < g_conv_n_pdus; i++)
-        if(g_conv_pdus[i].alias_cid
-           && conv_cid_eq(g_conv_pdus[i].alias_cid, alias_cid))
+    for(int i = 0; i < g_go_conv_n_pdus; i++)
+        if(g_go_conv_pdus[i].alias_cid
+           && go_conv_cid_eq(g_go_conv_pdus[i].alias_cid, alias_cid))
             return;
-    conv_pdu *p = &g_conv_pdus[g_conv_n_pdus++];
+    conv_pdu *p = &g_go_conv_pdus[g_go_conv_n_pdus++];
     p->cid = cid_dup(target_cid);
     p->alias_cid = cid_dup(alias_cid);
-    p->alias_go = cstrdup(alias_go ? alias_go : "");
-    p->alias_label = cstrdup(alias_label ? alias_label : "");
-    p->alias_module = cstrdup(alias_module ? alias_module : "");
+    p->alias_go = go_cstrdup(alias_go ? alias_go : "");
+    p->alias_label = go_cstrdup(alias_label ? alias_label : "");
+    p->alias_module = go_cstrdup(alias_module ? alias_module : "");
 }
 
 void
@@ -327,6 +322,6 @@ go_conv_record_wide_integer(const char *cid) {
         g_conv_cap_wides = nc;
     }
     for(int i = 0; i < g_conv_n_wides; i++)
-        if(conv_cid_eq(g_conv_wides[i].cid, cid)) return;
+        if(go_conv_cid_eq(g_conv_wides[i].cid, cid)) return;
     g_conv_wides[g_conv_n_wides++].cid = cid_dup(cid);
 }
