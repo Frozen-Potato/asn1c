@@ -104,14 +104,15 @@ NativeReal_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
                       const void *buf_ptr, size_t size, int tag_mode) {
     asn_dec_rval_t rval;
     ber_tlv_len_t length;
+	int eocs;	/* Outer end-of-contents pairs */
 
     ASN_DEBUG("Decoding %s as REAL (tm=%d)", td->name, tag_mode);
 
     /*
      * Check tags.
      */
-    rval = ber_check_tags(opt_codec_ctx, td, 0, buf_ptr, size, tag_mode, 0,
-                          &length, 0);
+	rval = ber_check_tags_eoc(opt_codec_ctx, td, 0, buf_ptr, size, tag_mode, 0,
+		&length, 0, &eocs);
     if(rval.code != RC_OK) return rval;
     assert(length >= 0);    /* Ensured by ber_check_tags */
 
@@ -127,6 +128,16 @@ NativeReal_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
         rval.consumed = 0;
         return rval;
     }
+	if(eocs) {
+		/* [n] EXPLICIT with an indefinite length: 00 00 follow */
+		ssize_t eoc_len = ber_skip_eocs((const char *)buf_ptr + length,
+			size - length, eocs);
+		if(eoc_len <= 0) {
+			rval.code = eoc_len ? RC_FAIL : RC_WMORE;
+			rval.consumed = 0;
+			return rval;
+		}
+	}
 
     /*
      * ASN.1 encoded REAL: buf_ptr, length
@@ -169,7 +180,7 @@ NativeReal_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
     }
 
     rval.code = RC_OK;
-    rval.consumed += length;
+	rval.consumed += length + 2 * (size_t)eocs;
 
     ASN_DEBUG("Took %ld/%ld bytes to encode %s", (long)rval.consumed,
               (long)length, td->name);

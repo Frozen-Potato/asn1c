@@ -16,6 +16,7 @@ ber_decode_primitive(const asn_codec_ctx_t *opt_codec_ctx,
     ASN__PRIMITIVE_TYPE_t *st = (ASN__PRIMITIVE_TYPE_t *)*sptr;
 	asn_dec_rval_t rval;
 	ber_tlv_len_t length = 0; /* =0 to avoid [incorrect] warning. */
+	int eocs;	/* Outer end-of-contents pairs */
 
 	/*
 	 * If the structure is not there, allocate it.
@@ -32,8 +33,8 @@ ber_decode_primitive(const asn_codec_ctx_t *opt_codec_ctx,
 	/*
 	 * Check tags and extract value length.
 	 */
-	rval = ber_check_tags(opt_codec_ctx, td, 0, buf_ptr, size,
-			tag_mode, 0, &length, 0);
+	rval = ber_check_tags_eoc(opt_codec_ctx, td, 0, buf_ptr, size,
+			tag_mode, 0, &length, 0, &eocs);
 	if(rval.code != RC_OK)
 		return rval;
 
@@ -48,6 +49,16 @@ ber_decode_primitive(const asn_codec_ctx_t *opt_codec_ctx,
 		rval.code = RC_WMORE;
 		rval.consumed = 0;
 		return rval;
+	}
+	if(eocs) {
+		/* [n] EXPLICIT with an indefinite length: 00 00 follow */
+		ssize_t eoc_len = ber_skip_eocs((const char *)buf_ptr + length,
+		                                size - length, eocs);
+		if(eoc_len <= 0) {
+			rval.code = eoc_len ? RC_FAIL : RC_WMORE;
+			rval.consumed = 0;
+			return rval;
+		}
 	}
 
 	st->size = (int)length;
@@ -68,7 +79,7 @@ ber_decode_primitive(const asn_codec_ctx_t *opt_codec_ctx,
 	st->buf[length] = '\0';		/* Just in case */
 
 	rval.code = RC_OK;
-	rval.consumed += length;
+	rval.consumed += length + 2 * (size_t)eocs;
 
 	ASN_DEBUG("Took %ld/%ld bytes to encode %s",
 		(long)rval.consumed,

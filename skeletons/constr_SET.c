@@ -151,8 +151,8 @@ SET_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		 * perfectly fits our expectations.
 		 */
 
-		rval = ber_check_tags(opt_codec_ctx, td, ctx, ptr, size,
-			tag_mode, 1, &ctx->left, 0);
+		rval = ber_check_tags_eoc(opt_codec_ctx, td, ctx, ptr, size,
+			tag_mode, 1, &ctx->left, 0, &ctx->context);
 		if(rval.code != RC_OK) {
 			ASN_DEBUG("%s tagging check failed: %d",
 				td->name, rval.code);
@@ -412,6 +412,21 @@ SET_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		ctx->phase = 5;
         /* Fall through */
 	case 5:
+		/*
+		 * The end-of-contents octets of the indefinite length TLVs enclosing
+		 * the definite length one (ber_check_tags_eoc()). Not ADVANCE():
+		 * they are outside of ctx->left.
+		 */
+		while(ctx->context > 0) {
+			ssize_t eoc_len = ber_skip_eocs(ptr, size, 1);
+			if(eoc_len < 0) RETURN(RC_FAIL);
+			if(eoc_len == 0) RETURN(RC_WMORE);
+			ptr = ((const char *)ptr) + eoc_len;
+			size -= (size_t)eoc_len;
+			consumed_myself += eoc_len;
+			ctx->context--;
+		}
+
 		/* Check that all mandatory elements are present, also in the
 		 * [[ ]] groups (whose components BER decodes one by one). */
 		if(!_SET_is_populated(td, st) || !SEQUENCE_groups_complete(td, st))

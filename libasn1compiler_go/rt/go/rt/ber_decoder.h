@@ -59,6 +59,26 @@ asn_dec_rval_t ber_check_tags(
     ber_tlv_len_t *last_length, int *opt_tlv_form /* optional tag form */
 );
 
+/*
+ * Same as ber_check_tags(), but also accepts indefinite length TLVs
+ * enclosing definite length ones (X.690 8.14, e.g. [0] EXPLICIT INTEGER
+ * as A0 80 02 01 01 00 00): *last_length is then the length of the last
+ * (definite) TLV and *opt_outer_eocs the number of end-of-contents octet
+ * pairs which follow its value (0 if none, always set when given).
+ */
+asn_dec_rval_t ber_check_tags_eoc(
+	const struct asn_codec_ctx_s *opt_codec_ctx,
+	const struct asn_TYPE_descriptor_s *type_descriptor,
+	asn_struct_ctx_t *opt_ctx, const void *ptr, size_t size, int tag_mode,
+	int last_tag_form, ber_tlv_len_t *last_length, int *opt_tlv_form,
+	int *opt_outer_eocs);
+
+/*
+ * Check (eocs) end-of-contents octet pairs at ptr: returns 2 * eocs if they
+ * are all there, 0 if more data is needed (or eocs is 0), -1 on other data.
+ */
+ssize_t ber_skip_eocs(const void *ptr, size_t size, int eocs);
+
 #ifdef __cplusplus
 }
 #endif

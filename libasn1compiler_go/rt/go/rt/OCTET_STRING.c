@@ -201,6 +201,7 @@ OCTET_STRING_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 	struct _stack *stck;		/* Expectations stack structure */
 	struct _stack_el *sel = 0;	/* Stack element */
 	int tlv_constr;
+	int eocs;		/* Outer end-of-contents pairs */
 	enum asn_OS_Subvariant type_variant = specs->subvariant;
 
 	ASN_DEBUG("Decoding %s as %s (frame %ld)",
@@ -225,11 +226,19 @@ OCTET_STRING_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		/*
 		 * Check tags.
 		 */
-		rval = ber_check_tags(opt_codec_ctx, td, ctx,
+		rval = ber_check_tags_eoc(opt_codec_ctx, td, ctx,
 			buf_ptr, size, tag_mode, -1,
-			&ctx->left, &tlv_constr);
+			&ctx->left, &tlv_constr, &eocs);
 		if(rval.code != RC_OK)
 			return rval;
+
+		/*
+		 * The constructed form below re-reads all the tags and the
+		 * end-of-contents octets itself; the primitive form leaves
+		 * the outer end-of-contents octets (if any) for the end.
+		 * ctx->step is not used past phase 0.
+		 */
+		ctx->step = tlv_constr ? 0 : eocs;
 
 		if(tlv_constr) {
 			/*
@@ -354,13 +363,35 @@ OCTET_STRING_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		case ASN_OSUBV_STR:
 		default:
 			if(sel) {
+				/*
+				 * Inside the TLVs of the EXPLICIT tags around the
+				 * string (the caller's, then td's own outer ones),
+				 * the next tag of the chain. Inside the string, a
+				 * segment: X.690 8.6.4.1, 8.7.3.2, 8.23.6 give it
+				 * the BIT STRING or the OCTET STRING tag; the tag
+				 * of its level in all_tags (or the last one) is
+				 * accepted too, as it always was.
+				 */
 				unsigned level = sel->cont_level;
-				if(level < td->all_tags_count) {
-					expected_tag = td->all_tags[level];
+				unsigned outer = td->tags_count
+					? td->tags_count - 1 : 0;
+				unsigned wrappers = outer + (tag_mode == 1);
+				if(level < wrappers) {
+					expected_tag = td->tags[level
+						+ (tag_mode == 1 ? 0 : 1)];
 					break;
-				} else if(td->all_tags_count) {
-					expected_tag = td->all_tags
-						[td->all_tags_count - 1];
+				} else if(td->all_tags_count > outer) {
+					const ber_tlv_tag_t *own
+						= td->all_tags + outer;
+					unsigned n = td->all_tags_count - outer;
+					unsigned d = level - wrappers;
+					ber_tlv_tag_t seg_tag
+						= (type_variant == ASN_OSUBV_BIT)
+						? (ASN_TAG_CLASS_UNIVERSAL | (3 << 2))
+						: (ASN_TAG_CLASS_UNIVERSAL | (4 << 2));
+					expected_tag = own[d < n ? d : n - 1];
+					if(tlv_tag == own[n - 1] || tlv_tag == seg_tag)
+						expected_tag = tlv_tag;
 					break;
 				}
 				/* else, Fall through */
@@ -511,6 +542,20 @@ OCTET_STRING_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		if(sel->prev || sel->want_nulls > 1 || sel->left > 0) {
 			RETURN(RC_WMORE);
 		}
+	}
+
+	/*
+	 * The end-of-contents octets of the indefinite length TLVs enclosing
+	 * the primitive one (ber_check_tags_eoc()).
+	 */
+	while(ctx->step > 0) {
+		ssize_t eoc_len = ber_skip_eocs(buf_ptr, size, 1);
+		if(eoc_len < 0) RETURN(RC_FAIL);
+		if(eoc_len == 0) RETURN(RC_WMORE);
+		if(type_variant == ASN_OSUBV_ANY && tag_mode != 1)
+			APPEND("\0\0", 2);
+		ADVANCE(eoc_len);
+		ctx->step--;
 	}
 
 	/*

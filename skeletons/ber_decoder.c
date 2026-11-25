@@ -16,7 +16,7 @@
 		asn_dec_rval_t rval;					\
 		rval.code = _code;					\
 		if(opt_ctx) opt_ctx->step = step; /* Save context */	\
-		if(_code == RC_OK || opt_ctx)				\
+		if(_code == RC_OK || (opt_ctx && _code != RC_WMORE))	\
 			rval.consumed = consumed_myself;		\
 		else							\
 			rval.consumed = 0;	/* Context-free */	\
@@ -66,6 +66,25 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
                const asn_TYPE_descriptor_t *td, asn_struct_ctx_t *opt_ctx,
                const void *ptr, size_t size, int tag_mode, int last_tag_form,
                ber_tlv_len_t *last_length, int *opt_tlv_form) {
+	return ber_check_tags_eoc(opt_codec_ctx, td, opt_ctx, ptr, size,
+		tag_mode, last_tag_form, last_length, opt_tlv_form, 0);
+}
+
+/*
+ * Same as ber_check_tags(), but with opt_outer_eocs given, a chain of
+ * indefinite length TLVs followed by definite length ones is accepted
+ * (e.g. [0] EXPLICIT INTEGER as A0 80 02 01 01 00 00, X.690 8.14):
+ * *last_length is then the definite length of the last TLV and
+ * *opt_outer_eocs the number of end-of-contents octet pairs which follow
+ * the value. The caller consumes them (ber_skip_eocs()). In every other
+ * case *opt_outer_eocs is set to 0.
+ */
+asn_dec_rval_t
+ber_check_tags_eoc(const asn_codec_ctx_t *opt_codec_ctx,
+		const asn_TYPE_descriptor_t *td, asn_struct_ctx_t *opt_ctx,
+		const void *ptr, size_t size, int tag_mode, int last_tag_form,
+		ber_tlv_len_t *last_length, int *opt_tlv_form,
+		int *opt_outer_eocs) {
     ssize_t consumed_myself = 0;
 	ssize_t tag_len;
 	ssize_t len_len;
@@ -73,9 +92,17 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
 	ber_tlv_len_t tlv_len;
 	ber_tlv_len_t limit_len = -1;
 	int expect_00_terminators = 0;
+	int outer_eocs = 0;	/* Indefinite TLVs outside definite ones */
 	int tlv_constr = -1;	/* If CHOICE, opt_tlv_form is not given */
-	int step = opt_ctx ? opt_ctx->step : 0;	/* Where we left previously */
+	/*
+	 * On RC_WMORE nothing is consumed and the chain is read again from
+	 * its first tag next time: the number of indefinite length TLVs and
+	 * the length limit are not kept in the context.
+	 */
+	int step = 0;
 	int tagno;
+
+	if(opt_outer_eocs) *opt_outer_eocs = 0;
 
 	/*
 	 * Make sure we didn't exceed the maximum stack size.
@@ -105,7 +132,7 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
 	 * it appropriately.
 	 */
 
-	tagno = step	/* Continuing where left previously */
+	tagno = step	/* The first tag */
 		+ (tag_mode==1?-1:0)
 		;
 	ASN_DEBUG("ber_check_tags(%s, size=%ld, tm=%d, step=%d, tagno=%d)",
@@ -213,11 +240,11 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
 		}
 
 		/*
-		 * FIXME
-		 * As of today, the chain of tags
-		 * must either contain several indefinite length TLVs,
-		 * or several definite length ones.
-		 * No mixing is allowed.
+		 * The chain of tags must either contain several indefinite
+		 * length TLVs, or several definite length ones, or (with
+		 * opt_outer_eocs) indefinite length TLVs enclosing definite
+		 * length ones. A definite length TLV enclosing an indefinite
+		 * length one is not supported.
 		 */
 		if(tlv_len == -1) {
 			/*
@@ -234,9 +261,14 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
 			continue;
 		} else {
 			if(expect_00_terminators) {
-				ASN_DEBUG("Unexpected definite length "
-					"in a chain of indefinite lengths");
-				RETURN(RC_FAIL);
+				if(!opt_outer_eocs) {
+					ASN_DEBUG("Unexpected definite length "
+						"in a chain of indefinite lengths");
+					RETURN(RC_FAIL);
+				}
+				/* The outer EOCs follow the definite TLV */
+				outer_eocs = expect_00_terminators;
+				expect_00_terminators = 0;
 			}
 		}
 
@@ -274,10 +306,30 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
 
 	if(opt_tlv_form)
 		*opt_tlv_form = tlv_constr;
+	if(opt_outer_eocs)
+		*opt_outer_eocs = outer_eocs;
 	if(expect_00_terminators)
 		*last_length = -expect_00_terminators;
 	else
 		*last_length = tlv_len;
 
 	RETURN(RC_OK);
+}
+
+/*
+ * Check and skip the (eocs) end-of-contents octet pairs at ptr.
+ */
+ssize_t
+ber_skip_eocs(const void *ptr, size_t size, int eocs) {
+	const uint8_t *p = (const uint8_t *)ptr;
+	size_t need;
+	size_t i;
+
+	if(eocs <= 0) return 0;
+	need = 2 * (size_t)eocs;
+	for(i = 0; i < need && i < size; i++) {
+		if(p[i]) return -1;	/* Not an end-of-contents */
+	}
+	if(size < need) return 0;	/* More data expected */
+	return (ssize_t)need;
 }

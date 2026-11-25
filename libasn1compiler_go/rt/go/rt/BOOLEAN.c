@@ -71,6 +71,7 @@ BOOLEAN_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
     BOOLEAN_t *st = (BOOLEAN_t *)*bool_value;
 	asn_dec_rval_t rval;
 	ber_tlv_len_t length;
+	int eocs;	/* Outer end-of-contents pairs */
 	ber_tlv_len_t lidx;
 
 	if(st == NULL) {
@@ -88,8 +89,8 @@ BOOLEAN_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 	/*
 	 * Check tags.
 	 */
-	rval = ber_check_tags(opt_codec_ctx, td, 0, buf_ptr, size,
-		tag_mode, 0, &length, 0);
+	rval = ber_check_tags_eoc(opt_codec_ctx, td, 0, buf_ptr, size,
+		tag_mode, 0, &length, 0, &eocs);
 	if(rval.code != RC_OK)
 		return rval;
 
@@ -101,6 +102,16 @@ BOOLEAN_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		rval.code = RC_WMORE;
 		rval.consumed = 0;
 		return rval;
+	}
+	if(eocs) {
+		/* [n] EXPLICIT with an indefinite length: 00 00 follow */
+		ssize_t eoc_len = ber_skip_eocs((const char *)buf_ptr + length,
+		                                size - length, eocs);
+		if(eoc_len <= 0) {
+			rval.code = eoc_len ? RC_FAIL : RC_WMORE;
+			rval.consumed = 0;
+			return rval;
+		}
 	}
 
 	/*
@@ -117,7 +128,7 @@ BOOLEAN_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 	}
 
 	rval.code = RC_OK;
-	rval.consumed += length;
+	rval.consumed += length + 2 * (size_t)eocs;
 
 	ASN_DEBUG("Took %ld/%ld bytes to encode %s, value=%d",
 		(long)rval.consumed, (long)length,

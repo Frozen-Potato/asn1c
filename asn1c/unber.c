@@ -788,6 +788,25 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
     return rv;
 }
 
+asn_dec_rval_t
+ber_check_tags_eoc(const asn_codec_ctx_t *opt_codec_ctx,
+		const asn_TYPE_descriptor_t *td, asn_struct_ctx_t *opt_ctx,
+		const void *ptr, size_t size, int tag_mode,
+		int last_tag_form, ber_tlv_len_t *last_length,
+		int *opt_tlv_form, int *opt_outer_eocs) {
+	if(opt_outer_eocs) *opt_outer_eocs = 0;
+	return ber_check_tags(opt_codec_ctx, td, opt_ctx, ptr, size, tag_mode,
+		last_tag_form, last_length, opt_tlv_form);
+}
+
+ssize_t
+ber_skip_eocs(const void *ptr, size_t size, int eocs) {
+	(void)ptr;
+	(void)size;
+	(void)eocs;
+	return 0;
+}
+
 ssize_t
 der_write_tags(const asn_TYPE_descriptor_t *td, size_t slen, int tag_mode,
                int last_tag_form, ber_tlv_tag_t tag,

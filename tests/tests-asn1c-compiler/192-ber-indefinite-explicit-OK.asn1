@@ -1,0 +1,36 @@
+-- OK: BER with an indefinite length explicit tag around a definite length
+-- encoding (X.690 8.1.3.2, 8.14): [0] EXPLICIT INTEGER as
+-- A0 80 02 01 07 00 00, for every kind of type, and constructed strings
+-- under a tag of their own (X.690 8.6.4.1, 8.7.3.2, 8.23.6: the segments
+-- carry the BIT STRING or the OCTET STRING tag).
+
+K192 DEFINITIONS ::= BEGIN
+I   ::= [0] EXPLICIT INTEGER
+I2  ::= [4] EXPLICIT I5
+I5  ::= [5] EXPLICIT INTEGER
+Bo  ::= [0] EXPLICIT BOOLEAN
+R   ::= [0] EXPLICIT REAL
+Nu  ::= [0] EXPLICIT NULL
+O   ::= [0] EXPLICIT OBJECT IDENTIFIER
+En  ::= [0] EXPLICIT ENUMERATED { a, b }
+Os  ::= [0] EXPLICIT OCTET STRING
+Oi  ::= [APPLICATION 1] IMPLICIT OCTET STRING
+Bs  ::= [0] EXPLICIT BIT STRING
+Us  ::= [0] EXPLICIT UTF8String
+Vs  ::= [5] IMPLICIT VisibleString
+VsS ::= SEQUENCE { f [5] IMPLICIT VisibleString }
+Vp  ::= VisibleString
+Up  ::= UTF8String
+Sq  ::= [0] EXPLICIT SEQUENCE { x INTEGER, y BOOLEAN OPTIONAL }
+St  ::= [0] EXPLICIT SET { x INTEGER }
+So  ::= [0] EXPLICIT SEQUENCE OF INTEGER
+Ch  ::= [0] EXPLICIT CHOICE { x [1] INTEGER, ... }
+Ch2 ::= [1] EXPLICIT Ch
+W   ::= SEQUENCE {
+	a [1] EXPLICIT INTEGER,
+	b [2] EXPLICIT OCTET STRING,
+	c [3] EXPLICIT SEQUENCE { x INTEGER },
+	ch Ch,
+	d BOOLEAN
+}
+END

@@ -114,8 +114,8 @@ SET_OF_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		 * perfectly fits our expectations.
 		 */
 
-		rval = ber_check_tags(opt_codec_ctx, td, ctx, ptr, size,
-			tag_mode, 1, &ctx->left, 0);
+		rval = ber_check_tags_eoc(opt_codec_ctx, td, ctx, ptr, size,
+			tag_mode, 1, &ctx->left, 0, &ctx->context);
 		if(rval.code != RC_OK) {
 			ASN_DEBUG("%s tagging check failed: %d",
 				td->name, rval.code);
@@ -151,10 +151,9 @@ SET_OF_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 			ASN_DEBUG("End of SET OF %s", td->name);
 			/*
 			 * No more things to decode.
-			 * Exit out of here.
+			 * Exit out of here (to the end-of-contents).
 			 */
-			PHASE_OUT(ctx);
-			RETURN(RC_OK);
+			break;
 		}
 
 		/*
@@ -257,6 +256,21 @@ SET_OF_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 			} else {
 				RETURN(RC_FAIL);
 			}
+		}
+
+		/*
+		 * The end-of-contents octets of the indefinite length TLVs enclosing
+		 * the definite length one (ber_check_tags_eoc()). Not ADVANCE():
+		 * they are outside of ctx->left.
+		 */
+		while(ctx->context > 0) {
+			ssize_t eoc_len = ber_skip_eocs(ptr, size, 1);
+			if(eoc_len < 0) RETURN(RC_FAIL);
+			if(eoc_len == 0) RETURN(RC_WMORE);
+			ptr = ((const char *)ptr) + eoc_len;
+			size -= (size_t)eoc_len;
+			consumed_myself += eoc_len;
+			ctx->context--;
 		}
 
 		PHASE_OUT(ctx);

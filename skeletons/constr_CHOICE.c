@@ -153,8 +153,8 @@ CHOICE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		 */
 
 		if(tag_mode || td->tags_count) {
-			rval = ber_check_tags(opt_codec_ctx, td, ctx, ptr, size,
-				tag_mode, -1, &ctx->left, 0);
+			rval = ber_check_tags_eoc(opt_codec_ctx, td, ctx, ptr, size,
+				tag_mode, -1, &ctx->left, 0, &ctx->context);
 			if(rval.code != RC_OK) {
 				ASN_DEBUG("%s tagging check failed: %d",
 					td->name, rval.code);
@@ -168,6 +168,7 @@ CHOICE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 			ADVANCE(rval.consumed);
 		} else {
 			ctx->left = -1;
+			ctx->context = 0;
 		}
 
 		NEXT_PHASE(ctx);
@@ -227,7 +228,9 @@ CHOICE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 				}
 
 				ADVANCE(skip + tag_len);
-				RETURN(RC_OK);
+				/* The end-of-contents octets may follow */
+				ctx->phase = 3;
+				goto phase3;
 			}
 		} while(0);
 
@@ -287,6 +290,7 @@ CHOICE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 
 		/* Fall through */
 	case 3:
+	phase3:
 		ASN_DEBUG("CHOICE %s Leftover: %ld, size = %ld, tm=%d, tc=%d",
 			td->name, (long)ctx->left, (long)size,
 			tag_mode, td->tags_count);
@@ -347,7 +351,24 @@ CHOICE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 				RETURN(RC_FAIL);
 			}
 
-			/* UNREACHABLE */
+			/* 00 followed by a non-zero octet: not an end-of-contents */
+			ASN_DEBUG("Bad end-of-contents in %s", td->name);
+			RETURN(RC_FAIL);
+		}
+
+		/*
+		 * The end-of-contents octets of the indefinite length TLVs enclosing
+		 * the definite length one (ber_check_tags_eoc()). Not ADVANCE():
+		 * they are outside of ctx->left.
+		 */
+		while(ctx->context > 0) {
+			ssize_t eoc_len = ber_skip_eocs(ptr, size, 1);
+			if(eoc_len < 0) RETURN(RC_FAIL);
+			if(eoc_len == 0) RETURN(RC_WMORE);
+			ptr = ((const char *)ptr) + eoc_len;
+			size -= (size_t)eoc_len;
+			consumed_myself += eoc_len;
+			ctx->context--;
 		}
 
 		NEXT_PHASE(ctx);
