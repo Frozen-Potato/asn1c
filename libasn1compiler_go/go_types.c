@@ -143,8 +143,12 @@ go_types_emit_slice(FILE *out, const char *go_name, const char *elem) {
  * go_types_emit_bitstring - the shared BIT STRING helper (the mapping
  * table's BIT STRING row
  * text), fixed text
- * (`struct { Bytes []byte; BitsUnused int32 }`). One per module
+ * (`struct { Bytes []byte; BitsUnused int32 }`) and its Len / Bit / SetBit
+ * methods (bit 0 is the first bit, the most significant bit of Bytes[0], as
+ * in the C BIT_STRING_t and the named-bit constants). One per module
  * that owns a BIT-STRING member; go_names.c calls it once per such module.
+ * The text ends with a function: the caller leads the next decl with a
+ * blank line.
  */
 int
 go_types_emit_bitstring(FILE *out) {
@@ -152,7 +156,83 @@ go_types_emit_bitstring(FILE *out) {
                "type BitString struct {\n"
                "\tBytes      []byte\n"
                "\tBitsUnused int32\n"
+               "}\n"
+               "\n"
+               "// Len returns the number of bits.\n"
+               "func (b BitString) Len() int {\n"
+               "\tn := len(b.Bytes)*8 - int(b.BitsUnused)\n"
+               "\tif n < 0 {\n"
+               "\t\treturn 0\n"
+               "\t}\n"
+               "\tif n > len(b.Bytes)*8 {\n"
+               "\t\treturn len(b.Bytes) * 8\n"
+               "\t}\n"
+               "\treturn n\n"
+               "}\n"
+               "\n"
+               "// Bit reports whether bit i is set (bit 0 is the first bit, the\n"
+               "// most significant bit of Bytes[0]); false if i is not below Len().\n"
+               "func (b BitString) Bit(i int) bool {\n"
+               "\tif i < 0 || i >= b.Len() {\n"
+               "\t\treturn false\n"
+               "\t}\n"
+               "\treturn b.Bytes[i/8]&(0x80>>uint(i%%8)) != 0\n"
+               "}\n"
+               "\n"
+               "// SetBit sets bit i to v. Setting a bit at or past Len() makes the\n"
+               "// string i+1 bits long (the bits added before it are 0); clearing\n"
+               "// one there changes nothing. It panics if i is negative.\n"
+               "func (b *BitString) SetBit(i int, v bool) {\n"
+               "\tif i < 0 {\n"
+               "\t\tpanic(\"BitString.SetBit: negative bit index\")\n"
+               "\t}\n"
+               "\tif n := b.Len(); i >= n {\n"
+               "\t\tif !v {\n"
+               "\t\t\treturn\n"
+               "\t\t}\n"
+               "\t\tb.Bytes = b.Bytes[:(n+7)/8]\n"
+               "\t\tif n%%8 != 0 {\n"
+               "\t\t\tb.Bytes[n/8] &= ^byte(0xff >> uint(n%%8))\n"
+               "\t\t}\n"
+               "\t\tfor len(b.Bytes) < i/8+1 {\n"
+               "\t\t\tb.Bytes = append(b.Bytes, 0)\n"
+               "\t\t}\n"
+               "\t\tb.BitsUnused = int32(7 - i%%8)\n"
+               "\t}\n"
+               "\tif v {\n"
+               "\t\tb.Bytes[i/8] |= 0x80 >> uint(i%%8)\n"
+               "\t} else {\n"
+               "\t\tb.Bytes[i/8] &^= 0x80 >> uint(i%%8)\n"
+               "\t}\n"
                "}\n") < 0)
+        return -1;
+    return 0;
+}
+
+/*
+ * go_types_emit_bitstring_methods - Len / Bit / SetBit on a named BIT STRING
+ * type `type X BitString` (a defined type has none of BitString's methods),
+ * through BitString's. Ends with a function, as go_types_emit_bitstring.
+ */
+int
+go_types_emit_bitstring_methods(FILE *out, const char *go_name) {
+    if(fprintf(out,
+               "\n"
+               "// Len returns the number of bits.\n"
+               "func (b %s) Len() int {\n"
+               "\treturn BitString(b).Len()\n"
+               "}\n"
+               "\n"
+               "// Bit reports whether bit i is set (see BitString.Bit).\n"
+               "func (b %s) Bit(i int) bool {\n"
+               "\treturn BitString(b).Bit(i)\n"
+               "}\n"
+               "\n"
+               "// SetBit sets bit i to v (see BitString.SetBit).\n"
+               "func (b *%s) SetBit(i int, v bool) {\n"
+               "\t(*BitString)(b).SetBit(i, v)\n"
+               "}\n",
+               go_name, go_name, go_name) < 0)
         return -1;
     return 0;
 }

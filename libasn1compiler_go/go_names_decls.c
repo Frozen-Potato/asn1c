@@ -383,7 +383,7 @@ go_emit_module_decls(FILE *out, const char *module) {
         case GK_HELPER:
             if((prev_block || !wrote_any) && fputs("\n", out) < 0) { rc = -1; break; }
             rc = go_types_emit_bitstring(out);
-            prev_block = 0;
+            prev_block = 1;    /* ends with a function */
             wrote_any = 1;
             break;
         case GK_TYPE:
@@ -521,6 +521,11 @@ go_emit_module_decls(FILE *out, const char *module) {
                 }
                 rc = go_types_emit_leaf(out, r->goName, r->leaf_kind);
                 prev_block = 0;
+                if(rc == 0 && r->leaf_kind == GLEAF_BITSTRING) {
+                    /* Len / Bit / SetBit of the named BIT STRING type */
+                    rc = go_types_emit_bitstring_methods(out, r->goName);
+                    prev_block = 1;    /* ends with a function */
+                }
                 wrote_any = 1;
             } else {
                 /* The discriminant decl `type <T>Pr int32` / `type <X>ValuePr

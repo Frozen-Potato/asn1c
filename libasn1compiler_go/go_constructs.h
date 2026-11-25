@@ -143,6 +143,7 @@ int go_construct_is_classfield_fixedtype(const asn1p_expr_t *expr);
 int go_types_emit_leaf(FILE *out, const char *go_name, int leaf_kind);
 int go_types_emit_slice(FILE *out, const char *go_name, const char *elem);
 int go_types_emit_bitstring(FILE *out);
+int go_types_emit_bitstring_methods(FILE *out, const char *go_name);
 int go_types_emit_const(FILE *out, const char *name, const char *type,
                         const char *value, int name_w, int type_w);
 int go_types_emit_const_open(FILE *out);

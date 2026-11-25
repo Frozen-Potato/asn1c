@@ -751,3 +751,78 @@ func reencode(v any) ([]byte, error) {
 	}
 	return nil, nil
 }
+
+// Len / Bit / SetBit on the BitString helper and on named BIT STRING types
+// (a defined type `type Caps BitString` gets its own, through BitString's).
+// Bit 0 is the first bit (the most significant bit of Bytes[0]), as the
+// named-bit constants count.
+func TestBitStringMethods(t *testing.T) {
+	same := func(name string, got, want nb.BitString) {
+		t.Helper()
+		if !bytes.Equal(got.Bytes, want.Bytes) || got.BitsUnused != want.BitsUnused {
+			t.Errorf("%s: %x/%d, want %x/%d", name, got.Bytes, got.BitsUnused, want.Bytes, want.BitsUnused)
+		}
+	}
+
+	var z nb.BitString
+	if z.Len() != 0 || z.Bit(0) || z.Bit(-1) {
+		t.Errorf("zero BitString: Len %d", z.Len())
+	}
+	z.SetBit(3, false) // past the end: no change
+	same("clear past the end", z, nb.BitString{})
+
+	var c nb.Caps
+	c.SetBit(nb.CapsB, true)
+	same("Caps b", nb.BitString(c), bitsOf(4, nb.CapsB))
+	c.SetBit(nb.CapsC, true)
+	c.SetBit(nb.CapsA, true)
+	same("Caps a b c", nb.BitString(c), bitsOf(8, nb.CapsA, nb.CapsB, nb.CapsC))
+	if c.Len() != 8 || !c.Bit(nb.CapsA) || !c.Bit(nb.CapsB) || !c.Bit(nb.CapsC) || c.Bit(1) || c.Bit(8) || c.Bit(-1) {
+		t.Errorf("Caps bits: Len %d", c.Len())
+	}
+	c.SetBit(nb.CapsB, false)
+	same("Caps b cleared", nb.BitString(c), bitsOf(8, nb.CapsA, nb.CapsC))
+	c.SetBit(9, true) // into a second byte
+	same("Caps bit 9", nb.BitString(c), bitsOf(10, nb.CapsA, nb.CapsC, 9))
+
+	// Growing clears the unused bits of the last byte first.
+	g := nb.BitString{Bytes: []byte{0xff}, BitsUnused: 4}
+	g.SetBit(6, true)
+	same("grow over unused bits", g, bitsOf(7, 0, 1, 2, 3, 6))
+	// A longer Bytes than BitsUnused says: the extra bytes are dropped.
+	g = nb.BitString{Bytes: []byte{0x80, 0xff}, BitsUnused: 12}
+	if g.Len() != 4 {
+		t.Errorf("Len %d, want 4", g.Len())
+	}
+	g.SetBit(5, true)
+	same("grow over extra bytes", g, bitsOf(6, 0, 5))
+
+	// Other modules' types, and a value that went through the encoders.
+	var x bitsa.CapsBits
+	x.SetBit(bitsa.CapsBitsC, true)
+	if x.Len() != 8 || !x.Bit(bitsa.CapsBitsC) || x.Bit(bitsa.CapsBitsA) {
+		t.Errorf("bitsa.CapsBits: %x/%d", x.Bytes, x.BitsUnused)
+	}
+	var it nb.Item
+	it.SetBit(nb.ItemN, true)
+	enc, err := (&nb.Selector{Present: nb.SelectorPrNamed, Named: &it}).Encode()
+	if err != nil {
+		t.Fatalf("Selector Encode: %v", err)
+	}
+	back, err := nb.DecodeSelector(enc)
+	if err != nil {
+		t.Fatalf("DecodeSelector: %v", err)
+	}
+	if back.Named == nil || !back.Named.Bit(nb.ItemN) || back.Named.Bit(nb.ItemM) || back.Named.Len() != 3 {
+		t.Errorf("Selector named: %+v", back.Named)
+	}
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("SetBit(-1): no panic")
+			}
+		}()
+		c.SetBit(-1, true)
+	}()
+}

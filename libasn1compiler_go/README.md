@@ -271,7 +271,7 @@ with `rt.ErrDepth`.
 | ENUMERATED | `type <T> int32` plus one constant per enumerator |
 | REAL | `float64`; `float32` when a `WITH COMPONENTS` constraint (mantissa, base 2, exponent) makes asn1c store it as a C `float`, so the Go type matches C and values round-trip bit for bit |
 | NULL | `struct{}` |
-| BIT STRING | `BitString` (`type X BitString` when named). Named bits add `int` position constants `<GoType><Bit>` |
+| BIT STRING | `BitString` (`type X BitString` when named), with methods `Len()`, `Bit(i)` and `SetBit(i, v)`. Named bits add `int` position constants `<GoType><Bit>` |
 | OCTET STRING | `[]byte` |
 | Restricted strings, UTCTime, GeneralizedTime | `string`; BMPString and UniversalString are converted to and from UTF-8 |
 | OBJECT IDENTIFIER, RELATIVE-OID | `[]uint64` of arcs |
@@ -339,8 +339,14 @@ plain value instead (see below). A nil `[[ ]]` group is absent on `Encode` and
 an absent group decodes to nil. A `[[ ]]` group in a CHOICE is a syntax error
 in asn1c itself.
 
+**Bits.** `BitString` and every named BIT STRING type have `Len() int` (the
+number of bits), `Bit(i int) bool` (bit 0 is the first bit, the most
+significant bit of `Bytes[0]`; false past the end) and `SetBit(i int, v bool)`
+(setting a bit at or past `Len()` makes the value `i+1` bits long, with 0 bits
+between; clearing one there changes nothing; a negative `i` panics).
+
 **Named bits.** The constants are `int` bit positions in declaration order, e.g.
-`CapsA int = 0`. Set bit n with `bs.Bytes[n/8] |= 0x80 >> (n % 8)`. The
+`CapsA int = 0`: `caps.SetBit(CapsA, true)`, `caps.Bit(CapsA)`. The
 trailing 0 bits of a named-bit value are not significant (X.680 22.7):
 `Encode` leaves them out and adds 0 bits up to the lower bound of a SIZE
 constraint (X.691 16.2, 16.3), so `Decode` may return fewer bits than were

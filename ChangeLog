@@ -16,6 +16,10 @@
       ber_check_tags_eoc(), ber_skip_eocs(); ber_check_tags() keeps its
       interface. Still refused: a definite length around an indefinite
       one in a chain of tags.
+    * Go backend: BitString and every named BIT STRING type have
+      Len() int, Bit(i int) bool and SetBit(i int, v bool); bit 0 is the
+      first bit, as the named-bit constants count (caps.SetBit(CapsA,
+      true)). SetBit past the end makes the value longer.
 
 0.9.29-go.17:
     * Go backend: with -pdu=<Type> (without -pdu=all or -pdu=auto), and
