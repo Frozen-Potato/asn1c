@@ -18,11 +18,11 @@ import (
 	"strings"
 	"testing"
 
-	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	df "asn1cgo.test/go/defaults"
-	dfb "asn1cgo.test/go/defaultsoidbase"
 	dc "asn1cgo.test/go/defaultscom"
+	dfb "asn1cgo.test/go/defaultsoidbase"
 	dt "asn1cgo.test/go/defaultstop"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 )
 
 // dflt returns a DefaultsPDU with every DEFAULT member set to its generated
@@ -1154,9 +1154,10 @@ func TestConsDefaultIndependent(t *testing.T) {
 
 // Hand-computed APER (X.691), identical to the bytes of the C check of the
 // same shape: ConsT has 6 presence bits (f a b d e g) + z.
-//   all absent:  000000 1 -> 02
-//   a.y = 3:     presence a (010000), a = x(1 byte, 01) y-present 1 y(3): 42 01 03 80
-//   d = { 0 }:   presence d, size 1, the element (0 in 4 bits): 10 84
+//
+//	all absent:  000000 1 -> 02
+//	a.y = 3:     presence a (010000), a = x(1 byte, 01) y-present 1 y(3): 42 01 03 80
+//	d = { 0 }:   presence d, size 1, the element (0 in 4 bits): 10 84
 var consTHand = []struct {
 	name string
 	mut  func(*df.ConsT)
@@ -1259,12 +1260,12 @@ func TestConsDefaultAbsentAndOmitted(t *testing.T) {
 // A different value round-trips.
 func TestConsDefaultOtherValues(t *testing.T) {
 	for name, mut := range map[string]func(*df.ConsU){
-		"h":      func(p *df.ConsU) { p.H = df.St{P: 1, Q: false, R: "abc"} },
-		"i":      func(p *df.ConsU) { p.I = df.ConsUI{{X: 5, Y: 6}} },
-		"i-nil":  func(p *df.ConsU) { p.I = nil },
-		"l":      func(p *df.ConsU) { p.L.N.V = df.Ls{1}; p.L.N.W = 2 },
-		"m":      func(p *df.ConsU) { p.M = dfb.ImpPt{X: 1, Y: 1} },
-		"t":      func(p *df.ConsU) { p.T = df.ConsUT{"Z"} },
+		"h":     func(p *df.ConsU) { p.H = df.St{P: 1, Q: false, R: "abc"} },
+		"i":     func(p *df.ConsU) { p.I = df.ConsUI{{X: 5, Y: 6}} },
+		"i-nil": func(p *df.ConsU) { p.I = nil },
+		"l":     func(p *df.ConsU) { p.L.N.V = df.Ls{1}; p.L.N.W = 2 },
+		"m":     func(p *df.ConsU) { p.M = dfb.ImpPt{X: 1, Y: 1} },
+		"t":     func(p *df.ConsU) { p.T = df.ConsUT{"Z"} },
 	} {
 		p := consU()
 		mut(p)
@@ -1376,9 +1377,10 @@ func TestConsDefaultInnerOwners(t *testing.T) {
 // Default funcs of a module without a PDU (DefaultsCom) and of members owned
 // by an inline SEQUENCE alternative of a CHOICE (DefaultsTop). Hand-computed
 // APER, cross-checked with the C converter:
-//   TopMsg b.p = {1,7}, k 2, n 3 -> 46   (p absent, k 2, n 3)
-//   TopMsg b.p = {5,7}           -> 80 05 8c
-//   TopM2 c.s.q = {2,7}          -> 00
+//
+//	TopMsg b.p = {1,7}, k 2, n 3 -> 46   (p absent, k 2, n 3)
+//	TopMsg b.p = {5,7}           -> 80 05 8c
+//	TopM2 c.s.q = {2,7}          -> 00
 func TestDefaultFuncNoPDUModuleAndChoiceAlt(t *testing.T) {
 	if got, want := dc.ComBoxPDefault(), (dc.ComPt{X: 1, Y: 7}); got != want {
 		t.Errorf("ComBoxPDefault = %+v, want %+v", got, want)

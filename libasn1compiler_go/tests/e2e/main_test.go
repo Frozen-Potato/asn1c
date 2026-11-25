@@ -28,9 +28,9 @@ import (
 	"sync"
 	"testing"
 
-	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	deep "asn1cgo.test/go/deep"
 	ex "asn1cgo.test/go/synth_example"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 )
 
 func ptr[T any](v T) *T { return &v }

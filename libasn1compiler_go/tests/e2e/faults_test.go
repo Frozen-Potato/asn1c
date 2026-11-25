@@ -9,11 +9,11 @@ import (
 	"errors"
 	"testing"
 
-	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
-	deep "asn1cgo.test/go/deep"
 	bitsa "asn1cgo.test/go/bitsa"
+	deep "asn1cgo.test/go/deep"
 	df "asn1cgo.test/go/defaults"
 	ex "asn1cgo.test/go/synth_example"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 )
 
 // sweep runs op once un-injected to count the runtime allocation events N,

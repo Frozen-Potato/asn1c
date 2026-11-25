@@ -6,17 +6,17 @@
 package e2e
 
 import (
-    "bytes"
-    "errors"
-    "math/rand"
-    "reflect"
-    "strings"
-    "sync"
-    "testing"
+	"bytes"
+	"errors"
+	"math/rand"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
 
-    rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
-    deep "asn1cgo.test/go/deep"
-    ex "asn1cgo.test/go/synth_example"
+	deep "asn1cgo.test/go/deep"
+	ex "asn1cgo.test/go/synth_example"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 )
 
 // jerDec maps a randPDUs name to its DecodeJER<T>; filled by randreg_test.go
@@ -24,208 +24,208 @@ import (
 var jerDec = map[string]func([]byte) (any, error){}
 
 type jerCodec interface {
-    Encode() ([]byte, error)
-    EncodeJER() ([]byte, error)
+	Encode() ([]byte, error)
+	EncodeJER() ([]byte, error)
 }
 
 func TestJERKnownVector(t *testing.T) {
-    in := &ex.ExamplePDU{
-        RequestId: 7,
-        Payload:   ex.ExamplePayload{Present: ex.ExamplePayloadPrNumber, Number: ptr(int64(42))},
-        Note:      ptr("hi"),
-    }
-    const want = `{"requestId":7,"payload":{"number":42},"note":"hi"}`
-    got, err := in.EncodeJER()
-    if err != nil {
-        t.Fatalf("EncodeJER: %v", err)
-    }
-    if string(got) != want {
-        t.Fatalf("EncodeJER = %s, want %s", got, want)
-    }
-    // Any member order and white space decode to the same value.
-    for _, s := range []string{want, " { \"note\" : \"hi\",\n\t\"payload\": {\"number\": 42}, \"requestId\": 7 } "} {
-        out, err := ex.DecodeJERExamplePDU([]byte(s))
-        if err != nil {
-            t.Fatalf("DecodeJER(%q): %v", s, err)
-        }
-        aper, err := out.Encode()
-        if err != nil {
-            t.Fatalf("Encode: %v", err)
-        }
-        if w := []byte{0x40, 0x00, 0x07, 0x40, 0x2a, 0x08, 0x68, 0x69}; !bytes.Equal(aper, w) {
-            t.Fatalf("APER of DecodeJER(%q) = % x, want % x", s, aper, w)
-        }
-    }
-    // An absent OPTIONAL member is left out; a CHOICE alternative is an object.
-    in2 := &ex.ExamplePDU{Payload: ex.ExamplePayload{Present: ex.ExamplePayloadPrText, Text: ptr("a b")}}
-    got, err = in2.EncodeJER()
-    if err != nil || string(got) != `{"requestId":0,"payload":{"text":"a b"}}` {
-        t.Fatalf("EncodeJER = %s, %v", got, err)
-    }
-    if bal := rt.ArenaBalance(); bal != 0 {
-        t.Fatalf("ArenaBalance = %d, want 0", bal)
-    }
+	in := &ex.ExamplePDU{
+		RequestId: 7,
+		Payload:   ex.ExamplePayload{Present: ex.ExamplePayloadPrNumber, Number: ptr(int64(42))},
+		Note:      ptr("hi"),
+	}
+	const want = `{"requestId":7,"payload":{"number":42},"note":"hi"}`
+	got, err := in.EncodeJER()
+	if err != nil {
+		t.Fatalf("EncodeJER: %v", err)
+	}
+	if string(got) != want {
+		t.Fatalf("EncodeJER = %s, want %s", got, want)
+	}
+	// Any member order and white space decode to the same value.
+	for _, s := range []string{want, " { \"note\" : \"hi\",\n\t\"payload\": {\"number\": 42}, \"requestId\": 7 } "} {
+		out, err := ex.DecodeJERExamplePDU([]byte(s))
+		if err != nil {
+			t.Fatalf("DecodeJER(%q): %v", s, err)
+		}
+		aper, err := out.Encode()
+		if err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+		if w := []byte{0x40, 0x00, 0x07, 0x40, 0x2a, 0x08, 0x68, 0x69}; !bytes.Equal(aper, w) {
+			t.Fatalf("APER of DecodeJER(%q) = % x, want % x", s, aper, w)
+		}
+	}
+	// An absent OPTIONAL member is left out; a CHOICE alternative is an object.
+	in2 := &ex.ExamplePDU{Payload: ex.ExamplePayload{Present: ex.ExamplePayloadPrText, Text: ptr("a b")}}
+	got, err = in2.EncodeJER()
+	if err != nil || string(got) != `{"requestId":0,"payload":{"text":"a b"}}` {
+		t.Fatalf("EncodeJER = %s, %v", got, err)
+	}
+	if bal := rt.ArenaBalance(); bal != 0 {
+		t.Fatalf("ArenaBalance = %d, want 0", bal)
+	}
 }
 
 func TestJERErrors(t *testing.T) {
-    wantErr(t, "DecodeJER(nil)", decodeJERErr(nil), rt.ErrArg)
-    wantErr(t, "DecodeJER(empty)", decodeJERErr([]byte{}), rt.ErrArg)
-    wantErr(t, "DecodeJER(truncated)", decodeJERErr([]byte(`{"requestId":7`)), rt.ErrDecode)
-    wantErr(t, "DecodeJER(APER bytes)", decodeJERErr([]byte{0x40, 0x00, 0x07}), rt.ErrDecode)
-    wantErr(t, "DecodeJER(missing member)", decodeJERErr([]byte(`{"requestId":7}`)), rt.ErrDecode)
-    wantErr(t, "DecodeJER(trailing)", decodeJERErr([]byte(`{"requestId":7,"payload":{"number":1}} x`)), rt.ErrTrailing)
-    wantErr(t, "DecodeJER(out of range)", decodeJERErr([]byte(`{"requestId":70000,"payload":{"number":1}}`)), rt.ErrConstraint)
+	wantErr(t, "DecodeJER(nil)", decodeJERErr(nil), rt.ErrArg)
+	wantErr(t, "DecodeJER(empty)", decodeJERErr([]byte{}), rt.ErrArg)
+	wantErr(t, "DecodeJER(truncated)", decodeJERErr([]byte(`{"requestId":7`)), rt.ErrDecode)
+	wantErr(t, "DecodeJER(APER bytes)", decodeJERErr([]byte{0x40, 0x00, 0x07}), rt.ErrDecode)
+	wantErr(t, "DecodeJER(missing member)", decodeJERErr([]byte(`{"requestId":7}`)), rt.ErrDecode)
+	wantErr(t, "DecodeJER(trailing)", decodeJERErr([]byte(`{"requestId":7,"payload":{"number":1}} x`)), rt.ErrTrailing)
+	wantErr(t, "DecodeJER(out of range)", decodeJERErr([]byte(`{"requestId":70000,"payload":{"number":1}}`)), rt.ErrConstraint)
 
-    var nilp *ex.ExamplePDU
-    _, err := nilp.EncodeJER()
-    wantErr(t, "EncodeJER(nil)", err, rt.ErrArg)
-    _, err = (&ex.ExamplePDU{RequestId: 70000, Payload: ex.ExamplePayload{Present: ex.ExamplePayloadPrNumber, Number: ptr(int64(1))}}).EncodeJER()
-    wantErr(t, "EncodeJER(out of range)", err, rt.ErrConstraint)
-    _, err = (&ex.ExamplePDU{}).EncodeJER()
-    wantErr(t, "EncodeJER(Present=0)", err, rt.ErrChoiceNothing)
+	var nilp *ex.ExamplePDU
+	_, err := nilp.EncodeJER()
+	wantErr(t, "EncodeJER(nil)", err, rt.ErrArg)
+	_, err = (&ex.ExamplePDU{RequestId: 70000, Payload: ex.ExamplePayload{Present: ex.ExamplePayloadPrNumber, Number: ptr(int64(1))}}).EncodeJER()
+	wantErr(t, "EncodeJER(out of range)", err, rt.ErrConstraint)
+	_, err = (&ex.ExamplePDU{}).EncodeJER()
+	wantErr(t, "EncodeJER(Present=0)", err, rt.ErrChoiceNothing)
 }
 
 // TestJERIOCMemberOrder: an open-type member decodes whatever the position of
 // its identifier member in the object (known issue #42: the identifier had to
 // come first). An identifier outside the object set still fails.
 func TestJERIOCMemberOrder(t *testing.T) {
-    in := &deep.IOCMsg{Ies: deep.IOCMsgIes{deep.NewFieldIdA(5), deep.NewFieldIdB(1)}}
-    const want = `{"ies":[{"id":1,"criticality":"reject","value":5},{"id":2,"criticality":"ignore","value":1}]}`
-    got, err := in.EncodeJER()
-    if err != nil {
-        t.Fatalf("EncodeJER: %v", err)
-    }
-    if string(got) != want {
-        t.Fatalf("EncodeJER = %s, want %s", got, want)
-    }
-    aper, err := in.Encode()
-    if err != nil {
-        t.Fatalf("Encode: %v", err)
-    }
-    for _, s := range []string{
-        want,
-        `{"ies":[{"value":5,"id":1,"criticality":"reject"},{"criticality":"ignore","value":1,"id":2}]}`,
-        `{"ies":[{"value":5,"criticality":"reject","id":1},{"value":1,"criticality":"ignore","id":2}]}`,
-    } {
-        out, err := deep.DecodeJERIOCMsg([]byte(s))
-        if err != nil {
-            t.Fatalf("DecodeJER(%s): %v", s, err)
-        }
-        b, err := out.Encode()
-        if err != nil {
-            t.Fatalf("Encode of DecodeJER(%s): %v", s, err)
-        }
-        if !bytes.Equal(b, aper) {
-            t.Fatalf("APER of DecodeJER(%s) = % x, want % x", s, b, aper)
-        }
-    }
-    for _, s := range []string{
-        `{"ies":[{"value":5,"id":99,"criticality":"reject"}]}`,
-        `{"ies":[{"value":5,"criticality":"reject"}]}`,
-        `{"ies":[{"value":5,"id":1,"criticality":"reject","value":5}]}`,
-    } {
-        _, err := deep.DecodeJERIOCMsg([]byte(s))
-        wantErr(t, "DecodeJER("+s+")", err, rt.ErrDecode)
-    }
+	in := &deep.IOCMsg{Ies: deep.IOCMsgIes{deep.NewFieldIdA(5), deep.NewFieldIdB(1)}}
+	const want = `{"ies":[{"id":1,"criticality":"reject","value":5},{"id":2,"criticality":"ignore","value":1}]}`
+	got, err := in.EncodeJER()
+	if err != nil {
+		t.Fatalf("EncodeJER: %v", err)
+	}
+	if string(got) != want {
+		t.Fatalf("EncodeJER = %s, want %s", got, want)
+	}
+	aper, err := in.Encode()
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	for _, s := range []string{
+		want,
+		`{"ies":[{"value":5,"id":1,"criticality":"reject"},{"criticality":"ignore","value":1,"id":2}]}`,
+		`{"ies":[{"value":5,"criticality":"reject","id":1},{"value":1,"criticality":"ignore","id":2}]}`,
+	} {
+		out, err := deep.DecodeJERIOCMsg([]byte(s))
+		if err != nil {
+			t.Fatalf("DecodeJER(%s): %v", s, err)
+		}
+		b, err := out.Encode()
+		if err != nil {
+			t.Fatalf("Encode of DecodeJER(%s): %v", s, err)
+		}
+		if !bytes.Equal(b, aper) {
+			t.Fatalf("APER of DecodeJER(%s) = % x, want % x", s, b, aper)
+		}
+	}
+	for _, s := range []string{
+		`{"ies":[{"value":5,"id":99,"criticality":"reject"}]}`,
+		`{"ies":[{"value":5,"criticality":"reject"}]}`,
+		`{"ies":[{"value":5,"id":1,"criticality":"reject","value":5}]}`,
+	} {
+		_, err := deep.DecodeJERIOCMsg([]byte(s))
+		wantErr(t, "DecodeJER("+s+")", err, rt.ErrDecode)
+	}
 }
 
 func decodeJERErr(b []byte) error {
-    _, err := ex.DecodeJERExamplePDU(b)
-    return err
+	_, err := ex.DecodeJERExamplePDU(b)
+	return err
 }
 
 // TestJERRandomRoundTrip: for random values of every PDU type that Encode
 // accepts, EncodeJER must succeed, DecodeJER<T> must read its output back,
 // and the decoded value must give the same APER bytes.
 func TestJERRandomRoundTrip(t *testing.T) {
-    if len(jerDec) == 0 || len(jerDec) != len(randPDUs) {
-        t.Fatalf("jerDec has %d entries for %d PDU types: randreg_test.go was not generated for -gen-JER", len(jerDec), len(randPDUs))
-    }
-    const iters = 90
-    total := 0
-    for _, pdu := range randPDUs {
-        dec := jerDec[pdu.name]
-        for it := 0; it < iters; it++ {
-            g := &randGen{rng: rand.New(rand.NewSource(int64(it) + 1)), mode: it % 3}
-            p := reflect.New(pdu.typ)
-            g.fill(p.Elem(), 0)
-            v := p.Interface().(jerCodec)
-            aper, err := v.Encode()
-            if err != nil {
-                continue // an invalid random value; Encode_test covers these
-            }
-            total++
-            j, err := v.EncodeJER()
-            if err != nil {
-                t.Errorf("%s it %d: EncodeJER: %v (APER % x)", pdu.name, it, err, aper)
-                break
-            }
-            d, err := dec(j)
-            if err != nil {
-                t.Errorf("%s it %d: DecodeJER(%s): %v", pdu.name, it, j, err)
-                break
-            }
-            aper2, err := d.(jerCodec).Encode()
-            if err != nil || !bytes.Equal(aper, aper2) {
-                t.Errorf("%s it %d: APER % x -> JER %s -> APER % x (%v)", pdu.name, it, aper, j, aper2, err)
-                break
-            }
-        }
-    }
-    if total < len(randPDUs) {
-        t.Errorf("only %d values round-tripped for %d PDU types", total, len(randPDUs))
-    }
-    if bal := rt.ArenaBalance(); bal != 0 {
-        t.Fatalf("ArenaBalance = %d, want 0", bal)
-    }
+	if len(jerDec) == 0 || len(jerDec) != len(randPDUs) {
+		t.Fatalf("jerDec has %d entries for %d PDU types: randreg_test.go was not generated for -gen-JER", len(jerDec), len(randPDUs))
+	}
+	const iters = 90
+	total := 0
+	for _, pdu := range randPDUs {
+		dec := jerDec[pdu.name]
+		for it := 0; it < iters; it++ {
+			g := &randGen{rng: rand.New(rand.NewSource(int64(it) + 1)), mode: it % 3}
+			p := reflect.New(pdu.typ)
+			g.fill(p.Elem(), 0)
+			v := p.Interface().(jerCodec)
+			aper, err := v.Encode()
+			if err != nil {
+				continue // an invalid random value; Encode_test covers these
+			}
+			total++
+			j, err := v.EncodeJER()
+			if err != nil {
+				t.Errorf("%s it %d: EncodeJER: %v (APER % x)", pdu.name, it, err, aper)
+				break
+			}
+			d, err := dec(j)
+			if err != nil {
+				t.Errorf("%s it %d: DecodeJER(%s): %v", pdu.name, it, j, err)
+				break
+			}
+			aper2, err := d.(jerCodec).Encode()
+			if err != nil || !bytes.Equal(aper, aper2) {
+				t.Errorf("%s it %d: APER % x -> JER %s -> APER % x (%v)", pdu.name, it, aper, j, aper2, err)
+				break
+			}
+		}
+	}
+	if total < len(randPDUs) {
+		t.Errorf("only %d values round-tripped for %d PDU types", total, len(randPDUs))
+	}
+	if bal := rt.ArenaBalance(); bal != 0 {
+		t.Fatalf("ArenaBalance = %d, want 0", bal)
+	}
 }
 
 func TestJERConcurrent(t *testing.T) {
-    in := ex.ExamplePDU{
-        RequestId: 9,
-        Payload:   ex.ExamplePayload{Present: ex.ExamplePayloadPrText, Text: ptr("concurrent")},
-    }
-    j, err := in.EncodeJER()
-    if err != nil {
-        t.Fatalf("EncodeJER: %v", err)
-    }
-    const workers, iters = 16, 200
-    var wg sync.WaitGroup
-    errs := make(chan error, workers)
-    for w := 0; w < workers; w++ {
-        wg.Add(1)
-        go func() {
-            defer wg.Done()
-            for i := 0; i < iters; i++ {
-                out, err := ex.DecodeJERExamplePDU(j)
-                if err != nil {
-                    errs <- err
-                    return
-                }
-                j2, err := out.EncodeJER()
-                if err != nil || !bytes.Equal(j, j2) {
-                    errs <- errors.New("JER round trip mismatch: " + string(j2))
-                    return
-                }
-            }
-        }()
-    }
-    wg.Wait()
-    close(errs)
-    for err := range errs {
-        t.Error(err)
-    }
-    if bal := rt.ArenaBalance(); bal != 0 {
-        t.Fatalf("ArenaBalance = %d after concurrent use, want 0", bal)
-    }
+	in := ex.ExamplePDU{
+		RequestId: 9,
+		Payload:   ex.ExamplePayload{Present: ex.ExamplePayloadPrText, Text: ptr("concurrent")},
+	}
+	j, err := in.EncodeJER()
+	if err != nil {
+		t.Fatalf("EncodeJER: %v", err)
+	}
+	const workers, iters = 16, 200
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iters; i++ {
+				out, err := ex.DecodeJERExamplePDU(j)
+				if err != nil {
+					errs <- err
+					return
+				}
+				j2, err := out.EncodeJER()
+				if err != nil || !bytes.Equal(j, j2) {
+					errs <- errors.New("JER round trip mismatch: " + string(j2))
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	if bal := rt.ArenaBalance(); bal != 0 {
+		t.Fatalf("ArenaBalance = %d after concurrent use, want 0", bal)
+	}
 }
 
 // Deep JSON nesting is rejected by the C decoder's stack guard, not by a crash.
 func TestJERDeepNesting(t *testing.T) {
-    s := `{"requestId":1,"payload":{"number":1},"x":` + strings.Repeat("[", 200000) + strings.Repeat("]", 200000) + `}`
-    _, err := ex.DecodeJERExamplePDU([]byte(s))
-    if err == nil {
-        t.Fatal("DecodeJER of 200000 nested arrays succeeded")
-    }
-    wantErr(t, "DecodeJER(deep)", err, rt.ErrDecode)
+	s := `{"requestId":1,"payload":{"number":1},"x":` + strings.Repeat("[", 200000) + strings.Repeat("]", 200000) + `}`
+	_, err := ex.DecodeJERExamplePDU([]byte(s))
+	if err == nil {
+		t.Fatal("DecodeJER of 200000 nested arrays succeeded")
+	}
+	wantErr(t, "DecodeJER(deep)", err, rt.ErrDecode)
 }

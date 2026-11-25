@@ -29,10 +29,16 @@ func TestReservedRoundTrip(t *testing.T) {
 	}{
 		{"RsH", "<RsH><explicit><true/></explicit><int>2</int></RsH>",
 			func() ([]byte, error) { v := rs.RsH{Explicit: true, Int: &i2}; return v.Encode() },
-			func(b []byte) bool { v, err := rs.DecodeRsH(b); return err == nil && v.Explicit && v.Int != nil && *v.Int == 2 }},
+			func(b []byte) bool {
+				v, err := rs.DecodeRsH(b)
+				return err == nil && v.Explicit && v.Int != nil && *v.Int == 2
+			}},
 		{"RsC", "<RsC><explicit><true/></explicit></RsC>",
 			func() ([]byte, error) { v := rs.RsC{Present: rs.RsCPrExplicit, Explicit: &yes}; return v.Encode() },
-			func(b []byte) bool { v, err := rs.DecodeRsC(b); return err == nil && v.Present == rs.RsCPrExplicit && *v.Explicit }},
+			func(b []byte) bool {
+				v, err := rs.DecodeRsC(b)
+				return err == nil && v.Present == rs.RsCPrExplicit && *v.Explicit
+			}},
 		{"RsC", "<RsC><x></x></RsC>",
 			func() ([]byte, error) { v := rs.RsC{Present: rs.RsCPrX}; return v.Encode() },
 			func(b []byte) bool { v, err := rs.DecodeRsC(b); return err == nil && v.Present == rs.RsCPrX }},
@@ -41,10 +47,16 @@ func TestReservedRoundTrip(t *testing.T) {
 			func(b []byte) bool { v, err := rs.DecodeRsE(b); return err == nil && *v == rs.RsEAuto }},
 		{"RsR", "<RsR><explicit><true/></explicit></RsR>",
 			func() ([]byte, error) { v := rs.RsR{Present: rs.RsRPrExplicit, Explicit: &yes}; return v.Encode() },
-			func(b []byte) bool { v, err := rs.DecodeRsR(b); return err == nil && v.Present == rs.RsRPrExplicit && *v.Explicit }},
+			func(b []byte) bool {
+				v, err := rs.DecodeRsR(b)
+				return err == nil && v.Present == rs.RsRPrExplicit && *v.Explicit
+			}},
 		{"RsR", "<RsR><int>5</int></RsR>",
 			func() ([]byte, error) { v := rs.RsR{Present: rs.RsRPrInt, Int: &i5}; return v.Encode() },
-			func(b []byte) bool { v, err := rs.DecodeRsR(b); return err == nil && v.Present == rs.RsRPrInt && *v.Int == 5 }},
+			func(b []byte) bool {
+				v, err := rs.DecodeRsR(b)
+				return err == nil && v.Present == rs.RsRPrInt && *v.Int == 5
+			}},
 		{"RsR", "<RsR><auto>ABCD</auto></RsR>",
 			func() ([]byte, error) { v := rs.RsR{Present: rs.RsRPrAuto, Auto: &oct}; return v.Encode() },
 			func(b []byte) bool {
@@ -52,12 +64,19 @@ func TestReservedRoundTrip(t *testing.T) {
 				return err == nil && v.Present == rs.RsRPrAuto && bytes.Equal(*v.Auto, oct)
 			}},
 		{"RsR", "<RsR><default><a>3</a></default></RsR>",
-			func() ([]byte, error) { v := rs.RsR{Present: rs.RsRPrDefault, Default: &rs.RsRDefault{A: 3}}; return v.Encode() },
-			func(b []byte) bool { v, err := rs.DecodeRsR(b); return err == nil && v.Present == rs.RsRPrDefault && v.Default.A == 3 }},
+			func() ([]byte, error) {
+				v := rs.RsR{Present: rs.RsRPrDefault, Default: &rs.RsRDefault{A: 3}}
+				return v.Encode()
+			},
+			func(b []byte) bool {
+				v, err := rs.DecodeRsR(b)
+				return err == nil && v.Present == rs.RsRPrDefault && v.Default.A == 3
+			}},
 		{"RsR", "<RsR><struct><q>3</q></struct></RsR>",
 			func() ([]byte, error) {
 				q := int64(3)
-				v := rs.RsR{Present: rs.RsRPrStruct, Struct: &rs.RsRStruct{Present: rs.RsRStructPrQ, Q: &q}}; return v.Encode()
+				v := rs.RsR{Present: rs.RsRPrStruct, Struct: &rs.RsRStruct{Present: rs.RsRStructPrQ, Q: &q}}
+				return v.Encode()
 			},
 			func(b []byte) bool {
 				v, err := rs.DecodeRsR(b)

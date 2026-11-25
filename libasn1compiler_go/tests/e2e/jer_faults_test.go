@@ -5,21 +5,21 @@
 package e2e
 
 import (
-    "testing"
+	"testing"
 
-    ex "asn1cgo.test/go/synth_example"
+	ex "asn1cgo.test/go/synth_example"
 )
 
 func TestAllocFaultSweepJER(t *testing.T) {
-    in := &ex.ExamplePDU{
-        RequestId: 7,
-        Payload:   ex.ExamplePayload{Present: ex.ExamplePayloadPrNumber, Number: ptr(int64(42))},
-        Note:      ptr("hi"),
-    }
-    j, err := in.EncodeJER()
-    if err != nil {
-        t.Fatalf("EncodeJER: %v", err)
-    }
-    sweep(t, "EncodeJER", func() error { _, err := in.EncodeJER(); return err })
-    sweep(t, "DecodeJER", func() error { _, err := ex.DecodeJERExamplePDU(j); return err })
+	in := &ex.ExamplePDU{
+		RequestId: 7,
+		Payload:   ex.ExamplePayload{Present: ex.ExamplePayloadPrNumber, Number: ptr(int64(42))},
+		Note:      ptr("hi"),
+	}
+	j, err := in.EncodeJER()
+	if err != nil {
+		t.Fatalf("EncodeJER: %v", err)
+	}
+	sweep(t, "EncodeJER", func() error { _, err := in.EncodeJER(); return err })
+	sweep(t, "DecodeJER", func() error { _, err := ex.DecodeJERExamplePDU(j); return err })
 }

@@ -35,8 +35,8 @@ import (
 	"strings"
 	"testing"
 
-	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	st "asn1cgo.test/go/strs"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 )
 
 // stCase is a siCase plus, for a composite value, XER fragments the

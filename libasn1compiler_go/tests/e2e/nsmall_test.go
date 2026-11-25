@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 	ns "asn1cgo.test/go/nsmall"
+	rt "github.com/Frozen-Potato/asn1c/libasn1compiler_go/rt/go/rt"
 )
 
 var nsIdx = []int{0, 63, 64, 65, 69}
