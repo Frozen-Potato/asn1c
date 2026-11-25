@@ -6,6 +6,13 @@ asn1c_SOURCES += \
     $(top_srcdir)/libasn1compiler_go/go_walk.c \
     $(top_srcdir)/libasn1compiler_go/go_constructs.c \
     $(top_srcdir)/libasn1compiler_go/go_names.c \
+    $(top_srcdir)/libasn1compiler_go/go_names_rows.c \
+    $(top_srcdir)/libasn1compiler_go/go_names_decls.c \
+    $(top_srcdir)/libasn1compiler_go/go_names_choice.c \
+    $(top_srcdir)/libasn1compiler_go/go_names_spec.c \
+    $(top_srcdir)/libasn1compiler_go/go_names_check.c \
+    $(top_srcdir)/libasn1compiler_go/go_names_dflt.c \
+    $(top_srcdir)/libasn1compiler_go/go_names_walk.c \
     $(top_srcdir)/libasn1compiler_go/go_types.c \
     $(top_srcdir)/libasn1compiler_go/go_flat.c \
     $(top_srcdir)/libasn1compiler_go/go_conv_to.c \
