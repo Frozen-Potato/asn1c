@@ -22,4 +22,10 @@ asn1c_SOURCES += \
     $(top_srcdir)/libasn1compiler_go/go_emit.c \
     $(top_srcdir)/libasn1compiler_go/go_swap.c \
     $(top_srcdir)/libasn1compiler_go/go_glue.c \
+    $(top_srcdir)/libasn1compiler_go/go_glue_util.c \
+    $(top_srcdir)/libasn1compiler_go/go_glue_prim.c \
+    $(top_srcdir)/libasn1compiler_go/go_glue_ref.c \
+    $(top_srcdir)/libasn1compiler_go/go_glue_member.c \
+    $(top_srcdir)/libasn1compiler_go/go_glue_fn.c \
+    $(top_srcdir)/libasn1compiler_go/go_glue_pkg.c \
     $(top_srcdir)/libasn1compiler_go/go_ctor.c
