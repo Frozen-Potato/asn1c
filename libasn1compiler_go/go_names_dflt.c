@@ -13,12 +13,12 @@
  * row). The three shapes share ONE resolver so the element rule cannot drift
  * between them:
  *   a REFERENCE element — the referenced assignment's own goName
- *     (R2(MKID(chased terminal)); stored UNQUALIFIED, the post-walk prepass
+ *     (GoName(MKID(chased terminal)); stored UNQUALIFIED, the post-walk prepass
  *     go_qualify_slice_elems applies cross-module qualification). A
  *     field-shaped specialization element (a container's ProtocolIE-Field
- *     {{X}} payload) resolves to the SAME R2(X) name: X IS the
+ *     {{X}} payload) resolves to the SAME GoName(X) name: X IS the
  *     chased terminal's own Identifier by the time the chase lands on the
- *     field-shaped clone, and go_r2(MKID(terminal)) is R2(X) — exactly the
+ *     field-shaped clone, and go_cid_to_go_name(MKID(terminal)) is GoName(X) — exactly the
  *     spec-key name go_emit_spec mints in X's module.
  *   an inline LEAF element — the mapping-table Go text via go_classify_leaf, the SAME
  *     table the decl emission uses (go_types_leaf_underlying; one table, no
@@ -256,7 +256,7 @@ go_slice_element_type(struct walk_ctx *ctx, asn1p_expr_t *elem,
         return go_own(under ? under : "");
     }
     /* Reference element: the chased terminal assignment's own goName;
-     * a field-shaped spec terminal IS named R2(X) — see the block comment). */
+     * a field-shaped spec terminal IS named GoName(X) — see the block comment). */
     asn1p_expr_t *terminal = elem;
     {
         asn1p_expr_t *t = asn1f_find_terminal_type_ex(ctx->asn, ctx->ns, elem);

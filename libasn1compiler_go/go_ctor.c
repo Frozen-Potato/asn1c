@@ -5,12 +5,12 @@
  * per row of every id-dispatch PROTOCOL-IES object set (procedure-dispatch envelope rows carry
  * no &Value alt payload and get none):
  *
- *   func New<R2(X)><A>(v T) R2(X) {
- *       return R2(X){
+ *   func New<GoName(X)><A>(v T) GoName(X) {
+ *       return GoName(X){
  *           Id:          <id value-const goName>,
  *           Criticality: <Criticality enum const goName>,
- *           Value: R2(X)Value{
- *               Present: R2(X)ValuePr<A>,
+ *           Value: GoName(X)Value{
+ *               Present: GoName(X)ValuePr<A>,
  *               A:       &v,
  *           },
  *       }
@@ -88,13 +88,13 @@ unprefixed(const char *cid) {
 
 typedef struct {
     char *fn;          /* New<X><A> */
-    char *x_go;        /* R2(X) */
+    char *x_go;        /* GoName(X) */
     char *module;      /* X's module (the spec-key row's module) */
     char *id_const;    /* value-const goName */
     char *crit_const;  /* Criticality const goName (NULL: class has none) */
     char *id_ref;      /* id const as referenced from X's pkg (qualified if foreign) */
     char *crit_ref;    /* criticality const as referenced (qualified iff foreign) */
-    char *present;     /* R2(X)ValuePr<A> goName */
+    char *present;     /* GoName(X)ValuePr<A> goName */
     char *alt_field;   /* A (union field goName) */
     char *alt_type;    /* T (payload type, star stripped) */
     int null_alt;      /* TYPE NULL: no payload, the ctor takes no value */
@@ -105,7 +105,7 @@ typedef struct {
 /* goType equality under cross-module qualification: a const's goType may
  * carry its defining package prefix (pkg_commondatatypes.ProtocolIEID —
  * qualify_foreign_const_types); the recorded governing name is the
- * unqualified R2 form. Equal iff equal OR the qualified suffix matches. */
+ * unqualified GoName form. Equal iff equal OR the qualified suffix matches. */
 static int
 gotype_is(const char *gt, const char *gov);
 
@@ -151,7 +151,7 @@ criticality_const2(long crit, const char *crit_gov, char **out_mod) {
 /* goType equality under cross-module qualification: a const's goType may
  * carry its defining package prefix (pkg_commondatatypes.ProtocolIEID —
  * qualify_foreign_const_types); the recorded governing name is the
- * unqualified R2 form. Equal iff equal OR the qualified suffix matches. */
+ * unqualified GoName form. Equal iff equal OR the qualified suffix matches. */
 static int
 gotype_is(const char *gt, const char *gov) {
     if(!gt || !gov) return 0;
@@ -459,9 +459,9 @@ go_ctor_emit(const char *go_outdir) {
         free(id_mod);
         free(crit_mod);
 
-        /* Name: New + R2(X) + R2(I), where
+        /* Name: New + GoName(X) + GoName(I), where
          * I = the asn1c C ident of the row's ID value reference (dump-borne:
-         * the id-const goName = "ProtocolIEID" + R2(I)); a LITERAL id cell
+         * the id-const goName = "ProtocolIEID" + GoName(I)); a LITERAL id cell
          * has no reference, so I = Id + the decimal itself. */
         char *r2i = NULL;
         {
@@ -470,7 +470,7 @@ go_ctor_emit(const char *go_outdir) {
                 r2i = malloc(n);
                 if(r2i) snprintf(r2i, n, "Id%ld", row->id);
             } else {
-                /* the const name is <Gov> + R2(I); strip the governing
+                /* the const name is <Gov> + GoName(I); strip the governing
                  * head — no re-derivation, the length IS the gov's. */
                 size_t hl = strlen(row->id_gov);
                 if(strncmp(idc, row->id_gov, hl) != 0) {
@@ -488,7 +488,7 @@ go_ctor_emit(const char *go_outdir) {
             }
             if(!r2i || !*r2i) {
                 fprintf(stderr,
-                        "asn1cgo: ctor: empty R2(I) for row %s id %ld\n",
+                        "asn1cgo: ctor: empty Go name of id for row %s id %ld\n",
                         row->spec_cid, row->id);
                 free(r2i); free(idc); free(critc); free(id_ref); free(crit_ref); free(present);
                 conv_failed_set();

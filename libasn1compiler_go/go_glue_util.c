@@ -337,7 +337,7 @@ char *g_go_szconst(const char *node_name) {
 /* gconst — a layout const reference from a fn emitted in THIS package for
  * a node: layout.go of THIS package declares consts for ITS OWN nodes, so
  * a local node's const passes through unchanged. A FOREIGN node's const is
- * unexported in the owning package (unreachable cross-package — App. G has
+ * unexported in the owning package (unreachable cross-package — there is
  * no cross-package const form); the glue's fn copies are SELF-CONTAINED per
  * package, so a foreign const is re-declared LOCALLY under the same const
  * name (the camel space is per-package; the owning package's own layout.go

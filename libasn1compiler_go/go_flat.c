@@ -2045,7 +2045,7 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
                 lg = fa(lg, "// layout.go - Flat struct sizeof/offsetof constants.\n");
                 lg = fa(lg, "// Values computed by the generator under x86-64 SysV; cross-checked\n");
                 lg = fa(lg, "// by <P><pkg>_layout_check.c (_Static_asserts) and the init() cgo\n");
-                lg = fa(lg, "// probe below (live sizeof/offsetof, G.4).\n");
+                lg = fa(lg, "// probe below (live sizeof/offsetof).\n");
                 lg = fa(lg, "package ");
                 lg = fa(lg, pu->pkg);
                 lg = fa(lg, "\n\n");

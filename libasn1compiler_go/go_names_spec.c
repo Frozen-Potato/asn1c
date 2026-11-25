@@ -29,7 +29,7 @@ go_is_field_shaped_spec(asn1p_expr_t *seq_terminal) {
 static asn1p_expr_t *
 classfield_declared_type(struct walk_ctx *ctx, asn1p_expr_t *mem);
 
-/* The governing Go type NAME of an IOC class column's declared type (R2 of
+/* The governing Go type NAME of an IOC class column's declared type (GoName of
  * the column's own type field, e.g. &id -> ProtocolIE-ID -> ProtocolIEID):
  * the name the ctor layer resolves consts BY (value-consts typed it, enum
  * consts owned by it) instead of any name-shape assumption. Malloc'd;
@@ -52,14 +52,14 @@ static void emit_value_pr_nothing(struct walk_ctx *ctx, const char *x_go,
                                   const char *x_cid, const char *parent_path);
 
 /* go_emit_spec: the specialization names. X is the type's goName; the
- * specialization mints a named value union (R2(X)+Value) with a discriminant
- * (R2(X)+ValuePr), exactly as asn1c emits `struct <X>__value { union {...} }` +
- * `enum <X>__value_PR {...}`. spec-key = the type name itself (R2(X)). The
+ * specialization mints a named value union (GoName(X)+Value) with a discriminant
+ * (GoName(X)+ValuePr), exactly as asn1c emits `struct <X>__value { union {...} }` +
+ * `enum <X>__value_PR {...}`. spec-key = the type name itself (GoName(X)). The
  * value-union alt fields + their choice-constants come from the object set the
  * &Value resolves to; those are emitted by emit_spec_value_alts when the
  * open-type member is available.
  *
- * A field-shaped specialization is a STRUCT (named R2(X)), so in addition
+ * A field-shaped specialization is a STRUCT (named GoName(X)), so in addition
  * to the spec-key/value/pr + value-union-alts, it carries STRUCT FIELD rows for
  * its envelope members — exactly as a plain SEQUENCE does. The real C
  * struct `typedef struct <X> { <id|procedureCode>; <criticality>; struct <X>
@@ -102,7 +102,7 @@ go_emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
 
     char *path_key = strdup(parent_path);
 
-    /* spec-key: R2(X). rawCid = the real C struct identifier of the clone
+    /* spec-key: GoName(X). rawCid = the real C struct identifier of the clone
      * (asn1c's `typedef struct <X_cid> {...} <X_cid>_t;` — the verbatim tag,
      * underscore-preserving, e.g. Action_ToBeSetup_ItemIEs, NOT the
      * _-collapsed Go name ActionToBeSetupItemIEs). */
@@ -143,7 +143,7 @@ go_emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
         if(!mem->Identifier) continue;
         char *path = go_make_path(parent_path, mem->Identifier);
         go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
-                  go_mk_member(mem), go_r2(GO_MKID(mem)));
+                  go_mk_member(mem), go_cid_to_go_name(GO_MKID(mem)));
         /* Flat: the envelope member's ref row (the class-field-declared
          * type's own cid; integer/enum leaves resolve via the declared
          * type's leaf Flat). */
@@ -289,7 +289,7 @@ go_emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
         }
     }
 
-    /* spec-value: R2(X)+Value — the open-type value union. rawCid = <X_cid>__value
+    /* spec-value: GoName(X)+Value — the open-type value union. rawCid = <X_cid>__value
      * (the real asn1c `struct <X_cid>__value {...}` wrapper tag). struct-body stage: the
      * UNION is a struct too (Present + one pointer field per alt — the pointer-per-alt form
      * alt fields emit_spec_value_alts records in the x_go+"Value" scope).
@@ -303,7 +303,7 @@ go_emit_spec(struct walk_ctx *ctx, const char *x_go, const char *x_cid,
         go_emit_name(ctx->bag, ctx->module, path, GK_SPEC_VALUE, raw, go);
         go_row_set_is_struct(ctx->bag);
     }
-    /* spec-pr: R2(X)+ValuePr — the union discriminant type. rawCid =
+    /* spec-pr: GoName(X)+ValuePr — the union discriminant type. rawCid =
      * <X_cid>__value_PR (the real asn1c `typedef enum <X_cid>__value_PR` tag). */
     {
         char *go = go_str_append(strdup(""), x_go);
@@ -390,8 +390,8 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
     /* PrNothing first, then one choice-const + one field per distinct alt
      * (asn1c dedups by Identifier at asn1c_C.c:1096-1097). The field scope is the
      * whole value union, so reset once. The alt's C union-member token is
-     * GO_MKID(cell value); its Go field = R2(token). The choice-const is
-     * <X>+"ValuePr" + R2(token) (the discriminant-const form for owner
+     * GO_MKID(cell value); its Go field = GoName(token). The choice-const is
+     * <X>+"ValuePr" + GoName(token) (the discriminant-const form for owner
      * <X>Value). rawCids use x_cid (the real <X_cid>__value_PR token).
      *
      * struct-body stage: the union's own fields open a struct scope under <X>Value —
@@ -511,7 +511,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         {
             long row_id = -1, row_crit = -1;
             const char *row_id_member = "id";
-            char *id_gov = NULL;   /* R2 name of the id column's declared type */
+            char *id_gov = NULL;   /* Go name of the id column's declared type */
             char *crit_gov = NULL; /* ... of &criticality; NULL = no column */
             int unknown_col = 0;
             int id_literal = 0;    /* the id cell is a bare INTEGER literal */
@@ -688,7 +688,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                 go_mark_bitstring_module(ctx->bag, ctx->module);
         }
         char *altcid = go_mk_suffix(cell->value);
-        char *altgo = go_r2(altcid);
+        char *altgo = go_cid_to_go_name(altcid);
         /* A named alternative's own type: the chased terminal. Its C name
          * (and so its Go name) is module-prefixed when the name exists in
          * several modules (ModB_Flag / ModBFlag), while the union member
@@ -1047,11 +1047,11 @@ classfield_declared_type(struct walk_ctx *ctx, asn1p_expr_t *mem) {
     return r;
 }
 
-/* The R2 Go name of an IOC COLUMN's declared type. The column's field
+/* The Go name of an IOC COLUMN's declared type. The column's field
  * expr (the class field spec, e.g. `&id ProtocolIE-ID UNIQUE`) carries the
  * declared type as its first child (asn1p: a FixedTypeValueFieldSpec's
  * Type — as parsed at asn1p_y.y's ObjectClassField parse, the child of the
- * field expr). Chase a reference to its terminal assignment and R2 its
+ * field expr). Chase a reference to its terminal assignment and take the GoName of its
  * real C ident (the same naming path the envelope member rows take). */
 static char *
 column_governing_go(struct walk_ctx *ctx, asn1p_expr_t *field) {

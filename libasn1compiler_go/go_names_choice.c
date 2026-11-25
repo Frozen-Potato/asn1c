@@ -101,8 +101,8 @@ go_emit_choice(struct walk_ctx *ctx, const char *choice_go,
      * VERBATIM — a generic CHOICE's discriminant holder is the C member
      * `present` (constr_CHOICE.h: `Present <X>_PR present;`), not a compound
      * <Cid>_present. Storing the literal `present` makes the dump's rawCid a
-     * real .h identifier token AND makes goName = R2("present") = "Present" —
-     * no special case on either side (token + R2 checks both pass
+     * real .h identifier token AND makes goName = GoName("present") = "Present" —
+     * no special case on either side (token + GoName checks both pass
      * unaided). */
     {
         char *path = go_make_path(parent_path, "Present");
@@ -488,13 +488,13 @@ go_emit_choice(struct walk_ctx *ctx, const char *choice_go,
 }
 
 /* go_list_suffix: the Go suffix of member `e` of one ENUMERATED enumerator
- * list or one named-bit list `list`. Normally go_r2(go_mk_suffix(e)), which
+ * list or one named-bit list `list`. Normally go_cid_to_go_name(go_mk_suffix(e)), which
  * drops every '_' (so `d1` and `d-1`, C suffixes `d1` and `d_1`, would both
  * become `D1`). The rule, local to the one list:
- *   1. compute the normal suffix go_r2(go_mk_suffix(m)) of every member;
+ *   1. compute the normal suffix go_cid_to_go_name(go_mk_suffix(m)) of every member;
  *   2. a member whose normal suffix equals another member's in the same list,
  *      AND whose C suffix has a '_' directly followed by a digit, uses the
- *      alternative form: go_r2, except that a '_' directly followed by a
+ *      alternative form: go_cid_to_go_name, except that a '_' directly followed by a
  *      digit is kept (`d_1` -> `D_1`, `sfnsfndrift_5` -> `Sfnsfndrift_5`);
  *   3. every other member, and every list without such a clash, keeps the
  *      normal suffix, byte for byte;
@@ -504,7 +504,7 @@ go_emit_choice(struct walk_ctx *ctx, const char *choice_go,
 static char *
 go_list_suffix(asn1p_expr_t *list, asn1p_expr_t *e) {
     char *cid = go_mk_suffix(e);
-    char *norm = go_r2(cid);
+    char *norm = go_cid_to_go_name(cid);
     int alt = 0;
     const char *u;
     for(u = cid; *u && !alt; u++)
@@ -516,7 +516,7 @@ go_list_suffix(asn1p_expr_t *list, asn1p_expr_t *e) {
             if(m == e || m->expr_type == A1TC_EXTENSIBLE || !m->Identifier)
                 continue;
             char *mc = go_mk_suffix(m);
-            char *mn = go_r2(mc);
+            char *mn = go_cid_to_go_name(mc);
             if(strcmp(mn, norm) == 0) clash = 1;
             free(mc);
             free(mn);
@@ -542,22 +542,22 @@ char *
 go_member_go(asn1p_expr_t *e) {
     if(e->parent_expr && e->Identifier)
         return go_list_suffix(e->parent_expr, e);
-    return go_r2(GO_MKID(e));
+    return go_cid_to_go_name(GO_MKID(e));
 }
 
 /* Emit enum-const rows for an ENUMERATED whose goName is `enum_go` and real
  * C-ident prefix is `enum_cid`, at path prefix `parent_path`. enumerators off
  * `enum_expr`. rawCid = <EnumCid>_<enumerator> (the verbatim asn1c enumerator
  * token: asn1c compounds the enum's C-ident prefix into every enumerator, so the
- * real token is `<enum_cid>` + "_" + GO_MKID(enumeratorChild)). goName is R2 of
- * that (=<Enum> + R2 of the enumerator suffix); path is unchanged.
+ * real token is `<enum_cid>` + "_" + GO_MKID(enumeratorChild)). goName is GoName of
+ * that (=<Enum> + GoName of the enumerator suffix); path is unchanged.
  *
  * leaf-stage body data: each enum-const's VALUE is the enumerator's own ASN.1
  * value — e->value->value.v_integer, the exact field asn1c_C.c:152 prints as
  * " = N" (asn1fix_enum.c:97-99 assigns the sequential numbering for implicit
  * enumerators at fix time, so the AST value and the .h value are the same
  * number; asn1p_itoa renders it, asn1p_integer.h:39). goType is the enum's
- * own Go name (consts `<GoType>` + R2(name), typed by the enum type). */
+ * own Go name (consts `<GoType>` + GoName(name), typed by the enum type). */
 void
 go_emit_enum(struct walk_ctx *ctx, const char *enum_go,
           const char *enum_cid, const char *parent_path,
@@ -597,7 +597,7 @@ go_emit_enum(struct walk_ctx *ctx, const char *enum_go,
 /* go_emit_bit_names: the bit-position constants of a named-bit BIT STRING
  * (`BIT STRING { a(0), b(1) }`). The value type is a plain BitString; the
  * names only add one `int` constant per named bit, in declaration order:
- * <type_go> + R2(bit) -- the ENUMERATED enumerator scheme (go_emit_enum), with
+ * <type_go> + GoName(bit) -- the ENUMERATED enumerator scheme (go_emit_enum), with
  * `type_go` the name an ENUMERATED in the same position would get (the type's
  * own Go name at top level, <Parent><Member> for an inline member,
  * <Choice><Alt> for a CHOICE alt). They are package-scoped GK_ENUM_CONST

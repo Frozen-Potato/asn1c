@@ -98,7 +98,7 @@ struct name_row {
     char *path;             /* dotted ASN.1 path (owned)                   */
     go_kind_e kind;
     char *rawCid;           /* the asn1c C identifier (owned)             */
-    char *goName;           /* R2(rawCid) (owned)                         */
+    char *goName;           /* GoName(rawCid) (owned)                         */
     /* leaf-stage body data (leaf declarations). goName is the decl name;
      * leaf_kind is set for rows whose declaration is a self-contained
      * leaf `type` line; intval is the decimal value string for enum-const /
@@ -295,7 +295,7 @@ int go_classify_leaf(struct walk_ctx *ctx, asn1p_expr_t *terminal,
 
 /* go_names_rows.c */
 int go_kind_is_package_scoped(go_kind_e k);
-char *go_r2(const char *cid);
+char *go_cid_to_go_name(const char *cid);
 char *go_str_append(char *a, const char *b);
 char *go_own(const char *s);
 char *go_own_mkid(asn1p_expr_t *e);

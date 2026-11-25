@@ -12,9 +12,9 @@
  * What is named here (each row cites the asn1c path
  * that makes the rawCid authoritative):
  *
- *   type        one Go type per top-level type assignment (the R2 transform,
+ *   type        one Go type per top-level type assignment (the GoName transform,
  *               the naming rule base).
- *               rawCid = GO_MKID(expr); goName = R2(rawCid). A reference
+ *               rawCid = GO_MKID(expr); goName = GoName(rawCid). A reference
  *               assignment mints its OWN named Go type too: every type
  *               assignment is a named Go type.
  *   field       one Go struct field per member of a SEQUENCE/CHOICE / per field-shaped
@@ -31,7 +31,7 @@
  *               discriminants). Package-scoped.
  *   enum-const  <Enum><Enumerator> per enumerator of a top-level or inline
  *               ENUMERATED const naming). Package-scoped.
- *   value-const R2 of a typed value-assignment #define symbol
+ *   value-const GoName of a typed value-assignment #define symbol
  *               `#define <T>_id_<X> ((<T>_t)<n>)` — emitted only when the value
  *               assignment's governing type is INTEGER or ENUMERATED
  *               (asn1c_C.c asn1c_lang_C_type_REFERENCE_Value). rawCid =
@@ -41,7 +41,7 @@
  *               collection) and are NOT value-consts: excluded.
  *   spec-*      field-shaped specialization (ProtocolIE-Field /
  *               SingleContainer {{X}} whose clone is a SEQUENCE with an
- *               open-type &Value member): R2(X), R2(X)+Value, R2(X)+ValuePr,
+ *               open-type &Value member): GoName(X), GoName(X)+Value, GoName(X)+ValuePr,
  *               plus one field per value-union alt. A container-shaped clone
  *               (no open-type member) collapses — mints NO new Go name.
  *   helper      the shared BitString Go type, once per module that owns a
@@ -802,7 +802,7 @@ done:
                 g_go_emit_bag = NULL;
                 if(rc < 0) bag.failed = 1;
             }
-            /* Glue (App. G): emit the per-package glue.go
+            /* Glue: emit the per-package glue.go
              * (Encode/Decode/xer per PDU root, the size/fill/read triples,
              * the arena/error bridge) + the layout.go init() probe. Reads
              * the name rows through the go_names_rows_* surface below (the
@@ -909,7 +909,7 @@ done:
 }
 
 /* ========================================================================= *
- * (App. G): the name-row surface the glue emitter reads. The bag
+ * The name-row surface the glue emitter reads. The bag
  * is file-static; these accessors hand go_glue.c a read-only view (the bag
  * outlives the glue emit — torn down in go_generate's epilogue). Row order
  * here is WALK order (rows[]), not dump order; the glue walks it once.

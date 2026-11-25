@@ -42,7 +42,7 @@
  * path including error returns. No package-level C state; each call owns
  * its arena -> safe for concurrent use.
  *
- * Mapping (App. G.2) — ONE member walk per node emits size+fill+read in
+ * Mapping — ONE member walk per node emits size+fill+read in
  * parallel so the three cannot drift:
  *   prim int32_t/int64_t/uint64_t/double: inline scalar copy.
  *   prim _bool32: v != 0 <-> bool.
@@ -54,7 +54,7 @@
  *   starred member (OPTIONAL *T, or a by-value-in-Go recursion break whose
  *     Flat slot is a pointer): nil -> the slot stays NULL; else allocStruct
  *     + fill. A NON-optional starred slot decoding to NULL is E_INTERNAL
- *     (App. G.2 last row).
+ *     (see go_glue_ref.c).
  *   unstarred ref/nested: fill in place at the slot.
  *   a SEQ-OF-shaped target (FLT_SEQOF node or nested seqof member): the
  *     {items,count} header is inline; the item array is one allocStruct
@@ -595,7 +595,7 @@ go_glue_emit(const char *go_outdir, const char *go_module_basename,
         }
 
         /* the glue-local layout consts for FOREIGN nodes this package emits
-         * fn copies of (App. G keeps layout.go consts unexported; the
+         * fn copies of (layout.go consts stay unexported; the
          * self-contained glue re-declares them locally; colloquial names:
          * same const spelling, local package scope — no collision because
          * the owning decl never crosses packages). */

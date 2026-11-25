@@ -47,7 +47,7 @@
  * cell). alt_msg: the alt payload's own type identifier ("" when the
  * payload is not a named message type of this spec).
  * id_gov/crit_gov: the governing Go type NAME of the class's id and
- * criticality columns (R2 of each column's declared type — the same
+ * criticality columns (GoName of each column's declared type — the same
  * resolution the envelope members use); the ctor layer resolves consts
  * BY GOVERNING TYPE, never by a name shape. crit_gov NULL = the
  * class declares no criticality column (constructors omit the field).

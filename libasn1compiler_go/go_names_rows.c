@@ -25,9 +25,10 @@ go_kind_is_package_scoped(go_kind_e k) {
 }
 
 /* ------------------------------------------------------------------------- */
-/* R2 transform: split the C identifier on '_', upper-case the first
- * char of each segment, join. Everything else passes through verbatim. Mirrors
- * the name-distribution check — no curation, no aliasing.
+/* GoName transform (go_cid_to_go_name): split the C identifier on '_',
+ * upper-case the first char of each segment, join. Everything else passes
+ * through verbatim. Mirrors the name-distribution check — no curation, no
+ * aliasing.
  *
  *   shortName_Field          -> ShortNameField
  *   ProtocolIE_ID_id_Cause   -> ProtocolIEIDIdCause
@@ -40,12 +41,12 @@ go_kind_is_package_scoped(go_kind_e k) {
  * asn1c_prefix() (the ASN1C_PREFIX env var, asn1c_misc.c:42-49) to every C
  * identifier, so a prefixed RUN's rawCids all start with the prefix. Go names
  * are computed WITHOUT the prefix (Go namespacing is by package), so
- * R2 strips the run prefix BEFORE the segment pass — rawCid keeps the real
+ * it strips the run prefix BEFORE the segment pass — rawCid keeps the real
  * prefixed .h token, goName is prefix-free (as in an unprefixed
  * run). Without ASN1C_PREFIX asn1c_prefix() is "" and this is the identity
  * (all name-walk steps ran unprefixed; nothing changes for them). */
 char *
-go_r2(const char *cid) {
+go_cid_to_go_name(const char *cid) {
     const char *prefix = asn1c_prefix();
     size_t plen = prefix ? strlen(prefix) : 0;
     if(cid && plen && strncmp(cid, prefix, plen) == 0)
@@ -144,13 +145,13 @@ char *go_cid_compound(const char *a, const char *sep, const char *b) {
 /* ------------------------------------------------------------------------- */
 /* Hyphen-clash spelling (the rule of go_list_suffix, applied to the sibling
  * lists of SEQUENCE fields / CHOICE alternatives, to the type names of one
- * module and to the value names of one module). go_r2 drops every '_', so
+ * module and to the value names of one module). go_cid_to_go_name drops every '_', so
  * `a1` and `a-1` (C tokens `a1`, `a_1`) would both become `A1`. Only a
  * member that clashes AND has a '_' directly followed by a digit uses the
  * alternative spelling, which keeps that '_' (`A_1`); every other name is
- * the plain go_r2 spelling, byte for byte. */
+ * the plain go_cid_to_go_name spelling, byte for byte. */
 
-/* alt spelling of a C token: go_r2, but a '_' directly before a digit stays */
+/* alt spelling of a C token: go_cid_to_go_name, but a '_' directly before a digit stays */
 char *
 go_alt_spell(const char *cid) {
     const char *prefix = asn1c_prefix();
@@ -221,7 +222,7 @@ value_type_ref_name(asn1p_expr_t *v) {
 static char *
 clash_key(asn1p_expr_t *m, int kind) {
     char *cid = go_own(GO_MKID(m));
-    char *r = go_r2(cid);
+    char *r = go_cid_to_go_name(cid);
     free(cid);
     if(kind == 1) {
         r = go_str_append(r, "\x01");
@@ -279,12 +280,12 @@ clash_has_other(struct clash_set *cs, const char *key) {
         && strcmp(cs->keys[lo + 1], key) == 0;
 }
 
-/* Go name of a top-level type assignment: go_r2(MKID(t)), or the alt
+/* Go name of a top-level type assignment: go_cid_to_go_name(MKID(t)), or the alt
  * spelling when it clashes with another type of its module (`T1`/`T-1`). */
 char *
 go_type_go(asn1p_expr_t *t) {
     char *cid = go_own(GO_MKID(t));
-    char *norm = go_r2(cid);
+    char *norm = go_cid_to_go_name(cid);
     if(go_has_us_digit(cid) && !t->parent_expr && t->module
        && clash_member(t, 0)
        && clash_has_other(clash_get(t->module, 0), norm)) {
@@ -310,7 +311,7 @@ go_value_go(asn1p_expr_t *gov, asn1p_expr_t *val) {
             seg = go_alt_spell(vc);
         free(key);
     }
-    if(!seg) seg = go_r2(vc);
+    if(!seg) seg = go_cid_to_go_name(vc);
     head = go_str_append(head, seg);
     free(seg);
     free(vc);

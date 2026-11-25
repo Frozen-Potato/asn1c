@@ -180,7 +180,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         /* inline ENUMERATED: its enumerators become enum-const rows under the
          * inline name (the real .h: `typedef enum <P>__<member> { <P>__<member>_
          * <enumerator> }`). asn1c compounds the parent cIdent into both the enum
-         * and every enumerator cIdent, so R2 of the compounded enumerator is the
+         * and every enumerator cIdent, so GoName of the compounded enumerator is the
          * full `<P><Member><Enumerator>` const declared. Go_walk does
          * NOT descend here (it classifies the member terminal without recursing),
          * but ENUMERATED IS a supported terminal — naming it stays within the
@@ -293,7 +293,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             free(selem);
         }
         /* Flat: the inline SEQ OF member rides the nested node minted above
-         * (flat_nest_ix): A2 {items,count} nested, behind the member
+         * (flat_nest_ix): {items,count} nested, behind the member
          * star when OPTIONAL. go_flat_member_seqof re-mints the {items,count}
          * shape into that node (the node's FLT_STRUCT rep is replaced at
          * layout by the seqof shape: nested seqof nodes lay out 16/8). */
@@ -373,9 +373,9 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
             char *path = strdup(parent_path);
             go_emit_name(ctx->bag, ctx->module, path, GK_INLINE, raw, go);
             /* slice stage (container element resolution): the container slice's ELEMENT is
-             * R2(X) — the field-shaped payload the container holds — which
+             * GoName(X) — the field-shaped payload the container holds — which
              * go_slice_element_type resolves to exactly (the chased terminal
-             * IS the field-shaped clone named R2(X); same one-resolver rule
+             * IS the field-shaped clone named GoName(X); same one-resolver rule
              * as every slice shape). Attached to the inline row just
              * emitted (no row between it and here). */
             {
@@ -399,7 +399,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
                 go_row_set_field_type_at(ctx->bag, field_row_ix, ft);
                 free(ft);
             }
-            /* Flat (A2 collapse): the container CLONE is a
+            /* Flat (collapsed container): the container CLONE is a
              * struct Flat named by the clone's own cid (the asn1c
              * <ProtocolIE_Container_85P0> id, GO_MKID of the clone expr
              * carries the _<N>P<n> suffix), holding {<ItemIEs>_flat *items;
@@ -408,7 +408,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
              * protocolIEs` shape — a BARE name, no run prefix on clone
              * family names). The ItemIEs element cid:
              * go_slice_element_type's chase target == the field-shaped clone
-             * (R2(X)); the C id is that clone's own GO_MKID. */
+             * (GoName(X)); the C id is that clone's own GO_MKID. */
             {
                 asn1p_expr_t *fterm = elem;
                 if(elem->expr_type == A1TC_REFERENCE
@@ -444,7 +444,7 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
      * assignment — leaf OR constructed — is typed by that assignment's named
      * Go type) or the inline construct itself (mapping-table Go column):
      *   a REFERENCE member — the chased terminal assignment's own Go name
-     *     (R2(MKID(terminal)); a field-shaped specialization is named R2(X)
+     *     (GoName(MKID(terminal)); a field-shaped specialization is named GoName(X)
      *     — the spec-key — the same form: X IS the clone's Identifier by the
      *     time the chase lands on it). Stored UNQUALIFIED; the post-walk
      *     prepass (go_qualify_field_types) applies cross-module
@@ -465,12 +465,12 @@ walk_names_child_inner(struct walk_ctx *ctx, asn1p_expr_t *child,
         ft = go_str_append(ft, tgo);
         go_row_set_field_type(ctx->bag, ft);
         /* Flat: a named-ref member slot (tk SEQ OF with no container clone =
-         * the nested {items,count} A2 form; anything else = the terminal's
+         * the nested {items,count} form; anything else = the terminal's
          * own <X>_flat, starred as decided). */
         if(tk == GO_CONSTR_SEQUENCE_OF && terminal->spec_index >= 0
            && !plain_clone(ctx, terminal)) {
             /* a param-container CLONE: the Flat is the nested
-             * {items,count} A2 form (the clone never surfaces as a named
+             * {items,count} form (the clone never surfaces as a named
              * Flat of its own). */
             asn1p_expr_t *selem = TQ_FIRST(&terminal->members);
             asn1p_expr_t *sterm = selem;
@@ -632,7 +632,7 @@ go_walk_names_members(struct walk_ctx *ctx, asn1p_expr_t *parent,
     asn1p_expr_t *child;
     TQ_FOR(child, &(parent->members), next) {
         /* Extension marker "..." (A1TC_EXTENSIBLE, Identifier "...") carries no
-         * Go name — GO_MKID collapses it to "_" and go_r2 to "" — and it is not a
+         * Go name — GO_MKID collapses it to "_" and go_cid_to_go_name to "" — and it is not a
          * real struct member. go_emit_choice (go_names.c) and go_emit_enum skip it in
          * their alt loops; the SEQUENCE-member walk must too, or every extensible
          * SEQUENCE leaks a blank-goName field row that no name check legitimately
@@ -714,7 +714,7 @@ go_walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
        || expr->meta_type == AMT_VALUESET)
         return 0;
 
-    /* Type assignment: one `type` row. goName = R2(MKID(expr)) (a reference
+    /* Type assignment: one `type` row. goName = GoName(MKID(expr)) (a reference
      * assignment mints its OWN named Go type — not chased to terminal). */
     char *type_go = go_type_go(expr);
     char *type_cid = go_own_mkid(expr);   /* real asn1c C-ident of this assignment */
@@ -737,7 +737,7 @@ go_walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
      * placement is instead: a container/template clone that is NOT field-shaped
      * emits no name at all (the clone's args — the bound ItemIEs / list element
      * — mint their own names in their defining module during their own walks),
-     * and a field-shaped clone mints R2(X) in X's module (see go_emit_spec below).
+     * and a field-shaped clone mints GoName(X) in X's module (see go_emit_spec below).
      * `spec_index >= 0` marks a clone (a hand-authored top-level assignment keeps
      * spec_index == -1 via the lhs_params check). A plain_clone (T{X} ::=
      * SEQUENCE { v X } as T{INTEGER}) is the exception: it is named like any
@@ -756,7 +756,7 @@ go_walk_names_expr(struct walk_ctx *ctx, asn1p_expr_t *expr) {
     }
 
     /* a field-shaped specialization (SEQUENCE with an open-type &Value
-     * member) is named as R2(X)+Value+ValuePr, NOT as a plain struct. It
+     * member) is named as GoName(X)+Value+ValuePr, NOT as a plain struct. It
      * carries no ordinary top-level type name of its own in the index (the
      * spec-key row IS its "type" name). Handle before the generic SEQUENCE walk
      * so the spec rows (not a colliding `type` + member `field` rows) win. */

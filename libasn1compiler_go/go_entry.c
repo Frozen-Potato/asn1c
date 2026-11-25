@@ -98,7 +98,7 @@ entry_encode(void *rt, const char *fbasename, const char *tbasename,
     { char *_cf = go_cfmt("    if (!tree) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", NULL, NULL);\n\n", label); s = go_ca(s, _cf); free(_cf); }
     { char *_cf = go_cfmt("    if (%s_to_tree(in, tree, err)) {\n", tbasename); s = go_ca(s, _cf); free(_cf); }
     { char *_cf = go_cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n        return err->code;\n    }\n\n", eb); s = go_ca(s, _cf); free(_cf); }
-    /* constraints with the pinned errbuf API (the ASSUMPTION A4 form). */
+    /* constraints with the errbuf API of asn_check_constraints(). */
     s = go_ca(s, "    char cerr[256];\n    size_t cerrlen = sizeof(cerr);\n");
     { char *_cf = go_cfmt("    if (asn_check_constraints(&asn_DEF_%s, tree, cerr, &cerrlen) != 0) {\n", eb); s = go_ca(s, _cf); free(_cf); }
     { char *_cf = go_cfmt("        ASN_STRUCT_FREE(asn_DEF_%s, tree);\n", eb); s = go_ca(s, _cf); free(_cf); }

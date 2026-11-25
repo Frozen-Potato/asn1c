@@ -78,7 +78,7 @@ typedef struct {
     char *alt_token;     /* the value-union member token */
     char *alt_msg;       /* the alt payload's own cid ("" = not a named msg) */
     int is_envelope;     /* procedure-dispatch envelope (InitiatingMessage/...) */
-    char *id_gov;        /* governing Go type of the id column (R2 of its
+    char *id_gov;        /* governing Go type of the id column (GoName of its
                           * declared type; "" = unresolvable) */
     char *crit_gov;      /* governing Go type of the criticality column, or
                           * NULL when the class declares no &criticality */

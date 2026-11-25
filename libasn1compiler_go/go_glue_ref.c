@@ -136,7 +136,7 @@ go_emit_ref(ectx *E, flat_member *m, flat_type *r) {
                 "\t\t%s = (*%s)(&%s)\n\t}\n",
                 slot, tn, rb, stride, acc, nname, tn));
             /* sizing: the starred header itself is one 16B fixed-region
-             * struct; nil/empty both count 0 via size<Seq>Items (App. G.2) */
+             * struct; nil/empty both count 0 via size<Seq>Items */
             (*E->szt) = go_gam((*E->szt), go_gfmt(
                 "\tif %s != nil {\n\t\tfixed += uintptr(16)\n\t\tif err := size%sItems(&fixed, &payload, %s%s); err != nil {\n\t\t\treturn 0, 0, err\n\t\t}\n\t}\n",
                 acc, rb, dacc, go_hdf_size(E, er ? er : r)));
