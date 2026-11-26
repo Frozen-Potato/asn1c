@@ -1,3 +1,9 @@
+0.9.29-go.19 (unreleased):
+    * Go backend: asn1c crashed (segmentation fault) generating Go for an
+      open type whose object set has no object (`ExtIEs IE ::= { ... }`,
+      common for extension containers). The value union of such an open
+      type now has only its Present field.
+
 0.9.29-go.18:
     * C runtime (BER): an explicit tag with an indefinite length around a
       value with a definite length (A0 80 02 01 07 00 00 for [0] EXPLICIT

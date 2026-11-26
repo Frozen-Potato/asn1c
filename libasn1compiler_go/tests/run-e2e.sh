@@ -379,6 +379,65 @@ EOS
     ) || { echo "run-e2e: -pdu=Inst: go build failed" >&2; return 1; }
 }
 
+# An open type whose object set has no object (`ExtIEs IE ::= { ... }`, the
+# usual extension container) made asn1c crash in the Go pass. Such a value
+# union has only its Present field; a message without such values encodes
+# and decodes, and one with a value fails to encode.
+run_empty_object_set() {
+    echo "== run-e2e: empty object set =="
+    work="$tmp/emptyset"
+    mkdir -p "$work/c"
+    cat >"$work/emptyset.asn" <<'EOS'
+ES DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+IE ::= CLASS { &id INTEGER (0..65535) UNIQUE, &Value } WITH SYNTAX { ID &id TYPE &Value }
+Field {IE : Set} ::= SEQUENCE { id IE.&id ({Set}), value IE.&Value ({Set}{@id}) }
+Container {IE : Set} ::= SEQUENCE (SIZE (1..4)) OF Field {{Set}}
+ExtIEs IE ::= { ... }
+Direct ::= SEQUENCE { id IE.&id ({ExtIEs}), value IE.&Value ({ExtIEs}{@id}) }
+Msg ::= SEQUENCE { a INTEGER (0..7), ext Container {{ExtIEs}} OPTIONAL, d SEQUENCE (SIZE (0..2)) OF Direct, ... }
+END
+EOS
+    cat >"$work/emptyset_test.go" <<'EOS'
+package e2e
+
+import (
+	"testing"
+
+	es "asn1cgo.test/go/es"
+)
+
+func TestEmptyObjectSet(t *testing.T) {
+	m := &es.Msg{A: 5}
+	b, err := m.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := es.DecodeMsg(b)
+	if err != nil || d.A != 5 || d.Ext != nil || len(d.D) != 0 {
+		t.Fatalf("%+v %v", d, err)
+	}
+	m.D = []es.Direct{{Id: 1}}
+	if _, err := m.Encode(); err == nil {
+		t.Fatal("a value of an empty object set encoded")
+	}
+}
+EOS
+    (
+        cd "$work"
+        ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+        "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+            -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+            -pdu=auto -D "$work/c" -Fgo="$work/go" "$work/emptyset.asn"
+    ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: empty object set: asn1c failed" >&2; return 1; }
+    cp "$work/emptyset_test.go" "$work/go/"
+    (
+        cd "$work/go"
+        export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
+        go vet ./...
+        go test -count=1 .
+    ) || { echo "run-e2e: empty object set: go test failed" >&2; return 1; }
+}
+
 # With -Fgo a failed run leaves -D as it was: a Go refusal after the C pass
 # (the -gen-JER name clash) and a C-pass failure (a directory where a .c file
 # goes) restore every replaced file and remove every created one; a
@@ -760,6 +819,7 @@ run_jer_clash
 run_uper_clash
 run_ctor_clash
 run_pdu_select
+run_empty_object_set
 run_post_c_restore
 run_outdir_safety
 run_oneway

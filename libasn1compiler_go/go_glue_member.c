@@ -324,6 +324,7 @@ go_emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
         free(poffc);
     }
 
+    size_t fill_sw = strlen(*E->fill);   /* start of the fill switch */
     (*E->fill) = go_gam((*E->fill), go_gfmt("\tswitch c.Present {\n"));
     (*E->szt) = go_ga((*E->szt), "\t{\n");
     (*E->szt) = go_gam((*E->szt), go_gfmt("\tcs := *%s\n", pv));
@@ -494,6 +495,25 @@ go_emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
         free(el);
     }
     (*E->fill) = go_ga((*E->fill), "\t}\n\t}\n");
+    /* No alternative at all (the value union of an empty object set,
+     * `{ ... }`): every arm of that switch returns, which makes the
+     * members after it unreachable (go vet). Spell the same two errors as
+     * two plain ifs instead. */
+    int n_arms = 0;
+    for(const char *q = strstr(*E->fill + fill_sw, "\tcase "); q;
+        q = strstr(q + 1, "\tcase "))
+        n_arms++;
+    const char *nothing = gf_pr_nothing(prtype_q);
+    if(n_arms <= (nothing ? 1 : 0)) {
+        char *eln = go_errlit(ch, "", "CodeChoiceNothing", "present == NOTHING");
+        char *elb = go_errlit(ch, "", "CodeChoiceBad", "present out of range");
+        (*E->fill)[fill_sw] = '\0';
+        (*E->fill) = go_gam((*E->fill), go_gfmt(
+            "\tif c.Present == %s {\n\t\treturn &%s\n\t}\n"
+            "\tif c.Present != %s {\n\t\treturn &%s\n\t}\n\t}\n",
+            nothing ? nothing : "0", eln, nothing ? nothing : "0", elb));
+        free(eln); free(elb);
+    }
     (*E->read) = go_ga((*E->read), "\t}\n");
     rebalance_switch(E->szt);
     (*E->szt) = go_ga((*E->szt), "\t}\n\t}\n");

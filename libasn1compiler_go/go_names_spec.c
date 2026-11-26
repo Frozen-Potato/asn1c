@@ -345,12 +345,11 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
     arg.ns = ctx->ns;
     arg.expr = seq_terminal;
     asn1c_ioc_table_and_objset_t ioc = asn1c_get_ioc_table(&arg);
-    if(!ioc.ioct || ioc.ioct->rows == 0) {
-        /* No object rows: emit PrNothing only (matches a value union with no
-         * alternatives, e.g. SingleContainer of an empty set). */
-        emit_value_pr_nothing(ctx, x_go, x_cid, parent_path);
-        return;
-    }
+    /* No object rows (an empty set, `{ ... }`): the C value union still has
+     * its `present` member (asn1c_lang_C_type_CHOICE emits it for zero
+     * alternatives too), so the Present field and the flat present member
+     * below are emitted as for any set; only the alt loop is skipped. */
+    int no_rows = (!ioc.ioct || ioc.ioct->rows == 0);
 
     /* The open-type member decides WHICH class-field column holds the alts.
      * ProtocolIE-Field's value member references &Value; an envelope's value
@@ -370,7 +369,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
                  valmember->reference->components[1].name);
     }
     ssize_t col = -1;
-    for(size_t c = 0; c < ioc.ioct->row[0]->columns; c++) {
+    for(size_t c = 0; !no_rows && c < ioc.ioct->row[0]->columns; c++) {
         if(ioc.ioct->row[0]->column[c].field
            && ioc.ioct->row[0]->column[c].field->Identifier
            && strcmp(ioc.ioct->row[0]->column[c].field->Identifier, wantcol) == 0) {
@@ -379,7 +378,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         }
     }
     (void)arg;
-    if(col < 0) {
+    if(col < 0 && !no_rows) {
         emit_value_pr_nothing(ctx, x_go, x_cid, parent_path);
         return;
     }
@@ -467,7 +466,7 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
      * PR_ErrorIndication = 23 (row 23 of an ELEMENTARY-PROCEDURES set) while
      * procedureCode(id-ErrorIndication) = 2 — InitiatingMessage.h:88-110. */
     int value_seq = 0;
-    for(size_t r = 0; r < ioc.ioct->rows; r++) {
+    for(size_t r = 0; !no_rows && r < ioc.ioct->rows; r++) {
         struct asn1p_ioc_cell_s *cell = &ioc.ioct->row[r]->column[col];
         if(!cell->value || !cell->value->Identifier)
             continue;
