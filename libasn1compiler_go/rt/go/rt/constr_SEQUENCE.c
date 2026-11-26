@@ -505,6 +505,23 @@ SEQUENCE_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 		}
 		if(n == opt_edx_end) {
 			/*
+			 * An open type without a tag of its own takes the TLV of
+			 * an id its object set does not know, whatever its tag, when
+			 * it has the unknown alternative (-fopen-type-unknown).
+			 */
+			size_t u;
+			for(u = edx; u < opt_edx_end; u++) {
+				if(elements[u].tag == (ber_tlv_tag_t)-1
+				   && (elements[u].flags & ATF_OPEN_TYPE)
+				   && OPEN_TYPE_has_unknown(elements[u].type)) {
+					edx = u;
+					ctx->step = 1 + 2 * edx;
+					goto microphase2;
+				}
+			}
+		}
+		if(n == opt_edx_end) {
+			/*
 			 * If tag is unknown, it may be either
 			 * an unknown (thus, incorrect) tag,
 			 * or an extension (...),

@@ -1,0 +1,36 @@
+
+-- OK: with -fopen-type-unknown, an open type value whose identifier is not
+-- in the extensible object set that governs it (X.681 14.10) is kept as
+-- received (the <T>_PR_unknown alternative, OPEN_TYPE_raw_t) and encoded
+-- again verbatim with the same codec. A closed set still refuses it.
+
+K193 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+IE ::= CLASS { &id INTEGER (0..65535) UNIQUE, &Value }
+    WITH SYNTAX { ID &id TYPE &Value }
+
+IEs IE ::= { { ID 1 TYPE INTEGER (0..255) } | { ID 2 TYPE OCTET STRING }, ... }
+EIEs IE ::= { ... }
+CIEs IE ::= { { ID 1 TYPE INTEGER (0..255) } }
+
+Field ::= SEQUENCE { id IE.&id ({IEs}), value IE.&Value ({IEs}{@id}) }
+FieldE ::= SEQUENCE { id IE.&id ({EIEs}), value IE.&Value ({EIEs}{@id}) }
+FieldC ::= SEQUENCE { id IE.&id ({CIEs}), value IE.&Value ({CIEs}{@id}) }
+
+Msg ::= SEQUENCE { a INTEGER (0..7), f Field, b BOOLEAN }
+MsgE ::= SEQUENCE { f SEQUENCE (SIZE(0..4)) OF FieldE }
+MsgC ::= SEQUENCE { f FieldC }
+
+END
+
+K193b DEFINITIONS ::= BEGIN
+
+IE2 ::= CLASS { &id INTEGER (0..65535) UNIQUE, &Value }
+    WITH SYNTAX { ID &id TYPE &Value }
+
+UIEs IE2 ::= { { ID 1 TYPE INTEGER }, ... }
+
+-- the value has no tag of its own: BER keeps the TLV of the value itself
+MsgU ::= SEQUENCE { id IE2.&id ({UIEs}), value IE2.&Value ({UIEs}{@id}) }
+
+END

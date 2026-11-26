@@ -7,6 +7,7 @@
 
 ANY.h ANY.c OCTET_STRING.h
 OPEN_TYPE.h OPEN_TYPE.c constr_CHOICE.h
+OPEN_TYPE_raw.h OPEN_TYPE_raw.c OCTET_STRING.h ber_tlv_length.h ber_tlv_tag.h
 BMPString.h BMPString.c UTF8String.h OCTET_STRING.h
 BOOLEAN.h BOOLEAN.c
 ENUMERATED.h ENUMERATED.c INTEGER.h NativeEnumerated.h

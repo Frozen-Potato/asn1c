@@ -29,6 +29,13 @@ extern asn_TYPE_operation_t asn_OP_OPEN_TYPE;
  * Decode an Open Type which is potentially constraiend
  * by the other members of the parent structure.
  */
+/*
+ * Nonzero when the open type CHOICE td ends with the alternative that
+ * keeps the value of an id its object set does not know
+ * (asn1c -fopen-type-unknown, OPEN_TYPE_raw.h).
+ */
+int OPEN_TYPE_has_unknown(const asn_TYPE_descriptor_t *td);
+
 asn_dec_rval_t OPEN_TYPE_ber_get(const asn_codec_ctx_t *opt_codec_ctx,
                                  const asn_TYPE_descriptor_t *parent_type,
                                  void *parent_structure,

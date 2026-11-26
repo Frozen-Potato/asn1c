@@ -70,6 +70,7 @@ libasn1cskeletons_la_SOURCES =                  \
     OCTET_STRING_jer.c                          \
     OPEN_TYPE.c OPEN_TYPE.h OPEN_TYPE_oer.c     \
     OPEN_TYPE_jer.c                             \
+    OPEN_TYPE_raw.c OPEN_TYPE_raw.h             \
     ObjectDescriptor.c ObjectDescriptor.h       \
     PrintableString.c PrintableString.h         \
     REAL.c REAL.h                               \

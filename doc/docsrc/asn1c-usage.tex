@@ -549,6 +549,11 @@ manually. }\\
 {\ttfamily -fno-constraints} & {\small Do not generate the ASN.1 subtype constraint checking code. This
 may produce a shorter executable.}\\
 {\ttfamily -fno-include-deps} & {\small Do not generate the courtesy \#include lines for non-critical dependencies.}\\
+{\ttfamily -fopen-type-unknown} & {\small Keep an open type value whose identifier is not in the
+extensible object set that governs it as the extra alternative
+\texttt{<T>\_PR\_unknown} (the octets as received and the codec that
+decoded them) instead of failing to decode it; it encodes again unchanged
+with that codec only.}\\
 {\ttfamily -funnamed-unions} & {\small Enable  unnamed  unions in the definitions of target language's structures.}\\
 {\ttfamily -fwide-types} & {\small Use the wide integer types (INTEGER\_t, REAL\_t) instead of machine's native data types (long, double). }\\\\
 \textbf{Codecs Generation Options} & \textbf{Description}\\

@@ -30,6 +30,7 @@ struct c_names c_name(arg_t *);
 struct c_names c_expr_name(arg_t *, asn1p_expr_t *);
 const char *c_member_name(arg_t *, asn1p_expr_t *);     /* %s_%s */
 const char *c_presence_name(arg_t *, asn1p_expr_t *);   /* %s_PR_%s */
+const char *c_presence_unknown_name(arg_t *);   /* %s_PR_unknown */
 
 const char *c_names_format(struct c_names); /* For debugging */
 

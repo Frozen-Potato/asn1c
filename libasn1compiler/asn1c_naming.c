@@ -321,6 +321,17 @@ c_presence_name(arg_t *arg, asn1p_expr_t *expr) {
     return ab.buffer;
 }
 
+/* <T>_PR_unknown of an open type CHOICE (-fopen-type-unknown) */
+const char *
+c_presence_unknown_name(arg_t *arg) {
+    static abuf ab;
+
+    abuf_clear(&ab);
+    abuf_str(&ab, asn1c_prefix());
+    abuf_printf(&ab, "%s_PR_unknown", c_name_impl(arg, arg->expr, 0).base_name);
+    return ab.buffer;
+}
+
 const char *
 c_names_format(struct c_names ns) {
     static abuf nbuf;

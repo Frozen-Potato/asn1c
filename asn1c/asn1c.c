@@ -144,6 +144,8 @@ main(int ac, char **av) {
                 asn1_compiler_flags |= A1C_LINE_REFS;
             } else if(strcmp(optarg, "no-constraints") == 0) {
                 asn1_compiler_flags |= A1C_NO_CONSTRAINTS;
+            } else if(strcmp(optarg, "open-type-unknown") == 0) {
+                asn1_compiler_flags |= A1C_OPEN_TYPE_UNKNOWN;
             } else if(strcmp(optarg, "no-include-deps") == 0) {
                 asn1_compiler_flags |= A1C_NO_INCLUDE_DEPS;
             } else if(strcmp(optarg, "includes-quoted") == 0) {
@@ -692,6 +694,7 @@ usage(const char *av0) {
 "  -fline-refs           Include ASN.1 module's line numbers in comments\n"
 "  -fno-constraints      Do not generate the constraint checking code\n"
 "  -fno-include-deps     Do not generate the courtesy #includes for dependencies\n"
+"  -fopen-type-unknown   Keep open type values of unknown id (extensible sets)\n"
 "  -funnamed-unions      Enable unnamed unions in structures\n"
 "  -fwide-types          Use INTEGER_t instead of \"long\" by default, etc.\n"
 "\n"

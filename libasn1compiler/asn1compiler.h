@@ -103,6 +103,14 @@ enum asn1c_flags {
 	 * -gen-JER
 	 */
 	A1C_GEN_JER = 0x800000,
+
+	/*
+	 * Keep an open type value whose identifier is not in the extensible
+	 * object set that governs it (X.681 14.10) as the extra alternative
+	 * <T>_PR_unknown (OPEN_TYPE_raw_t) instead of failing to decode it.
+	 * -fopen-type-unknown
+	 */
+	A1C_OPEN_TYPE_UNKNOWN = 0x1000000,
 };
 
 /*

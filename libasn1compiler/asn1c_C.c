@@ -1081,8 +1081,10 @@ asn1c_lang_C_type_CHOICE(arg_t *arg) {
 	OUT("typedef %s {\n", c_name(arg).presence_enum);
 	INDENTED(
 		int skipComma = 1;
+		int ot_unknown = (expr->_mark & TM_OTUNKNOWN) ? 1 : 0;
 		OUT("%s", c_presence_name(arg, 0));
-		OUT("%s\t/* No components present */\n", !TQ_FIRST(&(expr->members)) ? "" : ",");
+		OUT("%s\t/* No components present */\n",
+			(!TQ_FIRST(&(expr->members)) && !ot_unknown) ? "" : ",");
 		TQ_FOR(v, &(expr->members), next) {
 			if(skipComma) skipComma = 0;
 			else if (v->expr_type == A1TC_EXTENSIBLE && !TQ_NEXT(v, next)) OUT("\n");
@@ -1093,6 +1095,11 @@ asn1c_lang_C_type_CHOICE(arg_t *arg) {
 				continue;
 			}
             OUT("%s", c_presence_name(arg, v));
+		}
+		if(ot_unknown) {
+			/* -fopen-type-unknown: an id the object set does not know */
+			if(TQ_FIRST(&(expr->members))) OUT(",\n");
+			OUT("%s", c_presence_unknown_name(arg));
 		}
 		OUT("\n");
 	);
@@ -1122,6 +1129,8 @@ asn1c_lang_C_type_CHOICE(arg_t *arg) {
 		TQ_FOR(v, &(expr->members), next) {
 			EMBED(v);
 		}
+		if(expr->_mark & TM_OTUNKNOWN)
+			INDENTED(OUT("OPEN_TYPE_raw_t\t unknown;\n"));
 		if(UNNAMED_UNIONS)	OUT("};\n");
 		else			OUT("} choice;\n");
 	);
@@ -1201,6 +1210,13 @@ asn1c_lang_C_OpenType(arg_t *arg, asn1c_ioc_table_and_objset_t *opt_ioc,
         asn1p_expr_add(open_type_choice, m);
     }
 
+    if((arg->flags & A1C_OPEN_TYPE_UNKNOWN) && opt_ioc->ioct->extensible) {
+        /* X.681 14.10: an extensible set may carry ids this module does not
+         * know; keep such a value as received (OPEN_TYPE_raw) */
+        open_type_choice->_mark |= TM_OTUNKNOWN;
+        GEN_INCLUDE_STD("OPEN_TYPE_raw");
+    }
+
     tmp_arg.expr = open_type_choice;
     GEN_INCLUDE_STD("OPEN_TYPE");
     asn1c_lang_C_type_CHOICE(&tmp_arg);
@@ -1220,6 +1236,7 @@ asn1c_lang_C_type_CHOICE_def(arg_t *arg) {
 	enum tvm_compat tv_mode;
 	int *cmap = 0;
 	int saved_target = arg->target->target;
+	int ot_unknown;
 
 	/*
 	 * Fetch every inner tag from the tag to elements map.
@@ -1238,7 +1255,8 @@ asn1c_lang_C_type_CHOICE_def(arg_t *arg) {
 	/*
 	 * Print out the table according to which parsing is performed.
 	 */
-	if(expr_elements_count(arg, expr)) {
+	ot_unknown = (expr->_mark & TM_OTUNKNOWN) ? 1 : 0;
+	if(expr_elements_count(arg, expr) || ot_unknown) {
 
 		if(!(expr->_type_referenced)) OUT("static ");
 		OUT("asn_TYPE_member_t asn_MBR_%s_%d[] = {\n",
@@ -1251,6 +1269,24 @@ asn1c_lang_C_type_CHOICE_def(arg_t *arg) {
 			emit_member_table(arg, v, NULL);
 			elements++;
 		});
+		if(ot_unknown) {
+			/* -fopen-type-unknown: the value of an id the object set does
+			 * not know, kept as received (last, after every row) */
+			INDENTED(
+			OUT("{ ATF_NOFLAGS, 0, offsetof(%s, %sunknown),\n",
+				c_name(arg).full_name, UNNAMED_UNIONS ? "" : "choice.");
+			INDENT(+1);
+			OUT("-1 /* Any tag: the id is not in the object set */,\n");
+			OUT("0,\n");
+			OUT("&asn_DEF_OPEN_TYPE_raw,\n");
+			OUT("0,\n");
+			OUT("{ 0, 0, 0, 0 },\n");
+			OUT("0, 0, /* No default value */\n");
+			OUT("\"unknown\"\n");
+			OUT("},\n");
+			INDENT(-1);
+			);
+		}
 		OUT("};\n");
 	} else {
 		elements = 0;
@@ -1266,6 +1302,7 @@ asn1c_lang_C_type_CHOICE_def(arg_t *arg) {
                 if(i) OUT(",");
                 OUT(" %d", cmap[i]);
             }
+            if(ot_unknown) OUT(", %d", elements);
             OUT(" };\n");
             OUT("static const unsigned asn_MAP_%s_from_canonical_%d[] = {",
                 MKID(expr), expr->_type_unique_index);
@@ -1280,10 +1317,12 @@ asn1c_lang_C_type_CHOICE_def(arg_t *arg) {
                 }
                 assert(j < elements);
             }
+            if(ot_unknown) OUT(", %d", elements);
             OUT(" };\n");
             free(cmap);
         }
     }
+    elements += ot_unknown;   /* the unknown member is the last element */
 
 	if(arg->embed) {
 		/*
@@ -5051,6 +5090,50 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 	return 0;
 }
 
+/*
+ * -fopen-type-unknown: the number of alternatives of the open type CHOICE
+ * built over column `column` of the set (asn1c_lang_C_OpenType: one per
+ * distinct type, rows without one skipped). <T>_PR_unknown is one more.
+ */
+static int
+open_type_alt_count(const asn1c_ioc_table_and_objset_t *opt_ioc,
+                    size_t column) {
+    int n = 0;
+    for(size_t row = 0; row < opt_ioc->ioct->rows; row++) {
+        const asn1p_expr_t *v = opt_ioc->ioct->row[row]->column[column].value;
+        size_t prev;
+        if(!v) continue;
+        for(prev = 0; prev < row; prev++) {
+            const asn1p_expr_t *pv =
+                opt_ioc->ioct->row[prev]->column[column].value;
+            if(pv && strcmp(pv->Identifier, v->Identifier) == 0) break;
+        }
+        if(prev == row) n++;
+    }
+    return n;
+}
+
+/*
+ * -fopen-type-unknown: when no object of the extensible set has the id,
+ * select <T>_PR_unknown (OPEN_TYPE_raw). An id that is in the set but whose
+ * object has no type keeps the decoding failure.
+ */
+static void
+emit_selector_unknown_fallback(arg_t *arg, int n_alts, const char *set_name) {
+    OUT("if(!result.presence_index) {\n");
+    INDENT(+1);
+    OUT("/* not an id of the extensible set %s: keep the value as received */\n", set_name);
+    OUT("for(row=0; row < itable->rows_count; row++) {\n");
+    OUT("    const asn_ioc_cell_t *constraining_cell = &itable->rows[row * itable->columns_count + constraining_column];\n");
+    OUT("    if(constraining_cell->type_descriptor->op->compare_struct(constraining_cell->type_descriptor, constraining_value, constraining_cell->value_sptr) == 0)\n");
+    OUT("        return result;\n");
+    OUT("}\n");
+    OUT("result.type_descriptor = &asn_DEF_OPEN_TYPE_raw;\n");
+    OUT("result.presence_index = %d;\t/* _PR_unknown */\n", n_alts + 1);
+    INDENT(-1);
+    OUT("}\n");
+}
+
 static int
 emit_member_type_selector(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_objset_t *opt_ioc) {
 	int save_target = arg->target->target;
@@ -5177,8 +5260,32 @@ emit_member_type_selector(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_ob
             break;
         }
     }
+    int ot_unknown = (arg->flags & A1C_OPEN_TYPE_UNKNOWN)
+                     && opt_ioc->ioct->extensible;
     if(constraining_column < 0) {
-        if(opt_ioc->ioct->rows == 0) {
+        if(opt_ioc->ioct->rows == 0 && ot_unknown) {
+            /* an empty extensible set, { ... }: every id is unknown */
+            REDIR(OT_CODE);
+            OUT("static asn_type_selector_result_t\n");
+            OUT("select_%s_", c_name(arg).compound_name);
+            OUT("%s_type(const asn_TYPE_descriptor_t *parent_type, const void *parent_sptr) {\n", MKID(expr));
+            INDENT(+1);
+            OUT("asn_type_selector_result_t result = {0, 0};\n");
+            OUT("(void)parent_type;\n");
+            OUT("(void)parent_sptr;\n");
+            OUT("/* the extensible set %s has no object: keep every value as received */\n",
+                opt_ioc->objset->Identifier);
+            OUT("result.type_descriptor = &asn_DEF_OPEN_TYPE_raw;\n");
+            OUT("result.presence_index = 1;\t/* _PR_unknown */\n");
+            OUT("return result;\n");
+            INDENT(-1);
+            OUT("}\n");
+            OUT("\n");
+            REDIR(save_target);
+            OUT("select_%s_", c_name(arg).compound_name);
+            OUT("%s_type", MKID(expr));
+            return 0;
+        } else if(opt_ioc->ioct->rows == 0) {
             OUT("0");
             return 0;
         } else {
@@ -5375,6 +5482,10 @@ emit_member_type_selector(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_ob
       OUT("        break;\n");
       OUT("    }\n");
       OUT("}\n");
+      if(ot_unknown)
+        emit_selector_unknown_fallback(arg,
+          open_type_alt_count(opt_ioc, (size_t)for_column),
+          opt_ioc->objset->Identifier);
 
       OUT("\n");
       OUT("return result;\n");
@@ -5443,6 +5554,10 @@ emit_member_type_selector(arg_t *arg, asn1p_expr_t *expr, asn1c_ioc_table_and_ob
       OUT("        break;\n");
       OUT("    }\n");
       OUT("}\n");
+      if(ot_unknown)
+        emit_selector_unknown_fallback(arg,
+          open_type_alt_count(opt_ioc, (size_t)for_column),
+          opt_ioc->objset->Identifier);
 
 
       OUT("\n");

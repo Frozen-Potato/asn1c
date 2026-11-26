@@ -41,6 +41,16 @@ asn_TYPE_operation_t asn_OP_OPEN_TYPE = {
 #endif  /* !defined(ASN_DISABLE_JER_SUPPORT) */
 };
 
+int
+OPEN_TYPE_has_unknown(const asn_TYPE_descriptor_t *td) {
+	const asn_TYPE_member_t *last;
+	if(!td || !td->elements_count) return 0;
+	last = &td->elements[td->elements_count - 1];
+	/* by name: OPEN_TYPE.c does not depend on OPEN_TYPE_raw.c */
+	return last->type && last->type->name
+	       && strcmp(last->type->name, "OPEN_TYPE_raw") == 0;
+}
+
 #undef  ADVANCE
 #define ADVANCE(num_bytes)               \
     do {                                 \

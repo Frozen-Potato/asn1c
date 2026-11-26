@@ -111,6 +111,15 @@ and other encoding rules.
 :   Do not generate courtesy #include lines for non-critical type dependencies.
     Helps prevent namespace collisions.
 
+-fopen-type-unknown
+:   Keep an open type value whose identifier is not in the extensible
+    object set that governs it (`{ ..., ... }`: an id a newer version of
+    the module added, X.681 14.10) instead of failing to decode it. Such
+    an open type gets one more alternative, `<T>_PR_unknown`
+    (`OPEN_TYPE_raw_t unknown`: the octets as received and the codec that
+    decoded them), which encodes again unchanged with that codec only.
+    Closed object sets are not affected.
+
 -funnamed-unions
 :   Enable unnamed unions in the definitions of target language's structures.
 
