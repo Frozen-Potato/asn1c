@@ -229,6 +229,23 @@ go_emit_prim(ectx *E, flat_member *m) {
                 (*E->read) = go_gam((*E->read), go_gfmt("\t%s = readBytesField(%s)\n", acc, slot));
             }
         }
+    } else if(prim && strcmp(prim, "asn1cgo_raw_flat") == 0) {
+        /* the Unknown alternative of an open type (-fopen-type-unknown):
+         * Go *rt.OpenTypeRaw, an INLINE asn1cgo_raw_flat in the value union
+         * ({int64 codec at 0, asn1cgo_bytes_flat raw at 8}, rt/types.h
+         * asserts both). Selected alternatives are never nil here (the
+         * caller's arm tests that first). */
+        char *raws = go_gfmt("unsafe.Pointer(uintptr(%s) + 8)", slot);
+        char *sdn = go_gfmt("sd%d", g_go_tmpseq++);
+        (*E->fill) = go_gam((*E->fill), go_gfmt(
+            "\t*(*int64)(%s) = int64(%s.Codec)\n"
+            "\twriteBytesField(fa, %s, %s.Bytes)\n", slot, acc, raws, acc));
+        (*E->szt) = go_gam((*E->szt), go_gfmt(
+            "\tpayload += uintptr(len(%s.Bytes))\n", acc));
+        (*E->read) = go_gam((*E->read), go_gfmt(
+            "\t%s := rt.OpenTypeRaw{Codec: rt.Codec(*(*int64)(%s)), Bytes: readBytesField(%s)}\n"
+            "\t%s = &%s\n", sdn, slot, raws, acc, sdn));
+        free(raws); free(sdn);
     } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
         if(ft && *ft == '*') {
             /* the pointee: the star-stripped field-type spelling; a BARE

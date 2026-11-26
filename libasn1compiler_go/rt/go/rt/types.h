@@ -33,4 +33,18 @@ typedef struct asn1cgo_bits_flat {
     int32_t  bits_unused;  /* 0..7 in the final byte */
 } asn1cgo_bits_flat;
 
+/*
+ * The unknown alternative of an open type (asn1c -fopen-type-unknown): the
+ * value of an id the extensible object set does not know, as received.
+ * codec is OPEN_TYPE_raw_codec_e (OPEN_TYPE_raw.h), raw the octets.
+ */
+typedef struct asn1cgo_raw_flat {
+    int64_t            codec;
+    asn1cgo_bytes_flat raw;
+} asn1cgo_raw_flat;
+
+/* The Go glue writes the two members at these offsets. */
+_Static_assert(sizeof(asn1cgo_raw_flat) == 24, "sizeofRawFlat");
+_Static_assert(offsetof(asn1cgo_raw_flat, raw) == 8, "offRawFlatRaw");
+
 #endif /* ASN1CGO_RT_TYPES_H */

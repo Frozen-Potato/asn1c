@@ -1,0 +1,80 @@
+-- A newer version of otunknown.asn: the ids and the procedure it adds
+-- are the ones otunknown.asn does not know. Compiled without
+-- -fopen-type-unknown; otunknown_peer_test.go encodes the test vectors.
+OTUnknown DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+Criticality ::= ENUMERATED { reject, ignore, notify }
+
+IE ::= CLASS { &id INTEGER (0..65535) UNIQUE, &criticality Criticality, &Value }
+    WITH SYNTAX { ID &id CRITICALITY &criticality TYPE &Value }
+
+Field {IE : Set} ::= SEQUENCE {
+    id          IE.&id ({Set}),
+    criticality IE.&criticality ({Set}{@id}),
+    value       IE.&Value ({Set}{@id})
+}
+Container {IE : Set} ::= SEQUENCE (SIZE (1..8)) OF Field {{Set}}
+
+MsgIEs IE ::= {
+    { ID 1 CRITICALITY reject TYPE INTEGER (0..255) } |
+    { ID 2 CRITICALITY ignore TYPE INTEGER (0..255) } |
+    { ID 4 CRITICALITY reject TYPE Unknown } |
+    { ID 6 CRITICALITY notify TYPE BOOLEAN },
+    ...
+}
+ExtIEs IE ::= { { ID 9 CRITICALITY ignore TYPE INTEGER (0..9) }, ... }
+Closed IE ::= {
+    { ID 1 CRITICALITY reject TYPE INTEGER (0..255) } |
+    { ID 3 CRITICALITY reject TYPE INTEGER (0..255) }
+}
+
+Unknown ::= OCTET STRING
+
+Msg ::= SEQUENCE {
+    ies    Container {{MsgIEs}},
+    ext    Container {{ExtIEs}} OPTIONAL,
+    closed Container {{Closed}} OPTIONAL,
+    ...
+}
+
+EP ::= CLASS {
+    &InitiatingMessage,
+    &SuccessfulOutcome OPTIONAL,
+    &procedureCode     INTEGER (0..255) UNIQUE,
+    &criticality       Criticality DEFAULT ignore
+} WITH SYNTAX {
+    INITIATING MESSAGE &InitiatingMessage
+    [SUCCESSFUL OUTCOME &SuccessfulOutcome]
+    PROCEDURE CODE &procedureCode
+    [CRITICALITY &criticality]
+}
+
+ReqA ::= SEQUENCE { x INTEGER (0..7) }
+RespA ::= SEQUENCE { y BOOLEAN }
+ReqB ::= SEQUENCE { z OCTET STRING }
+
+EPs EP ::= {
+    { INITIATING MESSAGE ReqA SUCCESSFUL OUTCOME RespA
+      PROCEDURE CODE 1 CRITICALITY reject } |
+    { INITIATING MESSAGE ReqB SUCCESSFUL OUTCOME RespA
+      PROCEDURE CODE 9 CRITICALITY ignore },
+    ...
+}
+
+PDU ::= CHOICE {
+    initiatingMessage InitiatingMessage,
+    successfulOutcome SuccessfulOutcome,
+    ...
+}
+InitiatingMessage ::= SEQUENCE {
+    procedureCode EP.&procedureCode ({EPs}),
+    criticality   EP.&criticality ({EPs}{@procedureCode}),
+    value         EP.&InitiatingMessage ({EPs}{@procedureCode})
+}
+SuccessfulOutcome ::= SEQUENCE {
+    procedureCode EP.&procedureCode ({EPs}),
+    criticality   EP.&criticality ({EPs}{@procedureCode}),
+    value         EP.&SuccessfulOutcome ({EPs}{@procedureCode})
+}
+
+END

@@ -297,6 +297,8 @@ arm_nested_to(void *t, void *m, const char *in_acc, const char *out_acc);
  * is_choice). `in_sel`/`out_sel` = accessor of the CHOICE holder ("in" for
  * a node; "in-><tok>" for a nested wrapper). PR token base = the CHOICE
  * node's tree base. */
+static char *arm_prim_to(void *t, void *m, const char *in_acc,
+                         const char *out_acc);
 static char *choice_switch_to_deref(void *t, const char *in_sel,
                                     const char *out_sel, const char *deref);
 static char *
@@ -339,7 +341,14 @@ choice_switch_to_deref(void *t, const char *in_sel, const char *out_sel,
         if(go_flat_ir_member_is_prim(mtmp)) {
             const char *prim = go_flat_ir_member_prim(mtmp);
             { char *_cf = go_cfmt("    case %s:\n", pr); s = go_ca(s, _cf); free(_cf); }
-            if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
+            if(prim && strcmp(prim, "asn1cgo_raw_flat") == 0) {
+                /* the Unknown alternative (-fopen-type-unknown) */
+                char *ia = go_cfmt("%s%s%s", in_sel, deref, tok);
+                char *oa = go_cfmt("%s%schoice.%s", out_sel, deref, utok);
+                char *body = arm_prim_to(t, mtmp, ia, oa);
+                s = go_ca(s, body);
+                free(body); free(ia); free(oa);
+            } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0) {
                 {
                     char *_len = go_cfmt("%s%s%s.len", in_sel, deref, tok);
                     char *_ob = go_cfmt("%s%schoice.%s.buf", out_sel, deref, utok);
@@ -708,6 +717,19 @@ arm_prim_to(void *t, void *m, const char *in_acc, const char *out_acc) {
             s = go_ca(s, _cf); free(_cf); free(_fl); free(_ob); free(_ib); free(_len);
         }
         { char *_cf = go_cfmt("    %s.size = %s.len;\n    %s.bits_unused = (int)%s.bits_unused;\n", out_acc, in_acc, out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
+    } else if(prim && strcmp(prim, "asn1cgo_raw_flat") == 0) {
+        /* the Unknown alternative (-fopen-type-unknown): OPEN_TYPE_raw_t
+         * {long codec; OCTET_STRING_t raw} from {int64 codec; bytes raw} */
+        { char *_cf = go_cfmt("    %s.codec = (long)%s.codec;\n", out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
+        {
+            char *_len = go_cfmt("%s.raw.len", in_acc);
+            char *_ob = go_cfmt("%s.raw.buf", out_acc);
+            char *_ib = go_cfmt("%s.raw.buf", in_acc);
+            char *_fl = go_cfmt("\"%s\", \"%s\", NULL", label, mlab);
+            char *_cf = bytes_copy_blk("    ", 0, _len, _ob, _ib, _fl);
+            s = go_ca(s, _cf); free(_cf); free(_len); free(_ob); free(_ib); free(_fl);
+        }
+        { char *_cf = go_cfmt("    %s.raw.size = %s.raw.len;\n", out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "double") == 0) {
         { char *_cf = go_cfmt("    %s = (double)%s;\n", out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
     } else if(prim && strcmp(prim, "float") == 0) {
@@ -1228,6 +1250,35 @@ go_conv_ioc_alt_prim(void *spec, const char *alt_token, void **union_node) {
     return NULL;
 }
 
+/* The Unknown alternative (-fopen-type-unknown) of an IOC spec node's value
+ * union: its asn1cgo_raw_flat member (at most one; its Flat token is
+ * unknown, or unknownRaw beside an alternative named Unknown), or NULL when
+ * the set has none. */
+void *
+go_conv_ioc_unknown_prim(void *spec, void **union_node) {
+    *union_node = NULL;
+    for(int i = 0; i < go_flat_ir_members(spec); i++) {
+        void *m = go_flat_ir_member(spec, i);
+        if(!go_flat_ir_member_is_nested(m)
+           || strcmp(go_flat_ir_member_token(m), "value") != 0)
+            continue;
+        int nix = go_flat_ir_member_nested_ix(m);
+        void *n = (nix >= 0 && nix < go_flat_ir_n_types())
+                      ? go_flat_ir_type(nix) : NULL;
+        for(int j = 0; n && j < go_flat_ir_members(n); j++) {
+            void *a = go_flat_ir_member(n, j);
+            const char *prim = go_flat_ir_member_is_prim(a)
+                                   ? go_flat_ir_member_prim(a) : NULL;
+            if(prim && strcmp(prim, "asn1cgo_raw_flat") == 0) {
+                *union_node = n;
+                return a;
+            }
+        }
+        return NULL;
+    }
+    return NULL;
+}
+
 char *
 go_conv_ioc_alt_base(void *spec, const char *alt_token) {
     for(int i = 0; i < go_flat_ir_members(spec); i++) {
@@ -1287,6 +1338,8 @@ ioc_node_to_body(void *t) {
                                                    * on either side */
     char *tb_ = go_conv_tree_base(t);   /* prefixed base for the PR enum */
     char *prbase = go_cfmt("%s__value", tb_);   /* the __value PR enum base */
+    void *unk_un = NULL;
+    void *unk_pm = go_conv_ioc_unknown_prim(t, &unk_un);
 
     /*
      * Flat shape of a spec node: {id/procedureCode, criticality, value{present, alts}}.
@@ -1300,6 +1353,8 @@ ioc_node_to_body(void *t) {
         /* an id outside the object set is IOC_UNKNOWN — checked BEFORE the
          * id-vs-present comparison, which reports IOC_MISMATCH (known id,
          * wrong alternative) */
+        if(unk_pm)
+            s = go_ca(s, "        int id_known = 1;\n");
         { char *_cf = go_cfmt("        switch (in->%s) {\n", id_member); s = go_ca(s, _cf); free(_cf); }
         for(int i = 0; i < nrows; i++) {
             int dupid = 0;
@@ -1309,6 +1364,13 @@ ioc_node_to_body(void *t) {
             { char *_cf = go_cfmt("        case %ld:\n", rows[i]->id); s = go_ca(s, _cf); free(_cf); }
         }
         { char *_cf = go_cfmt("            break;\n        default:\n"); s = go_ca(s, _cf); free(_cf); }
+        if(unk_pm) {
+            /* -fopen-type-unknown: an id the extensible set does not know
+             * is sent only as the Unknown alternative (its raw value) */
+            { char *_cf = go_cfmt("            id_known = 0;\n"
+                                  "            if (in->value.present == (int32_t)%s_PR_unknown) break;\n",
+                                  prbase); s = go_ca(s, _cf); free(_cf); }
+        }
         { char *_cf = go_cfmt("            return asn1cgo_fail(err, ASN1CGO_E_IOC_UNKNOWN, \"%s\", \"%s\", \"unknown IE id=%%lld\", (long long)in->%s);\n        }\n",
                        label, id_member, id_member); s = go_ca(s, _cf); free(_cf); }
         { char *_cf = go_cfmt("        int64_t want_id = 0;\n"); s = go_ca(s, _cf); free(_cf); }
@@ -1317,6 +1379,13 @@ ioc_node_to_body(void *t) {
             const conv_ioc_row *r = rows[i];
             { char *_cf = go_cfmt("        case (int32_t)%s_PR_%s:\n", prbase, r->alt_token); s = go_ca(s, _cf); free(_cf); }
             { char *_cf = go_cfmt("            want_id = %ld; break;\n", r->id); s = go_ca(s, _cf); free(_cf); }
+        }
+        if(unk_pm) {
+            { char *_cf = go_cfmt("        case (int32_t)%s_PR_unknown:\n", prbase); s = go_ca(s, _cf); free(_cf); }
+            { char *_cf = go_cfmt("            if (id_known)\n"
+                                  "                return asn1cgo_fail(err, ASN1CGO_E_IOC_MISMATCH, \"%s\", \"%s\", \"%s=%%lld is in the object set, not Unknown\", (long long)in->%s);\n"
+                                  "            want_id = in->%s; break;\n",
+                                  label, id_member, id_member, id_member, id_member); s = go_ca(s, _cf); free(_cf); }
         }
         { char *_cf = go_cfmt("        case 0:\n"); s = go_ca(s, _cf); free(_cf); }
         { char *_cf = go_cfmt("            return asn1cgo_fail(err, ASN1CGO_E_CHOICE_NOTHING, \"%s\", \"value\", NULL);\n", label); s = go_ca(s, _cf); free(_cf); }
@@ -1370,6 +1439,16 @@ ioc_node_to_body(void *t) {
             }
             { char *_cf = go_cfmt("            break;\n"); s = go_ca(s, _cf); free(_cf); }
         }
+        if(unk_pm) {
+            char *ia = go_cfmt("in->value.%s", go_flat_ir_member_token(unk_pm));
+            char *body = arm_prim_to(unk_un, unk_pm, ia,
+                                     "out->value.choice.unknown");
+            free(ia);
+            { char *_cf = go_cfmt("        case (int32_t)%s_PR_unknown:\n", prbase); s = go_ca(s, _cf); free(_cf); }
+            s = go_ca(s, body);
+            s = go_ca(s, "            break;\n");
+            free(body);
+        }
         { char *_cf = go_cfmt("        case (int32_t)%s_PR_NOTHING:\n", prbase); s = go_ca(s, _cf); free(_cf); }
         { char *_cf = go_cfmt("            return asn1cgo_fail(err, ASN1CGO_E_CHOICE_NOTHING, \"%s\", \"value\", NULL);\n", label); s = go_ca(s, _cf); free(_cf); }
         { char *_cf = go_cfmt("        default:\n"); s = go_ca(s, _cf); free(_cf); }
@@ -1388,6 +1467,11 @@ ioc_node_to_body(void *t) {
                            prbase, r->alt_token); s = go_ca(s, _cf); free(_cf); }
         }
         { char *_cf = go_cfmt("        default:\n"); s = go_ca(s, _cf); free(_cf); }
+        if(unk_pm) {
+            { char *_cf = go_cfmt("            if (in->value.present == (int32_t)%s_PR_unknown) {\n"
+                                  "                want_pr = (int32_t)%s_PR_unknown; break;\n"
+                                  "            }\n", prbase, prbase); s = go_ca(s, _cf); free(_cf); }
+        }
         { char *_cf = go_cfmt("            return asn1cgo_fail(err, ASN1CGO_E_IOC_UNKNOWN, \"%s\", \"%s\", \"unknown IE id=%%lld\", (long long)in->%s);\n",
                        label, id_member, id_member); s = go_ca(s, _cf); free(_cf); }
         { char *_cf = go_cfmt("        }\n"); s = go_ca(s, _cf); free(_cf); }
@@ -1435,6 +1519,16 @@ ioc_node_to_body(void *t) {
                 s = go_ca(s, _cf); free(_cf); free(ab);
             }
             { char *_cf = go_cfmt("            break;\n"); s = go_ca(s, _cf); free(_cf); }
+        }
+        if(unk_pm) {
+            char *ia = go_cfmt("in->value.%s", go_flat_ir_member_token(unk_pm));
+            char *body = arm_prim_to(unk_un, unk_pm, ia,
+                                     "out->value.choice.unknown");
+            free(ia);
+            { char *_cf = go_cfmt("        case (int32_t)%s_PR_unknown:\n", prbase); s = go_ca(s, _cf); free(_cf); }
+            s = go_ca(s, body);
+            s = go_ca(s, "            break;\n");
+            free(body);
         }
         { char *_cf = go_cfmt("        case (int32_t)%s_PR_NOTHING:\n", prbase); s = go_ca(s, _cf); free(_cf); }
         { char *_cf = go_cfmt("            return asn1cgo_fail(err, ASN1CGO_E_CHOICE_NOTHING, \"%s\", \"value\", NULL);\n", label); s = go_ca(s, _cf); free(_cf); }

@@ -221,7 +221,7 @@ free.
 | `ErrAlloc` | yes | yes |
 | `ErrConstraint` | value outside a declared range/size/alphabet | decoded value violates a constraint |
 | `ErrEncode` | the APER, UPER or JER encoder failed (including its own out-of-memory) | never |
-| `ErrDecode` | never | malformed bytes, including an IE id the spec's object set does not list, also an extensible one (KNOWN-ISSUES 68); also a C stack guard trip (see Platform and limits) |
+| `ErrDecode` | never | malformed bytes, including an IE id the spec's object set does not list (an extensible one too, unless the package was generated with `-fopen-type-unknown`, see below); also a C stack guard trip (see Platform and limits) |
 | `ErrTrailing` | never | bytes left after the PDU |
 | `ErrChoiceNothing`, `ErrChoiceBad` | a CHOICE with no / an invalid `Present` | defensive only |
 | `ErrIOCUnknown` | the IE id is not in the governing object set | defensive only |
@@ -256,6 +256,34 @@ field. These names get long; a named type (`T ::= SEQUENCE {...}`, `TYPE T`)
 keeps them short. `TYPE NULL` has no field, only its `Present` constant
 (`IEValuePrNULL`), and its constructor takes no value (`NewIEId2()`); the C
 union member is `NULL_`, as `NULL` is a C macro.
+
+**Ids the object set does not know (`-fopen-type-unknown`).** An extensible
+object set (`{ ..., ... }`) may carry ids that a newer version of the module
+added (X.681 14.10). By default such a value fails to decode (`ErrDecode`).
+Generated with `-fopen-type-unknown`, the value union of an open type over an
+extensible set has one more alternative, `Unknown *rt.OpenTypeRaw`
+(`<Record>ValuePrUnknown`, after the alternatives of the set), which keeps the
+value as it was received:
+
+```go
+type OpenTypeRaw struct {
+    Codec rt.Codec // rt.CodecAPER, rt.CodecUPER, rt.CodecJER, ...
+    Bytes []byte   // the open type contents (APER, UPER, OER), the TLV (BER), the JSON value (JER)
+}
+```
+
+The id field holds the unknown id. The value encodes again unchanged, so a
+relay passes a message on as it came, but only with the codec that decoded it:
+`Encode` of a value decoded by `DecodeUPER<T>` returns `ErrEncode`. To send an
+id the module does not know, set `Codec` and `Bytes` to its encoding in the
+codec you use. An id of the set sent as `Unknown`, or an id the set does not
+have with another alternative, returns `ErrIOCMismatch` / `ErrIOCUnknown`. An
+empty set (`{ ... }`) has only the `Unknown` alternative; a closed set has none
+and still refuses ids it does not list. When an alternative of the set is a
+type named `Unknown`, this one is `UnknownRaw` (`<Record>ValuePrUnknownRaw`).
+Without the option the generated code does not change. The C code gets the same
+alternative (`<T>_PR_unknown`, `OPEN_TYPE_raw_t unknown`, skeletons/
+OPEN_TYPE_raw.h); XER cannot encode it.
 
 **Recursion depth.** Encode and decode charge a budget of 64 depth units per
 call (one per entry into a recursive type), so a recursive ASN.1 level nested

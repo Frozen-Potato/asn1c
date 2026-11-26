@@ -351,7 +351,13 @@ go_emit_choice_at(ectx *E, flat_type *ch, const char *body_base,
          * not its Go field: an alt `present` has the field PresentAlt but
          * the constant TPrPresent. */
         const char *ttok_alt = go_flat_ir_member_tree_token(m);
-        char *gu2 = (ttok_alt && strcmp(ttok_alt, tok) != 0)
+        /* ... except the Unknown alternative of an open type, whose
+         * constant follows its field (<X>ValuePrUnknownRaw beside an
+         * alternative of a type named Unknown) */
+        const char *mprim = go_flat_ir_member_is_prim(m)
+                                ? go_flat_ir_member_prim(m) : NULL;
+        int is_raw = mprim && strcmp(mprim, "asn1cgo_raw_flat") == 0;
+        char *gu2 = (!is_raw && ttok_alt && strcmp(ttok_alt, tok) != 0)
                         ? go_gown(go_gcamel_tok_in(go_flat_ir_name(ch), ttok_alt)) : go_gown(alt_field);
         char *cstname = qcconst(gu1, gu2);
         free(gu1); free(gu2);

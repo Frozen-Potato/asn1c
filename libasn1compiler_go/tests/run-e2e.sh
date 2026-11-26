@@ -438,6 +438,47 @@ EOS
     ) || { echo "run-e2e: empty object set: go test failed" >&2; return 1; }
 }
 
+# asn1c -fopen-type-unknown: a module (e2e/otunknown.asn) decodes the
+# encodings of ids and procedures that its newer version (otunknown-peer.asn,
+# no flag) added, as the Unknown alternative, and encodes them back
+# unchanged. The peer tree checks that it still encodes the vectors
+# (otunknown_vectors_test.go). Without the flag the module builds too and
+# has no Unknown alternative.
+run_open_type_unknown() {
+    echo "== run-e2e: -fopen-type-unknown =="
+    for side in peer:otunknown-peer.asn:-gen-JER known:otunknown.asn:"-gen-JER -fopen-type-unknown" plain:otunknown.asn:-gen-JER; do
+        label=${side%%:*}; rest=${side#*:}; asn=${rest%%:*}; opts=${rest#*:}
+        work="$tmp/otunknown/$label"
+        mkdir -p "$work/c"
+        (
+            cd "$here/e2e"
+            # shellcheck disable=SC2086
+            env ASN1CGO_GO_MODULE_PREFIX=asn1cgo.test ASN1CGO_RT_LOCAL="$repo/libasn1compiler_go/rt/go" \
+            "$tmp/bin/asn1c" -S "$repo/skeletons" -fincludes-quoted \
+                -fcompound-names -findirect-choice -fno-include-deps -gen-PER \
+                $opts -pdu=auto -D "$work/c" -Fgo="$work/go" "$asn"
+        ) >"$work/asn1c.log" 2>&1 || { cat "$work/asn1c.log" >&2; echo "run-e2e: -fopen-type-unknown [$label]: asn1c failed" >&2; return 1; }
+        case $label in
+        peer)  cp "$here/e2e/otunknown_peer_test.go" "$here/e2e/otunknown_vectors_test.go" "$work/go/" ;;
+        known) cp "$here/e2e/otunknown_test.go" "$here/e2e/otunknown_vectors_test.go" "$work/go/" ;;
+        plain)
+            if grep -q 'OpenTypeRaw' "$work/go/otunknown/types.go"; then
+                echo "run-e2e: -fopen-type-unknown: Unknown alternative without the flag" >&2
+                return 1
+            fi ;;
+        esac
+        (
+            cd "$work/go"
+            export CGO_CFLAGS="-O2 -g -Werror=incompatible-pointer-types"
+            go vet ./...
+            go test -count=1 ./...
+            if [ "$asan" = 1 ] && [ "$label" != plain ]; then
+                go test -asan -count=1 .
+            fi
+        ) || { echo "run-e2e: -fopen-type-unknown [$label]: go test failed" >&2; return 1; }
+    done
+}
+
 # With -Fgo a failed run leaves -D as it was: a Go refusal after the C pass
 # (the -gen-JER name clash) and a C-pass failure (a directory where a .c file
 # goes) restore every replaced file and remove every created one; a
@@ -820,6 +861,7 @@ run_uper_clash
 run_ctor_clash
 run_pdu_select
 run_empty_object_set
+run_open_type_unknown
 run_post_c_restore
 run_outdir_safety
 run_oneway

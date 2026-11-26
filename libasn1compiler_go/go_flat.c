@@ -810,9 +810,11 @@ flat_prim_layout(const char *prim, unsigned long *size, unsigned long *align) {
         {"size_t", 8, 8},
         {"double", 8, 8},   {"float", 4, 4},
         /* shared rt primitives (c/rt/types.h; their own members never change
-         * — sizes restated here once): {ptr,len}=16/8, {ptr,len,i32}=24/8 */
+         * — sizes restated here once): {ptr,len}=16/8, {ptr,len,i32}=24/8,
+         * {i64,{ptr,len}}=24/8 */
         {"asn1cgo_bytes_flat", 16, 8},
         {"asn1cgo_bits_flat", 24, 8},
+        {"asn1cgo_raw_flat", 24, 8},
     };
     for(size_t i = 0; i < sizeof tab / sizeof tab[0]; i++)
         if(strcmp(tab[i].tok, prim) == 0) {

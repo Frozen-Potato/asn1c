@@ -562,6 +562,19 @@ conv_copy_skel_header(const char *dstdir, const char *name) {
     return rc;
 }
 
+/* Does a Flat member carry the Unknown alternative of an open type? */
+static int
+conv_uses_open_type_raw(void) {
+    for(int i = 0; i < go_flat_ir_n_types(); i++) {
+        flat_type *t = go_flat_ir_type(i);
+        for(int j = 0; j < go_flat_ir_members(t); j++) {
+            const char *p = go_flat_ir_member_prim(go_flat_ir_member(t, j));
+            if(p && strcmp(p, "asn1cgo_raw_flat") == 0) return 1;
+        }
+    }
+    return 0;
+}
+
 /* The asn1c runtime headers every generated spec's c/ .h + .c include,
  * DIRECT AND TRANSITIVE over quoted AND angle includes of skeleton files
  * (computed over the pinned skeletons; config.h is excluded — its include
@@ -1437,6 +1450,13 @@ go_conv_emit(const char *go_outdir, const char *go_rt_module) {
                 free(rtdir);
                 return -1;
             }
+        }
+        /* OPEN_TYPE_raw.h, only when an open type has the Unknown
+         * alternative (-fopen-type-unknown over an extensible set) */
+        if(conv_uses_open_type_raw()
+           && conv_copy_skel_header(rtdir, "OPEN_TYPE_raw.h") < 0) {
+            free(rtdir);
+            return -1;
         }
         /* the headers of the other restricted string / time types, only when
          * the walk classified one (a PrintableString-only tree is unchanged) */

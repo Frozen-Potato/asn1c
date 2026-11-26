@@ -177,6 +177,18 @@ arm_prim_from(void *t, void *m, const char *in_acc, const char *out_acc) {
         s = go_ca(s, "    } else {\n");
         { char *_cf = go_cfmt("        %s.buf = NULL;\n", out_acc); s = go_ca(s, _cf); free(_cf); }
         s = go_ca(s, "    }\n");
+    } else if(prim && strcmp(prim, "asn1cgo_raw_flat") == 0) {
+        /* the Unknown alternative (-fopen-type-unknown): {int64 codec;
+         * bytes raw} from OPEN_TYPE_raw_t {long codec; OCTET_STRING_t raw} */
+        { char *_cf = go_cfmt("    %s.codec = (int64_t)%s.codec;\n", out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
+        { char *_cf = go_cfmt("    %s.raw.len = (size_t)%s.raw.size;\n", out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
+        { char *_cf = go_cfmt("    if (%s.raw.len) {\n", out_acc); s = go_ca(s, _cf); free(_cf); }
+        { char *_cf = go_cfmt("        %s.raw.buf = (uint8_t *)asn1cgo_arena_alloc(ar, %s.raw.len, 1);\n", out_acc, out_acc); s = go_ca(s, _cf); free(_cf); }
+        { char *_cf = go_cfmt("        if (!%s.raw.buf) return asn1cgo_fail(err, ASN1CGO_E_ALLOC, \"%s\", \"%s\", NULL);\n", out_acc, label, mlab); s = go_ca(s, _cf); free(_cf); }
+        { char *_cf = go_cfmt("        memcpy(%s.raw.buf, %s.raw.buf, %s.raw.len);\n", out_acc, in_acc, out_acc); s = go_ca(s, _cf); free(_cf); }
+        s = go_ca(s, "    } else {\n");
+        { char *_cf = go_cfmt("        %s.raw.buf = NULL;\n", out_acc); s = go_ca(s, _cf); free(_cf); }
+        s = go_ca(s, "    }\n");
     } else if(prim && strcmp(prim, "asn1cgo_bits_flat") == 0) {
         { char *_cf = go_cfmt("    %s.len = (size_t)%s.size;\n", out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
         { char *_cf = go_cfmt("    %s.bits_unused = (int32_t)%s.bits_unused;\n", out_acc, in_acc); s = go_ca(s, _cf); free(_cf); }
@@ -399,7 +411,14 @@ choice_switch_from_deref(void *t, const char *in_sel, const char *out_sel,
         if(go_flat_ir_member_is_prim(mtmp)) {
             const char *prim = go_flat_ir_member_prim(mtmp);
             void *rt = NULL; (void)rt;
-            if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_member_strz(mtmp))) {
+            if(prim && strcmp(prim, "asn1cgo_raw_flat") == 0) {
+                /* the Unknown alternative (-fopen-type-unknown) */
+                char *ia = go_cfmt("%s%schoice.%s", in_sel, deref, utok);
+                char *oa = go_cfmt("%s%s%s", out_sel, deref, tok);
+                char *body = arm_prim_from(t, mtmp, ia, oa);
+                s = go_ca(s, body);
+                free(body); free(ia); free(oa);
+            } else if(prim && strcmp(prim, "asn1cgo_bytes_flat") == 0 && strz_oid(go_flat_ir_member_strz(mtmp))) {
                 char *la = go_cfmt("\"%s\"", label), *ma = go_cfmt("\"%s\"", mlab);
                 char *ip = go_cfmt("&%s%schoice.%s", in_sel, deref, utok);
                 char *op = go_cfmt("&%s%s%s", out_sel, deref, tok);
@@ -948,6 +967,8 @@ ioc_node_from_body(void *t) {
                                                    * on either side */
     char *tb_ = go_conv_c_base(t);   /* prefixed base for the PR enum */
     char *prbase = go_cfmt("%s__value", tb_);   /* the __value PR enum base */
+    void *unk_un = NULL;
+    void *unk_pm = go_conv_ioc_unknown_prim(t, &unk_un);
     /* copy id (criticality iff the class carries the column); look the
      * pair up (inverse rows). */
     { char *_cf = go_cfmt("    out->%s = (int64_t)in->%s;\n", id_member, id_member); s = go_ca(s, _cf); free(_cf); }
@@ -963,6 +984,13 @@ ioc_node_from_body(void *t) {
                        prbase, r->alt_token); s = go_ca(s, _cf); free(_cf); }
     }
     { char *_cf = go_cfmt("        default:\n"); s = go_ca(s, _cf); free(_cf); }
+    if(unk_pm) {
+        /* -fopen-type-unknown: the decoder kept the value of an id the
+         * extensible set does not know as <X>__value_PR_unknown */
+        { char *_cf = go_cfmt("            if (in->value.present == %s_PR_unknown) {\n"
+                              "                want_pr = (int32_t)%s_PR_unknown; break;\n"
+                              "            }\n", prbase, prbase); s = go_ca(s, _cf); free(_cf); }
+    }
     { char *_cf = go_cfmt("            return asn1cgo_fail(err, ASN1CGO_E_IOC_UNKNOWN, \"%s\", \"%s\", \"unknown IE id=%%lld\", (long long)in->%s);\n",
                    label, id_member, id_member); s = go_ca(s, _cf); free(_cf); }
     { char *_cf = go_cfmt("        }\n"); s = go_ca(s, _cf); free(_cf); }
@@ -1007,6 +1035,16 @@ ioc_node_from_body(void *t) {
             s = go_ca(s, _cf); free(_cf); free(ab);
         }
         { char *_cf = go_cfmt("            break;\n"); s = go_ca(s, _cf); free(_cf); }
+    }
+    if(unk_pm) {
+        char *oa = go_cfmt("out->value.%s", go_flat_ir_member_token(unk_pm));
+        char *body = arm_prim_from(unk_un, unk_pm, "in->value.choice.unknown",
+                                   oa);
+        free(oa);
+        { char *_cf = go_cfmt("        case (int32_t)%s_PR_unknown:\n", prbase); s = go_ca(s, _cf); free(_cf); }
+        s = go_ca(s, body);
+        s = go_ca(s, "            break;\n");
+        free(body);
     }
     { char *_cf = go_cfmt("        case (int32_t)%s_PR_NOTHING:\n", prbase); s = go_ca(s, _cf); free(_cf); }
     { char *_cf = go_cfmt("            return asn1cgo_fail(err, ASN1CGO_E_CHOICE_NOTHING, \"%s\", \"value\", NULL);\n", label); s = go_ca(s, _cf); free(_cf); }

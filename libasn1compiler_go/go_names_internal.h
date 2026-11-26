@@ -332,6 +332,7 @@ int go_check_module_prefix(const char *pfx);
 char *go_path_join2(const char *a, const char *b);
 void go_set_module_paths(const char *go_outdir);
 void go_clear_module_paths(void);
+int go_open_type_unknown(void);   /* -fopen-type-unknown (go_names.c) */
 int go_collect_module_imports(struct name_bag *b, const char *module,
                            char **imps, int max_imps);
 

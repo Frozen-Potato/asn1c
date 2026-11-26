@@ -139,6 +139,15 @@ int go_oer_disabled(void) { return (go_compiler_flags & A1C_GEN_OER) == 0; }
 int go_jer_enabled(void);
 int go_jer_enabled(void) { return (go_compiler_flags & A1C_GEN_JER) != 0; }
 
+/* go_open_type_unknown: nonzero when this run was started with
+ * -fopen-type-unknown (A1C_OPEN_TYPE_UNKNOWN): the value union of an open
+ * type over an extensible object set then has the Unknown alternative
+ * (*rt.OpenTypeRaw), as the C union has <T>_PR_unknown. */
+int go_open_type_unknown(void);
+int go_open_type_unknown(void) {
+    return (go_compiler_flags & A1C_OPEN_TYPE_UNKNOWN) != 0;
+}
+
 /* -pdu=<Type> names, handed over by the driver (asn1c.c) as it parses them:
  * the C pass frees its own list (asn1c_save.c) before the Go pass runs. */
 static struct go_pdu_name {

@@ -98,6 +98,7 @@ go_leaf_underlying(go_leaf_kind k) {
     case GLEAF_STRING_Z:  return "string";
     case GLEAF_BITSTRING: return "BitString";
     case GLEAF_ENUM:      return "int32";
+    case GLEAF_OPENRAW:   return "rt.OpenTypeRaw";
     default:              return NULL;
     }
 }

@@ -585,6 +585,7 @@ int go_gprim_width(const char *prim) {
     if(strcmp(prim, "_bool32") == 0) return 4;
     if(strcmp(prim, "asn1cgo_bytes_flat") == 0) return 16;
     if(strcmp(prim, "asn1cgo_bits_flat") == 0) return 24;
+    if(strcmp(prim, "asn1cgo_raw_flat") == 0) return 24;
     return 0;
 }
 

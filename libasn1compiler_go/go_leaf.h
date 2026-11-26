@@ -31,7 +31,9 @@ typedef enum {
                             included) → string, bytes as-is, buffer allocated
                             even when empty */
     GLEAF_ROID,          /* RELATIVE-OID → []uint64 arcs                    */
-    GLEAF_REAL32         /* REAL asn1c stores as a C float → float32        */
+    GLEAF_REAL32,        /* REAL asn1c stores as a C float → float32        */
+    GLEAF_OPENRAW        /* the unknown alternative of an open type
+                            (-fopen-type-unknown) → rt.OpenTypeRaw          */
 } go_leaf_kind;
 
 /* The Flat-column C prim token of a leaf kind; NULL for GLEAF_NONE and
@@ -54,6 +56,7 @@ go_leaf_flat_prim(int k) {
     case GLEAF_ROID:       return "asn1cgo_bytes_flat";
     case GLEAF_BITSTRING:  return "asn1cgo_bits_flat";
     case GLEAF_ENUM:       return "int32_t";
+    case GLEAF_OPENRAW:    return "asn1cgo_raw_flat";
     default:               return NULL;
     }
 }

@@ -232,7 +232,9 @@ go_collect_module_imports(struct name_bag *b, const char *module,
             const char *ft = c->field_type;
             if(ft && *ft == '*') ft++;
             const char *dot = ft ? strchr(ft, '.') : NULL;
-            if(dot)
+            /* rt.<T> (rt.OpenTypeRaw) is the rt module, not a sibling
+             * package: go_emit_module_imports adds its import itself */
+            if(dot && !(dot - ft == 2 && strncmp(ft, "rt", 2) == 0))
                 NOTE_IMPORT(ft, (size_t)(dot - ft));
         } else if(c->kind == GK_TYPE && c->alias_of) {
             /* type AlX pkg.AlSeq */
@@ -245,29 +247,63 @@ go_collect_module_imports(struct name_bag *b, const char *module,
     return n_imps;
 }
 
+static char *gfmt_names(const char *fmt, ...);
+
+/* Does a field of this module have an rt type (rt.OpenTypeRaw)? */
+static int
+module_uses_rt(struct name_bag *b, const char *module) {
+    for(int i = 0; i < b->n_rows; i++) {
+        const struct name_row *c = &b->rows[i];
+        const char *ft = c->field_type;
+        if(c->module != module || c->kind != GK_FIELD || !ft) continue;
+        if(*ft == '*') ft++;
+        if(strncmp(ft, "rt.", 3) == 0) return 1;
+    }
+    return 0;
+}
+
 int
 go_emit_module_imports(FILE *out, const char *module) {
     struct name_bag *b = g_go_emit_bag;
     if(!b) return 0;
     char *imps[64];
     int n_imps = go_collect_module_imports(b, module, imps, 64);
-    if(n_imps == 0) return 0;
+    char *rt_path = NULL;
+    if(module_uses_rt(b, module))
+        rt_path = gfmt_names("%s/rt",
+                             g_go_rt_module_path ? g_go_rt_module_path : "");
+    if(n_imps == 0 && !rt_path) return 0;
     int rc = 0;
+    /* The import path of a sibling is <module path>/<module_pkg>, where the
+     * module path is basename-only or <prefix>/<basename> per env; the
+     * block is sorted by full path (gofmt order), the rt one included. */
+    char *paths[65];
+    int n_paths = 0;
+    for(int j = 0; j < n_imps; j++)
+        paths[n_paths++] = gfmt_names("%s/%s",
+                                      g_go_module_path ? g_go_module_path : "",
+                                      imps[j]);
+    if(rt_path) {
+        int k = n_paths;
+        while(k > 0 && paths[k - 1] && strcmp(paths[k - 1], rt_path) > 0) {
+            paths[k] = paths[k - 1];
+            k--;
+        }
+        paths[k] = rt_path;
+        n_paths++;
+    }
     if(fputs("\nimport (\n", out) >= 0) {
-        for(int j = 0; j < n_imps && rc == 0; j++) {
-            /* The import path is <module path>/<module_pkg>, where the
-             * module path is basename-only or <prefix>/<basename> per env. */
-            if(fprintf(out, "\t\"%s/%s\"\n",
-                       g_go_module_path ? g_go_module_path : "",
-                       imps[j]) < 0)
+        for(int j = 0; j < n_paths && rc == 0; j++) {
+            if(!paths[j] || fprintf(out, "\t\"%s\"\n", paths[j]) < 0)
                 rc = -1;
         }
         if(rc == 0 && fputs(")\n", out) < 0) rc = -1;
     } else
         rc = -1;
     for(int j = 0; j < n_imps; j++) free(imps[j]);
+    for(int j = 0; j < n_paths; j++) free(paths[j]);
     if(rc < 0) return -1;
-    return n_imps;
+    return n_paths;
 }
 
 /* gfmt_names: printf into a new string (NULL on failure). */

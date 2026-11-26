@@ -120,6 +120,7 @@ int go_conv_wide_unsigned(void *t);
  * named-type alt (converted through its own <T>_to_tree / _from_tree).
  * *union_node receives the value-union node (the arm's owner). */
 void *go_conv_ioc_alt_prim(void *spec, const char *alt_token, void **union_node);
+void *go_conv_ioc_unknown_prim(void *spec, void **union_node);
 /* The converter base (<base>_to_tree / _from_tree) of an IOC spec node's
  * named-type alt, from its value-union slot (the resolved Flat ref, so a
  * module-prefixed type name is right); malloc'd, NULL when the slot is not a
