@@ -139,6 +139,7 @@ struct _stack_el {
     unsigned cont_level;    /* Depth of subcontainment */
     int want_nulls;         /* Want null "end of content" octets? */
     int bits_chopped;       /* Flag in BIT STRING mode */
+    int had_child;          /* An EXPLICIT wrapper got its only TLV */
     ber_tlv_tag_t tag;      /* For debugging purposes */
     struct _stack_el *prev;
     struct _stack_el *next;
@@ -158,6 +159,7 @@ OS__add_stack_el(struct _stack *st) {
 	if(st->cur_ptr && st->cur_ptr->next) {
 		nel = st->cur_ptr->next;
 		nel->bits_chopped = 0;
+		nel->had_child = 0;
 		nel->got = 0;
 		/* Retain the nel->cont_level, it's correct. */
 	} else {
@@ -377,6 +379,10 @@ OCTET_STRING_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 					? td->tags_count - 1 : 0;
 				unsigned wrappers = outer + (tag_mode == 1);
 				if(level < wrappers) {
+					/* An EXPLICIT wrapper holds one TLV. */
+					if(sel->had_child)
+						RETURN(RC_FAIL);
+					sel->had_child = 1;
 					expected_tag = td->tags[level
 						+ (tag_mode == 1 ? 0 : 1)];
 					break;

@@ -1,3 +1,11 @@
+0.9.29-go.20 (unreleased):
+    * C runtime (BER): an explicit tag with an indefinite length around a
+      constructed OCTET STRING, BIT STRING or character string took any
+      further TLVs before its end-of-contents octets as more segments
+      (A1 80 24 03 04 01 41 24 03 04 01 42 00 00 for [1] EXPLICIT OCTET
+      STRING decoded as 41 42). An explicit tag encloses exactly one TLV
+      (X.690 8.14); such input is now refused.
+
 0.9.29-go.19:
     * Go backend: asn1c crashed (segmentation fault) generating Go for an
       open type whose object set has no object (`ExtIEs IE ::= { ... }`,

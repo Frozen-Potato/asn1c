@@ -13,6 +13,8 @@
  * lost the count of indefinite lengths.
  * - each encoding decodes (also one byte at a time, RC_WMORE resumed),
  *   consuming all of it, to the value given as XER, whose DER decodes too;
+ * - a second TLV inside an EXPLICIT tag is refused (it was taken for more
+ *   segments of a constructed string);
  * - wrong or missing end-of-contents octets are refused, and so is a
  *   definite length enclosing an indefinite one in a chain of tags (not
  *   supported).
@@ -34,6 +36,8 @@
 #include "Oi.h"
 #include "Bs.h"
 #include "Us.h"
+#include "Vx.h"
+#include "On.h"
 #include "Vs.h"
 #include "VsS.h"
 #include "Vp.h"
@@ -89,6 +93,8 @@ static const struct vec vecs[] = {
 	{ &asn_DEF_Vp, "3a80 1a026c6f 0000", "<Vp>lo</Vp>" },
 	{ &asn_DEF_Up, "2c80 040141 0000", "<Up>A</Up>" },
 	{ &asn_DEF_Us, "a080 0c0141 0000", "<Us>A</Us>" },
+	{ &asn_DEF_Vx, "a080 3a03 1a0141 0000", "<Vx>A</Vx>" },
+	{ &asn_DEF_On, "a180 a280 2403 040141 0000 0000", "<On>41</On>" },
 	/* constructed types */
 	{ &asn_DEF_Sq, "a080 3003020101 0000", "<Sq><x>1</x></Sq>" },
 	{ &asn_DEF_Sq, "a080 3006020101 0101ff 0000",
@@ -121,6 +127,15 @@ static const struct vec refused[] = {
 	{ &asn_DEF_Oi, "6180 040141 040142 0001", 0 },
 	{ &asn_DEF_So, "a080 3003020101 0001", 0 },
 	{ &asn_DEF_Ch, "a080 a103020107 0001", 0 },
+	/* an EXPLICIT tag encloses one TLV, not several */
+	{ &asn_DEF_Os, "a080 2403 040141 2403 040142 0000", 0 },
+	{ &asn_DEF_Os, "a080 2403 040141 040142 0000", 0 },
+	{ &asn_DEF_Os, "a080 2480 040141 0000 2480 040142 0000 0000", 0 },
+	{ &asn_DEF_Os, "a080 040141 040142 0000", 0 },
+	{ &asn_DEF_Bs, "a080 2304 03020080 2304 03020080 0000", 0 },
+	{ &asn_DEF_Vx, "a080 3a03 1a0141 3a03 1a0142 0000", 0 },
+	{ &asn_DEF_On, "a180 a280 2403 040141 2403 040142 0000 0000", 0 },
+	{ &asn_DEF_Os, "a00a 2403 040141 2403 040142", 0 },
 	/* a definite length around an indefinite one: not supported */
 	{ &asn_DEF_Sq, "a007 3080 020101 0000", 0 },
 };
