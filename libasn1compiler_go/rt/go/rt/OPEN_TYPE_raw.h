@@ -21,7 +21,9 @@ extern "C" {
  * octets inside the PER / OER open type wrapper, the whole BER TLV, the
  * JSON text of the JER value), together with the codec that decoded it.
  * It can only be encoded again with that same codec (DER and BER count
- * as one: the octets are written back as they are).
+ * as one: the octets are written back as they are). The value cannot be
+ * canonicalized, so der_encode() gives DER only if the received octets
+ * were DER.
  */
 typedef enum OPEN_TYPE_raw_codec {
 	OPEN_TYPE_RAW_NONE = 0,	/* not set: encoding fails */

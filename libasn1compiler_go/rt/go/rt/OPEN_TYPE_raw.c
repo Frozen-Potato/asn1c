@@ -219,7 +219,10 @@ raw_for(const void *sptr, OPEN_TYPE_raw_codec_e codec) {
 	return st;
 }
 
-/* The length of the one TLV at buf, or 0 (more data needed) or -1. */
+/*
+ * The length of the one TLV at buf, or 0 (more data needed) or -1 (also
+ * for a bare end-of-contents 00 00).
+ */
 static ssize_t
 raw_ber_tlv_size(const asn_codec_ctx_t *opt_codec_ctx, const void *buf,
                  size_t size) {
@@ -229,6 +232,8 @@ raw_ber_tlv_size(const asn_codec_ctx_t *opt_codec_ctx, const void *buf,
 
 	tag_len = ber_fetch_tag(buf, size, &tag);
 	if(tag_len <= 0) return tag_len;
+	/* Universal tag 0 is the end-of-contents octets, never a value. */
+	if(tag == 0) return -1;
 	rest_len = ber_skip_length(opt_codec_ctx, BER_TLV_CONSTRUCTED(buf),
 	                           (const char *)buf + tag_len, size - tag_len);
 	if(rest_len <= 0) return rest_len;

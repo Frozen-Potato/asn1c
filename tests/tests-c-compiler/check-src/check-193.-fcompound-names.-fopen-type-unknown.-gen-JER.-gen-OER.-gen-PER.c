@@ -226,6 +226,34 @@ main(void) {
 		ASN_STRUCT_FREE(asn_DEF_MsgU, u);
 	}
 
+	/*
+	 * A bare end-of-contents 00 00 is not a value: BER refuses it as the
+	 * unknown value, whether the open type has a tag of its own or not.
+	 */
+	{
+		static const uint8_t eoc_msg[] = { 0x30, 0x0f, 0x80, 0x01, 0x05,
+			0xa1, 0x07, 0x80, 0x01, 0x03, 0xa1, 0x02, 0x00, 0x00, 0x82,
+			0x01, 0xff };
+		static const uint8_t eoc_ind[] = { 0x30, 0x80, 0x80, 0x01, 0x05,
+			0xa1, 0x07, 0x80, 0x01, 0x03, 0xa1, 0x02, 0x00, 0x00, 0x82,
+			0x01, 0xff, 0x00, 0x00 };
+		static const uint8_t eoc_u[] = { 0x30, 0x05, 0x02, 0x01, 0x04,
+			0x00, 0x00 };
+		static const struct vec eoc_vec[] = { VEC(eoc_msg), VEC(eoc_ind),
+			VEC(eoc_u) };
+		asn_TYPE_descriptor_t *eoc_td[] = { &asn_DEF_Msg, &asn_DEF_Msg,
+			&asn_DEF_MsgU };
+		int i;
+
+		for(i = 0; i < 3; i++) {
+			void *st = 0;
+			asn_dec_rval_t rv = asn_decode(0, ATS_BER, eoc_td[i], &st,
+				eoc_vec[i].buf, eoc_vec[i].size);
+			assert(rv.code != RC_OK);
+			ASN_STRUCT_FREE(*eoc_td[i], st);
+		}
+	}
+
 	/* values built by hand */
 	{
 		Msg_t m;

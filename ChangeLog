@@ -5,6 +5,13 @@
       (A1 80 24 03 04 01 41 24 03 04 01 42 00 00 for [1] EXPLICIT OCTET
       STRING decoded as 41 42). An explicit tag encloses exactly one TLV
       (X.690 8.14); such input is now refused.
+    * -fopen-type-unknown (BER): a bare end-of-contents pair (00 00) was
+      accepted as the value of the unknown alternative. It is now refused,
+      as for a known id.
+    * -fopen-type-unknown: documented that der_encode() writes the octets
+      of the unknown alternative as received (they cannot be put in
+      canonical form without the type), so the output is DER only if the
+      received octets were DER.
 
 0.9.29-go.19:
     * Go backend: asn1c crashed (segmentation fault) generating Go for an
