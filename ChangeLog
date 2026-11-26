@@ -1,4 +1,4 @@
-0.9.29-go.20 (unreleased):
+0.9.29-go.20:
     * C runtime (BER): an explicit tag with an indefinite length around a
       constructed OCTET STRING, BIT STRING or character string took any
       further TLVs before its end-of-contents octets as more segments
@@ -12,6 +12,13 @@
       of the unknown alternative as received (they cannot be put in
       canonical form without the type), so the output is DER only if the
       received octets were DER.
+    * Go backend: generated go.mod files now require rt v0.4.9; run
+      `go mod tidy` once after regenerating. Same module path, no change
+      of the Go API. The runtime's C files are kept in step with the
+      skeletons (OCTET_STRING.c, OPEN_TYPE_raw.c/.h).
+    * UPGRADING: nothing to change for existing code. C users copy the
+      skeleton files of this version (OCTET_STRING.c, OPEN_TYPE_raw.c/.h);
+      Go users run `go mod tidy` after regenerating.
 
 0.9.29-go.19:
     * Go backend: asn1c crashed (segmentation fault) generating Go for an
