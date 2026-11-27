@@ -1,13 +1,38 @@
 # Build, make check and the Go backend test scripts
-# (libasn1compiler_go/tests/run-*.sh) on every push to asn1cgo, every tag,
-# every pull request, and on demand.
+# (libasn1compiler_go/tests/run-*.sh) on pushes to asn1cgo and on pull
+# requests that change more than documentation, and on demand. Tag pushes
+# do not run it: a tag points at a commit already tested on asn1cgo.
 name: CI
 
+# Documentation-only changes are skipped. The Makefile.am files under doc/
+# are part of the build, so they are listed again after the doc/ exclusion
+# (later patterns win).
 on:
   push:
     branches: [asn1cgo]
-    tags: ['**']
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/README'
+      - '!**/LICENSE'
+      - '!AUTHORS'
+      - '!BUGS'
+      - '!ChangeLog'
+      - '!FAQ'
+      - '!doc/**'
+      - 'doc/**/Makefile.am'
   pull_request:
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/README'
+      - '!**/LICENSE'
+      - '!AUTHORS'
+      - '!BUGS'
+      - '!ChangeLog'
+      - '!FAQ'
+      - '!doc/**'
+      - 'doc/**/Makefile.am'
   workflow_dispatch:
 
 permissions:

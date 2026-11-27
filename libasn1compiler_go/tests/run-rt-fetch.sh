@@ -122,7 +122,9 @@ if [ "$rc" = 0 ] || ! grep -q 'missing go.sum entry' "$w1/pre.log" || grep -q 'p
     echo "run-rt-fetch: pre-tidy build: exit $rc, want failure with 'missing go.sum entry'" >&2
     exit 1
 fi
-head -3 "$w1/pre.log" | sed 's/^/   /'
+# Only the message, not the "<file>.go:<line>:<col>:" prefix: setup-go's
+# problem matcher turns such lines into error annotations in CI.
+echo "   expected error seen: $(grep -m1 -o 'missing go.sum entry.*' "$w1/pre.log")"
 
 echo "== run-rt-fetch: go mod tidy, then go test (workspace mode) =="
 ( cd "$w1/go" && go mod tidy && go test -count=1 ./... )
