@@ -404,6 +404,12 @@ OCTET_STRING_decode_ber(const asn_codec_ctx_t *opt_codec_ctx,
 			}
 			/* Fall through */
 		case ASN_OSUBV_ANY:
+			if(sel && tag_mode == 1 && sel->cont_level == 0) {
+				/* An EXPLICIT wrapper holds at most one TLV. */
+				if(sel->had_child)
+					RETURN(RC_FAIL);
+				sel->had_child = 1;
+			}
 			expected_tag = tlv_tag;
 			break;
 		}

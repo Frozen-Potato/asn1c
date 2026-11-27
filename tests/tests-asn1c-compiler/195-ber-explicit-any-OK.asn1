@@ -1,0 +1,6 @@
+-- OK: BER decoding of [1] EXPLICIT ANY: the EXPLICIT tag holds exactly one
+-- TLV (X.690 8.14.2), which is kept as it came, with its own lengths.
+
+K195 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+S  ::= SEQUENCE { t [1] EXPLICIT ANY }
+END

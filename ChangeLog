@@ -1,3 +1,17 @@
+0.9.29-go.22 (unreleased):
+    * C runtime (BER): an EXPLICIT tag around an ANY ([1] EXPLICIT ANY as
+      a member, AUTOMATIC TAGS) accepted several TLVs inside it:
+      A1 80 04 01 41 04 01 42 00 00 and A1 06 04 01 41 04 01 42 decoded
+      (the two TLVs became the value). The tag now holds one TLV
+      (X.690 8.14.2); a second one is refused. An empty tag still decodes
+      as an empty value. A single TLV, primitive or constructed,
+      with a definite or an indefinite length, still decodes and is kept
+      byte for byte.
+    * Tests: two vectors of test 62 are now expected to be refused
+      (renamed -B): data-62-11 has two TLVs inside the tag of an ANY,
+      data-62-24 an end-of-contents octet pair after its TLV inside a
+      definite length tag.
+
 0.9.29-go.21:
     * C runtime (BER): a definite length tag around an indefinite length
       encoding was refused for every constructed type ([0] EXPLICIT
