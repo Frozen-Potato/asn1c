@@ -85,6 +85,7 @@ TESTS += check-src/check-186.-gen-OER.c
 TESTS += check-src/check-191.-fcompound-names.-gen-PER.c
 TESTS += check-src/check-192.-fcompound-names.c
 TESTS += check-src/check-193.-fcompound-names.-fopen-type-unknown.-gen-JER.-gen-OER.-gen-PER.c
+TESTS += check-src/check-194.-fcompound-names.c
 
 if TEST_64BIT
 TESTS += check-src/check64-134.-gen-PER.c

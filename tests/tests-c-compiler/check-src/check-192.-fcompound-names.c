@@ -15,9 +15,8 @@
  *   consuming all of it, to the value given as XER, whose DER decodes too;
  * - a second TLV inside an EXPLICIT tag is refused (it was taken for more
  *   segments of a constructed string);
- * - wrong or missing end-of-contents octets are refused, and so is a
- *   definite length enclosing an indefinite one in a chain of tags (not
- *   supported).
+ * - wrong or missing end-of-contents octets are refused.
+ * (A definite length around an indefinite one: check-194.)
  */
 #undef  NDEBUG
 #include <assert.h>
@@ -136,8 +135,6 @@ static const struct vec refused[] = {
 	{ &asn_DEF_Vx, "a080 3a03 1a0141 3a03 1a0142 0000", 0 },
 	{ &asn_DEF_On, "a180 a280 2403 040141 2403 040142 0000 0000", 0 },
 	{ &asn_DEF_Os, "a00a 2403 040141 2403 040142", 0 },
-	/* a definite length around an indefinite one: not supported */
-	{ &asn_DEF_Sq, "a007 3080 020101 0000", 0 },
 };
 
 static size_t

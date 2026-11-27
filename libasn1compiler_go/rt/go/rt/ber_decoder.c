@@ -71,6 +71,12 @@ ber_check_tags(const asn_codec_ctx_t *opt_codec_ctx,
 }
 
 /*
+ * A definite length TLV enclosing an indefinite length one (a chain of
+ * tags such as [0] EXPLICIT SEQUENCE as A0 07 30 80 ... 00 00) is accepted
+ * if its length is that of the inner TLV with its end-of-contents octets:
+ * it is checked here, which takes the whole of the outer TLV to be present
+ * (RC_WMORE otherwise).
+ *
  * Same as ber_check_tags(), but with opt_outer_eocs given, a chain of
  * indefinite length TLVs followed by definite length ones is accepted
  * (e.g. [0] EXPLICIT INTEGER as A0 80 02 01 01 00 00, X.690 8.14):
@@ -240,23 +246,43 @@ ber_check_tags_eoc(const asn_codec_ctx_t *opt_codec_ctx,
 		}
 
 		/*
-		 * The chain of tags must either contain several indefinite
-		 * length TLVs, or several definite length ones, or (with
-		 * opt_outer_eocs) indefinite length TLVs enclosing definite
-		 * length ones. A definite length TLV enclosing an indefinite
-		 * length one is not supported.
+		 * The chain of tags may contain definite length TLVs enclosing
+		 * indefinite length ones (the definite length must then be that
+		 * of the inner TLV with its end-of-contents octets, which is
+		 * checked here), and, with opt_outer_eocs, indefinite length
+		 * TLVs enclosing definite length ones.
 		 */
 		if(tlv_len == -1) {
 			/*
 			 * Indefinite length.
 			 */
-			if(limit_len == -1) {
-				expect_00_terminators++;
-			} else {
-				ASN_DEBUG("Unexpected indefinite length "
-					"in a chain of definite lengths");
-				RETURN(RC_FAIL);
+			if(limit_len != -1) {
+				/*
+				 * Inside a definite length TLV: the inner TLV
+				 * must end where the outer one does. (If the
+				 * rest of the outer TLV is not here yet, more
+				 * data is expected.)
+				 */
+				ssize_t skip = ber_skip_length(opt_codec_ctx,
+					tlv_constr, (const char *)ptr + tag_len,
+					size - tag_len);
+				switch(skip) {
+				case -1: RETURN(RC_FAIL);
+				case 0:
+					if((ssize_t)size >= limit_len)
+						RETURN(RC_FAIL);
+					RETURN(RC_WMORE);
+				}
+				if(tag_len + skip != limit_len) {
+					ASN_DEBUG("Outer TLV is %ld and inner is %ld",
+						(long)limit_len,
+						(long)(tag_len + skip));
+					RETURN(RC_FAIL);
+				}
+				/* The outer length is consistent: done with it */
+				limit_len = -1;
 			}
+			expect_00_terminators++;
 			ADVANCE(tag_len + len_len);
 			continue;
 		} else {
@@ -267,7 +293,7 @@ ber_check_tags_eoc(const asn_codec_ctx_t *opt_codec_ctx,
 					RETURN(RC_FAIL);
 				}
 				/* The outer EOCs follow the definite TLV */
-				outer_eocs = expect_00_terminators;
+				outer_eocs += expect_00_terminators;
 				expect_00_terminators = 0;
 			}
 		}

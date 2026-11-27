@@ -1,0 +1,25 @@
+-- OK: BER with a definite length explicit tag around an indefinite length
+-- encoding (X.690 8.1.3.2, 8.14): [0] EXPLICIT SEQUENCE { ... } as
+-- A0 07 30 80 02 01 05 00 00. The length of the tag must be that of the
+-- inner TLV with its end-of-contents octets.
+
+K194 DEFINITIONS ::= BEGIN
+Sq  ::= [0] EXPLICIT SEQUENCE { x INTEGER, y BOOLEAN OPTIONAL }
+St  ::= [0] EXPLICIT SET { x INTEGER }
+So  ::= [0] EXPLICIT SEQUENCE OF INTEGER
+Ss  ::= [0] EXPLICIT SET OF INTEGER
+Ch  ::= [0] EXPLICIT CHOICE { x [1] INTEGER, q [2] IMPLICIT SEQUENCE { x INTEGER },
+	r [3] EXPLICIT SEQUENCE { x INTEGER }, ... }
+Ch2 ::= [1] EXPLICIT Ch
+Os  ::= [0] EXPLICIT OCTET STRING
+Vs  ::= [0] EXPLICIT VisibleString
+Sq2 ::= [4] EXPLICIT Sq5
+Sq5 ::= [5] EXPLICIT SEQUENCE { x INTEGER }
+Is  ::= [4] EXPLICIT Sq
+W   ::= SEQUENCE {
+	a [1] EXPLICIT SEQUENCE { x INTEGER },
+	b [2] EXPLICIT OCTET STRING,
+	ch Ch,
+	d BOOLEAN
+}
+END
