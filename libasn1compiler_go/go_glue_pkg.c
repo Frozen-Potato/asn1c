@@ -167,7 +167,7 @@ go_emit_pdu_api(flat_type *rt_, const conv_pdu *al, gsb *src) {
  * once per package (byte-stable text). */
 const char *GO_GLUE_STATICS =
     "// rt/shared Flat layout consts (asn1cgo_bytes_flat/asn1cgo_bits_flat,\n"
-"// rt/types.h; x86-64 SysV). The layout.go init() probe cross-checks these\n"
+"// rt/types.h; LP64). The layout.go init() probe cross-checks these\n"
 "// against cgo's C compiler view (rt/types.h include below).\n"
 "const (\n"
 "\tsizeofBytesFlat       = 16\n"
@@ -526,7 +526,7 @@ char *
 go_pkg_header(const char *module, const char *pkg, const char *flat_hdr,
            const char *flat_includes, const char *pdu_externs,
            const char *rt_module) {
-    char *s = strdup(GO_GENERATED_BANNER "//go:build amd64\n\n");
+    char *s = strdup(GO_GENERATED_BANNER GO_BUILD_TAG "\n");
     s = go_ga(s, "// glue.go — generated Go<->Flat glue.\n");
     s = go_ga(s, "// Encode: one C block -> fill via the Go-side bump allocator -> the C\n");
     s = go_ga(s, "// entry point -> C.GoBytes copy -> buf_free + free (deferred, every\n");

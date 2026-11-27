@@ -7,6 +7,10 @@
       refused. Any mix of definite and indefinite lengths in a chain of
       tags decodes. The check reads the inner TLV before decoding it, so
       the whole outer TLV must be present (RC_WMORE until it is).
+    * Go backend: Linux arm64 is supported as well as amd64. The
+      generated and runtime .go files carry `//go:build amd64 || arm64`;
+      the runtime static-asserts that size_t and long are 8 bytes (LP64).
+    * CI: the C and Go jobs also run natively on arm64.
 
 0.9.29-go.20:
     * C runtime (BER): an explicit tag with an indefinite length around a

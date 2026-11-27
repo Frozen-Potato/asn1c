@@ -573,11 +573,11 @@ go_ctor_emit(const char *go_outdir) {
             goto out;
         }
         /* every generated package file opens with the generated-file
-         * banner, then carries the amd64 build tag (the emitted-tree
-         * convention; a missing tag breaks the build on non-amd64 hosts,
-         * so it is mandatory on every file). */
+         * banner, then carries the build tag (GO_BUILD_TAG, the
+         * emitted-tree convention; a missing tag breaks the build on
+         * unsupported hosts, so it is mandatory on every file). */
         if(fputs(GO_GENERATED_BANNER, f) < 0
-           || fputs("//go:build amd64\n\n", f) < 0
+           || fputs(GO_BUILD_TAG "\n", f) < 0
            || fprintf(f, "package %s\n", pkg) < 0) { CTOR_WERR(); fclose(f); free(fpath); free(pkg); rc = -1; goto out; }
         /* Cross-module payload types (alt T defined in another package)
          * arrive package-qualified in field_type (qualification ran before

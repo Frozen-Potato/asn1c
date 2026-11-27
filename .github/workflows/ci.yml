@@ -23,8 +23,8 @@ defaults:
 
 jobs:
   c:
-    name: C build and make check (${{ matrix.cc }})
-    runs-on: ubuntu-24.04
+    name: C build and make check (${{ matrix.cc }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -33,9 +33,24 @@ jobs:
           # Both run the tests under AddressSanitizer + UBSan; clang's UBSan
           # also checks unsigned-integer-overflow and nullability.
           - cc: gcc
+            arch: x86-64
+            runner: ubuntu-24.04
             configure: ''
             packages: ''
           - cc: clang
+            arch: x86-64
+            runner: ubuntu-24.04
+            configure: ''
+            packages: libclang-rt-18-dev
+          # Native arm64 (linux/arm64 is a supported target of the Go backend).
+          - cc: gcc
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            configure: ''
+            packages: ''
+          - cc: clang
+            arch: arm64
+            runner: ubuntu-24.04-arm
             configure: ''
             packages: libclang-rt-18-dev
     env:
@@ -53,8 +68,10 @@ jobs:
       - name: Build
         id: build
         run: make -j"$(nproc)" 2>&1 | tee build.log
+      # The baseline is the x86-64 gcc warning set; aarch64 gcc can warn
+      # differently, so only that leg is checked against it.
       - name: No new compiler warnings
-        if: matrix.cc == 'gcc'
+        if: matrix.cc == 'gcc' && matrix.arch == 'x86-64'
         run: sh .github/ci/check-warnings.sh build.log .github/ci/gcc-warnings.txt
       - name: Go backend globals prefixed
         if: matrix.cc == 'gcc'
@@ -71,8 +88,8 @@ jobs:
           done
 
   go:
-    name: Go backend tests (Go ${{ matrix.go }})
-    runs-on: ubuntu-24.04
+    name: Go backend tests (Go ${{ matrix.go }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -80,9 +97,22 @@ jobs:
         include:
           # The minimum Go of the generated modules (go.mod: go 1.21.0).
           - go: '1.21.x'
+            arch: x86-64
+            runner: ubuntu-24.04
             asan: '0'
           # Current Go, plus the go test -asan pass of run-e2e.
           - go: stable
+            arch: x86-64
+            runner: ubuntu-24.04
+            asan: '1'
+          # Native arm64.
+          - go: '1.21.x'
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            asan: '0'
+          - go: stable
+            arch: arm64
+            runner: ubuntu-24.04-arm
             asan: '1'
     env:
       GOTOOLCHAIN: local

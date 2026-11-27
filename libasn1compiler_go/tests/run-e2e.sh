@@ -23,10 +23,12 @@ if [ "$(go env CGO_ENABLED)" != 1 ]; then
     echo "run-e2e: SKIP: CGO_ENABLED is not 1" >&2
     exit 77
 fi
-if [ "$(go env GOARCH)" != amd64 ]; then
-    echo "run-e2e: SKIP: GOARCH is not amd64" >&2
-    exit 77
-fi
+case "$(go env GOARCH)" in
+amd64|arm64) ;;
+*)
+    echo "run-e2e: SKIP: GOARCH is neither amd64 nor arm64" >&2
+    exit 77 ;;
+esac
 
 tmp=$(mktemp -d)
 cleanup() { rm -rf "${tmp:?}"; }

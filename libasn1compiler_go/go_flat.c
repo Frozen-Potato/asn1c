@@ -1,6 +1,6 @@
 /*
  * go_flat.c — Flat C emission (the leaf-kind-to-Flat-C mapping table; the
- * x86-64 SysV Flat layout rule).
+ * LP64 Flat layout rule).
  *
  * Scope of this TU:
  *   - the Flat IR: one flat_type per ASN.1 type the walk visits, shaped per
@@ -9,7 +9,7 @@
  *     .h nests them; CHOICE slot pointer iff asn1c's union member is one
  *     (Flat CHOICE layout, masked marker tests per the marker-reading rule); no slot for a NULL
  *     alt (NULL-alt refinement); native-width INTEGER Flat members);
- *   - the x86-64 SysV layout engine: every size/align/offset computed HERE
+ *   - the LP64 layout engine: every size/align/offset computed HERE
  *     from the ABI rule table + member placement (the layout rule: the
  *     generator never asks the compiler);
  *   - the three file writers: per-package <P><pkg>_flat.h (run-prefixed,
@@ -164,7 +164,7 @@ struct flat_member {
                         * slot is filled by the C arc functions             */
     int wide;          /* INTEGER_t-backed int64/uint64 member (the tree slot
                         * is an INTEGER_t, not a native long)               */
-    unsigned long offset;  /* computed (x86-64 SysV layout rule)              */
+    unsigned long offset;  /* computed (LP64 layout rule)                   */
 };
 
 typedef enum {
@@ -798,7 +798,7 @@ go_conv_tree_typename(flat_type *t) {
 }
 
 /* ---------------------------------------------------------------------------
- * x86-64 SysV layout engine (the Flat layout rule) — no compiler involved.
+ * LP64 layout engine (the Flat layout rule) — no compiler involved.
  * ------------------------------------------------------------------------ */
 static int
 flat_prim_layout(const char *prim, unsigned long *size, unsigned long *align) {
@@ -2043,9 +2043,9 @@ go_flat_emit(const char *go_outdir, const char *go_module_basename) {
              * init, helpers */
             {
                 lg = fa(lg, GO_GENERATED_BANNER);
-                lg = fa(lg, "//go:build amd64\n\n");
+                lg = fa(lg, GO_BUILD_TAG "\n");
                 lg = fa(lg, "// layout.go - Flat struct sizeof/offsetof constants.\n");
-                lg = fa(lg, "// Values computed by the generator under x86-64 SysV; cross-checked\n");
+                lg = fa(lg, "// Values computed by the generator under the LP64 layout rule; cross-checked\n");
                 lg = fa(lg, "// by <P><pkg>_layout_check.c (_Static_asserts) and the init() cgo\n");
                 lg = fa(lg, "// probe below (live sizeof/offsetof).\n");
                 lg = fa(lg, "package ");

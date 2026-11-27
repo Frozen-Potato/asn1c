@@ -13,8 +13,9 @@
  * hands asn_decode a stack-local asn_codec_ctx_t with max_stack_size set to
  * this, so asn1c's ASN__STACK_OVERFLOW_CHECK bounds how deep the C decoder
  * recurses BEFORE the whole input is materialised (ASN1CGO_MAX_DEPTH is only
- * checked afterwards, in *_from_tree). Measured (gcc -O2, x86-64): 64 depth
- * units of the deepest recursive types cost 15.5-16.7 KB (68 units: 17.7 KB),
+ * checked afterwards, in *_from_tree). Measured (gcc -O2, x86-64 only; not
+ * re-measured on arm64): 64 depth units of the deepest recursive types cost
+ * 15.5-16.7 KB (68 units: 17.7 KB),
  * so 96 KiB is >= 5.5x headroom: no input within ASN1CGO_MAX_DEPTH trips it,
  * and it is far below a cgo thread stack (8 MiB glibc; 128 KiB musl).
  * Override with -DASN1CGO_C_STACK_MAX=<bytes> (must be nonzero: 0 disables

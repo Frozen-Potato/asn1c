@@ -43,6 +43,11 @@ typedef struct asn1cgo_raw_flat {
     asn1cgo_bytes_flat raw;
 } asn1cgo_raw_flat;
 
+/* The Flat layout is LP64: 8-byte pointers, size_t and long (Linux amd64 and
+ * arm64). Anything else fails here, not in a layout.go constant check. */
+_Static_assert(sizeof(size_t) == 8, "LP64: sizeof(size_t)");
+_Static_assert(sizeof(long) == 8, "LP64: sizeof(long)");
+
 /* The Go glue writes the two members at these offsets. */
 _Static_assert(sizeof(asn1cgo_raw_flat) == 24, "sizeofRawFlat");
 _Static_assert(offsetof(asn1cgo_raw_flat, raw) == 8, "offRawFlatRaw");

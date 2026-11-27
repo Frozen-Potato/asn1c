@@ -792,7 +792,7 @@ done:
                 rc = go_emit_files(asn, stage);
             g_go_emit_bag = NULL;
             /* Flat: compute every size/align/offset under
-             * x86-64 SysV (no compiler), then write the per-package
+             * the LP64 layout rule (no compiler), then write the per-package
              * <P><pkg>_flat.h + <P><pkg>_layout_check.c under
              * <stage>/c/ and the per-package layout.go beside types.go
              * (basename still live here; NULLed below). */

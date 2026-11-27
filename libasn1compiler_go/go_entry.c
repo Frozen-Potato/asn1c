@@ -327,7 +327,7 @@ cspec_cgo_go_text(void) {
     const char *oer_def = go_oer_disabled() ? " -DASN_DISABLE_OER_SUPPORT" : "";
     return go_cfmt(
         GO_GENERATED_BANNER
-        "//go:build amd64\n"
+        GO_BUILD_TAG
         "\n"
         "// Package cspec holds THIS spec's entire C world (the asn1c tree\n"
         "// copy + every <pkg>_flat.h + the conv/entry C): every generated\n"

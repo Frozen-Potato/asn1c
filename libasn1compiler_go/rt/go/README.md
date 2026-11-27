@@ -31,7 +31,7 @@ It contains:
 
 ## Requirements
 
-- Linux, amd64
+- Linux, amd64 or arm64
 - CGO enabled (`CGO_ENABLED=1`) and a C compiler (gcc or clang)
 
 ## The error model

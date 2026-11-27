@@ -1,7 +1,7 @@
 /*
  * go_flat.h — the Flat-IR surface between go_names.c (which walks the AST
  * and owns every structural decision) and go_flat.c (which owns the IR, the
- * x86-64 SysV layout engine, and the file writers). Flat side of the
+ * LP64 layout engine, and the file writers). Flat side of the
  * split: go_flat.c emits <CIdent>_flat structs + layout checks.
  *
  * Every hook takes the DECIDED facts by argument (cid, member token, star
@@ -160,7 +160,7 @@ int go_flat_alias_bare(const char *cid, const char *of_cid,
 
 /* ---- post-walk passes (called by go_generate) -------------------------- */
 
-/* Compute every size/align/offset under x86-64 SysV (the Flat struct
+/* Compute every size/align/offset under LP64 (the Flat struct
  * layout rule; re-entrant: memoized per node). */
 void go_flat_layout_all(void);
 
