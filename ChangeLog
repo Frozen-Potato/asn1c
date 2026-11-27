@@ -18,6 +18,10 @@
       no alternative of the set has); field, constant
       (<Record>ValuePrUnknownRaw2) and the rest follow. Output for other
       schemas does not change.
+    * C compiler: the generated Information Object Set tables
+      (asn_ioc_cell_t rows) initialize every member of a cell, so the
+      generated C code no longer triggers -Wmissing-field-initializers
+      under -Wall -Wextra. No change of behaviour.
 
 0.9.29-go.21:
     * C runtime (BER): a definite length tag around an indefinite length

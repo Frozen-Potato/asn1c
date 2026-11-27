@@ -608,10 +608,10 @@ static const long asn_VAL_1_id_TYPE1 = 1;
 static const long asn_VAL_1_blue = 2;
 static const long asn_VAL_1_crc_ok = 1;
 static const asn_ioc_cell_t asn_IOS_ClassItem_1_rows[] = {
-	{ "&id", aioc__value, &asn_DEF_PacketId, &asn_VAL_1_id_TYPE1 },
-	{ "&color", aioc__value, &asn_DEF_Color, &asn_VAL_1_blue },
-	{ "&Value", aioc__type, &asn_DEF_OCTET_STRING },
-	{ "&valid", aioc__value, &asn_DEF_Valid, &asn_VAL_1_crc_ok }
+	{ "&id", aioc__value, &asn_DEF_PacketId, &asn_VAL_1_id_TYPE1, { 0, 0 } },
+	{ "&color", aioc__value, &asn_DEF_Color, &asn_VAL_1_blue, { 0, 0 } },
+	{ "&Value", aioc__type, &asn_DEF_OCTET_STRING, 0, { 0, 0 } },
+	{ "&valid", aioc__value, &asn_DEF_Valid, &asn_VAL_1_crc_ok, { 0, 0 } }
 };
 static const asn_ioc_set_t asn_IOS_ClassItem_1[] = {
 	{ 1, 4, asn_IOS_ClassItem_1_rows }

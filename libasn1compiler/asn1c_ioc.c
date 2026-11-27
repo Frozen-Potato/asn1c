@@ -247,8 +247,12 @@ emit_ioc_cell(arg_t *arg, struct asn1p_ioc_cell_s *cell,
               const struct asn1p_ioc_cell_s *type_owner) {
     OUT("{ \"%s\", ", cell->field->Identifier);
 
+    /*
+     * Every cell is initialized in full, down to the open_type member:
+     * gcc -Wextra warns about the fields left out.
+     */
     if(!cell->value) {
-        /* Ignore */
+        OUT("aioc__undefined, 0, 0");
     } else if(cell->value->meta_type == AMT_VALUE) {
         GEN_INCLUDE(asn1c_type_name(arg, cell->value, TNF_INCLUDE));
         OUT("aioc__value, ");
@@ -258,21 +262,22 @@ emit_ioc_cell(arg_t *arg, struct asn1p_ioc_cell_s *cell,
 
     } else if(cell->value->meta_type == AMT_TYPEREF) {
         GEN_INCLUDE(asn1c_type_name(arg, cell->value, TNF_INCLUDE));
-        OUT("aioc__type, &asn_DEF_%s", asn1c_type_name(arg, cell->value, TNF_SAFE));
+        OUT("aioc__type, &asn_DEF_%s, 0",
+            asn1c_type_name(arg, cell->value, TNF_SAFE));
     } else if(cell->value->meta_type == AMT_TYPE) {
         GEN_INCLUDE(asn1c_type_name(arg, cell->value, TNF_INCLUDE));
         if(ioc_type_has_own_descriptor(cell->value)) {
-            OUT("aioc__type, &asn_DEF_%s_%d",
+            OUT("aioc__type, &asn_DEF_%s_%d, 0",
                 MKID(cell->value), type_owner->value->_type_unique_index);
         } else {
-            OUT("aioc__type, &asn_DEF_%s",
+            OUT("aioc__type, &asn_DEF_%s, 0",
                 asn1c_type_name_def(arg, cell->value));
         }
     } else {
         return -1;
     }
 
-    OUT(" }");
+    OUT(", { 0, 0 } }");
 
     return 0;
 }
