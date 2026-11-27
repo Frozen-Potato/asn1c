@@ -466,7 +466,10 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
      * PR_ErrorIndication = 23 (row 23 of an ELEMENTARY-PROCEDURES set) while
      * procedureCode(id-ErrorIndication) = 2 — InitiatingMessage.h:88-110. */
     int value_seq = 0;
-    int unk_taken = 0;   /* an alternative's own Go name is Unknown */
+    /* the Go names of the alternatives (deduped rows), to pick the Go name
+     * of the Unknown alternative of -fopen-type-unknown clear of them */
+    char **alt_gos = NULL;
+    size_t n_alt_gos = 0;
     for(size_t r = 0; !no_rows && r < ioc.ioct->rows; r++) {
         struct asn1p_ioc_cell_s *cell = &ioc.ioct->row[r]->column[col];
         if(!cell->value || !cell->value->Identifier)
@@ -689,8 +692,13 @@ emit_spec_value_alts(struct walk_ctx *ctx, const char *x_go,
         }
         char *altcid = go_mk_suffix(cell->value);
         char *altgo = go_cid_to_go_name(altcid);
-        if(altgo && strcmp(altgo, "Unknown") == 0)
-            unk_taken = 1;   /* the Unknown alternative becomes UnknownRaw */
+        if(altgo) {
+            char **na = realloc(alt_gos, (n_alt_gos + 1) * sizeof(*na));
+            if(na) {
+                alt_gos = na;
+                alt_gos[n_alt_gos++] = strdup(altgo);
+            }
+        }
         /* A named alternative's own type: the chased terminal. Its C name
          * (and so its Go name) is module-prefixed when the name exists in
          * several modules (ModB_Flag / ModBFlag), while the union member
@@ -815,7 +823,24 @@ done_seen:
      * when an alternative of the set is a type named Unknown (as an alt
      * named Present becomes PresentAlt). */
     if(go_open_type_unknown() && ioc.ioct && ioc.ioct->extensible) {
-        const char *ugo = unk_taken ? "UnknownRaw" : "Unknown";
+        /* Unknown, else UnknownRaw, UnknownRaw2, ... : the first name no
+         * alternative of the set has (as an alt named Present becomes
+         * PresentAlt) */
+        char ugo[32];
+        int unk_taken = 0;
+        for(int k = 0; k < 1000; k++) {
+            if(k == 0) snprintf(ugo, sizeof(ugo), "Unknown");
+            else if(k == 1) snprintf(ugo, sizeof(ugo), "UnknownRaw");
+            else snprintf(ugo, sizeof(ugo), "UnknownRaw%d", k);
+            int clash = 0;
+            for(size_t a = 0; a < n_alt_gos; a++)
+                if(strcmp(alt_gos[a], ugo) == 0) { clash = 1; break; }
+            if(!clash) { unk_taken = k > 0; break; }
+        }
+        /* the Flat token: the Go field spelled with a lower-case initial */
+        char utok[32];
+        snprintf(utok, sizeof(utok), "%s", ugo);
+        utok[0] = 'u';
         char *type_go = go_str_append(strdup(""), x_go);
         type_go = go_str_append(type_go, "ValuePr");
         {
@@ -833,7 +858,7 @@ done_seen:
             char *path = go_make_path(base, "unknown");
             free(base);
             go_emit_name(ctx->bag, ctx->module, path, GK_FIELD,
-                         strdup(unk_taken ? "unknownRaw" : "unknown"),
+                         strdup(utok),
                          strdup(ugo));
             go_row_set_field_type(ctx->bag, "*rt.OpenTypeRaw");
         }
@@ -841,12 +866,14 @@ done_seen:
          * alternative Unknown, whose offset const would be the same); the
          * C tree member and the _PR suffix stay `unknown` */
         go_flat_member_prim_on(-1, go_leaf_flat_prim(GLEAF_OPENRAW),
-                               unk_taken ? "unknownRaw" : "unknown", 0);
+                               utok, 0);
         go_flat_last_member_gleaf(GLEAF_OPENRAW);
         go_flat_label_last_member("unknown");
         if(unk_taken) go_flat_last_member_tree_token("unknown");
         free(type_go);
     }
+    for(size_t s = 0; s < n_alt_gos; s++) free(alt_gos[s]);
+    free(alt_gos);
     for(size_t s = 0; s < n_seen; s++) free(seen[s]);
     free(seen);
     go_struct_scope_reset(ctx->bag);

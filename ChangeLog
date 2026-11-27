@@ -11,6 +11,13 @@
       (renamed -B): data-62-11 has two TLVs inside the tag of an ANY,
       data-62-24 an end-of-contents octet pair after its TLV inside a
       definite length tag.
+    * Go backend, -fopen-type-unknown: when the extensible object set has
+      alternatives named both Unknown and UnknownRaw, asn1c stopped with
+      "collision in module" (exit 70). The Unknown alternative is now
+      UnknownRaw2 (the first of Unknown, UnknownRaw, UnknownRaw2, ... that
+      no alternative of the set has); field, constant
+      (<Record>ValuePrUnknownRaw2) and the rest follow. Output for other
+      schemas does not change.
 
 0.9.29-go.21:
     * C runtime (BER): a definite length tag around an indefinite length

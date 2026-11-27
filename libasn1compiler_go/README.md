@@ -280,7 +280,8 @@ codec you use. An id of the set sent as `Unknown`, or an id the set does not
 have with another alternative, returns `ErrIOCMismatch` / `ErrIOCUnknown`. An
 empty set (`{ ... }`) has only the `Unknown` alternative; a closed set has none
 and still refuses ids it does not list. When an alternative of the set is a
-type named `Unknown`, this one is `UnknownRaw` (`<Record>ValuePrUnknownRaw`).
+type named `Unknown`, this one is `UnknownRaw` (`<Record>ValuePrUnknownRaw`);
+when one is named `UnknownRaw` too, `UnknownRaw2`, and so on.
 Without the option the generated code does not change. The C code gets the same
 alternative (`<T>_PR_unknown`, `OPEN_TYPE_raw_t unknown`, skeletons/
 OPEN_TYPE_raw.h); XER cannot encode it.

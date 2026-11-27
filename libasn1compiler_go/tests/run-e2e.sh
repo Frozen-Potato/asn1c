@@ -448,7 +448,7 @@ EOS
 # has no Unknown alternative.
 run_open_type_unknown() {
     echo "== run-e2e: -fopen-type-unknown =="
-    for side in peer:otunknown-peer.asn:-gen-JER known:otunknown.asn:"-gen-JER -fopen-type-unknown" plain:otunknown.asn:-gen-JER; do
+    for side in peer:otunknown-peer.asn:-gen-JER known:otunknown.asn:"-gen-JER -fopen-type-unknown" clash:otunknown2.asn:"-gen-JER -fopen-type-unknown" plain:otunknown.asn:-gen-JER; do
         label=${side%%:*}; rest=${side#*:}; asn=${rest%%:*}; opts=${rest#*:}
         work="$tmp/otunknown/$label"
         mkdir -p "$work/c"
@@ -463,6 +463,7 @@ run_open_type_unknown() {
         case $label in
         peer)  cp "$here/e2e/otunknown_peer_test.go" "$here/e2e/otunknown_vectors_test.go" "$work/go/" ;;
         known) cp "$here/e2e/otunknown_test.go" "$here/e2e/otunknown_vectors_test.go" "$work/go/" ;;
+        clash) cp "$here/e2e/otunknown2_test.go" "$work/go/" ;;
         plain)
             if grep -q 'OpenTypeRaw' "$work/go/otunknown/types.go"; then
                 echo "run-e2e: -fopen-type-unknown: Unknown alternative without the flag" >&2

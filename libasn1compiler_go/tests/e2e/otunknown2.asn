@@ -1,0 +1,29 @@
+-- asn1c -fopen-type-unknown: the Unknown alternative of an extensible object
+-- set is named Unknown. When an alternative of the set is a type named
+-- Unknown, it is UnknownRaw; when there is one named UnknownRaw as well, it is
+-- UnknownRaw2 (the first free name). Tested by otunknown2_test.go.
+OTUnknown2 DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+IE ::= CLASS { &id INTEGER (0..65535) UNIQUE, &Value }
+    WITH SYNTAX { ID &id TYPE &Value }
+
+Field {IE : Set} ::= SEQUENCE {
+    id    IE.&id ({Set}),
+    value IE.&Value ({Set}{@id})
+}
+Container {IE : Set} ::= SEQUENCE (SIZE (1..8)) OF Field {{Set}}
+
+MsgIEs IE ::= {
+    { ID 1 TYPE Unknown } |
+    { ID 2 TYPE UnknownRaw },
+    ...
+}
+
+Unknown ::= INTEGER (0..255)
+UnknownRaw ::= BOOLEAN
+
+Msg ::= SEQUENCE {
+    ies Container {{MsgIEs}}
+}
+
+END
