@@ -3,7 +3,7 @@
 `asn1c -Fgo=<dir>` generates Go types and APER and UPER `Encode` / `Decode`
 functions for your ASN.1 specification. The Go code calls the C codec that the
 same `asn1c` run writes, through cgo, so the output always matches the C
-backend's view of the specification. Requirements: Linux amd64 or arm64, Go 1.21 or
+backend's view of the specification. Requirements: Linux amd64 or arm64 (not Windows: use WSL2), Go 1.21 or
 newer, cgo enabled and a C compiler. Known bugs and open limitations are in
 [KNOWN-ISSUES.md](KNOWN-ISSUES.md). The generated code's error model is
 described in the runtime module's README (`rt/go/README.md`).
@@ -579,7 +579,17 @@ hand-written imports of `…/asn1cgo-rt/rt` to
 ## Platform and limits
 
 - **Linux amd64 and arm64 only** (LP64): every generated `.go` file carries
-  `//go:build amd64 || arm64`. CI runs the C and Go test jobs natively on both.
+  `//go:build (amd64 || arm64) && !windows`. CI runs the C and Go test jobs
+  natively on both.
+- **Windows is not supported by the Go backend.** Windows is LLP64 (C `long`
+  is 32 bits) and the generated glue and the runtime assume 64-bit `long`.
+  Rather than build code that silently mangles values wider than 32 bits,
+  the runtime and every generated package refuse to build with GOOS=windows
+  (`go build` / `go vet` print `undefined:
+  asn1cgo_Go_backend_is_not_supported_on_Windows_use_WSL2_or_Linux`, and the
+  runtime package reports a C `#error` with the same advice). Use WSL2 (Linux
+  amd64) to generate and build Go code. For the C backend on Windows see the
+  mingw notes of the C runtime; they do not apply to `-Fgo`.
 - **Depth**: 64 depth units per encode/decode (`ASN1CGO_MAX_DEPTH` in the
   runtime's `rt/err.h`; changing it means regenerating the trees).
 - **C stack guard**: each decode runs with a stack guard of
@@ -592,7 +602,8 @@ hand-written imports of `…/asn1cgo-rt/rt` to
 ## Tests
 
 All scripts live in `tests/` and exit 77 (skipped) when `go`, cgo or the built
-`asn1c` is missing, or the host is not Linux amd64 or arm64.
+`asn1c` is missing, or the host is not Linux amd64 or arm64 (`GOOS=windows`
+included).
 
 - `run-e2e.sh`: generates Go from the e2e specs, builds it with cgo and runs
   round-trip, per-error-code and allocation-fault tests, with and without

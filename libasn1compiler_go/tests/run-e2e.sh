@@ -5,6 +5,7 @@
 # Runs three times: with -no-gen-OER, with OER enabled, and with -no-gen-OER
 # -gen-JER (which adds EncodeJER / DecodeJER<T> and their tests).
 # Exit codes: 0 pass, 77 skipped (automake SKIP), anything else failure.
+# On Windows (GOOS=windows) it exits 77: the Go backend is not supported there.
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -23,6 +24,11 @@ if [ "$(go env CGO_ENABLED)" != 1 ]; then
     echo "run-e2e: SKIP: CGO_ENABLED is not 1" >&2
     exit 77
 fi
+case "$(go env GOOS)" in
+windows)
+    echo "run-e2e: SKIP: the Go backend is not supported on Windows (LLP64); use WSL2 or Linux" >&2
+    exit 77 ;;
+esac
 case "$(go env GOARCH)" in
 amd64|arm64) ;;
 *)

@@ -1,3 +1,18 @@
+0.9.29-go.23 (unreleased):
+    * Go backend: Windows is now refused cleanly. Windows is LLP64 (C long
+      is 32 bits) and the generated glue and the runtime assume 64-bit long,
+      so values wider than 32 bits were silently read back wrong. Generated
+      and runtime .go files now carry `//go:build (amd64 || arm64) &&
+      !windows`; every generated package gets an unsupported_windows.go and
+      the runtime module an unsupported_windows.go, so go build and go vet
+      with GOOS=windows stop with a message that names the reason (use
+      WSL2 or Linux). Nothing changes on Linux apart from the build line
+      and the extra file.
+    * Tests: run-e2e.sh, run-feature-matrix.sh and run-rt-fetch.sh skip
+      (exit 77) when GOOS is windows.
+    * UPGRADING: nothing to change on Linux. Regenerate to get the new
+      build line; Windows users of the Go backend run it under WSL2.
+
 0.9.29-go.22:
     * C runtime (BER): an EXPLICIT tag around an ANY ([1] EXPLICIT ANY as
       a member, AUTOMATIC TAGS) accepted several TLVs inside it:

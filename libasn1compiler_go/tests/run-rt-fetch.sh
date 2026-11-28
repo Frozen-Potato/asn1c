@@ -32,6 +32,11 @@ if [ "$(go env CGO_ENABLED)" != 1 ]; then
     echo "run-rt-fetch: SKIP: CGO_ENABLED is not 1" >&2
     exit 77
 fi
+case "$(go env GOOS)" in
+windows)
+    echo "run-rt-fetch: SKIP: the Go backend is not supported on Windows (LLP64); use WSL2 or Linux" >&2
+    exit 77 ;;
+esac
 if [ ! -x "$asn1c" ]; then
     echo "run-rt-fetch: $asn1c not found; build the repo first (make)" >&2
     exit 1

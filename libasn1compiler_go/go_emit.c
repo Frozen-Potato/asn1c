@@ -199,6 +199,24 @@ write_types_go(const char *outdir, const char *pkg, const char *module) {
         free(path); free(pkgdir);
         return -1;
     }
+    free(path);
+    /* The Go backend is refused on Windows (LLP64): the glue and layout files
+     * carry GO_BUILD_TAG and drop out there, which would leave this package
+     * with its types only and a bare "Encode undefined" at the caller. This
+     * Windows-only file names the reason instead. */
+    path = join_path(pkgdir, "unsupported_windows.go");
+    f = fopen(path, "w");
+    if(!f || fprintf(f, "%s//go:build windows\n\n"
+                     "// The Go backend needs LP64 (C long is 8 bytes); Windows is LLP64.\n"
+                     "package %s\n\n"
+                     "var _ = asn1cgo_Go_backend_is_not_supported_on_Windows_use_WSL2_or_Linux\n",
+                     GO_GENERATED_BANNER, pkg) < 0
+       || fclose(f) != 0) {
+        fprintf(stderr, "asn1cgo: cannot write '%s': %s\n",
+                path, strerror(errno));
+        free(path); free(pkgdir);
+        return -1;
+    }
     free(path); free(pkgdir);
     return 0;
 }

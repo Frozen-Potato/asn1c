@@ -1,4 +1,4 @@
-//go:build amd64 || arm64
+//go:build (amd64 || arm64) && !windows
 
 // errors.go — the ONE shared Go error model. The Error
 // type, one Code constant per C asn1cgo_err_code, and ONE exported sentinel

@@ -26,8 +26,10 @@
 /* The build constraint every generated .go file carries right after the
  * banner (no trailing blank line; writers add their own). The Flat layout is
  * computed for LP64 (8-byte pointers and size_t/long): amd64 and arm64 on
- * Linux. The rt module's hand-written .go files carry the same line. */
-#define GO_BUILD_TAG "//go:build amd64 || arm64\n"
+ * Linux. Windows (LLP64: long is 32 bits) is excluded and
+ * rt/unsupported_windows.go says so at build time. The rt module's
+ * hand-written .go files carry the same line. */
+#define GO_BUILD_TAG "//go:build (amd64 || arm64) && !windows\n"
 
 /* Minimum Go version written to generated go.mod / go.work. This is the
  * lowest toolchain the generated code and asn1cgo-rt are tested with,

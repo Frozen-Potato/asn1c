@@ -35,6 +35,11 @@ if [ "$(go env CGO_ENABLED)" != 1 ]; then
     echo "run-feature-matrix: SKIP: CGO_ENABLED is not 1" >&2
     exit 77
 fi
+case "$(go env GOOS)" in
+windows)
+    echo "run-feature-matrix: SKIP: the Go backend is not supported on Windows (LLP64); use WSL2 or Linux" >&2
+    exit 77 ;;
+esac
 
 tmp=$(mktemp -d)
 cleanup() { rm -rf "${tmp:?}"; }

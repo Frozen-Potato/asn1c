@@ -31,7 +31,9 @@ It contains:
 
 ## Requirements
 
-- Linux, amd64 or arm64
+- Linux, amd64 or arm64. Windows is not supported (LLP64: C `long` is 32
+  bits); building this module with GOOS=windows fails on purpose with a
+  message that says so. Use WSL2.
 - CGO enabled (`CGO_ENABLED=1`) and a C compiler (gcc or clang)
 
 ## The error model
