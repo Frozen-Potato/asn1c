@@ -1,4 +1,4 @@
-0.9.29-go.22 (unreleased):
+0.9.29-go.22:
     * C runtime (BER): an EXPLICIT tag around an ANY ([1] EXPLICIT ANY as
       a member, AUTOMATIC TAGS) accepted several TLVs inside it:
       A1 80 04 01 41 04 01 42 00 00 and A1 06 04 01 41 04 01 42 decoded
@@ -22,6 +22,14 @@
       (asn_ioc_cell_t rows) initialize every member of a cell, so the
       generated C code no longer triggers -Wmissing-field-initializers
       under -Wall -Wextra. No change of behaviour.
+    * Go backend: generated go.mod files now require rt v0.4.11; run
+      `go mod tidy` once after regenerating. Same module path, no change
+      of the Go API. Its C files are kept in step with the skeletons
+      (OCTET_STRING.c).
+    * UPGRADING: nothing to change for existing code. C users copy the
+      skeleton file of this version (OCTET_STRING.c); Go users run
+      `go mod tidy` after regenerating. BER input with more than one TLV
+      inside the EXPLICIT tag of an ANY is now refused.
 
 0.9.29-go.21:
     * C runtime (BER): a definite length tag around an indefinite length
