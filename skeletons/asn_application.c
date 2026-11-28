@@ -73,7 +73,7 @@ overrun_encoder_cb(const void *data, size_t size, void *keyp) {
          */
         key->buffer_size = 0;
     } else {
-        memcpy((char *)key->buffer + key->computed_size, data, size);
+        if(size) memcpy((char *)key->buffer + key->computed_size, data, size);
     }
     key->computed_size += size;
 
@@ -109,7 +109,7 @@ dynamic_encoder_cb(const void *data, size_t size, void *keyp) {
                 return 0;
             }
         }
-        memcpy((char *)key->buffer + key->computed_size, data, size);
+        if(size) memcpy((char *)key->buffer + key->computed_size, data, size);
     }
 
     key->computed_size += size;

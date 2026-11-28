@@ -263,7 +263,7 @@ static int ANY__consume_bytes(const void *buffer, size_t size, void *key) {
 		arg->size = nsize;
 	}
 
-	memcpy(arg->buffer + arg->offset, buffer, size);
+	if(size) memcpy(arg->buffer + arg->offset, buffer, size);
 	arg->offset += size;
 	assert(arg->offset < arg->size);
 

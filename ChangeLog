@@ -36,6 +36,23 @@
     * Windows: .gitattributes (LF everywhere, test vectors binary);
       -flink-skeletons falls back to copying where symbolic links cannot be
       made; the CI job compiles and runs the generated C natively.
+    * Tests: check-195 reads the raw value as ANY_t, not OCTET_STRING_t
+      (an incompatible-pointer-types error with gcc 14 and later), and
+      covers the empty EXPLICIT ANY (9 accepted, 5 refused inputs). The
+      x86-64 gcc CI leg configures with the gcc 14 default errors
+      (-Werror=incompatible-pointer-types, int-conversion,
+      implicit-function-declaration, implicit-int).
+    * C runtime: the encode-to-buffer callbacks no longer call memcpy with
+      a NULL source for zero-length writes (undefined behaviour reported
+      by UBSan when an empty value is re-encoded).
+    * asn1c -fopen-type-unknown: when Unknown, UnknownRaw and every
+      UnknownRaw<n> are taken, asn1c stops with a name-collision error
+      (exit 70) that names the cause.
+    * skeletons/file-dependencies: BIT_STRING_oer.c and OCTET_STRING_oer.c
+      (OER), BIT_STRING_jer.c and OCTET_STRING_jer.c (JER) are always
+      copied: BIT_STRING.c and OCTET_STRING.c, which are always copied,
+      refer to them. Schemas that use neither type directly failed to
+      link. The generated directory of such schemas gains these files.
 
 0.9.29-go.22:
     * C runtime (BER): an EXPLICIT tag around an ANY ([1] EXPLICIT ANY as

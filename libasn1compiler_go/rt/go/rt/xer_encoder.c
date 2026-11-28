@@ -88,7 +88,7 @@ xer__buffer_append(const void *buffer, size_t size, void *app_key) {
         xb->allocated_size = new_size;
     }
 
-    memcpy(xb->buffer + xb->buffer_size, buffer, size);
+    if(size) memcpy(xb->buffer + xb->buffer_size, buffer, size);
     xb->buffer_size += size;
     xb->buffer[xb->buffer_size] = '\0';
     return 0;

@@ -24,6 +24,9 @@ struct vec {
 };
 
 static const struct vec vecs[] = {
+	/* Empty tag: an empty value, written back as A1 00 */
+	{ &asn_DEF_S, "3002 a100", "" },
+	{ &asn_DEF_S, "3080 a180 0000 0000", "" },
 	{ &asn_DEF_S, "3080 a103 040141 0000", "040141" },
 	{ &asn_DEF_S, "3005 a103 040141", "040141" },
 	{ &asn_DEF_S, "3080 a180 040141 0000 0000", "040141" },
@@ -55,7 +58,7 @@ unhex(const char *h, unsigned char *b) {
 	return n;
 }
 
-static OCTET_STRING_t *
+static ANY_t *
 raw_of(asn_TYPE_descriptor_t *td, void *st) {
 	(void)td;
 	return &((S_t *)st)->t;
@@ -82,22 +85,27 @@ decode_bytewise(asn_TYPE_descriptor_t *td, const unsigned char *buf,
 static void
 check_raw(asn_TYPE_descriptor_t *td, void *st, const unsigned char *want,
 		  size_t wlen) {
-	const OCTET_STRING_t *os = raw_of(td, st);
+	const ANY_t *os = raw_of(td, st);
 	unsigned char der[128];
 	asn_enc_rval_t er;
 	void *back = 0;
 	asn_dec_rval_t dr;
 
-	assert(os->size == wlen);
+	assert((size_t)os->size == wlen);
 	assert(wlen == 0 || !memcmp(os->buf, want, wlen));
 
 	/* Round trip */
 	er = asn_encode_to_buffer(0, ATS_DER, td, st, der, sizeof(der));
 	assert(er.encoded > 0 && (size_t)er.encoded <= sizeof(der));
+	if(wlen == 0) {	/* An empty ANY is written as an empty tag */
+		static const unsigned char empty[] = { 0x30, 0x02, 0xa1, 0x00 };
+		assert((size_t)er.encoded == sizeof(empty));
+		assert(!memcmp(der, empty, sizeof(empty)));
+	}
 	dr = ber_decode(0, td, &back, der, er.encoded);
 	assert(dr.code == RC_OK && dr.consumed == (size_t)er.encoded);
 	os = raw_of(td, back);
-	assert(os->size == wlen);
+	assert((size_t)os->size == wlen);
 	assert(wlen == 0 || !memcmp(os->buf, want, wlen));
 	ASN_STRUCT_FREE(*td, back);
 }

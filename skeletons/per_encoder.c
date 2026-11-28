@@ -60,7 +60,7 @@ static int encode_to_buffer_cb(const void *buffer, size_t size, void *key) {
 	if(arg->left < size)
 		return -1;	/* Data exceeds the available buffer size */
 
-	memcpy(arg->buffer, buffer, size);
+	if(size) memcpy(arg->buffer, buffer, size);
 	arg->buffer = ((char *)arg->buffer) + size;
 	arg->left -= size;
 
@@ -106,7 +106,7 @@ encode_dyn_cb(const void *buffer, size_t size, void *key) {
         arg->buffer = p;
         arg->allocated = new_size;
     }
-    memcpy(((char *)arg->buffer) + arg->length, buffer, size);
+    if(size) memcpy(((char *)arg->buffer) + arg->length, buffer, size);
     arg->length += size;
     return 0;
 }

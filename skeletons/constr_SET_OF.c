@@ -310,7 +310,7 @@ static int _el_addbytes(const void *buffer, size_t size, void *el_buf_ptr) {
         }
     }
 
-    memcpy(el_buf->buf + el_buf->length, buffer, size);
+    if(size) memcpy(el_buf->buf + el_buf->length, buffer, size);
 
     el_buf->length += size;
     return 0;
@@ -699,7 +699,7 @@ SET_OF_encode_xer_callback(const void *buffer, size_t size, void *key) {
 		t->buffer = p;
 		t->size = newsize;
 	}
-	memcpy((char *)t->buffer + t->offset, buffer, size);
+	if(size) memcpy((char *)t->buffer + t->offset, buffer, size);
 	t->offset += size;
 	return 0;
 }

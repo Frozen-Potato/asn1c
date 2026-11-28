@@ -57,10 +57,11 @@ jobs:
         include:
           # Both run the tests under AddressSanitizer + UBSan; clang's UBSan
           # also checks unsigned-integer-overflow and nullability.
+          # The gcc 14 default errors, so that the older gcc catches them.
           - cc: gcc
             arch: x86-64
             runner: ubuntu-24.04
-            configure: ''
+            configure: CFLAGS="-g -O2 -Werror=incompatible-pointer-types -Werror=int-conversion -Werror=implicit-function-declaration -Werror=implicit-int"
             packages: ''
           - cc: clang
             arch: x86-64

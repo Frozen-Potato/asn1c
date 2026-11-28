@@ -827,7 +827,7 @@ done_seen:
          * alternative of the set has (as an alt named Present becomes
          * PresentAlt) */
         char ugo[32];
-        int unk_taken = 0;
+        int unk_taken = 0, found = 0;
         for(int k = 0; k < 1000; k++) {
             if(k == 0) snprintf(ugo, sizeof(ugo), "Unknown");
             else if(k == 1) snprintf(ugo, sizeof(ugo), "UnknownRaw");
@@ -835,7 +835,17 @@ done_seen:
             int clash = 0;
             for(size_t a = 0; a < n_alt_gos; a++)
                 if(strcmp(alt_gos[a], ugo) == 0) { clash = 1; break; }
-            if(!clash) { unk_taken = k > 0; break; }
+            if(!clash) { unk_taken = k > 0; found = 1; break; }
+        }
+        if(!found) {
+            /* every candidate is an alternative's Go name: refuse like any
+             * other name collision (the last candidate stays in ugo) */
+            fprintf(stderr,
+                    "asn1cgo: collision in module %s: no free Go name for "
+                    "the unknown alternative of %s (Unknown, UnknownRaw, "
+                    "UnknownRaw2 ... all taken)\n",
+                    ctx->module ? ctx->module : "?", x_go);
+            ctx->bag->failed = 1;
         }
         /* the Flat token: the Go field spelled with a lower-case initial */
         char utok[32];
