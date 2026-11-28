@@ -45,6 +45,7 @@
 #ifdef _WIN32
 #include <io.h>
 #include <direct.h>
+#include <asn1_portable.h>
 #else
 #include <dirent.h>
 #endif
@@ -82,6 +83,10 @@ main(int ac, char **av) {
     int i;                          /* Index in some loops */
     int exit_code = 0;              /* Exit code */
 
+#ifdef _WIN32
+    asn1c_win_binmode();    /* write LF as LF; the code splits paths on '/' */
+#endif
+
     /*
      * Process command-line options.
      */
@@ -93,6 +98,9 @@ main(int ac, char **av) {
                 destdir = calloc(1, optarg_len + 2); /* + "/\0" */
                 assert(destdir);
                 strcpy(destdir, optarg);
+#ifdef _WIN32
+                asn1c_win_slashes(destdir);
+#endif
                 if(destdir[optarg_len - 1] != '/') {
                     destdir[optarg_len] = '/';
                 }
@@ -168,6 +176,9 @@ main(int ac, char **av) {
                  * (boolean) + this 'g' optarg "o=DIR" (cf. -pdu= at :188).
                  * Bundling-proof; -go=<dir> is an accepted alias. */
                 go_outdir = optarg + 2;
+#ifdef _WIN32
+                asn1c_win_slashes(go_outdir);
+#endif
                 go_requested = 1;
                 break;
             }
@@ -240,6 +251,9 @@ main(int ac, char **av) {
             break;
         case 'S':
             skeletons_dir = optarg;
+#ifdef _WIN32
+            asn1c_win_slashes(skeletons_dir);
+#endif
             break;
         case 'v':
             fprintf(stderr, "ASN.1 Compiler, v" VERSION "\n" COPYRIGHT);
@@ -327,6 +341,43 @@ main(int ac, char **av) {
     if(skeletons_dir == NULL) {
         struct stat sb;
         skeletons_dir = DATADIR;
+#ifdef _WIN32
+        if(stat(skeletons_dir, &sb)) {
+            /*
+             * The default skeletons directory does not exist (an installed
+             * tree can be moved, and a prefix like /mingw64 is not a Windows
+             * path): look next to the executable.
+             * <prefix>/bin/asn1c.exe -> <prefix>/share/asn1c, and
+             * ./asn1c/asn1c.exe -> ./skeletons in a build tree (the libtool
+             * wrapper runs ./asn1c/.libs/asn1c.exe: ./asn1c/../../skeletons).
+             */
+            char *exedir = asn1c_win_exe_dir();
+            static const char *const rel[] = { "share/asn1c", "skeletons",
+                                               "../skeletons" };
+            size_t k;
+            int found = 0;
+            for(k = 0; exedir && k < sizeof(rel) / sizeof(rel[0]); k++) {
+                size_t len = strlen(exedir) + strlen(rel[k]) + sizeof("/../");
+                char *cand = malloc(len);
+                assert(cand);
+                snprintf(cand, len, "%s/../%s", exedir, rel[k]);
+                if(stat(cand, &sb) == 0) {
+                    skeletons_dir = cand;
+                    found = 1;
+                    break;
+                }
+                free(cand);
+            }
+            if(!found) {
+                fprintf(stderr,
+                        "WARNING: skeletons are neither in \"%s\" nor next "
+                        "to the executable!\n",
+                        DATADIR);
+                if(warnings_as_errors) exit(EX_OSFILE);
+            }
+            free(exedir);
+        }
+#else
         if((av[-optind][0] == '.' || av[-optind][1] == '/')
            && stat(skeletons_dir, &sb)) {
             /*
@@ -351,6 +402,7 @@ main(int ac, char **av) {
                 if(warnings_as_errors) exit(EX_OSFILE);
             }
         }
+#endif
     }
 
     /*

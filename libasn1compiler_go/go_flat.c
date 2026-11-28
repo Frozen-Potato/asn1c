@@ -42,6 +42,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <stdint.h>
+#include <asn1_portable.h>     /* Windows: mkdir(2) with one argument */
 
 #include "asn1c_internal.h"     /* arg_t (required before asn1c_misc.h) */
 #include "asn1c_misc.h"         /* asn1c_prefix (per-spec prefix; asn1c_misc.h:55) */

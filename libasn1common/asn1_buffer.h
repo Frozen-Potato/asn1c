@@ -2,6 +2,7 @@
 #define	ASN1_BUFFER_H
 
 #include <stdarg.h>
+#include <asn1_portable.h>
 
 /*
  * Your typical dynamic character string buffer.
@@ -30,7 +31,7 @@ void abuf_str(abuf *, const char *str);
 void abuf_buf(abuf *, const abuf *);
 void abuf_add_bytes(abuf *, const char *, size_t);
 int abuf_printf(abuf *, const char *fmt, ...)
-    __attribute__((format(printf, 2, 3)));
+    __attribute__((format(ASN1_PRINTF, 2, 3)));
 int abuf_vprintf(abuf *, const char *fmt, va_list);
 
 #endif	/* ASN1_BUFFER_H */

@@ -35,6 +35,14 @@ cygwin)
 	;;
 esac
 
+dnl mingw-w64: the compiler's own printf family (C99: %zu, %jd, vasprintf)
+dnl instead of msvcrt's; binaries are native Windows executables.
+case "$host_os" in
+mingw*)
+	CPPFLAGS="$CPPFLAGS -D__USE_MINGW_ANSI_STDIO=1"
+	;;
+esac
+
 AC_ARG_ENABLE([ASN_DEBUG],
   [AS_HELP_STRING([--enable-ASN_DEBUG],
                   [produce debug log during `make check` testing])],
@@ -208,6 +216,7 @@ Check out https://clang.llvm.org/docs/AddressSanitizer.html#how-to-build])])
     CFLAGS="${CFLAGS} ${SANITIZER_CFLAGS}"
     AC_RUN_IFELSE([AC_LANG_PROGRAM()], [
         ASAN_ENV_FLAGS="${ASAN_ENV_FLAGS} ASAN_OPTIONS=detect_leaks=1"
+    ], [], [dnl cross-compiling: cannot run it, leave detect_leaks off
     ])
     CFLAGS="${save_cflags}"
     unset ASAN_OPTIONS

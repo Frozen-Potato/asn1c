@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <asn1_portable.h>     /* Windows: mkdir(2) with one argument */
 
 #include "asn1c_internal.h"      /* arg_t + asn1p_expr_t before asn1c_misc.h
                                  * (the go_entry.c include discipline) */
@@ -106,7 +107,7 @@ char *go_gam(char *a, char *b);
 void go_sb_a(gsb *b, const char *s);
 void go_sb_am(gsb *b, char *s);
 void go_sb_set(gsb *b, char *s);
-__attribute__((format(printf, 1, 2)))
+__attribute__((format(ASN1_PRINTF, 1, 2)))
 char *go_gfmt(const char *fmt, ...);
 void go_free_const(const void *p);
 char *go_gown(const char *s);

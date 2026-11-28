@@ -64,5 +64,8 @@
 #ifndef EX_OSFILE
 #define EX_OSFILE 72
 #endif
+#ifndef __MINGW32__ /* mingw-w64: C99 snprintf (the printf family is ISO) */
 #define snprintf _snprintf
+#endif
+#include <asn1_portable.h> /* binary mode, path helpers */
 #endif /* _WIN32 */

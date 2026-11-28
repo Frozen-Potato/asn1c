@@ -139,8 +139,9 @@ int abuf_vprintf(abuf *ab, const char *fmt, va_list ap) {
     return ret;
 }
 
-#if !defined(HAVE_DECL_VASPRINTF) || (HAVE_DECL_VASPRINTF == 0)
-/* Solaris doesn't have vasprintf(3). */
+#if (!defined(HAVE_DECL_VASPRINTF) || (HAVE_DECL_VASPRINTF == 0)) \
+    && !defined(__MINGW32__)
+/* Solaris doesn't have vasprintf(3). mingw-w64 has it in <stdio.h>. */
 int
 vasprintf(char **ret, const char *fmt, va_list args) {
     int actual_length = -1;

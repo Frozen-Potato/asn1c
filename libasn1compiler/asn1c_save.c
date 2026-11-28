@@ -5,6 +5,7 @@
 #include "asn1c_misc.h"
 #include "asn1c_save.h"
 #include "asn1c_out.h"
+#include <asn1_portable.h>	/* Windows: rename() that replaces */
 
 #ifndef HAVE_SYMLINK
 #define symlink(a,b) (errno=ENOSYS, -1)
@@ -655,9 +656,9 @@ identical_files(const char *fname1, const char *fname2) {
 	}
 #endif
 
-	fp1 = fopen(fname1, "r");
+	fp1 = fopen(fname1, "rb");
 	if(!fp1) { return 0; }
-	fp2 = fopen(fname2, "r");
+	fp2 = fopen(fname2, "rb");
 	if(!fp2) { fclose(fp1); return 0; }
 
 	while((olen = fread(buf[0], 1, sizeof(buf[0]), fp1))) {
@@ -689,7 +690,7 @@ real_copy(const char *src, const char *dst) {
 	if(identical_files(src, dst))
 		return retval;	/* Success, no need to copy for real. */
 
-	fpsrc = fopen(src, "r");
+	fpsrc = fopen(src, "rb");
 	if(!fpsrc) { errno = EIO; return -1; }
 	fpdst = asn1c_open_file(NULL, dst, "", &tmpname);
 	if(!fpdst) { fclose(fpsrc); errno = EIO; return -1; }

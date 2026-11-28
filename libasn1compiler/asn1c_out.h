@@ -41,7 +41,7 @@ static char *_compiler_stream2str[] __attribute__ ((unused))
 
 int asn1c_compiled_output(arg_t *arg, const char *file, int lineno,
                           const char *func, const char *fmt, ...)
-    __attribute__((format(printf, 5, 6)));
+    __attribute__((format(ASN1_PRINTF, 5, 6)));
 
 
 /*****************************************************************

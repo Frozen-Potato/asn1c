@@ -42,8 +42,11 @@
 #include <errno.h>
 #include <sys/stat.h>           /* mkdir(2) */
 #include <sys/types.h>
+#ifndef _WIN32
 #include <ftw.h>
+#endif
 #include <unistd.h>
+#include <asn1_portable.h>      /* Windows: mkdir, mkdtemp, rename */
 
 #include <asn1parser.h>         /* asn1p_t, asn1p_module_t */
 #include <asn1p_list.h>         /* TQ_FOR */
@@ -205,15 +208,27 @@ write_types_go(const char *outdir, const char *pkg, const char *module) {
      * with its types only and a bare "Encode undefined" at the caller. This
      * Windows-only file names the reason instead. */
     path = join_path(pkgdir, "unsupported_windows.go");
-    f = fopen(path, "w");
-    if(!f || fprintf(f, "%s//go:build windows\n\n"
-                     "// The Go backend needs LP64 (C long is 8 bytes); Windows is LLP64.\n"
-                     "package %s\n\n"
-                     "var _ = asn1cgo_Go_backend_is_not_supported_on_Windows_use_WSL2_or_Linux\n",
-                     GO_GENERATED_BANNER, pkg) < 0
-       || fclose(f) != 0) {
+    f = fopen(path, "w");                /* binary on Windows: asn1c sets _fmode */
+    if(!f) {
         fprintf(stderr, "asn1cgo: cannot write '%s': %s\n",
                 path, strerror(errno));
+        free(path); free(pkgdir);
+        return -1;
+    }
+    if(fprintf(f, "%s//go:build windows\n\n"
+               "// The Go backend needs LP64 (C long is 8 bytes); Windows is LLP64.\n"
+               "package %s\n\n"
+               "var _ = asn1cgo_Go_backend_is_not_supported_on_Windows_use_WSL2_or_Linux\n",
+               GO_GENERATED_BANNER, pkg) < 0) {
+        fprintf(stderr, "asn1cgo: write failed: %s: %s\n", path,
+                errno ? strerror(errno) : "I/O error");
+        fclose(f);
+        free(path); free(pkgdir);
+        return -1;
+    }
+    if(fclose(f) != 0) {
+        fprintf(stderr, "asn1cgo: write failed: %s: %s\n", path,
+                strerror(errno));
         free(path); free(pkgdir);
         return -1;
     }
@@ -278,11 +293,13 @@ int go_outdir_commit(char *old);
 void go_outdir_discard(const char *tmp);
 int go_outdir_probe(const char *go_outdir);
 
+#ifndef _WIN32
 static int
 rm_cb(const char *p, const struct stat *sb, int flag, struct FTW *ftw) {
     (void)sb; (void)flag; (void)ftw;
     return remove(p);                   /* FTW_PHYS: a symlink is unlinked, never followed */
 }
+#endif
 
 /* Remove a directory tree that this module created. Returns 0 / -1 (diag). */
 static int
@@ -293,7 +310,11 @@ rm_tree(const char *dir) {
                 "created by asn1cgo\n", dir ? dir : "(null)");
         return -1;
     }
+#ifdef _WIN32
+    if(asn1c_win_rmtree(dir) != 0) {
+#else
     if(nftw(dir, rm_cb, 16, FTW_DEPTH | FTW_PHYS) != 0) {
+#endif
         fprintf(stderr, "asn1cgo: cannot remove directory tree: %s: %s\n",
                 dir, strerror(errno));
         return -1;

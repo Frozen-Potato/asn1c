@@ -33,8 +33,10 @@
 #include <fcntl.h>
 #define	open	_open
 #define	close	_close
+#ifndef	__MINGW32__	/* mingw-w64 has the C99 ones */
 #define	snprintf	_snprintf
 #define	vsnprintf	_vsnprintf
+#endif
 #else
 #include <glob.h>		/* for glob(3) */
 #endif

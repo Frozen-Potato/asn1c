@@ -318,7 +318,7 @@
  * Prefix parser debug with "PARSER: " for easier human eye scanning.
  */
 static int
-__attribute__((format(printf, 2, 3)))
+__attribute__((format(ASN1_PRINTF, 2, 3)))
 prefixed_fprintf(FILE *f, const char *fmt, ...) {
     static int line_ended = 1;
     va_list ap;

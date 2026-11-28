@@ -189,3 +189,102 @@ jobs:
         if: (success() || failure()) && steps.build.outcome == 'success'
         working-directory: libasn1compiler_go/tests
         run: sh ./run-feature-matrix.sh
+
+  # The compiler on Windows: a native 64-bit asn1c.exe from the mingw-w64
+  # toolchain of MSYS2. UCRT64 (the Universal CRT that ships with Windows 10
+  # and later, and the environment MSYS2 recommends for new work) is the main
+  # leg; MINGW64 (the older msvcrt-based one) is kept to catch differences
+  # between the two C runtimes, the cross toolchain used to develop this port
+  # being msvcrt-based.
+  # What is NOT covered yet: compiling and running the generated C code
+  # (tests-c-compiler, tests-skeletons, tests-asn1c-smoke) needs the Windows
+  # fixes of the runtime in skeletons/; those steps are marked and do not fail
+  # the job. Building the generated Go code on Windows is not supported.
+  windows:
+    name: Windows build and compiler tests (MSYS2 ${{ matrix.msystem }})
+    runs-on: windows-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        msystem: [UCRT64, MINGW64]
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      # The build scripts and the test data need LF; the runner's git
+      # converts to CRLF by default.
+      - name: Check out without line ending conversion
+        shell: bash
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: false
+          install: >-
+            make autoconf automake libtool bison flex diffutils
+          pacboy: >-
+            gcc:p
+      - name: Configure
+        run: |
+          autoreconf -fi
+          ./configure
+      - name: Build
+        id: build
+        run: make -j"$(nproc)" 2>&1 | tee build.log
+      # The compiler sources (libasn1*, asn1c) must build without warnings;
+      # warnings in the runtime copies under skeletons/ are the runtime's, and
+      # those in libtool's generated wrapper programs (.libs/lt-*.c) are not
+      # ours.
+      - name: No compiler warnings outside skeletons
+        run: |
+          if grep -E '\.c:[0-9]+:[0-9]+: warning' build.log | grep -v -e 'skeletons/' -e 'lt-[a-z0-9_]*\.c'; then
+            echo "compiler warnings (listed above)"; exit 1
+          fi
+          echo "No compiler warnings."
+      - name: Smoke test asn1c.exe
+        run: |
+          set -e
+          rm -rf smoke && mkdir -p smoke/c smoke/go-parent
+          flags="-fincludes-quoted -fcompound-names -findirect-choice -fno-include-deps -gen-PER -no-gen-OER -pdu=auto"
+          ./asn1c/asn1c -S skeletons -D smoke/c tests/tests-asn1c-compiler/50-constraint-OK.asn1
+          test -s smoke/c/Makefile.am.libasncodec
+          test -s smoke/c/constr_TYPE.c
+          # the C pass must not have written a single CR
+          if grep -rl "$(printf '\r')" smoke/c; then echo "CR in generated files"; exit 1; fi
+          # the Go pass (generating only), into a directory below a parent
+          ./asn1c/asn1c -S skeletons $flags -D smoke/c -Fgo=smoke/go-parent/gx tests/tests-asn1c-compiler/50-constraint-OK.asn1
+          test -s smoke/go-parent/gx/go.mod
+          test -s smoke/go-parent/go.work
+          if grep -rl "$(printf '\r')" smoke/go-parent; then echo "CR in generated files"; exit 1; fi
+          # backslash paths work too
+          ./asn1c/asn1c -S skeletons $flags -D smoke\\c\\ -Fgo=smoke\\go-parent\\gy tests/tests-asn1c-compiler/50-constraint-OK.asn1
+          test -s smoke/go-parent/gy/go.mod
+          # the BER tools
+          cd asn1c && sh ./check-xxber.sh
+      # make check for what needs only the compiler and the libraries: the
+      # parser and fixer unit tests, enber/unber, and the -E/-P output
+      # checks of tests-asn1c-compiler.
+      - name: make check (compiler only)
+        run: |
+          make -C libasn1parser check
+          make -C libasn1fix check
+          make -C asn1c check
+          make -C tests/tests-asn1c-compiler check \
+            TESTS="check-parsing.sh check-named-bit.sh check-oid-default.sh check-brace-tuple.sh check-default-constructed.sh"
+      # TODO: drop continue-on-error once the Windows fixes of the runtime
+      # (skeletons/asn_system.h, INTEGER.c, GeneralizedTime.c,
+      # converter-example.c) are in; then the whole `make check` can run here.
+      - name: Compile and run the generated C (needs the runtime fixes)
+        continue-on-error: true
+        run: |
+          make -C tests/tests-asn1c-compiler check TESTS=check-name-clash.sh
+          make -C tests/tests-asn1c-smoke check
+          make -j"$(nproc)" -k check
+      - name: Show failed test logs
+        if: failure()
+        run: |
+          find . -name test-suite.log | while read -r f; do
+            echo "::group::$f"; cat "$f"; echo "::endgroup::"
+          done

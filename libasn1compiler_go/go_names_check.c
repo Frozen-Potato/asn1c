@@ -6,6 +6,7 @@
  * Part of the Go-name generator pass; go_names.c has the overview.
  */
 #include "go_names_internal.h"
+#include <asn1_portable.h>     /* Windows: strndup */
 
 /* qualify_type: cross-module qualification for a named-type reference.
  * `go_name` is the referenced type's Go name; walks the FULL name table (the

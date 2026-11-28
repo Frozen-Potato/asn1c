@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <asn1_portable.h>     /* ASN1_PRINTF */
 
 /* ---- shared emission helpers (defined once in go_conv_to.c) ------------- */
 
@@ -34,7 +35,7 @@
 char *go_ca(char *a, const char *b);
 
 /* printf into a fresh malloc'd string. */
-__attribute__((format(printf, 1, 2)))
+__attribute__((format(ASN1_PRINTF, 1, 2)))
 char *go_cfmt(const char *fmt, ...);
 
 /* strdup that never returns NULL ("" on OOM). */

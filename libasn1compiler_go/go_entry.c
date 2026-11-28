@@ -42,12 +42,15 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <sys/file.h>
+#endif
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <stdint.h>
+#include <asn1_portable.h>      /* Windows: mkdir, realpath, flock, rename, ... */
 
 /* The rt runtime version every generated go.mod requires (single source:
  * the release script reads this same literal). */
@@ -412,9 +415,20 @@ conv_copy_flat_headers(const char *srcdir, const char *dstdir) {
         const char *nm = e->d_name;
         size_t nl = strlen(nm);
         if(nl < 7 || strncmp(nm + nl - 7, "_flat.h", 7) != 0) continue;
+#ifndef _WIN32
         if(e->d_type == DT_DIR) continue;
+#endif
         char *src = conv_path(srcdir, nm);
         char *dst = conv_path(dstdir, nm);
+#ifdef _WIN32
+        {   /* no d_type here: ask the file system */
+            struct stat dst_st;
+            if(stat(src, &dst_st) == 0 && S_ISDIR(dst_st.st_mode)) {
+                free(src); free(dst);
+                continue;
+            }
+        }
+#endif
         if(conv_copy_file(src, dst) < 0) rc = -1;
         free(src); free(dst);
         if(rc) break;

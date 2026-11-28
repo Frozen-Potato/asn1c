@@ -49,6 +49,26 @@ Display the `asn1c` manual page:
 
     man asn1c
 
+### Windows (MSYS2, mingw-w64)
+
+The compiler (`asn1c.exe`, `enber.exe`, `unber.exe`) builds as a native
+64-bit Windows program with the mingw-w64 toolchain of
+[MSYS2](https://www.msys2.org/). In an MSYS2 UCRT64 (or MINGW64) shell:
+
+    pacman -S --needed make autoconf automake libtool bison flex diffutils \
+        mingw-w64-ucrt-x86_64-gcc
+    autoreconf -fi
+    ./configure
+    make
+
+Check out the sources without line ending conversion
+(`git config core.autocrlf false`); the build scripts and the test data need
+LF. `asn1c.exe` writes LF and copies the skeleton files byte for byte. Give
+`-S`, `-D` and `-Fgo=` paths with `/` or `\`. Without `-S` the skeletons are
+looked for next to the program (`../share/asn1c`, or `../skeletons` in a build
+tree). The Go output can be generated on Windows, but building it there is not
+supported.
+
 ## Quick Usage Guide
 
 For a usage guide and more information please refer to:

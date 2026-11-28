@@ -3,7 +3,11 @@
 #ifndef	_WIN32
 #include <dirent.h>	/* opendir(3) */
 #include <sys/file.h>	/* flock(2) */
+#else
+#include <dirent.h>	/* mingw-w64 */
+#include <windows.h>	/* CreateMutex */
 #endif
+#include <asn1_portable.h>	/* Windows stand-ins: mkstemp, rename, ... */
 
 /* Normally file permissions are (DEFFILEMODE & ~umask(2)) */
 #ifndef	DEFFILEMODE	/* Normally in <sys/stat.h> */
@@ -24,13 +28,7 @@
 #endif
 
 #ifdef _WIN32
-int mkstemp(char *template) {
-	char *tmpFN = _mktemp(template);
-	if(tmpFN)
-		return open(tmpFN, O_CREAT | O_EXCL | O_WRONLY, DEFFILEMODE);
-	else
-		return -1;
-}
+/* mkstemp() is asn1_portable.h's */
 #undef HAVE_MKSTEMPS
 #endif
 
@@ -187,8 +185,12 @@ txn_add(const char *path, char *backup) {
 static char *
 txn_backup_name(const char *path) {
 	static unsigned long serial;
-	const char *base = strrchr(path, '/');
-	size_t dlen = base ? (size_t)(base - path) + 1 : 0;
+	const char *base = NULL;
+	const char *c;
+	size_t dlen;
+	for(c = path; *c; c++)
+		if(ASN1_IS_SEP(*c)) base = c;
+	dlen = base ? (size_t)(base - path) + 1 : 0;
 	size_t len = strlen(path) + 64;
 	char *b = malloc(len);
 	if(!b) return NULL;
@@ -302,8 +304,49 @@ asn1c_txn_commit(void) {
 int
 asn1c_outdir_lock(const char *destdir) {
 #ifdef	_WIN32
-	(void)destdir;
-	return 0;
+	/*
+	 * A directory cannot be locked here: take a named mutex that stands
+	 * for it (its canonical path, lower-cased), no lock file in -D. It is
+	 * released when the process ends, even if killed.
+	 */
+	const char *dir = destdir && *destdir ? destdir : ".";
+	char *canon = asn1c_canonical_path(dir);
+	char name[64];
+	unsigned long long h = 14695981039346656037ULL;
+	const char *c;
+	HANDLE mx;
+	DWORD w;
+
+	if(!canon) {
+		fprintf(stderr, "asn1c: cannot open %s: %s\n", dir,
+				strerror(errno));
+		return -1;
+	}
+	for(c = canon; *c; c++) {
+		h ^= (unsigned char)((*c >= 'A' && *c <= 'Z') ? *c + 32 : *c);
+		h *= 1099511628211ULL;
+	}
+	free(canon);
+	snprintf(name, sizeof(name), "Local\\asn1c-outdir-%016llx", h);
+	mx = CreateMutexA(NULL, FALSE, name);
+	if(!mx) {
+		fprintf(stderr, "asn1c: cannot lock %s: error %lu\n", dir,
+				(unsigned long)GetLastError());
+		return -1;
+	}
+	w = WaitForSingleObject(mx, 0);
+	if(w == WAIT_TIMEOUT) {
+		fprintf(stderr, "asn1c: waiting for another asn1c run that "
+				"writes %s\n", dir);
+		w = WaitForSingleObject(mx, INFINITE);
+	}
+	if(w != WAIT_OBJECT_0 && w != WAIT_ABANDONED) {
+		fprintf(stderr, "asn1c: cannot lock %s: error %lu\n", dir,
+				(unsigned long)GetLastError());
+		CloseHandle(mx);
+		return -1;
+	}
+	return 0;	/* the handle stays open: the lock lasts until exit */
 #else
 	/* flock(2) on the directory itself: no lock file in -D. */
 	const char *dir = destdir && *destdir ? destdir : ".";
@@ -341,7 +384,6 @@ int
 asn1c_outdir_backups(const char *destdir) {
 	const char *dir = destdir && *destdir ? destdir : ".";
 	int count = 0;
-#ifndef	_WIN32
 	DIR *d = opendir(dir);
 	struct dirent *e;
 	if(!d) return 0;
@@ -354,9 +396,6 @@ asn1c_outdir_backups(const char *destdir) {
 					e->d_name);
 	}
 	closedir(d);
-#else
-	(void)dir;
-#endif
 	return count;
 }
 
@@ -370,6 +409,13 @@ asn1c_canonical_path(const char *path) {
 
 	if(!head || !tail) goto done;
 	strcpy(head, path);
+#ifdef	_WIN32
+	{
+		char *b;
+		for(b = head; *b; b++)
+			if(*b == '\\') *b = '/';
+	}
+#endif
 	tail[0] = '\0';
 	for(;;) {
 		char *slash;
@@ -388,6 +434,10 @@ asn1c_canonical_path(const char *path) {
 			tail[cl] = '/';
 		}
 		if(slash == head) head[1] = '\0';	/* "/x" -> "/" */
+#ifdef	_WIN32
+		else if(slash == head + 2 && head[1] == ':')
+			head[3] = '\0';		/* "C:/x" -> "C:/" */
+#endif
 		else if(slash) *slash = '\0';
 		else head[0] = '\0';
 	}
@@ -400,11 +450,15 @@ asn1c_canonical_path(const char *path) {
 			if(strcmp(comp, ".") == 0 || !*comp) continue;
 			if(strcmp(comp, "..") == 0) {
 				char *s = strrchr(res, '/');
+#ifdef	_WIN32
+				if(s == res + 2 && res[1] == ':') s[1] = '\0';	/* "C:/" */
+				else
+#endif
 				if(s && s != res) *s = '\0';
 				else strcpy(res, "/");
 				continue;
 			}
-			if(strcmp(res, "/") != 0) strcat(res, "/");
+			if(res[strlen(res) - 1] != '/') strcat(res, "/");
 			strcat(res, comp);
 		}
 	}
@@ -434,14 +488,14 @@ a1c_basename(const char *path, const char *destdir) {
 	}
 
 	/* Skip tailing slashes */
-	for(pend--; pend > path && *pend == '/'; pend--);
+	for(pend--; pend > path && ASN1_IS_SEP(*pend); pend--);
 
-	if(pend == path && *path == '/') {
+	if(pend == path && ASN1_IS_SEP(*path)) {
 		strcpy(sbuf, "/");
 		return strbuf;
 	}
 
-	for(name = pend; name > path && name[-1] != '/'; name--);
+	for(name = pend; name > path && !ASN1_IS_SEP(name[-1]); name--);
 
 	if((pend - name) >= (int)sizeof(strbuf) - 1) {
 		errno = ENAMETOOLONG;
@@ -467,6 +521,9 @@ a1c_dirname(const char *path) {
 		switch(*pend) {
 		case '\0': break;
 		case '/':
+#ifdef	_WIN32
+		case '\\':
+#endif
 			if(!in_slash) {
 				last = pend;
 				in_slash = 1;
@@ -480,7 +537,7 @@ a1c_dirname(const char *path) {
 	}
 
 	if(last <= path) {
-		strcpy(strbuf, *path == '/' ? "/" : ".");
+		strcpy(strbuf, ASN1_IS_SEP(*path) ? "/" : ".");
 		return strbuf;
 	}
 

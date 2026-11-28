@@ -42,7 +42,7 @@ static char *gown2_len(const char *p, size_t n) {
     return r;
 }
 
-__attribute__((format(printf, 1, 2)))
+__attribute__((format(ASN1_PRINTF, 1, 2)))
 char *go_gfmt(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);

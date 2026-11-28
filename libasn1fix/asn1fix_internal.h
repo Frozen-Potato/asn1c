@@ -28,7 +28,9 @@
 #ifdef	_WIN32
 #define	EX_NOINPUT	66
 #define	EX_DATAERR	65
+#ifndef	__MINGW32__	/* mingw-w64 has the C99 one */
 #define	snprintf	_snprintf
+#endif
 #if defined HAVE_DECL_STRCASECMP && !HAVE_DECL_STRCASECMP
 #define	strcasecmp	stricmp
 #endif

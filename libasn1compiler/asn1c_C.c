@@ -6368,6 +6368,14 @@ static int compar_cameo(const void *ap, const void *bp) {
 		return -1;
 	if(atag.tag_value > btag.tag_value)
 		return 1;
+	/*
+	 * Equal tags (an error for a SET, unordered anyway): keep the
+	 * declaration order. qsort(3) is not stable on every C library.
+	 */
+	if(a->eidx < b->eidx)
+		return -1;
+	if(a->eidx > b->eidx)
+		return 1;
 	return 0;
 
 }

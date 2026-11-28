@@ -47,6 +47,10 @@ main(int ac, char **av) {
     int ch; /* Command line character */
     int i;  /* Index in some loops */
 
+#ifdef _WIN32
+    asn1c_win_binmode();    /* BER bytes and LF are not translated */
+#endif
+
     /*
      * Process command-line options.
      */

@@ -68,7 +68,7 @@ go_ca(char *a, const char *b) {
     return r;
 }
 
-__attribute__((format(printf, 1, 2)))
+__attribute__((format(ASN1_PRINTF, 1, 2)))
 char *
 go_cfmt(const char *fmt, ...) {
     va_list ap;
