@@ -291,8 +291,12 @@ jobs:
           done
           gcc -std=gnu99 -Wall -Werror=overflow -fsyntax-only -Iguard -DASN_DISABLE_OER_SUPPORT guard/Narrow.c
           echo "ok: guard stops the build, Narrow.c compiles without -Woverflow"
+      # The runtime libraries these tests link are check-only targets of
+      # skeletons/ (the top-level make check builds them first).
       - name: Skeleton unit tests
-        run: make -C tests/tests-skeletons check
+        run: |
+          make -C skeletons libasn1cskeletons.la libasn1cskeletons_c89.la
+          make -C tests/tests-skeletons check
       - name: Generated C, compiled and run (make check)
         run: |
           make -C tests/tests-asn1c-compiler check TESTS="check-name-clash.sh check-long-guard.sh"
