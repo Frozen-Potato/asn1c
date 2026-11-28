@@ -100,6 +100,14 @@ endif
 
 XFAIL_TESTS =
 
+# These need constants outside the 32-bit range, which asn1c refuses to
+# compile where long is 32 bits (Windows): the build stops at the #error.
+if LONG_IS_32BIT
+XFAIL_TESTS += check-src/check64-134.-gen-PER.c
+XFAIL_TESTS += check-src/check64-136.-gen-OER.c
+XFAIL_TESTS += check-src/check-161.-gen-PER.c
+endif
+
 EXTRA_DIST =    \
     data-62     \
     data-70     \

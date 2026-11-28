@@ -21,6 +21,7 @@ typedef struct compiler_streams {
 		OT_TYPE_DECLS,	/* Type declarations */
 		OT_FUNC_DECLS,	/* Function declarations */
 		OT_POST_INCLUDE,/* #include after type definition */
+		OT_LONG_GUARD,	/* Platform guard: constants need a 64-bit long */
 		OT_IOC_TABLES,	/* Information Object Class tables */
 		OT_CTABLES,	/* Constraint tables */
 		OT_CODE,	/* Some code */
@@ -34,14 +35,37 @@ typedef struct compiler_streams {
 		int indent_level;
 		int indented;
 	} destination[OT_MAX];
+
+	/*
+	 * Constants emitted for this type which do not fit a 32-bit long
+	 * (see asn1c_note_wide_long()); turned into the OT_LONG_GUARD text
+	 * when the streams are saved or printed.
+	 */
+	int long_need;
+	asn1c_integer_t long_min, long_max;
+	char long_what[160];
 } compiler_streams_t;
 
 static char *_compiler_stream2str[] __attribute__ ((unused))
-    = { "IGNORE", "INCLUDES", "DEPS", "FWD-DECLS", "FWD-DEFS", "TYPE-DECLS", "FUNC-DECLS", "POST-INCLUDE", "IOC-TABLES", "CTABLES", "CODE", "CTDEFS", "STAT-DEFS" };
+    = { "IGNORE", "INCLUDES", "DEPS", "FWD-DECLS", "FWD-DEFS", "TYPE-DECLS", "FUNC-DECLS", "POST-INCLUDE", "LONG-GUARD", "IOC-TABLES", "CTABLES", "CODE", "CTDEFS", "STAT-DEFS" };
 
 int asn1c_compiled_output(arg_t *arg, const char *file, int lineno,
                           const char *func, const char *fmt, ...)
     __attribute__((format(ASN1_PRINTF, 5, 6)));
+
+/*
+ * Record that a C constant of the type being generated (what) does not fit
+ * a 32-bit long, where long is the type that holds it (PER bounds, DEFAULT
+ * values, comparisons in the constraint function). With strict, only the
+ * range [-2^31, 2^31-1] is acceptable; without it, the range [0, 2^32-1]
+ * is too, which an unsigned long holds on every platform. The generated .c
+ * file then refuses to compile where long is 32 bits (Windows).
+ */
+void asn1c_note_wide_long(arg_t *arg, const char *what, asn1c_integer_t lo,
+                          asn1c_integer_t hi, int strict);
+
+/* Turn a recorded need into the text of the OT_LONG_GUARD stream. */
+int asn1c_make_long_guard(arg_t *arg, compiler_streams_t *cs);
 
 
 /*****************************************************************

@@ -18,6 +18,11 @@ The asn1c is arguably the most evolved open source ASN.1 compiler.
 > that adds a Go backend (`-Fgo`) and aligned PER (APER) fixes.
 > Report issues for this fork at
 > <https://github.com/Frozen-Potato/asn1c/issues>.
+>
+> **Platforms.** Linux (C backend and Go backend, Go on Linux amd64
+> and arm64 only); Windows x86-64 with MSYS2 / mingw-w64 (UCRT64 recommended)
+> for the C backend, see "Windows" in [INSTALL.md](INSTALL.md). The Go
+> backend is not supported on Windows: use WSL2.
 
 # ASN.1 Transfer Syntaxes
 <details>

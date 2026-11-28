@@ -1,0 +1,26 @@
+# Text files are stored with LF and checked out with LF on every platform
+# (Windows included): the shell scripts, the autotools files and the golden
+# files of the tests are compared byte for byte.
+* text=auto eol=lf
+
+# Test vectors and other binary files: never converted.
+*.aper -text
+*.per -text
+*.uper -text
+*.ber -text
+*.der -text
+*.cer -text
+*.oer -text
+*.coer -text
+*.xbr -text
+*.bin -text
+*.pdf -text
+*.png -text
+*.gif -text
+*.jpg -text
+*.gz -text
+tests/tests-c-compiler/data-*/*.out -text
+# Encoded inputs whose bytes include CR or LF on purpose.
+tests/tests-c-compiler/data-70/*.in -text
+# Goldens with control characters in them.
+tests/tests-asn1c-compiler/*.asn1.-EFprint-constraints -text

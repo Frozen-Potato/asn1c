@@ -593,6 +593,18 @@ per_type_encoder_f NO_IntegerLowestMax_encode_uper;
 per_type_decoder_f NO_IntegerLowestMax_decode_aper;
 per_type_encoder_f NO_IntegerLowestMax_encode_aper;
 
+/*** <<< LONG-GUARD [NO-IntegerLowestMax] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MIN > -3000000000
+#error "NO-IntegerLowestMax: value constraint -3000000000 needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
 /*** <<< CODE [NO-IntegerLowestMax] >>> ***/
 
 int

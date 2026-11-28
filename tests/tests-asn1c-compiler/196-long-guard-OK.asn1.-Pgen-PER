@@ -1,0 +1,1290 @@
+
+/*** <<< INCLUDES [Narrow] >>> ***/
+
+#include <NativeInteger.h>
+#include <NativeEnumerated.h>
+#include <constr_SEQUENCE.h>
+
+/*** <<< DEPS [Narrow] >>> ***/
+
+typedef enum e {
+	e_a	= 0,
+	e_b	= 2147483647
+} e_e;
+
+/*** <<< TYPE-DECLS [Narrow] >>> ***/
+
+typedef struct Narrow {
+	long	 signed32;
+	unsigned long	 unsigned32;
+	long	*dflt;	/* DEFAULT 5 */
+	unsigned long	*dfltu32;	/* DEFAULT 4294967295 */
+	long	 e;
+	
+	/* Context for parsing across buffer boundaries */
+	asn_struct_ctx_t _asn_ctx;
+} Narrow_t;
+
+/*** <<< FUNC-DECLS [Narrow] >>> ***/
+
+/* extern asn_TYPE_descriptor_t asn_DEF_unsigned32_3;	// (Use -fall-defs-global to expose) */
+/* extern asn_TYPE_descriptor_t asn_DEF_dfltu32_5;	// (Use -fall-defs-global to expose) */
+/* extern asn_TYPE_descriptor_t asn_DEF_e_6;	// (Use -fall-defs-global to expose) */
+extern asn_TYPE_descriptor_t asn_DEF_Narrow;
+
+/*** <<< CODE [Narrow] >>> ***/
+
+static int
+unsigned32_3_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	
+	/* Constraint check succeeded */
+	return 0;
+}
+
+/*
+ * This type is implemented using NativeInteger,
+ * so here we adjust the DEF accordingly.
+ */
+static int
+dfltu32_5_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	
+	/* Constraint check succeeded */
+	return 0;
+}
+
+/*
+ * This type is implemented using NativeInteger,
+ * so here we adjust the DEF accordingly.
+ */
+/*
+ * This type is implemented using NativeEnumerated,
+ * so here we adjust the DEF accordingly.
+ */
+static int
+memb_signed32_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	value = *(const long *)sptr;
+	
+	if((value >= (-2147483647L - 1) && value <= 2147483647)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+static int
+memb_unsigned32_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	
+	/* Constraint check succeeded */
+	return 0;
+}
+
+static int
+memb_dflt_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	value = *(const long *)sptr;
+	
+	if((value >= 0 && value <= 100)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+static int
+memb_dfltu32_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	
+	/* Constraint check succeeded */
+	return 0;
+}
+
+
+/*** <<< CTDEFS [Narrow] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_unsigned32_constr_3 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 32, -1,  0,  4294967295 }	/* (0..4294967295) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+static asn_per_constraints_t asn_PER_type_dfltu32_constr_5 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 32, -1,  0,  4294967295 }	/* (0..4294967295) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+static asn_per_constraints_t asn_PER_type_e_constr_6 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 1,  1,  0,  1 }	/* (0..1) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+static asn_per_constraints_t asn_PER_memb_signed32_constr_2 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 32, -1, (-2147483647L - 1),  2147483647 }	/* (-2147483648..2147483647) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+static asn_per_constraints_t asn_PER_memb_unsigned32_constr_3 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 32, -1,  0,  4294967295 }	/* (0..4294967295) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+static asn_per_constraints_t asn_PER_memb_dflt_constr_4 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 7,  7,  0,  100 }	/* (0..100) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+static asn_per_constraints_t asn_PER_memb_dfltu32_constr_5 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 32, -1,  0,  4294967295 }	/* (0..4294967295) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Narrow] >>> ***/
+
+static const asn_INTEGER_specifics_t asn_SPC_unsigned32_specs_3 = {
+	0,	0,	0,	0,	0,
+	0,	/* Native long size */
+	1	/* Unsigned representation */
+};
+static const ber_tlv_tag_t asn_DEF_unsigned32_tags_3[] = {
+	(ASN_TAG_CLASS_CONTEXT | (1 << 2)),
+	(ASN_TAG_CLASS_UNIVERSAL | (2 << 2))
+};
+static /* Use -fall-defs-global to expose */
+asn_TYPE_descriptor_t asn_DEF_unsigned32_3 = {
+	"unsigned32",
+	"unsigned32",
+	&asn_OP_NativeInteger,
+	asn_DEF_unsigned32_tags_3,
+	sizeof(asn_DEF_unsigned32_tags_3)
+		/sizeof(asn_DEF_unsigned32_tags_3[0]) - 1, /* 1 */
+	asn_DEF_unsigned32_tags_3,	/* Same as above */
+	sizeof(asn_DEF_unsigned32_tags_3)
+		/sizeof(asn_DEF_unsigned32_tags_3[0]), /* 2 */
+	{ 0, &asn_PER_type_unsigned32_constr_3, unsigned32_3_constraint, 0 },
+	0, 0,	/* No members */
+	&asn_SPC_unsigned32_specs_3	/* Additional specs */
+};
+
+static int asn_DFL_4_cmp_5(const void *sptr) {
+	const long *st = sptr;
+	
+	if(!st) {
+		return -1; /* No value is not a default value */
+	}
+	
+	/* Test default value 5 */
+	return (*st != 5);
+}
+static int asn_DFL_4_set_5(void **sptr) {
+	long *st = *sptr;
+	
+	if(!st) {
+		st = (*sptr = CALLOC(1, sizeof(*st)));
+		if(!st) return -1;
+	}
+	
+	/* Install default value 5 */
+	*st = 5;
+	return 0;
+}
+static int asn_DFL_5_cmp_4294967295(const void *sptr) {
+	const unsigned long *st = sptr;
+	
+	if(!st) {
+		return -1; /* No value is not a default value */
+	}
+	
+	/* Test default value 4294967295 */
+	return (*st != 4294967295);
+}
+static int asn_DFL_5_set_4294967295(void **sptr) {
+	unsigned long *st = *sptr;
+	
+	if(!st) {
+		st = (*sptr = CALLOC(1, sizeof(*st)));
+		if(!st) return -1;
+	}
+	
+	/* Install default value 4294967295 */
+	*st = 4294967295;
+	return 0;
+}
+static const asn_INTEGER_specifics_t asn_SPC_dfltu32_specs_5 = {
+	0,	0,	0,	0,	0,
+	0,	/* Native long size */
+	1	/* Unsigned representation */
+};
+static const ber_tlv_tag_t asn_DEF_dfltu32_tags_5[] = {
+	(ASN_TAG_CLASS_CONTEXT | (3 << 2)),
+	(ASN_TAG_CLASS_UNIVERSAL | (2 << 2))
+};
+static /* Use -fall-defs-global to expose */
+asn_TYPE_descriptor_t asn_DEF_dfltu32_5 = {
+	"dfltu32",
+	"dfltu32",
+	&asn_OP_NativeInteger,
+	asn_DEF_dfltu32_tags_5,
+	sizeof(asn_DEF_dfltu32_tags_5)
+		/sizeof(asn_DEF_dfltu32_tags_5[0]) - 1, /* 1 */
+	asn_DEF_dfltu32_tags_5,	/* Same as above */
+	sizeof(asn_DEF_dfltu32_tags_5)
+		/sizeof(asn_DEF_dfltu32_tags_5[0]), /* 2 */
+	{ 0, &asn_PER_type_dfltu32_constr_5, dfltu32_5_constraint, 0 },
+	0, 0,	/* No members */
+	&asn_SPC_dfltu32_specs_5	/* Additional specs */
+};
+
+static const asn_INTEGER_enum_map_t asn_MAP_e_value2enum_6[] = {
+	{ 0,	1,	"a" },
+	{ 2147483647,	1,	"b" }
+};
+static const unsigned int asn_MAP_e_enum2value_6[] = {
+	0,	/* a(0) */
+	1	/* b(2147483647) */
+};
+static const asn_INTEGER_specifics_t asn_SPC_e_specs_6 = {
+	asn_MAP_e_value2enum_6,	/* "tag" => N; sorted by tag */
+	asn_MAP_e_enum2value_6,	/* N => "tag"; sorted by N */
+	2,	/* Number of elements in the maps */
+	0,	/* Enumeration is not extensible */
+	1,	/* Strict enumeration */
+	0,	/* Native long size */
+	0
+};
+static const ber_tlv_tag_t asn_DEF_e_tags_6[] = {
+	(ASN_TAG_CLASS_CONTEXT | (4 << 2)),
+	(ASN_TAG_CLASS_UNIVERSAL | (10 << 2))
+};
+static /* Use -fall-defs-global to expose */
+asn_TYPE_descriptor_t asn_DEF_e_6 = {
+	"e",
+	"e",
+	&asn_OP_NativeEnumerated,
+	asn_DEF_e_tags_6,
+	sizeof(asn_DEF_e_tags_6)
+		/sizeof(asn_DEF_e_tags_6[0]) - 1, /* 1 */
+	asn_DEF_e_tags_6,	/* Same as above */
+	sizeof(asn_DEF_e_tags_6)
+		/sizeof(asn_DEF_e_tags_6[0]), /* 2 */
+	{ 0, &asn_PER_type_e_constr_6, NativeEnumerated_constraint, 0 },
+	0, 0,	/* Defined elsewhere */
+	&asn_SPC_e_specs_6	/* Additional specs */
+};
+
+static asn_TYPE_member_t asn_MBR_Narrow_1[] = {
+	{ ATF_NOFLAGS, 0, offsetof(struct Narrow, signed32),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (0 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_NativeInteger,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_signed32_constr_2, .general_constraints =  memb_signed32_constraint_1, .jer_constraints = 0 },
+		0, 0, /* No default value */
+		.name = "signed32"
+		},
+	{ ATF_NOFLAGS, 0, offsetof(struct Narrow, unsigned32),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (1 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_unsigned32_3,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_unsigned32_constr_3, .general_constraints =  memb_unsigned32_constraint_1, .jer_constraints = 0 },
+		0, 0, /* No default value */
+		.name = "unsigned32"
+		},
+	{ ATF_POINTER, 2, offsetof(struct Narrow, dflt),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (2 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_NativeInteger,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_dflt_constr_4, .general_constraints =  memb_dflt_constraint_1, .jer_constraints = 0 },
+		.default_value_cmp = &asn_DFL_4_cmp_5,	/* Compare DEFAULT 5 */
+		.default_value_set = &asn_DFL_4_set_5,	/* Set DEFAULT 5 */
+		.name = "dflt"
+		},
+	{ ATF_POINTER, 1, offsetof(struct Narrow, dfltu32),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (3 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_dfltu32_5,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_dfltu32_constr_5, .general_constraints =  memb_dfltu32_constraint_1, .jer_constraints = 0 },
+		.default_value_cmp = &asn_DFL_5_cmp_4294967295,	/* Compare DEFAULT 4294967295 */
+		.default_value_set = &asn_DFL_5_set_4294967295,	/* Set DEFAULT 4294967295 */
+		.name = "dfltu32"
+		},
+	{ ATF_NOFLAGS, 0, offsetof(struct Narrow, e),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (4 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_e_6,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
+		0, 0, /* No default value */
+		.name = "e"
+		},
+};
+static const int asn_MAP_Narrow_oms_1[] = { 2, 3 };
+static const ber_tlv_tag_t asn_DEF_Narrow_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (16 << 2))
+};
+static const asn_TYPE_tag2member_t asn_MAP_Narrow_tag2el_1[] = {
+    { (ASN_TAG_CLASS_CONTEXT | (0 << 2)), 0, 0, 0 }, /* signed32 */
+    { (ASN_TAG_CLASS_CONTEXT | (1 << 2)), 1, 0, 0 }, /* unsigned32 */
+    { (ASN_TAG_CLASS_CONTEXT | (2 << 2)), 2, 0, 0 }, /* dflt */
+    { (ASN_TAG_CLASS_CONTEXT | (3 << 2)), 3, 0, 0 }, /* dfltu32 */
+    { (ASN_TAG_CLASS_CONTEXT | (4 << 2)), 4, 0, 0 } /* e */
+};
+static asn_SEQUENCE_specifics_t asn_SPC_Narrow_specs_1 = {
+	sizeof(struct Narrow),
+	offsetof(struct Narrow, _asn_ctx),
+	.tag2el = asn_MAP_Narrow_tag2el_1,
+	.tag2el_count = 5,	/* Count of tags in the map */
+	asn_MAP_Narrow_oms_1,	/* Optional members */
+	2, 0,	/* Root/Additions */
+	-1,	/* First extension addition */
+};
+asn_TYPE_descriptor_t asn_DEF_Narrow = {
+	"Narrow",
+	"Narrow",
+	&asn_OP_SEQUENCE,
+	asn_DEF_Narrow_tags_1,
+	sizeof(asn_DEF_Narrow_tags_1)
+		/sizeof(asn_DEF_Narrow_tags_1[0]), /* 1 */
+	asn_DEF_Narrow_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Narrow_tags_1)
+		/sizeof(asn_DEF_Narrow_tags_1[0]), /* 1 */
+	{ 0, 0, SEQUENCE_constraint, 0 },
+	asn_MBR_Narrow_1,
+	5,	/* Elements count */
+	&asn_SPC_Narrow_specs_1	/* Additional specs */
+};
+
+
+/*** <<< INCLUDES [WrapsToRange] >>> ***/
+
+#include <INTEGER.h>
+
+/*** <<< TYPE-DECLS [WrapsToRange] >>> ***/
+
+typedef INTEGER_t	 WrapsToRange_t;
+
+/*** <<< FUNC-DECLS [WrapsToRange] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_WrapsToRange;
+asn_struct_free_f WrapsToRange_free;
+asn_struct_print_f WrapsToRange_print;
+asn_constr_check_f WrapsToRange_constraint;
+ber_type_decoder_f WrapsToRange_decode_ber;
+der_type_encoder_f WrapsToRange_encode_der;
+xer_type_decoder_f WrapsToRange_decode_xer;
+xer_type_encoder_f WrapsToRange_encode_xer;
+per_type_decoder_f WrapsToRange_decode_uper;
+per_type_encoder_f WrapsToRange_encode_uper;
+per_type_decoder_f WrapsToRange_decode_aper;
+per_type_encoder_f WrapsToRange_encode_aper;
+
+/*** <<< LONG-GUARD [WrapsToRange] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MIN > -3000000000
+#error "WrapsToRange: value constraint (-3000000000..-2999999990) needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [WrapsToRange] >>> ***/
+
+int
+WrapsToRange_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	const INTEGER_t *st = (const INTEGER_t *)sptr;
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if(asn_INTEGER2long(st, &value)) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value too large (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if((value >= -3000000000 && value <= -2999999990)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+/*
+ * This type is implemented using INTEGER,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< CTDEFS [WrapsToRange] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_WrapsToRange_constr_1 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 4,  4, -3000000000, -2999999990 }	/* (-3000000000..-2999999990) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [WrapsToRange] >>> ***/
+
+static const ber_tlv_tag_t asn_DEF_WrapsToRange_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (2 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_WrapsToRange = {
+	"WrapsToRange",
+	"WrapsToRange",
+	&asn_OP_INTEGER,
+	asn_DEF_WrapsToRange_tags_1,
+	sizeof(asn_DEF_WrapsToRange_tags_1)
+		/sizeof(asn_DEF_WrapsToRange_tags_1[0]), /* 1 */
+	asn_DEF_WrapsToRange_tags_1,	/* Same as above */
+	sizeof(asn_DEF_WrapsToRange_tags_1)
+		/sizeof(asn_DEF_WrapsToRange_tags_1[0]), /* 1 */
+	{ 0, &asn_PER_type_WrapsToRange_constr_1, WrapsToRange_constraint, 0 },
+	0, 0,	/* No members */
+	0	/* No specifics */
+};
+
+
+/*** <<< INCLUDES [Above32] >>> ***/
+
+#include <INTEGER.h>
+
+/*** <<< TYPE-DECLS [Above32] >>> ***/
+
+typedef INTEGER_t	 Above32_t;
+
+/*** <<< FUNC-DECLS [Above32] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Above32;
+asn_struct_free_f Above32_free;
+asn_struct_print_f Above32_print;
+asn_constr_check_f Above32_constraint;
+ber_type_decoder_f Above32_decode_ber;
+der_type_encoder_f Above32_encode_der;
+xer_type_decoder_f Above32_decode_xer;
+xer_type_encoder_f Above32_encode_xer;
+per_type_decoder_f Above32_decode_uper;
+per_type_encoder_f Above32_encode_uper;
+per_type_decoder_f Above32_decode_aper;
+per_type_encoder_f Above32_encode_aper;
+
+/*** <<< LONG-GUARD [Above32] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MAX < 5000000000
+#error "Above32: value constraint (0..5000000000) needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [Above32] >>> ***/
+
+int
+Above32_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	const INTEGER_t *st = (const INTEGER_t *)sptr;
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if(asn_INTEGER2long(st, &value)) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value too large (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if((value >= 0 && value <= 5000000000)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+/*
+ * This type is implemented using INTEGER,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< CTDEFS [Above32] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_Above32_constr_1 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 33, -1,  0,  5000000000 }	/* (0..5000000000) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Above32] >>> ***/
+
+static const ber_tlv_tag_t asn_DEF_Above32_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (2 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_Above32 = {
+	"Above32",
+	"Above32",
+	&asn_OP_INTEGER,
+	asn_DEF_Above32_tags_1,
+	sizeof(asn_DEF_Above32_tags_1)
+		/sizeof(asn_DEF_Above32_tags_1[0]), /* 1 */
+	asn_DEF_Above32_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Above32_tags_1)
+		/sizeof(asn_DEF_Above32_tags_1[0]), /* 1 */
+	{ 0, &asn_PER_type_Above32_constr_1, Above32_constraint, 0 },
+	0, 0,	/* No members */
+	0	/* No specifics */
+};
+
+
+/*** <<< INCLUDES [Below32] >>> ***/
+
+#include <INTEGER.h>
+
+/*** <<< TYPE-DECLS [Below32] >>> ***/
+
+typedef INTEGER_t	 Below32_t;
+
+/*** <<< FUNC-DECLS [Below32] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Below32;
+asn_struct_free_f Below32_free;
+asn_struct_print_f Below32_print;
+asn_constr_check_f Below32_constraint;
+ber_type_decoder_f Below32_decode_ber;
+der_type_encoder_f Below32_encode_der;
+xer_type_decoder_f Below32_decode_xer;
+xer_type_encoder_f Below32_encode_xer;
+per_type_decoder_f Below32_decode_uper;
+per_type_encoder_f Below32_encode_uper;
+per_type_decoder_f Below32_decode_aper;
+per_type_encoder_f Below32_encode_aper;
+
+/*** <<< LONG-GUARD [Below32] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MIN > -4000000001
+#error "Below32: value constraint (-4000000001..5) needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [Below32] >>> ***/
+
+int
+Below32_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	const INTEGER_t *st = (const INTEGER_t *)sptr;
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if(asn_INTEGER2long(st, &value)) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value too large (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if((value >= -4000000001 && value <= 5)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+/*
+ * This type is implemented using INTEGER,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< CTDEFS [Below32] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_Below32_constr_1 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 32, -1, -4000000001,  5 }	/* (-4000000001..5) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Below32] >>> ***/
+
+static const ber_tlv_tag_t asn_DEF_Below32_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (2 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_Below32 = {
+	"Below32",
+	"Below32",
+	&asn_OP_INTEGER,
+	asn_DEF_Below32_tags_1,
+	sizeof(asn_DEF_Below32_tags_1)
+		/sizeof(asn_DEF_Below32_tags_1[0]), /* 1 */
+	asn_DEF_Below32_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Below32_tags_1)
+		/sizeof(asn_DEF_Below32_tags_1[0]), /* 1 */
+	{ 0, &asn_PER_type_Below32_constr_1, Below32_constraint, 0 },
+	0, 0,	/* No members */
+	0	/* No specifics */
+};
+
+
+/*** <<< INCLUDES [Huge] >>> ***/
+
+#include <INTEGER.h>
+
+/*** <<< TYPE-DECLS [Huge] >>> ***/
+
+typedef INTEGER_t	 Huge_t;
+
+/*** <<< FUNC-DECLS [Huge] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Huge;
+asn_struct_free_f Huge_free;
+asn_struct_print_f Huge_print;
+asn_constr_check_f Huge_constraint;
+ber_type_decoder_f Huge_decode_ber;
+der_type_encoder_f Huge_encode_der;
+xer_type_decoder_f Huge_decode_xer;
+xer_type_encoder_f Huge_encode_xer;
+per_type_decoder_f Huge_decode_uper;
+per_type_encoder_f Huge_encode_uper;
+per_type_decoder_f Huge_decode_aper;
+per_type_encoder_f Huge_encode_aper;
+
+/*** <<< LONG-GUARD [Huge] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MAX < 9223372036854775807
+#error "Huge: value constraint (0..9223372036854775807) needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [Huge] >>> ***/
+
+int
+Huge_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	const INTEGER_t *st = (const INTEGER_t *)sptr;
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if(asn_INTEGER2long(st, &value)) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value too large (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if((value >= 0 && value <= 9223372036854775807)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+/*
+ * This type is implemented using INTEGER,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< CTDEFS [Huge] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_Huge_constr_1 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 63, -1,  0,  9223372036854775807 }	/* (0..9223372036854775807) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Huge] >>> ***/
+
+static const ber_tlv_tag_t asn_DEF_Huge_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (2 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_Huge = {
+	"Huge",
+	"Huge",
+	&asn_OP_INTEGER,
+	asn_DEF_Huge_tags_1,
+	sizeof(asn_DEF_Huge_tags_1)
+		/sizeof(asn_DEF_Huge_tags_1[0]), /* 1 */
+	asn_DEF_Huge_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Huge_tags_1)
+		/sizeof(asn_DEF_Huge_tags_1[0]), /* 1 */
+	{ 0, &asn_PER_type_Huge_constr_1, Huge_constraint, 0 },
+	0, 0,	/* No members */
+	0	/* No specifics */
+};
+
+
+/*** <<< INCLUDES [Unsigned64] >>> ***/
+
+#include <INTEGER.h>
+
+/*** <<< TYPE-DECLS [Unsigned64] >>> ***/
+
+typedef INTEGER_t	 Unsigned64_t;
+
+/*** <<< FUNC-DECLS [Unsigned64] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Unsigned64;
+asn_struct_free_f Unsigned64_free;
+asn_struct_print_f Unsigned64_print;
+asn_constr_check_f Unsigned64_constraint;
+ber_type_decoder_f Unsigned64_decode_ber;
+der_type_encoder_f Unsigned64_encode_der;
+xer_type_decoder_f Unsigned64_decode_xer;
+xer_type_encoder_f Unsigned64_encode_xer;
+per_type_decoder_f Unsigned64_decode_uper;
+per_type_encoder_f Unsigned64_encode_uper;
+per_type_decoder_f Unsigned64_decode_aper;
+per_type_encoder_f Unsigned64_encode_aper;
+
+/*** <<< LONG-GUARD [Unsigned64] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MAX < 9223372036854775807
+#error "Unsigned64: value constraint (0..18446744073709551615U) needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [Unsigned64] >>> ***/
+
+int
+Unsigned64_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	const INTEGER_t *st = (const INTEGER_t *)sptr;
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if(asn_INTEGER2long(st, &value)) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value too large (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	if((value >= 0 && value <= 18446744073709551615U)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+/*
+ * This type is implemented using INTEGER,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< CTDEFS [Unsigned64] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_Unsigned64_constr_1 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 64, -1,  0,  18446744073709551615U }	/* (0..18446744073709551615U) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Unsigned64] >>> ***/
+
+static const ber_tlv_tag_t asn_DEF_Unsigned64_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (2 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_Unsigned64 = {
+	"Unsigned64",
+	"Unsigned64",
+	&asn_OP_INTEGER,
+	asn_DEF_Unsigned64_tags_1,
+	sizeof(asn_DEF_Unsigned64_tags_1)
+		/sizeof(asn_DEF_Unsigned64_tags_1[0]), /* 1 */
+	asn_DEF_Unsigned64_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Unsigned64_tags_1)
+		/sizeof(asn_DEF_Unsigned64_tags_1[0]), /* 1 */
+	{ 0, &asn_PER_type_Unsigned64_constr_1, Unsigned64_constraint, 0 },
+	0, 0,	/* No members */
+	0	/* No specifics */
+};
+
+
+/*** <<< INCLUDES [Dflt] >>> ***/
+
+#include <NativeInteger.h>
+#include <constr_SEQUENCE.h>
+
+/*** <<< TYPE-DECLS [Dflt] >>> ***/
+
+typedef struct Dflt {
+	long	*v;	/* DEFAULT 5 */
+	long	*w;	/* DEFAULT 5000000000 */
+	
+	/* Context for parsing across buffer boundaries */
+	asn_struct_ctx_t _asn_ctx;
+} Dflt_t;
+
+/*** <<< FUNC-DECLS [Dflt] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Dflt;
+
+/*** <<< LONG-GUARD [Dflt] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MAX < 5000000000
+#error "Dflt: DEFAULT value 5000000000 needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [Dflt] >>> ***/
+
+static int
+memb_v_constraint_1(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	long value;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	value = *(const long *)sptr;
+	
+	if((value >= 0 && value <= 10)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+
+/*** <<< CTDEFS [Dflt] >>> ***/
+
+static asn_per_constraints_t asn_PER_memb_v_constr_2 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 4,  4,  0,  10 }	/* (0..10) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Dflt] >>> ***/
+
+static int asn_DFL_2_cmp_5(const void *sptr) {
+	const long *st = sptr;
+	
+	if(!st) {
+		return -1; /* No value is not a default value */
+	}
+	
+	/* Test default value 5 */
+	return (*st != 5);
+}
+static int asn_DFL_2_set_5(void **sptr) {
+	long *st = *sptr;
+	
+	if(!st) {
+		st = (*sptr = CALLOC(1, sizeof(*st)));
+		if(!st) return -1;
+	}
+	
+	/* Install default value 5 */
+	*st = 5;
+	return 0;
+}
+static int asn_DFL_3_cmp_5000000000(const void *sptr) {
+	const long *st = sptr;
+	
+	if(!st) {
+		return -1; /* No value is not a default value */
+	}
+	
+	/* Test default value 5000000000 */
+	return (*st != 5000000000);
+}
+static int asn_DFL_3_set_5000000000(void **sptr) {
+	long *st = *sptr;
+	
+	if(!st) {
+		st = (*sptr = CALLOC(1, sizeof(*st)));
+		if(!st) return -1;
+	}
+	
+	/* Install default value 5000000000 */
+	*st = 5000000000;
+	return 0;
+}
+static asn_TYPE_member_t asn_MBR_Dflt_1[] = {
+	{ ATF_POINTER, 2, offsetof(struct Dflt, v),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (0 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_NativeInteger,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = &asn_PER_memb_v_constr_2, .general_constraints =  memb_v_constraint_1, .jer_constraints = 0 },
+		.default_value_cmp = &asn_DFL_2_cmp_5,	/* Compare DEFAULT 5 */
+		.default_value_set = &asn_DFL_2_set_5,	/* Set DEFAULT 5 */
+		.name = "v"
+		},
+	{ ATF_POINTER, 1, offsetof(struct Dflt, w),
+		.tag = (ASN_TAG_CLASS_CONTEXT | (1 << 2)),
+		.tag_mode = -1,	/* IMPLICIT tag at current level */
+		.type = &asn_DEF_NativeInteger,
+		.type_selector = 0,
+		{ .oer_constraints = 0, .per_constraints = 0, .general_constraints = 0, .jer_constraints = 0 },
+		.default_value_cmp = &asn_DFL_3_cmp_5000000000,	/* Compare DEFAULT 5000000000 */
+		.default_value_set = &asn_DFL_3_set_5000000000,	/* Set DEFAULT 5000000000 */
+		.name = "w"
+		},
+};
+static const int asn_MAP_Dflt_oms_1[] = { 0, 1 };
+static const ber_tlv_tag_t asn_DEF_Dflt_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (16 << 2))
+};
+static const asn_TYPE_tag2member_t asn_MAP_Dflt_tag2el_1[] = {
+    { (ASN_TAG_CLASS_CONTEXT | (0 << 2)), 0, 0, 0 }, /* v */
+    { (ASN_TAG_CLASS_CONTEXT | (1 << 2)), 1, 0, 0 } /* w */
+};
+static asn_SEQUENCE_specifics_t asn_SPC_Dflt_specs_1 = {
+	sizeof(struct Dflt),
+	offsetof(struct Dflt, _asn_ctx),
+	.tag2el = asn_MAP_Dflt_tag2el_1,
+	.tag2el_count = 2,	/* Count of tags in the map */
+	asn_MAP_Dflt_oms_1,	/* Optional members */
+	2, 0,	/* Root/Additions */
+	-1,	/* First extension addition */
+};
+asn_TYPE_descriptor_t asn_DEF_Dflt = {
+	"Dflt",
+	"Dflt",
+	&asn_OP_SEQUENCE,
+	asn_DEF_Dflt_tags_1,
+	sizeof(asn_DEF_Dflt_tags_1)
+		/sizeof(asn_DEF_Dflt_tags_1[0]), /* 1 */
+	asn_DEF_Dflt_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Dflt_tags_1)
+		/sizeof(asn_DEF_Dflt_tags_1[0]), /* 1 */
+	{ 0, 0, SEQUENCE_constraint, 0 },
+	asn_MBR_Dflt_1,
+	2,	/* Elements count */
+	&asn_SPC_Dflt_specs_1	/* Additional specs */
+};
+
+
+/*** <<< INCLUDES [Enum] >>> ***/
+
+#include <ENUMERATED.h>
+
+/*** <<< DEPS [Enum] >>> ***/
+
+typedef enum Enum {
+	Enum_a	= 0,
+	Enum_b	= 5000000000
+} e_Enum;
+
+/*** <<< TYPE-DECLS [Enum] >>> ***/
+
+typedef ENUMERATED_t	 Enum_t;
+
+/*** <<< FUNC-DECLS [Enum] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Enum;
+asn_struct_free_f Enum_free;
+asn_struct_print_f Enum_print;
+asn_constr_check_f Enum_constraint;
+ber_type_decoder_f Enum_decode_ber;
+der_type_encoder_f Enum_encode_der;
+xer_type_decoder_f Enum_decode_xer;
+xer_type_encoder_f Enum_encode_xer;
+per_type_decoder_f Enum_decode_uper;
+per_type_encoder_f Enum_encode_uper;
+per_type_decoder_f Enum_decode_aper;
+per_type_encoder_f Enum_encode_aper;
+
+/*** <<< LONG-GUARD [Enum] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MAX < 5000000000
+#error "Enum: ENUMERATED value 5000000000 needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [Enum] >>> ***/
+
+/*
+ * This type is implemented using ENUMERATED,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< CTDEFS [Enum] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_Enum_constr_1 CC_NOTUSED = {
+	{ APC_CONSTRAINED,	 1,  1,  0,  1 }	/* (0..1) */,
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Enum] >>> ***/
+
+static const asn_INTEGER_enum_map_t asn_MAP_Enum_value2enum_1[] = {
+	{ 0,	1,	"a" },
+	{ 5000000000,	1,	"b" }
+};
+static const unsigned int asn_MAP_Enum_enum2value_1[] = {
+	0,	/* a(0) */
+	1	/* b(5000000000) */
+};
+static const asn_INTEGER_specifics_t asn_SPC_Enum_specs_1 = {
+	asn_MAP_Enum_value2enum_1,	/* "tag" => N; sorted by tag */
+	asn_MAP_Enum_enum2value_1,	/* N => "tag"; sorted by N */
+	2,	/* Number of elements in the maps */
+	0,	/* Enumeration is not extensible */
+	1,	/* Strict enumeration */
+	0,	/* Native long size */
+	0
+};
+static const ber_tlv_tag_t asn_DEF_Enum_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (10 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_Enum = {
+	"Enum",
+	"Enum",
+	&asn_OP_ENUMERATED,
+	asn_DEF_Enum_tags_1,
+	sizeof(asn_DEF_Enum_tags_1)
+		/sizeof(asn_DEF_Enum_tags_1[0]), /* 1 */
+	asn_DEF_Enum_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Enum_tags_1)
+		/sizeof(asn_DEF_Enum_tags_1[0]), /* 1 */
+	{ 0, &asn_PER_type_Enum_constr_1, ENUMERATED_constraint, 0 },
+	0, 0,	/* Defined elsewhere */
+	&asn_SPC_Enum_specs_1	/* Additional specs */
+};
+
+
+/*** <<< INCLUDES [Sz] >>> ***/
+
+#include <OCTET_STRING.h>
+
+/*** <<< TYPE-DECLS [Sz] >>> ***/
+
+typedef OCTET_STRING_t	 Sz_t;
+
+/*** <<< FUNC-DECLS [Sz] >>> ***/
+
+extern asn_TYPE_descriptor_t asn_DEF_Sz;
+asn_struct_free_f Sz_free;
+asn_struct_print_f Sz_print;
+asn_constr_check_f Sz_constraint;
+ber_type_decoder_f Sz_decode_ber;
+der_type_encoder_f Sz_encode_der;
+xer_type_decoder_f Sz_decode_xer;
+xer_type_encoder_f Sz_encode_xer;
+per_type_decoder_f Sz_decode_uper;
+per_type_encoder_f Sz_encode_uper;
+per_type_decoder_f Sz_decode_aper;
+per_type_encoder_f Sz_encode_aper;
+
+/*** <<< LONG-GUARD [Sz] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MAX < 5000000000
+#error "Sz: PER SIZE constraint (0..5000000000) needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
+/*** <<< CODE [Sz] >>> ***/
+
+int
+Sz_constraint(const asn_TYPE_descriptor_t *td, const void *sptr,
+			asn_app_constraint_failed_f *ctfailcb, void *app_key) {
+	const OCTET_STRING_t *st = (const OCTET_STRING_t *)sptr;
+	size_t size;
+	
+	if(!sptr) {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: value not given (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+	
+	size = st->size;
+	
+	if((size <= 5000000000)) {
+		/* Constraint check succeeded */
+		return 0;
+	} else {
+		ASN__CTFAIL(app_key, td, sptr,
+			"%s: constraint failed (%s:%d)",
+			td->name, __FILE__, __LINE__);
+		return -1;
+	}
+}
+
+/*
+ * This type is implemented using OCTET_STRING,
+ * so here we adjust the DEF accordingly.
+ */
+
+/*** <<< CTDEFS [Sz] >>> ***/
+
+static asn_per_constraints_t asn_PER_type_Sz_constr_1 CC_NOTUSED = {
+	{ APC_UNCONSTRAINED,	-1, -1,  0,  0 },
+	{ APC_CONSTRAINED,	 33, -1,  0,  5000000000 }	/* (SIZE(0..5000000000)) */,
+	0, 0	/* No PER value map */
+};
+
+/*** <<< STAT-DEFS [Sz] >>> ***/
+
+static const ber_tlv_tag_t asn_DEF_Sz_tags_1[] = {
+	(ASN_TAG_CLASS_UNIVERSAL | (4 << 2))
+};
+asn_TYPE_descriptor_t asn_DEF_Sz = {
+	"Sz",
+	"Sz",
+	&asn_OP_OCTET_STRING,
+	asn_DEF_Sz_tags_1,
+	sizeof(asn_DEF_Sz_tags_1)
+		/sizeof(asn_DEF_Sz_tags_1[0]), /* 1 */
+	asn_DEF_Sz_tags_1,	/* Same as above */
+	sizeof(asn_DEF_Sz_tags_1)
+		/sizeof(asn_DEF_Sz_tags_1[0]), /* 1 */
+	{ 0, &asn_PER_type_Sz_constr_1, Sz_constraint, 0 },
+	0, 0,	/* No members */
+	&asn_SPC_OCTET_STRING_specs	/* Additional specs */
+};
+

@@ -588,8 +588,9 @@ hand-written imports of `…/asn1cgo-rt/rt` to
   (`go build` / `go vet` print `undefined:
   asn1cgo_Go_backend_is_not_supported_on_Windows_use_WSL2_or_Linux`, and the
   runtime package reports a C `#error` with the same advice). Use WSL2 (Linux
-  amd64) to generate and build Go code. For the C backend on Windows see the
-  mingw notes of the C runtime; they do not apply to `-Fgo`.
+  amd64) to generate and build Go code. The C backend does run on Windows
+  (MSYS2 / mingw-w64, see "Windows" in the top-level INSTALL.md); that does
+  not extend to `-Fgo`.
 - **Depth**: 64 depth units per encode/decode (`ASN1CGO_MAX_DEPTH` in the
   runtime's `rt/err.h`; changing it means regenerating the trees).
 - **C stack guard**: each decode runs with a stack guard of

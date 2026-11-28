@@ -17,6 +17,7 @@ static abuf *emit_range_comparison_code(asn1cnst_range_t *range,
                                           asn1c_integer_t natural_start,
                                           asn1c_integer_t natural_stop);
 static int native_long_sign(arg_t *arg, asn1cnst_range_t *r);	/* -1, 0, 1 */
+static void note_value_range_long(arg_t *arg, asn1cnst_range_t *range);
 
 static int
 ulong_optimization(arg_t *arg, asn1p_expr_type_e etype, asn1cnst_range_t *r_size,
@@ -187,6 +188,8 @@ asn1c_emit_constraint_checking_code(arg_t *arg, int type_level) {
 		if(r_value) {
 			if(got_something) { OUT("\n"); OUT(" && "); }
             abuf *ab;
+            if(etype != ASN_BASIC_BOOLEAN)
+                note_value_range_long(arg, r_value);
             if(etype == ASN_BASIC_BOOLEAN)
                 ab = emit_range_comparison_code(r_value, "value", 0, 1);
             else
@@ -534,6 +537,29 @@ abuf_oint(abuf *ab, asn1c_integer_t v) {
         abuf_printf(ab, "(-2147483647L - 1)");
     } else {
         abuf_printf(ab, "%s", asn1p_itoa(v));
+    }
+}
+
+/*
+ * The comparisons against `long value` (or `unsigned long value`) carry the
+ * bounds as C constants: record those that need a 64-bit long.
+ */
+static void
+note_value_range_long(arg_t *arg, asn1cnst_range_t *range) {
+    if(range->el_count == 0) {
+        if(range->left.type == ARE_VALUE && range->right.type == ARE_VALUE) {
+            asn1c_note_wide_long(arg, "value constraint", range->left.value,
+                                 range->right.value, 0);
+        } else if(range->left.type == ARE_VALUE) {
+            asn1c_note_wide_long(arg, "value constraint", range->left.value,
+                                 range->left.value, 0);
+        } else if(range->right.type == ARE_VALUE) {
+            asn1c_note_wide_long(arg, "value constraint", range->right.value,
+                                 range->right.value, 0);
+        }
+    } else {
+        for(int i = 0; i < range->el_count; i++)
+            note_value_range_long(arg, range->elements[i]);
     }
 }
 

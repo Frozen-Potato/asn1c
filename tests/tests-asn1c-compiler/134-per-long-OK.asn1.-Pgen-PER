@@ -20,6 +20,18 @@ typedef struct T {
 
 extern asn_TYPE_descriptor_t asn_DEF_T;
 
+/*** <<< LONG-GUARD [T] >>> ***/
+
+/*
+ * Some constants of this type do not fit a 32-bit long, which is what
+ * long is on LLP64 systems (Windows). They would be silently truncated.
+ */
+#include <limits.h>
+#if LONG_MAX < 3153600000000 || LONG_MIN > -4000000000
+#error "unsigned33: value constraint (0..5000000000) needs a 64-bit long; this platform has a 32-bit long (Windows LLP64), which is not supported"
+#endif
+
+
 /*** <<< CODE [T] >>> ***/
 
 static int

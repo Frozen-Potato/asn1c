@@ -245,6 +245,8 @@ asn1c_lang_C_type_common_INTEGER(arg_t *arg) {
 		qsort(v2e, el_count, sizeof(v2e[0]), compar_enumMap_byValue);
 		for(eidx = 0; eidx < el_count; eidx++) {
 			v2e[eidx].idx = eidx;
+			asn1c_note_wide_long(arg, "ENUMERATED value",
+				v2e[eidx].value, v2e[eidx].value, 1);
 			OUT("\t{ %s,\t%ld,\t\"%s\" }%s\n",
 				asn1p_itoa(v2e[eidx].value),
 				(long)strlen(v2e[eidx].name), v2e[eidx].name,
@@ -1398,6 +1400,9 @@ asn1c_lang_C_type_REFERENCE_Value(arg_t *arg) {
 
 	if((ref_type->expr_type == ASN_BASIC_INTEGER) ||
 		(ref_type->expr_type == ASN_BASIC_ENUMERATED)) {
+		asn1c_note_wide_long(arg, "value",
+			expr->value->value.v_integer,
+			expr->value->value.v_integer, 0);
 		OUT("#define %s_", MKID(ref_type));
 		OUT("%s\t", c_name(arg).base_name);
 		OUT("((%s)", asn1c_type_name(arg, expr, TNF_CTYPE));
@@ -2262,6 +2267,14 @@ emit_single_member_PER_constraint(arg_t *arg, asn1cnst_range_t *range, int alpha
 				OUT("{ APC_SEMI_CONSTRAINED,\t-1, -1, ");
 			}
 		}
+		if(range->right.type == ARE_VALUE)
+			asn1c_note_wide_long(arg, type ? "PER SIZE constraint"
+						      : "PER constraint",
+				range->left.value, range->right.value,
+				type != NULL);
+		else
+			asn1c_note_wide_long(arg, "PER constraint",
+				range->left.value, range->left.value, 0);
 		OINTS(range->left.value); OUT(", ");
 		OINTS(range->right.value); OUT(" }");
 	} else {
@@ -4951,6 +4964,10 @@ try_inline_default(arg_t *arg, asn1p_expr_t *expr, int out) {
 			return 1;
 		}
 		REDIR(OT_STAT_DEFS);
+
+		asn1c_note_wide_long(arg, "DEFAULT value",
+			expr->marker.default_value->value.v_integer,
+			expr->marker.default_value->value.v_integer, !fits_long);
 
 		OUT("static int asn_DFL_%d_cmp_%s(const void *sptr) {\n",
 			expr->_type_unique_index,

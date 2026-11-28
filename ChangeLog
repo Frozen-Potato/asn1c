@@ -12,6 +12,30 @@
       (exit 77) when GOOS is windows.
     * UPGRADING: nothing to change on Linux. Regenerate to get the new
       build line; Windows users of the Go backend run it under WSL2.
+    * C runtime: builds and runs with mingw-w64 on Windows x86-64 (msvcrt
+      and UCRT): C99 printf family, <inttypes.h>, thread-safe time
+      conversion without setenv, a random() replacement, binary stdin and
+      stdout in converter-example, debug prints with the right size types.
+      The runtime copies under libasn1compiler_go/rt/go/rt follow.
+    * asn1c, enber and unber build and run natively on Windows with
+      mingw-w64 (MSYS2): new libasn1common/asn1_portable.[ch] (mkdir,
+      rename, flock, realpath, mkdtemp, tree removal), binary-mode output,
+      a default skeleton directory relative to the executable, a
+      per-directory output lock, and configure --host=x86_64-w64-mingw32
+      for cross builds. The canonical-order sort of SET members no longer
+      depends on a stable qsort. New CI job "windows" (MSYS2 UCRT64 and
+      MINGW64).
+    * asn1c: the generated .c file of a type whose constants (PER bounds,
+      value comparisons, DEFAULT and ENUMERATED values) need more than a
+      32-bit long starts with a guard: #include <limits.h>, #if LONG_MAX <
+      ... and an #error that names the type. On Windows, where long is 32
+      bits, such a schema now stops at compile time instead of encoding
+      wrong values; elsewhere the guard compiles away. Ranges within
+      0..4294967295 get no guard. Known issue 76; test 196 and
+      check-long-guard.sh.
+    * Windows: .gitattributes (LF everywhere, test vectors binary);
+      -flink-skeletons falls back to copying where symbolic links cannot be
+      made; the CI job compiles and runs the generated C natively.
 
 0.9.29-go.22:
     * C runtime (BER): an EXPLICIT tag around an ANY ([1] EXPLICIT ANY as

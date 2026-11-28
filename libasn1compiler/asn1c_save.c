@@ -467,6 +467,9 @@ asn1c_print_streams(arg_t *arg)  {
 	asn1p_expr_t *expr = arg->expr;
 	int i;
 
+	if(asn1c_make_long_guard(arg, cs) < 0)
+		return -1;
+
 	for(i = 1; i < OT_MAX; i++) {
 		out_chunk_t *ot;
 		if(TQ_FIRST(&cs->destination[i].chunks) == NULL)
@@ -558,6 +561,17 @@ asn1c_save_streams(arg_t *arg, asn1c_dep_chainset *deps, const char *destdir,
 
 	HINCLUDE("asn_internal.h");
 	safe_fprintf(fp_c, "#include \"%s.h\"\n\n", filename);
+	if(asn1c_make_long_guard(arg, cs) < 0) {
+		fclose(fp_c);
+		fclose(fp_h);
+		unlink(tmpname_c);
+		unlink(tmpname_h);
+		free(tmpname_c);
+		free(tmpname_h);
+		return -1;
+	}
+	TQ_FOR(ot, &(cs->destination[OT_LONG_GUARD].chunks), next)
+		safe_fwrite(ot->buf, ot->len, 1, fp_c);
 	if(arg->flags & A1C_NO_INCLUDE_DEPS)
 		SAVE_STREAM(fp_c, OT_POST_INCLUDE, "", 1);
 	TQ_FOR(ot, &(cs->destination[OT_IOC_TABLES].chunks), next)
@@ -571,7 +585,7 @@ asn1c_save_streams(arg_t *arg, asn1c_dep_chainset *deps, const char *destdir,
 	TQ_FOR(ot, &(cs->destination[OT_STAT_DEFS].chunks), next)
 		safe_fwrite(ot->buf, ot->len, 1, fp_c);
 
-	assert(OT_MAX == 13);	/* Protection from reckless changes */
+	assert(OT_MAX == 14);	/* Protection from reckless changes */
 
 	fclose(fp_c);
 	fclose(fp_h);
@@ -738,9 +752,19 @@ asn1c_copy_over(arg_t *arg, const char *destdir, const char *path,
 #endif
 
 	const char *fname = a1c_basename(path, destdir);
-	if(!fname
-	|| (use_real_copy ? real_copy(path, fname) : txn_symlink(path, fname))
-	) {
+	int failed = !fname;
+	if(fname) {
+		failed = use_real_copy ? real_copy(path, fname)
+				       : txn_symlink(path, fname);
+		if(failed && !use_real_copy && errno != EEXIST
+		   && errno != ENOENT) {
+			/* No symbolic links here (no support, or no privilege
+			 * to make them): copy the skeleton instead. */
+			use_real_copy = 1;
+			failed = real_copy(path, fname);
+		}
+	}
+	if(failed) {
 		if(errno == EEXIST) {
 			struct stat sb1, sb2;
 			if(stat(path, &sb1) == 0

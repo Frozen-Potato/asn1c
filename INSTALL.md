@@ -61,13 +61,20 @@ The compiler (`asn1c.exe`, `enber.exe`, `unber.exe`) builds as a native
     ./configure
     make
 
-Check out the sources without line ending conversion
-(`git config core.autocrlf false`); the build scripts and the test data need
-LF. `asn1c.exe` writes LF and copies the skeleton files byte for byte. Give
-`-S`, `-D` and `-Fgo=` paths with `/` or `\`. Without `-S` the skeletons are
-looked for next to the program (`../share/asn1c`, or `../skeletons` in a build
-tree). The Go output can be generated on Windows, but building it there is not
-supported.
+The repository carries a `.gitattributes` that fixes line endings to LF, so
+a plain `git clone` is enough (if you set `core.autocrlf` to `true` yourself,
+turn it off: the build scripts and the test data need LF). `asn1c.exe` writes
+LF and copies the skeleton files byte for byte. Give `-S`, `-D` and `-Fgo=`
+paths with `/` or `\`. Without `-S` the skeletons are looked for next to the
+program (`../share/asn1c`, or `../skeletons` in a build tree).
+
+The code asn1c generates compiles and runs with the same toolchain
+(`gcc -std=gnu99 -D__USE_MINGW_ANSI_STDIO=1`, UCRT64 recommended). On
+Windows `long` is 32 bits: a schema with constraint bounds, `DEFAULT` or
+`ENUMERATED` values outside the 32-bit range is refused when its generated C
+is compiled (`... needs a 64-bit long`); see KNOWN-ISSUES 76 in
+`libasn1compiler_go/KNOWN-ISSUES.md`. The Go backend is not supported on
+Windows (its output refuses to build); use WSL2 for that.
 
 ## Quick Usage Guide
 

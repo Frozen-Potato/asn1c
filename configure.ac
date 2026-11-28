@@ -279,6 +279,12 @@ dnl Test if we should test features that depend on 64-bitness.
 AC_CHECK_SIZEOF([void *])
 AM_CONDITIONAL([TEST_64BIT], [test "$ac_cv_sizeof_void_p" -eq 8])
 
+dnl Where long is 32 bits (Windows), the generated C of schemas with constants
+dnl outside the 32-bit range is refused at compile time; tests built on such
+dnl schemas are expected to fail.
+AC_CHECK_SIZEOF([long])
+AM_CONDITIONAL([LONG_IS_32BIT], [test "$ac_cv_sizeof_long" -lt 8])
+
 dnl For mingw
 AC_SEARCH_LIBS(getopt, iberty)
 

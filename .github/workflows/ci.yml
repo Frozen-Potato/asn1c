@@ -196,10 +196,10 @@ jobs:
   # leg; MINGW64 (the older msvcrt-based one) is kept to catch differences
   # between the two C runtimes, the cross toolchain used to develop this port
   # being msvcrt-based.
-  # What is NOT covered yet: compiling and running the generated C code
-  # (tests-c-compiler, tests-skeletons, tests-asn1c-smoke) needs the Windows
-  # fixes of the runtime in skeletons/; those steps are marked and do not fail
-  # the job. Building the generated Go code on Windows is not supported.
+  # The generated C code is compiled and run natively too (tests-skeletons,
+  # tests-c-compiler, tests-asn1c-smoke); the tests that need a 64-bit long
+  # are expected to fail on Windows (XFAIL_TESTS). Building the generated Go
+  # code on Windows is not supported.
   windows:
     name: Windows build and compiler tests (MSYS2 ${{ matrix.msystem }})
     runs-on: windows-latest
@@ -212,11 +212,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      # The build scripts and the test data need LF; the runner's git
-      # converts to CRLF by default.
-      - name: Check out without line ending conversion
-        shell: bash
-        run: git config --global core.autocrlf false
+      # .gitattributes keeps LF in the working tree, whatever core.autocrlf is.
       - uses: actions/checkout@v7
       - uses: msys2/setup-msys2@v2
         with:
@@ -272,14 +268,33 @@ jobs:
           make -C libasn1fix check
           make -C asn1c check
           make -C tests/tests-asn1c-compiler check \
-            TESTS="check-parsing.sh check-named-bit.sh check-oid-default.sh check-brace-tuple.sh check-default-constructed.sh"
-      # TODO: drop continue-on-error once the Windows fixes of the runtime
-      # (skeletons/asn_system.h, INTEGER.c, GeneralizedTime.c,
-      # converter-example.c) are in; then the whole `make check` can run here.
-      - name: Compile and run the generated C (needs the runtime fixes)
-        continue-on-error: true
+            TESTS="check-parsing.sh check-named-bit.sh check-oid-default.sh check-brace-tuple.sh check-default-constructed.sh check-long-guard.sh"
+      # The generated C, compiled and run natively (gcc -std=gnu99; the
+      # configure script adds -D__USE_MINGW_ANSI_STDIO=1 for mingw). On
+      # Windows long is 32 bits, so the tests that need constants outside
+      # the 32-bit range (check64-134, check64-136, check-161) are listed in
+      # XFAIL_TESTS: asn1c puts a guard into their generated C files, the
+      # build stops with "needs a 64-bit long", and the test counts as
+      # expected to fail (an unexpected pass fails the job).
+      - name: Generated C is refused where long is 32 bits
         run: |
-          make -C tests/tests-asn1c-compiler check TESTS=check-name-clash.sh
+          set -e
+          rm -rf guard && mkdir -p guard
+          ./asn1c/asn1c -S skeletons -gen-PER -no-gen-OER -fcompound-names -D guard \
+            tests/tests-asn1c-compiler/196-long-guard-OK.asn1
+          for t in WrapsToRange Above32 Below32 Huge Unsigned64 Dflt Enum Sz; do
+            if gcc -std=gnu99 -fsyntax-only -Iguard -DASN_DISABLE_OER_SUPPORT guard/$t.c 2> guard/$t.err; then
+              echo "$t.c compiled with a 32-bit long"; exit 1
+            fi
+            grep -q 'needs a 64-bit long' guard/$t.err || { cat guard/$t.err; exit 1; }
+          done
+          gcc -std=gnu99 -Wall -Werror=overflow -fsyntax-only -Iguard -DASN_DISABLE_OER_SUPPORT guard/Narrow.c
+          echo "ok: guard stops the build, Narrow.c compiles without -Woverflow"
+      - name: Skeleton unit tests
+        run: make -C tests/tests-skeletons check
+      - name: Generated C, compiled and run (make check)
+        run: |
+          make -C tests/tests-asn1c-compiler check TESTS="check-name-clash.sh check-long-guard.sh"
           make -C tests/tests-asn1c-smoke check
           make -j"$(nproc)" -k check
       - name: Show failed test logs

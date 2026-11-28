@@ -169,6 +169,10 @@ emit_ioc_value(arg_t *arg, struct asn1p_ioc_cell_s *cell) {
         switch(expr_value->value->type) {
         case ATV_INTEGER:
             if(primitive_representation) {
+                asn1c_note_wide_long(arg, "object field value",
+                                     expr_value->value->value.v_integer,
+                                     expr_value->value->value.v_integer,
+                                     !strcmp(prim_type, "long"));
                 OUT("%s", asn1p_itoa(expr_value->value->value.v_integer));
                 break;
             } else {
