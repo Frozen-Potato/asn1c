@@ -1018,7 +1018,7 @@ INTEGER_encode_aper(const asn_TYPE_descriptor_t *td,
 					inext = 1;
 			}
 			ASN_DEBUG("Value %lu (%02x/%lu) lb %ld ub %ld %s",
-			          uval, st->buf[0], st->size,
+			          uval, st->buf[0], (unsigned long)st->size,
 			          ct->lower_bound, ct->upper_bound,
 			          inext ? "ext" : "fix");
 			value = uval;
@@ -1034,7 +1034,7 @@ INTEGER_encode_aper(const asn_TYPE_descriptor_t *td,
 					inext = 1;
 			}
 			ASN_DEBUG("Value %lu (%02x/%lu) lb %ld ub %ld %s",
-			          value, st->buf[0], st->size,
+			          value, st->buf[0], (unsigned long)st->size,
 			          ct->lower_bound, ct->upper_bound,
 			          inext ? "ext" : "fix");
 		}

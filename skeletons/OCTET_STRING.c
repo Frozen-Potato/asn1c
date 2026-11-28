@@ -1669,7 +1669,8 @@ OCTET_STRING_encode_uper(const asn_TYPE_descriptor_t *td,
 
     if(csiz->effective_bits >= 0 && !inext) {
         ASN_DEBUG("Encoding %" ASN_PRI_SIZE " bytes (%ld), length in %d bits", st->size,
-                  size_in_units - csiz->lower_bound, csiz->effective_bits);
+                  (long)(size_in_units - csiz->lower_bound),
+                  csiz->effective_bits);
         ret = per_put_few_bits(po, size_in_units - csiz->lower_bound,
                                csiz->effective_bits);
         if(ret) ASN__ENCODE_FAILED;
@@ -2019,7 +2020,8 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 	/* X.691, #16.7: long fixed length encoding (up to 64K octets) */
 	if(csiz->effective_bits >= 0) {
 		ASN_DEBUG("Encoding %lu bytes (%ld), length in %d bits",
-				st->size, sizeinunits - csiz->lower_bound,
+				(unsigned long)st->size,
+				(long)(sizeinunits - csiz->lower_bound),
 				csiz->effective_bits);
 		if (csiz->effective_bits > 0) {
 		        ret = aper_put_length(po, csiz->upper_bound - csiz->lower_bound + 1, sizeinunits - csiz->lower_bound);
@@ -2047,7 +2049,7 @@ OCTET_STRING_encode_aper(const asn_TYPE_descriptor_t *td,
 		ASN__ENCODED_OK(er);
 	}
 
-	ASN_DEBUG("Encoding %lu bytes", st->size);
+	ASN_DEBUG("Encoding %lu bytes", (unsigned long)st->size);
 
 	if(sizeinunits == 0) {
 		if(aper_put_length(po, -1, 0))

@@ -7,6 +7,20 @@
 #include <asn_random_fill.h>
 #include <constr_TYPE.h>
 
+#ifdef	_WIN32
+/* The Windows C runtime has no random(3), and its rand() has 15 bits only. */
+static long
+asn__win_random(void) {
+    return (long)((((unsigned long)rand() << 30) ^ ((unsigned long)rand() << 15)
+                   ^ (unsigned long)rand())
+                  & 0x7fffffffUL);
+}
+#define	random()	asn__win_random()
+#define	ASN__RANDOM_MAX	0x7fffffff
+#else
+#define	ASN__RANDOM_MAX	RAND_MAX
+#endif
+
 int
 asn_random_fill(const struct asn_TYPE_descriptor_s *td, void **struct_ptr,
                 size_t length) {
@@ -43,7 +57,7 @@ asn_random_between(intmax_t lb, intmax_t rb) {
         uintmax_t value = 0;
         uintmax_t got_entropy = 0;
 
-        assert(RAND_MAX > 0xffffff);    /* Seen 7ffffffd! */
+        assert(ASN__RANDOM_MAX > 0xffffff);    /* Seen 7ffffffd! */
         assert(range < intmax_max);
 
         for(; got_entropy < range;) {

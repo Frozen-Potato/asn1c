@@ -1963,7 +1963,7 @@ SEQUENCE_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 		epmd.buffer = epres;
 		epmd.nbits = bmlength;
 		ASN_DEBUG("Read in extensions bitmap for %s of %ld bits (%x..)",
-		          td->name, bmlength, *epres);
+		          td->name, (long)bmlength, *epres);
 
 		/* Go over extensions and read them in */
 		for(edx = specs->first_extension; edx < td->elements_count; edx++) {
@@ -1973,7 +1973,7 @@ SEQUENCE_decode_aper(const asn_codec_ctx_t *opt_codec_ctx,
 			int present;
 
 			if(!IN_EXTENSION_GROUP(specs, edx)) {
-				ASN_DEBUG("%ld is not extension", edx);
+				ASN_DEBUG("%ld is not extension", (long)edx);
 				continue;
 			}
 
@@ -2079,7 +2079,7 @@ SEQUENCE_handle_extensions_aper(const asn_TYPE_descriptor_t *td,
 		int present;
 
 		if(!IN_EXTENSION_GROUP(specs, edx)) {
-			ASN_DEBUG("%s (@%ld) is not extension", elm->type->name, edx);
+			ASN_DEBUG("%s (@%ld) is not extension", elm->type->name, (long)edx);
 			continue;
 		}
 
@@ -2099,7 +2099,7 @@ SEQUENCE_handle_extensions_aper(const asn_TYPE_descriptor_t *td,
 			present = 0;
 
 		ASN_DEBUG("checking %s (@%ld) present => %d",
-		          elm->type->name, edx, present);
+		          elm->type->name, (long)edx, present);
 		exts_count++;
 		exts_present += present;
 
@@ -2208,7 +2208,7 @@ SEQUENCE_encode_aper(const asn_TYPE_descriptor_t *td,
 			memb_ptr2 = (const void * const *)((const char *)sptr + elm->memb_offset);
 			if(!*memb_ptr2) {
 				ASN_DEBUG("Element %s %ld not present",
-				          elm->name, edx);
+				          elm->name, (long)edx);
 				if(elm->optional)
 					continue;
 				/* Mandatory element is missing */

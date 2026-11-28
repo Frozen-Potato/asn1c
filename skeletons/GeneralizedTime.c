@@ -27,31 +27,24 @@
 #include <errno.h>
 
 #if	defined(_WIN32)
-#pragma message( "PLEASE STOP AND READ!")
-#pragma message( "  localtime_r is implemented via localtime(), which may be not thread-safe.")
-#pragma message( "  gmtime_r is implemented via gmtime(), which may be not thread-safe.")
-#pragma message( "  ")
-#pragma message( "  You must fix the code by inserting appropriate locking")
-#pragma message( "  if you want to use asn_GT2time() or asn_UT2time().")
-#pragma message( "PLEASE STOP AND READ!")
-
+/*
+ * The Windows C runtime (MSVC, mingw-w64) has thread-safe localtime_s() and
+ * gmtime_s(), and _mkgmtime() in place of timegm(). Note that its
+ * mktime() and _mkgmtime() do not handle dates before 1970-01-01.
+ */
+#ifndef	_POSIX_THREAD_SAFE_FUNCTIONS	/* else mingw-w64 time.h has them */
 static struct tm *localtime_r(const time_t *tloc, struct tm *result) {
-	struct tm *tm;
-	if((tm = localtime(tloc)))
-		return memcpy(result, tm, sizeof(struct tm));
-	return 0;
+	return localtime_s(result, tloc) ? 0 : result;
 }
 
 static struct tm *gmtime_r(const time_t *tloc, struct tm *result) {
-	struct tm *tm;
-	if((tm = gmtime(tloc)))
-		return memcpy(result, tm, sizeof(struct tm));
-	return 0;
+	return gmtime_s(result, tloc) ? 0 : result;
 }
+#endif	/* _POSIX_THREAD_SAFE_FUNCTIONS */
 
 #define	tzset()	_tzset()
 #define	putenv(c)	_putenv(c)
-#define	_EMULATE_TIMEGM
+#define	timegm(tm)	_mkgmtime(tm)
 
 #endif	/* _WIN32 */
 
@@ -76,16 +69,16 @@ static struct tm *gmtime_r(const time_t *tloc, struct tm *result) {
 #ifdef	HAVE_TM_GMTOFF
 #define	GMTOFF(tm)	((tm).tm_gmtoff)
 #else	/* HAVE_TM_GMTOFF */
+#if	defined(_WIN32)
+#define	GMTOFF(tm)	(_tzset(), -(long)_timezone			\
+	- ((tm).tm_isdst > 0 ? (long)_dstbias : 0))
+#else
 #define	GMTOFF(tm)	(-timezone)
+#endif
 #endif	/* HAVE_TM_GMTOFF */
 
 #if	defined(_WIN32)
-#pragma message( "PLEASE STOP AND READ!")
-#pragma message( "  timegm() is implemented via getenv(\"TZ\")/setenv(\"TZ\"), which may be not thread-safe.")
-#pragma message( "  ")
-#pragma message( "  You must fix the code by inserting appropriate locking")
-#pragma message( "  if you want to use asn_GT2time() or asn_UT2time().")
-#pragma message( "PLEASE STOP AND READ!")
+/* timegm() is _mkgmtime(), see above */
 #else
 #if	(defined(_EMULATE_TIMEGM) || !defined(HAVE_TM_GMTOFF))
 #warning "PLEASE STOP AND READ!"

@@ -52,7 +52,9 @@ int main(void) {
 	T_t t;
 	int i;
 
+#ifndef	_WIN32
 	alarm(10);	/* a self-calling constraint function must fail, not hang */
+#endif
 
 	assert(chk(&asn_DEF_B1, &b1) == 0);
 	assert(chk(&asn_DEF_I1, &i1) == 0);

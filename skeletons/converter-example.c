@@ -13,14 +13,32 @@
 #ifndef __EXTENSIONS__
 #define __EXTENSIONS__
 #endif
+#ifdef    _WIN32
+#define _CRT_RAND_S    /* for rand_s(3) */
+#endif
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>    /* for atoi(3) */
 #include <getopt.h>    /* for getopt(3) */
 #include <string.h>    /* for strerror(3) */
+#ifdef    _WIN32
+#include <io.h>    /* for _isatty(3), _setmode(3) */
+#include <fcntl.h>    /* for _O_BINARY */
+#include <time.h>    /* for time(3) */
+#define isatty    _isatty
+#define DEV_NULL    "NUL"
+/* There is no <sysexits.h> on Windows. */
+#define EX_USAGE        64
+#define EX_DATAERR      65
+#define EX_SOFTWARE     70
+#define EX_OSERR        71
+#define EX_UNAVAILABLE  69
+#else    /* !_WIN32 */
 #include <sysexits.h>    /* for EX_* exit codes */
-#include <errno.h>    /* for errno */
 #include <unistd.h>    /* for isatty(3) */
+#define DEV_NULL    "/dev/null"
+#endif    /* _WIN32 */
+#include <errno.h>    /* for errno */
 #include <asn_application.h>
 #include <asn_internal.h>    /* for ASN__DEFAULT_STACK_MAX */
 
@@ -72,7 +90,19 @@ static void   junk_bytes_with_probability(uint8_t *, size_t, double prob);
 #define RANDOPT "R:"
 static ssize_t random_max_size = 0; /* Size of the random data */
 
-#if !defined(__FreeBSD__) && !(defined(__APPLE__) && defined(__MACH__))
+#ifdef    _WIN32
+/* The Windows C runtime has no random(3), srandom(3) or /dev/urandom. */
+#define random()    ((long)rand())
+#define srandom(seed)    srand(seed)
+static void
+srandomdev(void) {
+    unsigned seed;
+    if(rand_s(&seed) != 0) {
+        seed = (unsigned)time(NULL);
+    }
+    srandom(seed);
+}
+#elif !defined(__FreeBSD__) && !(defined(__APPLE__) && defined(__MACH__))
 static void
 srandomdev(void) {
     FILE *f = fopen("/dev/urandom", "rb");
@@ -430,6 +460,12 @@ main(int ac, char *av[]) {
         exit(EX_USAGE);
     }
 
+#ifdef    _WIN32
+    /* Do not translate line endings: the output must be the same as elsewhere */
+    _setmode(_fileno(stdin), _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
+#endif
+
     if(isatty(1)) {
         const int is_text_output = osyntax == ATS_NONSTANDARD_PLAINTEXT
                                    || osyntax == ATS_BASIC_XER
@@ -440,9 +476,10 @@ main(int ac, char *av[]) {
             binary_out = stdout;
         } else {
             fprintf(stderr, "(Suppressing binary output to a terminal.)\n");
-            binary_out = fopen("/dev/null", "wb");
+            binary_out = fopen(DEV_NULL, "wb");
             if(!binary_out) {
-                fprintf(stderr, "Can't open /dev/null: %s\n", strerror(errno));
+                fprintf(stderr, "Can't open %s: %s\n", DEV_NULL,
+                        strerror(errno));
                 exit(EX_OSERR);
             }
         }
@@ -717,7 +754,7 @@ static void add_bytes_to_buffer(const void *data2add, size_t bytes) {
        >= (DynamicBuffer.offset + DynamicBuffer.length + bytes)) {
         DEBUG("\tNo buffer reallocation is necessary");
     } else if(bytes <= DynamicBuffer.offset) {
-        DEBUG("\tContents shifted by %ld", DynamicBuffer.offset);
+        DEBUG("\tContents shifted by %" ASN_PRI_SIZE, DynamicBuffer.offset);
 
         /* Shift the buffer contents */
         memmove(DynamicBuffer.data,
@@ -742,7 +779,7 @@ static void add_bytes_to_buffer(const void *data2add, size_t bytes) {
         DynamicBuffer.offset = 0;
         DynamicBuffer.allocated = newsize;
         DynamicBuffer.nreallocs++;
-        DEBUG("\tBuffer reallocated to %ld (%d time)",
+        DEBUG("\tBuffer reallocated to %" ASN_PRI_SIZE " (%d time)",
             newsize, DynamicBuffer.nreallocs);
     }
 

@@ -1161,7 +1161,7 @@ CHOICE_encode_aper(const asn_TYPE_descriptor_t *td,
 
 	if(ct && (ct->range_bits >= 0)) {
 	  // Value is not within the range of the primary values ?
-	  if(present < ct->lower_bound || present > ct->upper_bound) {
+	  if((long)present < ct->lower_bound || (long)present > ct->upper_bound) {
 	    if(ct->flags & APC_EXTENSIBLE) {
 	      ASN_DEBUG("CHOICE member %d (enc %d) is an extension (%ld..%ld)",
 			present, present_enc, ct->lower_bound, ct->upper_bound);

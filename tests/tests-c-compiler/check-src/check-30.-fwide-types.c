@@ -5,6 +5,10 @@
 #include <string.h>
 #include <assert.h>
 
+#ifdef	_WIN32
+#define	random()	rand()	/* no random(3) on Windows */
+#endif
+
 #include <T.h>
 
 

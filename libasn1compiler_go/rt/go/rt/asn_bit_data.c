@@ -132,7 +132,7 @@ asn_get_few_bits(asn_bit_data_t *pd, int nbits) {
 	ASN_DEBUG("  [PER got %2d<=%2d bits => span %d %+ld[%d..%d]:%02x (%d) => 0x%x]",
 		(int)nbits, (int)nleft,
 		(int)pd->moved,
-		(((long)pd->buffer) & 0xf),
+		(long)(((uintptr_t)pd->buffer) & 0xf),
 		(int)pd->nboff, (int)pd->nbits,
 		((pd->buffer != NULL)?pd->buffer[0]:0),
 		(int)(pd->nbits - pd->nboff),

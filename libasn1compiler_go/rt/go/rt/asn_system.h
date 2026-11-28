@@ -33,6 +33,11 @@
 #define _BSD_SOURCE /* for snprintf() on some linux systems  */
 #endif
 
+#if defined(__MINGW32__) && !defined(__USE_MINGW_ANSI_STDIO)
+/* C99 printf family (%zu, %lld, snprintf) on mingw-w64 with msvcrt or ucrt */
+#define __USE_MINGW_ANSI_STDIO 1
+#endif
+
 #include <stdio.h>	/* For snprintf(3) */
 #include <stdlib.h>	/* For *alloc(3) */
 #include <string.h>	/* For memcpy(3) */
@@ -44,8 +49,10 @@
 #ifdef	_WIN32
 
 #include <malloc.h>
+#ifndef __MINGW32__	/* mingw-w64 provides C99 snprintf() itself */
 #define	 snprintf	_snprintf
 #define	 vsnprintf	_vsnprintf
+#endif
 
 /* To avoid linking with ws2_32.lib, here's the definition of ntohl() */
 #define sys_ntohl(l)	((((l) << 24)  & 0xff000000)	\
@@ -79,6 +86,7 @@ typedef	unsigned int	uint32_t;
 #define	ilogb	_logb
 #else	/* !_MSC_VER */
 #include <stdint.h>
+#include <inttypes.h>	/* For PRIdMAX */
 #endif	/* _MSC_VER */
 
 #else	/* !_WIN32 */
@@ -99,7 +107,11 @@ typedef	unsigned int	uint32_t;
 #else
 #define CC_ATTRIBUTE(attr)
 #endif
+#ifdef	__MINGW_PRINTF_FORMAT	/* mingw-w64: ms_printf or gnu_printf */
+#define CC_PRINTFLIKE(fmt, var)     CC_ATTRIBUTE(format(__MINGW_PRINTF_FORMAT, fmt, var))
+#else
 #define CC_PRINTFLIKE(fmt, var)     CC_ATTRIBUTE(format(printf, fmt, var))
+#endif
 #define	CC_NOTUSED                  CC_ATTRIBUTE(unused)
 #ifndef CC_ATTR_NO_SANITIZE
 #define CC_ATTR_NO_SANITIZE(what)   CC_ATTRIBUTE(no_sanitize(what))
@@ -149,8 +161,13 @@ typedef	unsigned int	uint32_t;
 #define ASN_PRIuMAX PRIuMAX
 #define ASN_PRIdMAX PRIdMAX
 #else
+#if defined(_WIN64)	/* LLP64: long is 32 bits */
+#define ASN_PRI_SIZE "llu"
+#define ASN_PRI_SSIZE "lld"
+#else
 #define ASN_PRI_SIZE "lu"
 #define ASN_PRI_SSIZE "ld"
+#endif
 #if LLONG_MAX > LONG_MAX
 #define ASN_PRIuMAX "llu"
 #define ASN_PRIdMAX "lld"

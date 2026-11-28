@@ -618,7 +618,8 @@ BIT_STRING__encode_uper_value(const asn_TYPE_descriptor_t *td,
         ASN_DEBUG(
             "Encoding %" ASN_PRI_SIZE " bytes (%ld), length (in %d bits) trailer %d; actual "
             "value %" ASN_PRI_SSIZE "",
-            st->size, size_in_bits - csiz->lower_bound, csiz->effective_bits,
+            st->size, (long)(size_in_bits - csiz->lower_bound),
+            csiz->effective_bits,
             add_trailer,
             add_trailer ? 0 : (ssize_t)size_in_bits - csiz->lower_bound);
         ret = per_put_few_bits(

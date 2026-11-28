@@ -5,6 +5,42 @@
 #include <string.h>
 #include <assert.h>
 
+#ifdef	_WIN32
+#include <stdint.h>
+/*
+ * There is no random(3) on Windows, and the corruption below is only
+ * expected to be always detected for the sequence that random(3) of glibc
+ * yields. Reproduce that sequence (the default TYPE_3 generator, seed 1).
+ */
+static long
+win_random(void) {
+	static uint32_t state[31];
+	static int fptr = 3, rptr = 0, init = 0;
+	uint32_t val;
+	int i;
+
+	if(!init) {
+		int32_t word = state[0] = 1;
+		for(i = 1; i < 31; i++) {
+			word = 16807 * (word % 127773) - 2836 * (word / 127773);
+			if(word < 0) word += 2147483647;
+			state[i] = word;
+		}
+		init = 1;
+		for(i = 0; i < 310; i++) (void)win_random();	/* Discard */
+	}
+	val = state[fptr] += state[rptr];
+	if(++fptr >= 31) {
+		fptr = 0;
+		++rptr;
+	} else if(++rptr >= 31) {
+		rptr = 0;
+	}
+	return (long)(val >> 1);
+}
+#define	random()	win_random()
+#endif
+
 #include <T.h>
 
 uint8_t buf1[] = {
